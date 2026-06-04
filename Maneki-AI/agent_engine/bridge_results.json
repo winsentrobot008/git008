@@ -1,0 +1,34 @@
+[
+  {
+    "id": "94908090-3eb5-4885-95cd-2a4eb0ed562c",
+    "result": {
+      "returncode": 0,
+      "stdout": "CLINE_HANDSHAKE_TEST\n",
+      "stderr": ""
+    }
+  },
+  {
+    "id": "task-214723603",
+    "result": {
+      "returncode": 0,
+      "stdout": "END_TO_END_TEST \nAGENT_S_PROMPT_OK\n",
+      "stderr": ""
+    }
+  },
+  {
+    "id": "auto-e2e-1737822134",
+    "result": {
+      "returncode": 0,
+      "stdout": "E2E_OK \nPROMPT_LOADED\n",
+      "stderr": ""
+    }
+  },
+  {
+    "id": "open-github-maneki-ai",
+    "result": {
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  }
+]

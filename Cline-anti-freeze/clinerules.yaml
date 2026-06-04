@@ -1,0 +1,13 @@
+# git008 治理规则 YAML 配置
+version: "1.0"
+governance:
+  center: "Cline-anti-freeze"
+  anti_freeze:
+    timeout: 120
+    max_retries: 3
+    context_warning: 80
+    heartbeat_interval: 5
+    deadlock_timeout: 60
+  rules:
+    - 所有业务项目通过 governance_linker.py 自动链接全局宪法
+    - 治理文件统一由 Cline-anti-freeze/ 管理

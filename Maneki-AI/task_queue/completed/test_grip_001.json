@@ -1,0 +1,11 @@
+{
+  "task_id": "test_grip_001",
+  "status": "PENDING",
+  "parameters": {
+    "script_name": "factory_goal",
+    "goal": "编写一个Python函数计算斐波那契数列，并确保结果符合逻辑"
+  },
+  "priority": "high",
+  "tags": ["test", "grip_pattern"],
+  "description": "编写一个Python函数计算斐波那契数列，并确保结果符合逻辑"
+}

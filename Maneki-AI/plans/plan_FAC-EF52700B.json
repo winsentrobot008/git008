@@ -1,0 +1,16 @@
+{
+  "task_id": "FAC-EF52700B",
+  "goal": "编写一个Python函数计算斐波那契数列，并确保结果符合逻辑",
+  "created_at": "2026-06-04T19:17:48Z",
+  "model": "mock",
+  "generated_by": "mock_rules",
+  "steps": [
+    {
+      "step": 1,
+      "action": "write_code",
+      "input": {
+        "description": "编写一个Python函数计算斐波那契数列，并确保结果符合逻辑"
+      }
+    }
+  ]
+}

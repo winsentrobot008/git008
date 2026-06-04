@@ -1,0 +1,11 @@
+{
+  "task_id": "sample_logo_task",
+  "type": "logo_design",
+  "client_brief": "Minimalist logo for fitness brand",
+  "deliverables": [
+    "logo.png",
+    "logo.svg"
+  ],
+  "generated_at": "2026-05-27 20:31:40",
+  "mode": "mock"
+}

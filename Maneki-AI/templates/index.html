@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maneki-AI Factory Control Center</title>
+    <style>
+        body { font-family: 'Courier New', Courier, monospace; background-color: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; }
+        h1 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px;}
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #8b949e; }
+        input[type="text"], textarea { width: 100%; padding: 10px; background-color: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; box-sizing: border-box;}
+        button { background-color: #238636; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-weight: bold; width: 100%;}
+        button:hover { background-color: #2ea043; }
+        .terminal { background-color: #010409; padding: 15px; border-radius: 4px; margin-top: 20px; border: 1px solid #30363d; min-height: 100px; font-size: 14px;}
+        .success { color: #3fb950; }
+        .error { color: #f85149; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏭 Maneki-AI Factory - Command Center</h1>
+        <p>Director: Awaiting orders for the AI Legion.</p>
+        
+        <div class="form-group">
+            <label for="taskDesc">Business Objective (Task Description):</label>
+            <textarea id="taskDesc" rows="4" placeholder="e.g., Design the global architecture for a new app..."></textarea>
+        </div>
+        <div class="form-group">
+            <label for="taskTags">Tags (comma separated, e.g., code, creative, strategy):</label>
+            <input type="text" id="taskTags" placeholder="code, logic">
+        </div>
+        
+        <button onclick="dispatchTask()">🚀 Dispatch to AI Board</button>
+
+        <div class="terminal" id="output">
+            > System Ready. Awaiting input...
+        </div>
+    </div>
+
+    <script>
+        async function dispatchTask() {
+            const output = document.getElementById('output');
+            const desc = document.getElementById('taskDesc').value;
+            const tagsInput = document.getElementById('taskTags').value;
+            const tags = tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+            output.innerHTML = "> Processing and routing to ECC...<br>";
+
+            try {
+                const response = await fetch('/api/dispatch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        task_id: "TASK-" + Math.floor(Math.random() * 10000),
+                        description: desc,
+                        tags: tags
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    output.innerHTML += `<span class="success">[SUCCESS]</span> ${result.message}<br>`;
+                    output.innerHTML += `> <span style="color:#58a6ff">Assigned Director:</span> ${result.assigned_model}<br>`;
+                } else {
+                    output.innerHTML += `<span class="error">[BLOCKED]</span> ${result.message}<br>`;
+                }
+            } catch (error) {
+                output.innerHTML += `<span class="error">[ERROR]</span> System failure: ${error.message}<br>`;
+            }
+        }
+    </script>
+</body>
+</html>

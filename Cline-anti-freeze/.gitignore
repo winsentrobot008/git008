@@ -1,0 +1,6 @@
+# 治理系统忽略规则
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+Thumbs.db

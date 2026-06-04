@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: clawwork-service
+    env: python
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "uvicorn livebench.api.server:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DEEPSEEK_API_BASE
+        value: "https://api.deepseek.com/v1"
+      - key: DEEPSEEK_API_MODEL
+        value: "deepseek-chat"

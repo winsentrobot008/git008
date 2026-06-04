@@ -1,0 +1,90 @@
+{
+  "version": "1.0.0",
+  "description": "Maneki-AI System Task Registry — maps system tasks to ECC/OpenClaw CLI commands",
+  "engine": {
+    "ecc": "workshop/ecc_core.py",
+    "openclaw": "workshop/openclaw_core.py"
+  },
+  "tasks": {
+    "deploy": {
+      "description": "Deploy the application to production",
+      "command": "python scripts/trigger_deploy.py",
+      "engine": "openclaw",
+      "timeout": 300
+    },
+    "build": {
+      "description": "Build the application",
+      "command": "python app.py",
+      "engine": "openclaw",
+      "timeout": 120
+    },
+    "test": {
+      "description": "Run the test suite",
+      "command": "python -m pytest agent_engine/tests/",
+      "engine": "openclaw",
+      "timeout": 180
+    },
+    "start": {
+      "description": "Start the factory / main process",
+      "command": "python start_factory.py",
+      "engine": "openclaw",
+      "timeout": 60
+    },
+    "analyze": {
+      "description": "Run strategic analysis via strategist agent",
+      "command": "python analyst/strategist_agent.py",
+      "engine": "ecc",
+      "timeout": 120
+    },
+    "scan": {
+      "description": "Scan external signals via Tavily client",
+      "command": "python radar/tavily_client.py",
+      "engine": "ecc",
+      "timeout": 120
+    },
+    "report": {
+      "description": "Generate warroom report",
+      "command": "python warroom/report_generator.py",
+      "engine": "ecc",
+      "timeout": 60
+    },
+    "orchestrate": {
+      "description": "Run the orchestrator agent",
+      "command": "python agents/orchestrator.py",
+      "engine": "ecc",
+      "timeout": 300
+    },
+    "bridge": {
+      "description": "Run the agent bridge",
+      "command": "python agent_engine/bridge.py",
+      "engine": "openclaw",
+      "timeout": 60
+    },
+    "worker": {
+      "description": "Run a Cline worker",
+      "command": "python agent_engine/cline_worker.py",
+      "engine": "openclaw",
+      "timeout": 300
+    },
+    "settle": {
+      "description": "Settle a completed task via Success-Share Financial Clearing Engine",
+      "command": "python -c \"from clearing_engine.core import FinancialClearingEngine; engine = FinancialClearingEngine(); print('✅ Financial Clearing Engine ready')\"",
+      "engine": "ecc",
+      "timeout": 30
+    },
+    "report-success": {
+      "description": "Generate a Success-Share period report",
+      "command": "python -c \"from clearing_engine.core import FinancialClearingEngine; FinancialClearingEngine.cli_report()\"",
+      "engine": "ecc",
+      "timeout": 30
+    },
+    "metrics": {
+      "description": "Display Success-Share metrics summary",
+      "command": "python -c \"from clearing_engine.core import FinancialClearingEngine; import json; e=FinancialClearingEngine(); print(json.dumps(e.get_metrics_dict()['display'], indent=2))\"",
+      "engine": "ecc",
+      "timeout": 30
+    }
+  }
+}
+
+

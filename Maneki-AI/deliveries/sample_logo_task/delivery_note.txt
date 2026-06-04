@@ -1,0 +1,3 @@
+Delivery for sample_logo_task
+Files: ['logo.png', 'logo.svg']
+Mode: mock

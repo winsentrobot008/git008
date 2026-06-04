@@ -1,0 +1,16 @@
+{
+  "task_id": "FAC-AC7F3EC4",
+  "goal": "搞个投掷游戏",
+  "created_at": "2026-06-04T19:23:29Z",
+  "model": "mock",
+  "generated_by": "mock_rules",
+  "steps": [
+    {
+      "step": 1,
+      "action": "analyze_market",
+      "input": {
+        "topic": "搞个投掷游戏"
+      }
+    }
+  ]
+}

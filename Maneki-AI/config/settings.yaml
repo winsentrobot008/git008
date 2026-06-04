@@ -1,0 +1,20 @@
+﻿keywords:
+  - "AI 微短剧 工具"
+  - "AI 视频 生成 出海"
+  - "AI 塔罗 占卜"
+  - "AI 跨境电商 爆款"
+alert_threshold: 0.65
+max_alerts_per_day: 5
+report_dir: "./reports"
+database_dir: "./data"
+telegram_enabled: false
+discord_enabled: false
+sources:
+  tavily: true
+  firecrawl: false
+  trendradar: true
+  github_trending: true
+analyst:
+  max_iterations: 3
+  model: "gpt-4o-mini"
+  temperature: 0.2

@@ -1,0 +1,28 @@
+# render.yaml — Maneki-AI Web Frontend Render Deployment Config
+#
+# Deployed at: https://maneki-ai.onrender.com/
+#
+# The app.py is a Streamlit single-page application that provides:
+#   - Task Submission (POST /api/submit-task via internal API Gateway)
+#   - Task Dashboard (real-time status overview)
+#   - Report Viewer (dynamic execution log rendering)
+
+services:
+  - type: web
+    name: maneki-ai
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: STREAMLIT_SERVER_MAX_UPLOAD_SIZE
+        value: 10
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"
+      - key: API_GATEWAY_URL
+        value: "http://localhost:8000"
+      - key: MANEKI_CONFIG_PORT
+        value: "9999"
+      - key: MANEKI_RENDER_APP_URL
+        value: "https://maneki-ai.onrender.com"

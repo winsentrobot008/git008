@@ -1,0 +1,39 @@
+# --- 系统生成的垃圾文件 ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- 编辑器与工具产生的元数据 ---
+.vscode/
+.idea/
+.history/
+*.log
+*.tmp
+*.bak
+
+# --- Python 垃圾 (通用) ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+
+# --- Node.js 垃圾 (如果项目涉及) ---
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# --- Cline/治理系统缓存 ---
+.aider.tags.cache.v4
+# 除非你明确需要备份日志，否则忽略日志文件
+error_log.md 
+
+# --- 本地环境隔离 ---
+.env.local
+.env.*.local
+
+# --- 对话记录/敏感日志 ---
+GEMINI/

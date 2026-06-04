@@ -1,0 +1,61 @@
+﻿name: Auto Dev from Issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  plan-and-code:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Show issue info
+        run: |
+          echo "Issue title: ${{ github.event.issue.title }}"
+          echo "Issue body: ${{ github.event.issue.body }}"
+
+      - name: Generate plan with Planner
+        id: planner
+        run: |
+          PLAN=$(python3 .github/scripts/planner.py \
+            "${{ github.event.issue.title }}" \
+            "${{ github.event.issue.body }}")
+          echo "plan=$PLAN" >> $GITHUB_OUTPUT
+
+      - name: Generate code with Coder (DeepSeek)
+        id: coder
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          CODE=$(python3 .github/scripts/coder.py \
+            '${{ steps.planner.outputs.plan }}')
+          echo "$CODE" > AUTO_DEV_OUTPUT.md
+          echo "code_generated=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.coder.outputs.code_generated == 'true'
+        run: |
+          git config user.name "auto-dev-bot"
+          git config user.email "auto-dev-bot@example.com"
+          git checkout -b auto-dev-issue-${{ github.event.issue.number }}
+          git add AUTO_DEV_OUTPUT.md
+          git commit -m "Auto dev for issue #${{ github.event.issue.number }}"
+          git push origin auto-dev-issue-${{ github.event.issue.number }}
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: auto-dev-issue-${{ github.event.issue.number }}
+          title: "Auto dev for #${{ github.event.issue.number }}"
+          body: |
+            This PR was auto-generated from issue #${{ github.event.issue.number }}.
+            - Planner generated task plan
+            - Coder (DeepSeek) generated code
+            - Auto-created by AI 工厂 2.0

@@ -1,0 +1,11 @@
+{
+  "task_id": "logo_task_2",
+  "type": "logo_design",
+  "client_brief": "Logo for a coffee brand",
+  "deliverables": [
+    "logo.png",
+    "logo.svg"
+  ],
+  "generated_at": "2026-05-27 20:42:40",
+  "mode": "mock"
+}

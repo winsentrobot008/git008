@@ -1,0 +1,99 @@
+image.png
+batch_run.sh
+parallel_run.sh
+PROJECT.md
+SETUP.md
+dev/
+docs/
+tests/
+e2b-templates/
+clawmode_legacy
+*.env
+node_modules/
+CLAUDE.md
+# Large data directories
+gdpval/
+livebench/data/tasks/gdpval/
+explore_gdpval.py
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# Environment variables
+.env
+.env.local
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent data (can be large)
+livebench/data/agent_data/*/memory/
+livebench/data/agent_data/*/log/
+AI-Trader/data/agent_data/*/memory/
+AI-Trader/data/agent_data/*/log/
+
+# Reference files (can be very large)
+**/reference_files/
+
+# Large sandbox artifacts (over 10MB - HF Spaces limit)
+livebench/data/agent_data/Gemini 3.1 Pro Preview/sandbox/2027-05-05/Deja_Vu_Instrumental.zip
+*.wav
+*.zip
+*.gif
+livebench/data/agent_data/ATIC/
+livebench/data/agent_data/Claude/
+livebench/data/agent_data/Gemini/
+livebench/data/agent_data/GLM-4.7-test-openrouter-10dollar-1/
+livebench/data/agent_data/Qwen3.5-Plus/
+livebench/data/agent_data/qwen3-max-10dollar-1/
+# frontend dependencies
+frontend/node_modules/
+
+# Generated static data for GitHub Pages (scripts/generate_static_data.py)
+frontend/public/data/
+
+# Frontend build output
+frontend/dist/
+# Test outputs
+test_agent/
+livebench/data/tasks/gdpval
+logs/
+
+# Legacy code
+clawmode_legacy/
+
+# External dependencies (installed separately)
+nanobot/

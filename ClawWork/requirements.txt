@@ -1,0 +1,59 @@
+# ClawWork / LiveBench Requirements - Optimized for Hugging Face Spaces
+# Auto-generated from static import analysis of all .py files
+
+# === Web Framework & Server ===
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+httpx>=0.25.0
+
+# === MCP & LangChain Ecosystem ===
+fastmcp>=0.2.0
+langchain>=0.1.0
+langchain-openai>=0.0.2
+langchain-mcp-adapters>=0.1.0
+langgraph>=0.2.0
+langchain-core>=0.1.0
+
+# === OpenAI API ===
+openai>=1.0.0
+
+# === Data Processing ===
+pandas>=2.0.0
+pyarrow>=14.0.0
+numpy>=1.24.0
+
+# === File Processing (Documents, Spreadsheets, PDFs) ===
+python-docx>=1.0.0
+python-pptx>=0.6.21
+openpyxl>=3.1.0
+reportlab>=4.0.0
+Pillow>=10.0.0
+pdf2image>=1.16.0
+PyPDF2>=3.0.0
+
+# === Web Search ===
+tavily-python>=0.3.0
+
+# === Media ===
+moviepy>=1.0.3
+
+# === CLI & Logging ===
+typer>=0.9.0
+rich>=13.0.0
+loguru>=0.7.0
+
+# === Environment ===
+python-dotenv>=1.0.0
+
+# === HTTP & Utilities ===
+requests>=2.31.0
+aiofiles>=23.2.1
+websockets>=12.0
+
+# === Sandbox Backends (optional, uncomment if needed) ===
+# boxlite[sync]>=0.6.0
+# e2b-code-interpreter>=1.0.0
+
+# === Netlify Serverless Adapter ===
+mangum==0.17.0

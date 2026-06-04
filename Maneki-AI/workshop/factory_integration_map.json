@@ -1,0 +1,343 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-06-02T21:42:00+02:00",
+  "description": "Maneki-AI Factory Integration Dependency Map — ECC / OpenClaw / Agent-S / Codex / DevDirector / Agency-Agents",
+
+  "components": {
+    "ecc": {
+      "path": "workshop/ecc/",
+      "source": "workshop/ecc_core.py",
+      "role": "Central Nervous System — Strategic Orchestration",
+      "domain": "🧠 Strategy (Internal Orchestration)",
+      "responsibilities": [
+        "Task decomposition into structured steps",
+        "Context management across sub-tasks",
+        "Dependency sequencing & execution ordering",
+        "Safety orchestration & guardrails",
+        "Result verification & decision loop"
+      ],
+      "depends_on": ["devdirector-tasks", "agency-agents"],
+      "consumed_by": ["openclaw", "agent-s"],
+      "integration_points": {
+        "input": "GitHub Issue from DevDirector-Tasks → ECC.decompose()",
+        "internal_dispatch": "ECC → OpenClaw (code operations)",
+        "external_dispatch": "ECC → Agent-S (web/SaaS operations)",
+        "verification": "ECC ← OpenClaw + Agent-S (results feedback loop)"
+      }
+    },
+
+    "openclaw": {
+      "path": "workshop/agents/openclaw/",
+      "source": "workshop/openclaw_core.py",
+      "role": "Mechanical Arm — Codebase Execution Agent",
+      "domain": "🔧 Internal Execution (Codebase Operations)",
+      "responsibilities": [
+        "CLI command generation & execution",
+        "File I/O — read, write, modify workspace files",
+        "Code transformation & refactoring",
+        "Output capture (stdout, stderr, return codes)",
+        "Task grabbing from execution queue"
+      ],
+      "variants": {
+        "clawwork": {
+          "source_repo": "ClawWork",
+          "path": "workshop/agents/openclaw/clawwork/",
+          "role": "Core OpenClaw implementation — tactical CLI execution",
+          "integration": "OpenClawExecutor.generate_command() → ClawWork.execute()"
+        },
+        "clawwork-hkuds": {
+          "source_repo": "ClawWork-HKUDS",
+          "path": "workshop/agents/openclaw/hkuds/",
+          "role": "HKUDS variant — enhanced codebase interaction & analysis",
+          "integration": "OpenClawExecutor.run_pipeline() → HKUDS.analyze()"
+        }
+      },
+      "depends_on": ["ecc"],
+      "consumed_by": ["ecc"],
+      "integration_points": {
+        "command_generation": "ECC step → OpenClaw.generate_command(action, target)",
+        "execution": "OpenClaw.execute(command) → subprocess → captured output",
+        "pipeline": "OpenClaw.run_pipeline(commands) → sequential execution with fail-fast"
+      }
+    },
+
+    "agent-s": {
+      "path": "agent_engine/",
+      "source": "agent_engine/ (Simular AI Agent-S framework)",
+      "role": "Specialized Scout/Eye — Browser-Based External Agent",
+      "domain": "👁️ External Intelligence (Web & SaaS)",
+      "responsibilities": [
+        "Autonomous web navigation & browser automation",
+        "SaaS platform interaction (GitHub, Slack, Jira, etc.)",
+        "Data extraction & intelligence gathering",
+        "Bridge communication with ECC/OpenClaw",
+        "External environment operations"
+      ],
+      "depends_on": ["ecc"],
+      "consumed_by": ["ecc"],
+      "integration_points": {
+        "bridge_queue": "agent_engine/bridge.py — HTTP bridge for inter-agent messaging",
+        "daemon": "agent_engine/cline_daemon.py — Agent-S lifecycle manager",
+        "worker": "agent_engine/cline_worker.py — Agent-S task executor",
+        "safety": "agent_engine/safety/ — Browser safety protocols & guardrails"
+      }
+    },
+
+    "codex": {
+      "path": "workshop/lib/codex/",
+      "source": "oh-my-codex",
+      "role": "Documentation & Knowledge Dependency — Codex Knowledge Base",
+      "domain": "📚 Knowledge & Documentation",
+      "responsibilities": [
+        "Provide contextual documentation for task execution",
+        "Store reusable knowledge artifacts & patterns",
+        "Serve as reference library for ECC strategic decisions",
+        "Feed code examples & best practices to OpenClaw",
+        "Maintain project memory & historical context"
+      ],
+      "depends_on": [],
+      "consumed_by": ["ecc", "openclaw", "agency-agents"],
+      "integration_points": {
+        "ecc_consult": "ECC queries Codex for strategic context during decomposition",
+        "openclaw_reference": "OpenClaw references Codex for code patterns & examples",
+        "agency_feed": "Agency-Agents consume Codex for informed decision-making"
+      }
+    },
+
+    "devdirector-tasks": {
+      "path": "GitHub Repository: winsentrobot008/DevDirector-Tasks",
+      "role": "Central Issue Dispatcher — Durable Message Bus",
+      "domain": "📨 Dispatch & Orchestration",
+      "responsibilities": [
+        "Accept production orders as GitHub Issues",
+        "Provide durable, auditable, zero-infrastructure message queue",
+        "Accumulate tasks during offline periods (offline resilience)",
+        "Serve as single source of truth for task state"
+      ],
+      "depends_on": [],
+      "consumed_by": ["ecc"],
+      "integration_points": {
+        "dispatch": "factory_ui.py → github_issue.py → POST /repos/DevDirector-Tasks/issues",
+        "poll": "watcher.py → GET /repos/DevDirector-Tasks/issues → new task detection",
+        "state": "Issue labels & comments track task lifecycle (pending/processing/completed)"
+      }
+    },
+
+    "agency-agents": {
+      "path": "workshop/ecc/strategy/",
+      "source": "agency-agents",
+      "role": "Strategic Decision-Making Layer — Agency Intelligence",
+      "domain": "🧠 Strategy (High-Level Decision Making)",
+      "responsibilities": [
+        "Provide strategic reasoning for task prioritization",
+        "Evaluate multiple execution paths & recommend optimal strategy",
+        "Feed strategic context into ECC decomposition",
+        "Analyze risk, resource allocation, and execution trade-offs",
+        "Enable multi-agent negotiation & consensus building"
+      ],
+      "depends_on": ["codex", "devdirector-tasks"],
+      "consumed_by": ["ecc"],
+      "integration_points": {
+        "strategy_feed": "Agency-Agents.analyze() → ECC.decompose() (strategic context injection)",
+        "risk_assessment": "Agency-Agents.evaluate() → ECC safety orchestration",
+        "resource_planning": "Agency-Agents.plan() → OpenClaw task queue prioritization"
+      }
+    },
+
+    "clearing-engine": {
+      "path": "clearing_engine/",
+      "source": "clearing_engine/core.py",
+      "role": "Financial Clearing Engine — Success-Share Profit Split",
+      "domain": "💰 Business Model (Success-Share Factory)",
+      "responsibilities": [
+        "Automated task valuation based on business impact",
+        "Service fee calculation & deduction from net profits",
+        "Profit split between client and factory",
+        "Success metrics aggregation & reporting",
+        "Growth tracking & efficiency measurement"
+      ],
+      "depends_on": ["ecc"],
+      "consumed_by": ["ecc", "app.py"],
+      "integration_points": {
+        "ecc_settlement": "ECC → clearing_engine.settle_task() after task completion",
+        "dashboard": "app.py → clearing_engine.dashboard.render_success_share_dashboard()",
+        "cli_report": "commands.json → clearing_engine.core.FinancialClearingEngine.cli_report()",
+        "metrics_api": "clearing_engine.get_metrics_dict() → UI display"
+      }
+    }
+
+  },
+
+  "dependency_graph": {
+    "nodes": [
+      {"id": "devdirector-tasks", "layer": 0, "label": "DevDirector-Tasks (Issue Dispatcher)"},
+      {"id": "codex",             "layer": 0, "label": "Codex (Knowledge Base)"},
+      {"id": "agency-agents",     "layer": 1, "label": "Agency-Agents (Strategy)"},
+      {"id": "ecc",               "layer": 2, "label": "ECC (Central Nervous System)"},
+      {"id": "openclaw",          "layer": 3, "label": "OpenClaw (Mechanical Arm)"},
+      {"id": "agent-s",           "layer": 3, "label": "Agent-S (Scout/Eye)"}
+    ],
+    "edges": [
+      {"from": "devdirector-tasks", "to": "ecc",             "type": "dispatch",       "description": "Issues → ECC.decompose()"},
+      {"from": "codex",             "to": "agency-agents",   "type": "knowledge",      "description": "Codex → Agency context"},
+      {"from": "codex",             "to": "ecc",             "type": "reference",      "description": "Codex → ECC strategic context"},
+      {"from": "codex",             "to": "openclaw",        "type": "reference",      "description": "Codex → OpenClaw code patterns"},
+      {"from": "agency-agents",     "to": "ecc",             "type": "strategy",       "description": "Agency analysis → ECC decomposition"},
+      {"from": "ecc",               "to": "openclaw",        "type": "internal_exec",  "description": "ECC → OpenClaw (code operations)"},
+      {"from": "ecc",               "to": "agent-s",         "type": "external_exec",  "description": "ECC → Agent-S (web/SaaS ops)"},
+      {"from": "openclaw",          "to": "ecc",             "type": "result_feedback","description": "OpenClaw results → ECC verify"},
+      {"from": "agent-s",           "to": "ecc",             "type": "result_feedback","description": "Agent-S results → ECC verify"}
+    ]
+  },
+
+  "directory_layout": {
+    "workshop": {
+      "description": "Engine Core — ECC, OpenClaw, Codex, Agency-Agents",
+      "ecc": {
+        "path": "workshop/ecc/",
+        "description": "ECC Central Nervous System",
+        "contents": [
+          "workshop/ecc/ecc_core.py — Core ECC engine (moved from workshop/ecc_core.py)",
+          "workshop/ecc/strategy/ — Agency-Agents integration layer",
+          "workshop/ecc/strategy/agency_*.py — Strategic decision-making agents"
+        ]
+      },
+      "agents": {
+        "path": "workshop/agents/",
+        "description": "Agent implementations",
+        "openclaw": {
+          "path": "workshop/agents/openclaw/",
+          "description": "OpenClaw Mechanical Arm",
+          "contents": [
+            "workshop/agents/openclaw/openclaw_core.py — Core executor (moved from workshop/openclaw_core.py)",
+            "workshop/agents/openclaw/clawwork/ — ClawWork variant",
+            "workshop/agents/openclaw/hkuds/ — ClawWork-HKUDS variant"
+          ]
+        }
+      },
+      "lib": {
+        "path": "workshop/lib/",
+        "description": "Shared libraries & dependencies",
+        "codex": {
+          "path": "workshop/lib/codex/",
+          "description": "Codex Knowledge Base (oh-my-codex integration)",
+          "contents": [
+            "workshop/lib/codex/__init__.py — Codex module loader",
+            "workshop/lib/codex/knowledge_base.py — Knowledge retrieval & storage",
+            "workshop/lib/codex/patterns/ — Reusable code patterns & templates",
+            "workshop/lib/codex/docs/ — Documentation artifacts"
+          ]
+        }
+      }
+    },
+    "agent_engine": {
+      "description": "Agent-S — Browser-Based External Agent (unchanged)",
+      "path": "agent_engine/"
+    }
+  },
+
+  "execution_flow": {
+    "steps": [
+      {
+        "step": 1,
+        "action": "Dispatch",
+        "description": "User triggers task via factory_ui.py → github_issue.py creates Issue in DevDirector-Tasks",
+        "component": "devdirector-tasks"
+      },
+      {
+        "step": 2,
+        "action": "Poll & Ingest",
+        "description": "watcher.py polls DevDirector-Tasks for new Issues → triggers run_task.py",
+        "component": "devdirector-tasks"
+      },
+      {
+        "step": 3,
+        "action": "Strategize",
+        "description": "Agency-Agents analyze task, evaluate strategies, recommend optimal execution path",
+        "component": "agency-agents"
+      },
+      {
+        "step": 4,
+        "action": "Decompose",
+        "description": "ECC receives task + strategic context → decomposes into structured steps",
+        "component": "ecc"
+      },
+      {
+        "step": 5,
+        "action": "Consult Codex",
+        "description": "ECC & OpenClaw query Codex for relevant documentation, patterns, and context",
+        "component": "codex"
+      },
+      {
+        "step": 6,
+        "action": "Execute Internal",
+        "description": "ECC dispatches internal steps → OpenClaw (ClawWork/HKUDS) executes CLI/file operations",
+        "component": "openclaw"
+      },
+      {
+        "step": 7,
+        "action": "Execute External",
+        "description": "ECC dispatches external steps → Agent-S performs web navigation & SaaS interaction",
+        "component": "agent-s"
+      },
+      {
+        "step": 8,
+        "action": "Verify",
+        "description": "ECC collects results from OpenClaw & Agent-S → validates → decides next action",
+        "component": "ecc"
+      },
+      {
+        "step": 9,
+        "action": "Log",
+        "description": "Structured execution log written to logs/ with full trace of all component interactions",
+        "component": "ecc"
+      }
+    ]
+  },
+
+  "architecture_diagram": {
+    "ascii": [
+      "┌─────────────────────────────────────────────────────────────────────────────────┐",
+      "│                      MANEKI-AI FACTORY INTEGRATION ARCHITECTURE                  │",
+      "│                                                                                   │",
+      "│   🌐 RENDER CLOUD (Issue Dispatcher)                                              │",
+      "│   ┌─────────────────────────────────────────────────────────────────────┐         │",
+      "│   │  factory_ui.py → github_issue.py → DevDirector-Tasks (GitHub Issues)│         │",
+      "│   └──────────────────────────────────────────────────┬──────────────────┘         │",
+      "│                                                      │                             │",
+      "│                                                      ▼                             │",
+      "│   🏭 LOCAL FACTORY (Execution Engine)                                             │",
+      "│   ┌─────────────────────────────────────────────────────────────────────┐         │",
+      "│   │  ┌──────────────────────────────────────────────────────────────┐  │         │",
+      "│   │  │                    ECC (workshop/ecc/)                        │  │         │",
+      "│   │  │  ┌─────────────────────────────────────────────────────────┐ │  │         │",
+      "│   │  │  │  Agency-Agents (workshop/ecc/strategy/)                 │ │  │         │",
+      "│   │  │  │  • Strategic analysis & risk evaluation                 │ │  │         │",
+      "│   │  │  │  • Multi-path recommendation                            │ │  │         │",
+      "│   │  │  └───────────────────────┬─────────────────────────────────┘ │  │         │",
+      "│   │  │                          │ strategic context                  │  │         │",
+      "│   │  │  ┌───────────────────────▼─────────────────────────────────┐ │  │         │",
+      "│   │  │  │  ECC Core — Decompose → Sequence → Verify               │ │  │         │",
+      "│   │  │  │  • Task decomposition into structured steps             │ │  │         │",
+      "│   │  │  │  • Dependency sequencing & safety enforcement           │ │  │         │",
+      "│   │  │  │  • Result verification & decision loop                  │ │  │         │",
+      "│   │  │  └──┬──────────────┬──────────────────┬───────────────────┘ │  │         │",
+      "│   │  │     │              │                  │                      │  │         │",
+      "│   │  │     │ consult      │ dispatch          │ dispatch            │  │         │",
+      "│   │  │     ▼              ▼                   ▼                     │  │         │",
+      "│   │  │  ┌────────┐ ┌────────────────┐ ┌────────────────────┐      │  │         │",
+      "│   │  │  │ Codex  │ │ OpenClaw       │ │ Agent-S            │      │  │         │",
+      "│   │  │  │(lib/   │ │(agents/        │ │(agent_engine/)     │      │  │         │",
+      "│   │  │  │ codex/)│ │ openclaw/)     │ │ • bridge.py        │      │  │         │",
+      "│   │  │  │ • Docs │ │ • clawwork/    │ │ • cline_daemon.py  │      │  │         │",
+      "│   │  │  │ • Pats │ │ • hkuds/       │ │ • cline_worker.py  │      │  │         │",
+      "│   │  │  │ • Know │ │ • CLI gen/exec │ │ • Web nav/SaaS     │      │  │         │",
+      "│   │  │  └────────┘ └────────────────┘ └────────────────────┘      │  │         │",
+      "│   │  └──────────────────────────────────────────────────────────────┘  │         │",
+      "│   └─────────────────────────────────────────────────────────────────────┘         │",
+      "│                                                                                   │",
+      "│   🔄 Flow: Dispatch → Strategize → Decompose → Consult → Execute → Verify → Log  │",
+      "└─────────────────────────────────────────────────────────────────────────────────┘"
+    ]
+  }
+}

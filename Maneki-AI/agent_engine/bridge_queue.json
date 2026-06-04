@@ -1,0 +1,72 @@
+[
+  {
+    "id": "test-task-001",
+    "type": "code",
+    "payload": "echo hello from /task endpoint"
+  },
+  {
+    "id": "test-flask-001",
+    "type": "code",
+    "payload": "echo hello from flask app.py"
+  },
+  {
+    "id": "push-local-maneki-ai",
+    "type": "code",
+    "payload": "cd C:\\Users\\aoogoost\\Desktop\\Pojekt\\Maneki-AI; git add .; git commit -m \"update UI\"; git push"
+  },
+  {
+    "id": "push-local-maneki-ai",
+    "type": "code",
+    "payload": "cd C:\\Users\\aoogoost\\Desktop\\Pojekt\\Maneki-AI; git add .; git commit -m \"update UI\"; git push"
+  },
+  {
+    "id": "push-local-maneki-ai",
+    "type": "code",
+    "payload": "cd C:\\Users\\aoogoost\\Desktop\\Pojekt\\Maneki-AI; git add .; git commit -m \"update UI\"; git push"
+  },
+  {
+    "id": "restart-agent-s",
+    "type": "code",
+    "payload": "taskkill /F /IM python.exe && cd C:\\Users\\aoogoost\\Desktop\\Pojekt\\github.com\\winsentrobot008\\Agent-S && start python app.py"
+  },
+  {
+    "id": "deploy-cloud-agent-s",
+    "type": "code",
+    "payload": "cd C:/Users/aoogoost/Desktop/Pojekt/github.com/winsentrobot008/Agent-S && echo 'flask\nrequests\ngunicorn' > requirements.txt && sed -i 's/app.run.*/import os\\nif __name__ == \"__main__\":\\n    port = int(os.environ.get(\"PORT\", 5005))\\n    app.run(host=\"0.0.0.0\", port=port)/' app.py && git init && git remote remove origin 2>/dev/null; git remote add origin https://github.com/winsentrobot008/Agent-S.git && git add . && git commit -m 'auto deploy cloud AGENT-S' && git branch -M main && git push -u origin main"
+  },
+  {
+    "id": "test",
+    "type": "code",
+    "payload": "echo hello"
+  },
+  {
+    "id": "e8e68c54-bf46-47ee-915f-bf0cd0a2adfc",
+    "type": "code",
+    "payload": {
+      "action": "explore",
+      "phase": "s1",
+      "instruction": "\u63a2\u7d22\u5f53\u524d\u73af\u5883\uff0c\u8bc6\u522b\u6f5c\u5728\u7684\u673a\u4f1a\u548c\u53ef\u4f18\u5316\u7684\u9886\u57df",
+      "timestamp": "2026-06-02T12:33:27.880699"
+    }
+  },
+  {
+    "id": "c74c7dc6-fc46-4442-ab8c-9457086787f7",
+    "type": "code",
+    "payload": {
+      "action": "analyze",
+      "phase": "s2",
+      "instruction": "\u5bf9\u63a2\u7d22\u7ed3\u679c\u8fdb\u884c\u6df1\u5ea6\u5206\u6790\uff0c\u751f\u6210\u53ef\u6267\u884c\u7684\u6d1e\u5bdf",
+      "timestamp": "2026-06-02T12:33:27.915453"
+    }
+  },
+  {
+    "id": "0272c379-0e1e-4966-a8cb-f5dcce88d9a7",
+    "type": "code",
+    "payload": {
+      "action": "execute",
+      "phase": "s3",
+      "instruction": "\u6267\u884c\u5206\u6790\u9636\u6bb5\u751f\u6210\u7684\u884c\u52a8\u8ba1\u5212",
+      "timestamp": "2026-06-02T12:33:27.946941"
+    }
+  }
+]
