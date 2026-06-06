@@ -1,0 +1,157 @@
+[35m.vscodetasks.json[m
+[35mClawAI/.clinerules[m
+[35mClawAI/.governance_entry.py[m
+[35mClawAI/README.md[m
+[35mClawAI/clawmode_integration/README.md[m
+[35mClawAI/clawmode_integration/__init__.py[m
+[35mClawAI/clawmode_integration/agent_loop.py[m
+[35mClawAI/clawmode_integration/artifact_tools.py[m
+[35mClawAI/clawmode_integration/cli.py[m
+[35mClawAI/clawmode_integration/config.py[m
+[35mClawAI/clawmode_integration/provider_wrapper.py[m
+[35mClawAI/clawmode_integration/skill/SKILL.md[m
+[35mClawAI/clawmode_integration/tools.py[m
+[35mClawAI/clawwork_demo.html.bak.old[m
+[35mClawAI/frontend/index.html[m
+[35mClawAI/frontend/src/App.jsx[m
+[35mClawAI/frontend/src/components/Sidebar.jsx[m
+[35mClawAI/frontend/vite.config.js[m
+[35mClawAI/index.html[m
+[35mClawAI/local_agent.py[m
+[35mClawAI/requirements.txt[m
+[35mClawAI/scripts/domain_earnings_analysis.py[m
+[35mClawAI/static/index.html[m
+[35m"ClawAI/\344\272\247\345\207\272/\351\241\271\347\233\256\347\272\247\346\212\200\346\234\257\345\267\256\345\274\202\346\212\245\345\221\212.md"[m
+[35mCline-anti-freeze/cleanup_report.md[m
+[35mCline-anti-freeze/clinerules.yaml[m
+[35mCline-anti-freeze/do_git.py[m
+[35mCline-anti-freeze/governance_evolution.md[m
+[35mCline-anti-freeze/governance_linker.py[m
+[35mCline-anti-freeze/heartbeat_monitor.py[m
+[35mCline-anti-freeze/monitor.py[m
+[35mCline-anti-freeze/project_registry.md[m
+[35mCline-anti-freeze/project_report.md[m
+[35mCline-anti-freeze/sentinel_ws_client.py[m
+[35mManeki-AI/docs/PROJECT_OVERVIEW.md[m
+[35mManeki-AI/reports/MANEKIAI_MECHANISM_AND_ARCHITECTURE_ANALYSIS.md[m
+[35mManeki-AI/worker/actions.py[m
+[35mManeki-AI/workshop/factory_integration_map.json[m
+[35mfork_info.json[m
+[35mfork_tree.json[m
+[35mhf_repo_info.json[m
+[35mpr28.diff[m
+[35mpr28_diff.txt[m
+ `clawwork_demo.html.bak.old` | 零引用，PoC Demo 遗留 |
+[35mCline-anti-freeze/cleanup_report.md[m[36m:[m[32m159[m[36m:[m1. **恢复就绪**：`[1;31mClawAI/[mclawwork_demo.html` 如需恢复，将 `.bak.old` 后缀移除即可
+[35mCline-anti-freeze/cleanup_report.md[m[36m:[m[32m162[m[36m:[m4. **`[1;31mClawAI/[mindex.html` (根目录)**：未被 Python 文件显式引用，可能为 standalone 文档入口，建议人工确认角色后决定去留
+[35mCline-anti-freeze/clinerules.yaml[m[36m:[m[32m44[m[36m:[m          - 修改 [1;31mClawAI/[m 业务代码
+[35mManeki-AI/docs/PROJECT_OVERVIEW.md[m[36m:[m[32m189[m[36m:[m6. Execute Int. → ECC → OpenClaw ([1;31mClawAI/[mHKUDS) → CLI/file operations
+[35mManeki-AI/workshop/factory_integration_map.json[m[36m:[m[32m274[m[36m:[m        "description": "ECC dispatches internal steps → OpenClaw ([1;31mClawAI/[mHKUDS) executes CLI/file operations",
+[35mfork_info.json[m[36m:[m[32m32[m[36m:[m  "forks_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mforks",
+[35mfork_info.json[m[36m:[m[32m33[m[36m:[m  "keys_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mkeys{/key_id}",
+[35mfork_info.json[m[36m:[m[32m34[m[36m:[m  "collaborators_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mcollaborators{/collaborator}",
+[35mfork_info.json[m[36m:[m[32m35[m[36m:[m  "teams_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mteams",
+[35mfork_info.json[m[36m:[m[32m36[m[36m:[m  "hooks_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mhooks",
+[35mfork_info.json[m[36m:[m[32m37[m[36m:[m  "issue_events_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[missues/events{/number}",
+[35mfork_info.json[m[36m:[m[32m38[m[36m:[m  "events_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mevents",
+[35mfork_info.json[m[36m:[m[32m39[m[36m:[m  "assignees_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[massignees{/user}",
+[35mfork_info.json[m[36m:[m[32m40[m[36m:[m  "branches_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mbranches{/branch}",
+[35mfork_info.json[m[36m:[m[32m41[m[36m:[m  "tags_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mtags",
+[35mfork_info.json[m[36m:[m[32m42[m[36m:[m  "blobs_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mgit/blobs{/sha}",
+[35mfork_info.json[m[36m:[m[32m43[m[36m:[m  "git_tags_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mgit/tags{/sha}",
+[35mfork_info.json[m[36m:[m[32m44[m[36m:[m  "git_refs_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mgit/refs{/sha}",
+[35mfork_info.json[m[36m:[m[32m45[m[36m:[m  "trees_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mgit/trees{/sha}",
+[35mfork_info.json[m[36m:[m[32m46[m[36m:[m  "statuses_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mstatuses/{sha}",
+[35mfork_info.json[m[36m:[m[32m47[m[36m:[m  "languages_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mlanguages",
+[35mfork_info.json[m[36m:[m[32m48[m[36m:[m  "stargazers_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mstargazers",
+[35mfork_info.json[m[36m:[m[32m49[m[36m:[m  "contributors_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mcontributors",
+[35mfork_info.json[m[36m:[m[32m50[m[36m:[m  "subscribers_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[msubscribers",
+[35mfork_info.json[m[36m:[m[32m51[m[36m:[m  "subscription_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[msubscription",
+[35mfork_info.json[m[36m:[m[32m52[m[36m:[m  "commits_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mcommits{/sha}",
+[35mfork_info.json[m[36m:[m[32m53[m[36m:[m  "git_commits_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mgit/commits{/sha}",
+[35mfork_info.json[m[36m:[m[32m54[m[36m:[m  "comments_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mcomments{/number}",
+[35mfork_info.json[m[36m:[m[32m55[m[36m:[m  "issue_comment_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[missues/comments{/number}",
+[35mfork_info.json[m[36m:[m[32m56[m[36m:[m  "contents_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mcontents/{+path}",
+[35mfork_info.json[m[36m:[m[32m57[m[36m:[m  "compare_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mcompare/{base}...{head}",
+[35mfork_info.json[m[36m:[m[32m58[m[36m:[m  "merges_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mmerges",
+[35mfork_info.json[m[36m:[m[32m59[m[36m:[m  "archive_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[m{archive_format}{/ref}",
+[35mfork_info.json[m[36m:[m[32m60[m[36m:[m  "downloads_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mdownloads",
+[35mfork_info.json[m[36m:[m[32m61[m[36m:[m  "issues_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[missues{/number}",
+[35mfork_info.json[m[36m:[m[32m62[m[36m:[m  "pulls_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mpulls{/number}",
+[35mfork_info.json[m[36m:[m[32m63[m[36m:[m  "milestones_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mmilestones{/number}",
+[35mfork_info.json[m[36m:[m[32m64[m[36m:[m  "notifications_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mnotifications{?since,all,participating}",
+[35mfork_info.json[m[36m:[m[32m65[m[36m:[m  "labels_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mlabels{/name}",
+[35mfork_info.json[m[36m:[m[32m66[m[36m:[m  "releases_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mreleases{/id}",
+[35mfork_info.json[m[36m:[m[32m67[m[36m:[m  "deployments_url": "https://api.github.com/repos/winsentrobot008/[1;31mClawAI/[mdeployments",
+[35mfork_info.json[m[36m:[m[32m143[m[36m:[m    "forks_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mforks",
+[35mfork_info.json[m[36m:[m[32m144[m[36m:[m    "keys_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mkeys{/key_id}",
+[35mfork_info.json[m[36m:[m[32m145[m[36m:[m    "collaborators_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcollaborators{/collaborator}",
+[35mfork_info.json[m[36m:[m[32m146[m[36m:[m    "teams_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mteams",
+[35mfork_info.json[m[36m:[m[32m147[m[36m:[m    "hooks_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mhooks",
+[35mfork_info.json[m[36m:[m[32m148[m[36m:[m    "issue_events_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[missues/events{/number}",
+[35mfork_info.json[m[36m:[m[32m149[m[36m:[m    "events_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mevents",
+[35mfork_info.json[m[36m:[m[32m150[m[36m:[m    "assignees_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[massignees{/user}",
+[35mfork_info.json[m[36m:[m[32m151[m[36m:[m    "branches_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mbranches{/branch}",
+[35mfork_info.json[m[36m:[m[32m152[m[36m:[m    "tags_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mtags",
+[35mfork_info.json[m[36m:[m[32m153[m[36m:[m    "blobs_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/blobs{/sha}",
+[35mfork_info.json[m[36m:[m[32m154[m[36m:[m    "git_tags_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/tags{/sha}",
+[35mfork_info.json[m[36m:[m[32m155[m[36m:[m    "git_refs_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/refs{/sha}",
+[35mfork_info.json[m[36m:[m[32m156[m[36m:[m    "trees_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/trees{/sha}",
+[35mfork_info.json[m[36m:[m[32m157[m[36m:[m    "statuses_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mstatuses/{sha}",
+[35mfork_info.json[m[36m:[m[32m158[m[36m:[m    "languages_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mlanguages",
+[35mfork_info.json[m[36m:[m[32m159[m[36m:[m    "stargazers_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mstargazers",
+[35mfork_info.json[m[36m:[m[32m160[m[36m:[m    "contributors_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcontributors",
+[35mfork_info.json[m[36m:[m[32m161[m[36m:[m    "subscribers_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[msubscribers",
+[35mfork_info.json[m[36m:[m[32m162[m[36m:[m    "subscription_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[msubscription",
+[35mfork_info.json[m[36m:[m[32m163[m[36m:[m    "commits_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcommits{/sha}",
+[35mfork_info.json[m[36m:[m[32m164[m[36m:[m    "git_commits_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/commits{/sha}",
+[35mfork_info.json[m[36m:[m[32m165[m[36m:[m    "comments_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcomments{/number}",
+[35mfork_info.json[m[36m:[m[32m166[m[36m:[m    "issue_comment_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[missues/comments{/number}",
+[35mfork_info.json[m[36m:[m[32m167[m[36m:[m    "contents_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcontents/{+path}",
+[35mfork_info.json[m[36m:[m[32m168[m[36m:[m    "compare_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcompare/{base}...{head}",
+[35mfork_info.json[m[36m:[m[32m169[m[36m:[m    "merges_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mmerges",
+[35mfork_info.json[m[36m:[m[32m170[m[36m:[m    "archive_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[m{archive_format}{/ref}",
+[35mfork_info.json[m[36m:[m[32m171[m[36m:[m    "downloads_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mdownloads",
+[35mfork_info.json[m[36m:[m[32m172[m[36m:[m    "issues_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[missues{/number}",
+[35mfork_info.json[m[36m:[m[32m173[m[36m:[m    "pulls_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mpulls{/number}",
+[35mfork_info.json[m[36m:[m[32m174[m[36m:[m    "milestones_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mmilestones{/number}",
+[35mfork_info.json[m[36m:[m[32m175[m[36m:[m    "notifications_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mnotifications{?since,all,participating}",
+[35mfork_info.json[m[36m:[m[32m176[m[36m:[m    "labels_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mlabels{/name}",
+[35mfork_info.json[m[36m:[m[32m177[m[36m:[m    "releases_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mreleases{/id}",
+[35mfork_info.json[m[36m:[m[32m178[m[36m:[m    "deployments_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mdeployments",
+[35mfork_info.json[m[36m:[m[32m254[m[36m:[m    "forks_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mforks",
+[35mfork_info.json[m[36m:[m[32m255[m[36m:[m    "keys_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mkeys{/key_id}",
+[35mfork_info.json[m[36m:[m[32m256[m[36m:[m    "collaborators_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcollaborators{/collaborator}",
+[35mfork_info.json[m[36m:[m[32m257[m[36m:[m    "teams_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mteams",
+[35mfork_info.json[m[36m:[m[32m258[m[36m:[m    "hooks_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mhooks",
+[35mfork_info.json[m[36m:[m[32m259[m[36m:[m    "issue_events_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[missues/events{/number}",
+[35mfork_info.json[m[36m:[m[32m260[m[36m:[m    "events_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mevents",
+[35mfork_info.json[m[36m:[m[32m261[m[36m:[m    "assignees_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[massignees{/user}",
+[35mfork_info.json[m[36m:[m[32m262[m[36m:[m    "branches_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mbranches{/branch}",
+[35mfork_info.json[m[36m:[m[32m263[m[36m:[m    "tags_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mtags",
+[35mfork_info.json[m[36m:[m[32m264[m[36m:[m    "blobs_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/blobs{/sha}",
+[35mfork_info.json[m[36m:[m[32m265[m[36m:[m    "git_tags_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/tags{/sha}",
+[35mfork_info.json[m[36m:[m[32m266[m[36m:[m    "git_refs_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/refs{/sha}",
+[35mfork_info.json[m[36m:[m[32m267[m[36m:[m    "trees_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/trees{/sha}",
+[35mfork_info.json[m[36m:[m[32m268[m[36m:[m    "statuses_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mstatuses/{sha}",
+[35mfork_info.json[m[36m:[m[32m269[m[36m:[m    "languages_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mlanguages",
+[35mfork_info.json[m[36m:[m[32m270[m[36m:[m    "stargazers_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mstargazers",
+[35mfork_info.json[m[36m:[m[32m271[m[36m:[m    "contributors_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcontributors",
+[35mfork_info.json[m[36m:[m[32m272[m[36m:[m    "subscribers_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[msubscribers",
+[35mfork_info.json[m[36m:[m[32m273[m[36m:[m    "subscription_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[msubscription",
+[35mfork_info.json[m[36m:[m[32m274[m[36m:[m    "commits_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcommits{/sha}",
+[35mfork_info.json[m[36m:[m[32m275[m[36m:[m    "git_commits_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mgit/commits{/sha}",
+[35mfork_info.json[m[36m:[m[32m276[m[36m:[m    "comments_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcomments{/number}",
+[35mfork_info.json[m[36m:[m[32m277[m[36m:[m    "issue_comment_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[missues/comments{/number}",
+[35mfork_info.json[m[36m:[m[32m278[m[36m:[m    "contents_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcontents/{+path}",
+[35mfork_info.json[m[36m:[m[32m279[m[36m:[m    "compare_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mcompare/{base}...{head}",
+[35mfork_info.json[m[36m:[m[32m280[m[36m:[m    "merges_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mmerges",
+[35mfork_info.json[m[36m:[m[32m281[m[36m:[m    "archive_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[m{archive_format}{/ref}",
+[35mfork_info.json[m[36m:[m[32m282[m[36m:[m    "downloads_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mdownloads",
+[35mfork_info.json[m[36m:[m[32m283[m[36m:[m    "issues_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[missues{/number}",
+[35mfork_info.json[m[36m:[m[32m284[m[36m:[m    "pulls_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mpulls{/number}",
+[35mfork_info.json[m[36m:[m[32m285[m[36m:[m    "milestones_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mmilestones{/number}",
+[35mfork_info.json[m[36m:[m[32m286[m[36m:[m    "notifications_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mnotifications{?since,all,participating}",
+[35mfork_info.json[m[36m:[m[32m287[m[36m:[m    "labels_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mlabels{/name}",
+[35mfork_info.json[m[36m:[m[32m288[m[36m:[m    "releases_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mreleases{/id}",
+[35mfork_info.json[m[36m:[m[32m289[m[36m:[m    "deployments_url": "https://api.github.com/repos/HKUDS/[1;31mClawAI/[mdeployments",

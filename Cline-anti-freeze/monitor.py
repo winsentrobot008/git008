@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Cline-anti-freeze / monitor.py
-治理中心 - 监控与自愈子系统（Maneki-AI / ClawWork 共用）
+治理中心 - 监控与自愈子系统（Maneki-AI / ClawAI 共用）
 用途：
 1. 非侵入式 Sentinel 守护 → 检测治理核心是否卡死/僵尸化
 2. 自动记录 error_log.md（跨模块审计线索）
@@ -10,7 +10,7 @@ Cline-anti-freeze / monitor.py
 5. 基于 clinerules.yaml 规则引擎强制执行治理准入条件
 
 架构目标（v3.3.5）：
-- 与 .clinerules / Maneki-AI / ClawWork 松耦合
+- 与 .clinerules / Maneki-AI / ClawAI 松耦合
 - 每次运行均为幂等快照
 - 不依赖外部 HTTP 端点，仅本地断言
 - 兼容 Clawmode 管道路由协议

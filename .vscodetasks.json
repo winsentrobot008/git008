@@ -2,12 +2,12 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Start ClawWork Backend",
+            "label": "Start ClawAI Backend",
             "type": "shell",
-            "command": "${workspaceFolder}/ClawWork/.venv/Scripts/python",
+            "command": "${workspaceFolder}/ClawAI/.venv/Scripts/python",
             "args": ["-m", "livebench.cli"],
             "options": {
-                "cwd": "${workspaceFolder}/ClawWork"
+                "cwd": "${workspaceFolder}/ClawAI"
             },
             "isBackground": true,
             "problemMatcher": [],
@@ -20,12 +20,12 @@
             }
         },
         {
-            "label": "Start ClawWork Frontend",
+            "label": "Start ClawAI Frontend",
             "type": "shell",
             "command": "npm",
             "args": ["run", "dev"],
             "options": {
-                "cwd": "${workspaceFolder}/ClawWork/frontend"
+                "cwd": "${workspaceFolder}/ClawAI/frontend"
             },
             "isBackground": true,
             "problemMatcher": [],

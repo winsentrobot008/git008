@@ -41,7 +41,7 @@ governance:
         description: "开发工位 — 仅业务逻辑编码"
         capabilities:
           - 修改 Maneki-AI/ 业务代码
-          - 修改 ClawWork/ 业务代码
+          - 修改 ClawAI/ 业务代码
           - 发送心跳信号到 error_log.md
         restrictions:
           - 严禁修改任何宪法核心文件

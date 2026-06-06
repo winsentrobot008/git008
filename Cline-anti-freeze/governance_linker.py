@@ -50,7 +50,7 @@ CONSTITUTION_FILES = [
 # 业务项目目录（开发工位合法操作范围）
 BUSINESS_DIRS = [
     ROOT_DIR / "Maneki-AI",
-    ROOT_DIR / "ClawWork",
+    ROOT_DIR / "ClawAI",
     ROOT_DIR / "Project-X",
 ]
 

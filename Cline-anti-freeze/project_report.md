@@ -17,7 +17,7 @@ Maneki-AI/risk_manager.py
 |   package-lock.json
 |   project_report.md
 |   
-+---ClawWork
++---ClawAI
 |   |   .dockerignore
 |   |   .env.example
 |   |   .gitignore

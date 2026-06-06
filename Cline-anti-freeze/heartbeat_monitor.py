@@ -34,7 +34,7 @@ MANEKI_API_URL = os.environ.get("MANEKI_API_URL", "http://localhost:8000")
 # Known subproject directories to monitor (discovered via .governance_entry.py)
 SUB_PROJECTS = [
     "Maneki-AI",
-    "ClawWork",
+    "ClawAI",
     "Project-X",
     "视频生产APP",
     "Cline-anti-freeze",

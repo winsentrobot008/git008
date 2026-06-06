@@ -40,13 +40,13 @@
       ],
       "variants": {
         "clawwork": {
-          "source_repo": "ClawWork",
+          "source_repo": "ClawAI",
           "path": "workshop/agents/openclaw/clawwork/",
           "role": "Core OpenClaw implementation — tactical CLI execution",
-          "integration": "OpenClawExecutor.generate_command() → ClawWork.execute()"
+          "integration": "OpenClawExecutor.generate_command() → ClawAI.execute()"
         },
         "clawwork-hkuds": {
-          "source_repo": "ClawWork-HKUDS",
+          "source_repo": "ClawAI-HKUDS",
           "path": "workshop/agents/openclaw/hkuds/",
           "role": "HKUDS variant — enhanced codebase interaction & analysis",
           "integration": "OpenClawExecutor.run_pipeline() → HKUDS.analyze()"
@@ -210,8 +210,8 @@
           "description": "OpenClaw Mechanical Arm",
           "contents": [
             "workshop/agents/openclaw/openclaw_core.py — Core executor (moved from workshop/openclaw_core.py)",
-            "workshop/agents/openclaw/clawwork/ — ClawWork variant",
-            "workshop/agents/openclaw/hkuds/ — ClawWork-HKUDS variant"
+            "workshop/agents/openclaw/clawwork/ — ClawAI variant",
+            "workshop/agents/openclaw/hkuds/ — ClawAI-HKUDS variant"
           ]
         }
       },
@@ -271,7 +271,7 @@
       {
         "step": 6,
         "action": "Execute Internal",
-        "description": "ECC dispatches internal steps → OpenClaw (ClawWork/HKUDS) executes CLI/file operations",
+        "description": "ECC dispatches internal steps → OpenClaw (ClawAI/HKUDS) executes CLI/file operations",
         "component": "openclaw"
       },
       {

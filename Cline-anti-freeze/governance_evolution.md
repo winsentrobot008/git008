@@ -24,7 +24,7 @@
 - **宪法哈希**: constitution_hash=84507160b7c130d5，防篡改签名已启用
 ### 待演进事项
 - Sentinel 守护进程模式(--daemon)需在持久化环境中启用
-- Maneki-AI / ClawWork worker 任务需在防御闭环通过后自动调度
+- Maneki-AI / ClawAI worker 任务需在防御闭环通过后自动调度
 
 ---
 

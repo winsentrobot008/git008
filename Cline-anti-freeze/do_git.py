@@ -45,7 +45,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 SAFE_PATHS = {
     "project_root": PROJECT_ROOT,
     "maneki_ai": PROJECT_ROOT / "Maneki-AI",
-    "clawwork": PROJECT_ROOT / "ClawWork",
+    "clawwork": PROJECT_ROOT / "ClawAI",
     "cline_anti_freeze": PROJECT_ROOT / "Cline-anti-freeze",
 }
 

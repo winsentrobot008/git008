@@ -12,7 +12,7 @@ sentinel_ws_client.py — Cline-anti-freeze 哨兵 WS 客户端 (v1.0)
 
 使用方式：
   python sentinel_ws_client.py --project Maneki-AI
-  python sentinel_ws_client.py --project ClawWork --daemon
+  python sentinel_ws_client.py --project ClawAI --daemon
 
 子项目集成方式：
   在每个子项目的 .governance_entry.py 中调用 start_sentinel()
@@ -235,7 +235,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Cline-anti-freeze 哨兵 WS 客户端 — 向治理控制台实时报告状态"
     )
-    parser.add_argument("--project", type=str, required=True, help="子项目名称 (如 Maneki-AI, ClawWork)")
+    parser.add_argument("--project", type=str, required=True, help="子项目名称 (如 Maneki-AI, ClawAI)")
     parser.add_argument("--ws-url", type=str, default=None, help="治理控制台 WebSocket URL (默认自动发现)")
     parser.add_argument("--daemon", action="store_true", help="以守护模式持续运行")
     parser.add_argument("--once", action="store_true", help="单次发送心跳后退出")

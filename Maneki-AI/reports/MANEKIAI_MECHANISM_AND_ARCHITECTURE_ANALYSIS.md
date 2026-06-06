@@ -292,7 +292,7 @@ result = execute_command(command, timeout=timeout)
 
 ## 6. HQ — Worker — Safety 三部门架构
 
-这是 Maneki-AI Phase 5 引入的核心执行架构，基于 **ClawWork** 的部门制模式。
+这是 Maneki-AI Phase 5 引入的核心执行架构，基于 **ClawAI** 的部门制模式。
 
 ### 6.1 HQCommander (hq/commander.py)
 

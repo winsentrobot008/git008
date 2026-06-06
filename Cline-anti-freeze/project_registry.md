@@ -11,7 +11,7 @@
 | 项目名称 | 路径 | 职能描述 | 注册日期 |
 |---------|------|---------|---------|
 | Maneki-AI | `/Maneki-AI` | AI 智能体工厂 & 清算引擎 | 2026-Q1 |
-| ClawWork | `/ClawWork` | CLAW 模式集成 & 实时评测 | 2026-Q1 |
+| ClawAI | `/ClawAI` | CLAW 模式集成 & 实时评测 | 2026-Q1 |
 | Project-X | `/Project-X` | （待定义） | 2026-06-05 |
 
 ### 实验项目 (Experimental)

@@ -2,7 +2,7 @@
 
 > 生成时间：2026-06-05  
 > 执行模式：全链路扫描 → 零引用标记 → .bak.old 冻结  
-> 扫描范围：`Maneki-AI/`、`ClawWork/`、`Cline-anti-freeze/` 及 `Project-X/` 目录下所有 `*.py` 文件
+> 扫描范围：`Maneki-AI/`、`ClawAI/`、`Cline-anti-freeze/` 及 `Project-X/` 目录下所有 `*.py` 文件
 
 ---
 
@@ -16,7 +16,7 @@
 | `main.py` | `Maneki-AI/main.py` (70行) | 无前端引用 — 纯 TaskDispatcher 逻辑层 |
 | `factory_ui.py` | `Maneki-AI/factory_ui.py` (15行) | 无文件引用 — 仅 Streamlit debug 触发器 |
 | `api_gateway.py` | `Maneki-AI/core/api_gateway.py` (463行) | `templates/index.html` (GET / 路由、fallback 路由) |
-| `server.py` | `ClawWork/livebench/api/server.py` | `static/index.html` (StaticFiles mount) |
+| `server.py` | `ClawAI/livebench/api/server.py` | `static/index.html` (StaticFiles mount) |
 
 ★ `maneki_live.html` 在 `app.py` 第506-520行被引用，但该文件在磁盘上 **不存在** — `/live` 路由已退化到 fallback 内联 HTML。
 
@@ -33,7 +33,7 @@
 | `deliveries/final_builds/app.html` | `deliveries/final_builds/` | 0 (自动生成产物) | — | ⚪ 生成产物 |
 | `generated_outputs/FAC-*/app.html` | `generated_outputs/` (7个) | 0 (自动生成产物) | — | ⚪ 生成产物 |
 
-### ClawWork
+### ClawAI
 
 | 文件 | 位置 | 引用次数 | 引用来源 | 状态 |
 |---|---|---|---|---|
@@ -58,15 +58,15 @@
 | **引用状态** | 无 .py 文件直接 import，但为项目唯一的完整前端页面。`app.py:506` 引用 `maneki_live.html`（不存在）— 建议将 `/live` 路由改为指向 `maneki.html` |
 | **操作** | ✅ 保留，不做冻结 |
 
-### 3.2 `ClawWork/clawwork_demo.html` → `clawwork_demo.html.bak.old`
+### 3.2 `ClawAI/clawwork_demo.html` → `clawwork_demo.html.bak.old`
 
 | 属性 | 值 |
 |---|---|
-| **原始角色** | ClawWork 生产调度 Demo 页面 (DeepSeek 多 Agent 协作展示) |
+| **原始角色** | ClawAI 生产调度 Demo 页面 (DeepSeek 多 Agent 协作展示) |
 | **文件大小** | 278 行，~10KB |
 | **功能特征** | DeepSeek 多 Agent 协作 UI、生产调度面板、任务提交、Agent 状态卡片、连接状态指示器 |
 | **最终引用** | **零引用** — 无任何 .py 文件引用，无 nginx/Dockerfile 指向 |
-| **推测原因** | 独立 Demo 页面，用于早期展示 ClawWork 的多 Agent 协作能力。已被 `static/index.html` 和 `frontend/index.html` 的正式前端替代 |
+| **推测原因** | 独立 Demo 页面，用于早期展示 ClawAI 的多 Agent 协作能力。已被 `static/index.html` 和 `frontend/index.html` 的正式前端替代 |
 | **冻结操作** | ✅ 重命名为 `clawwork_demo.html.bak.old` |
 
 ---
@@ -93,7 +93,7 @@
 │                        └─────────────────────┘              │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│                   ClawWork 前端架构演进                        │
+│                   ClawAI 前端架构演进                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  PoC 阶段                                                    │
@@ -149,14 +149,14 @@
 | 操作 | 文件 | 结果 |
 |---|---|---|
 | 🟢 保留 | `Maneki-AI/maneki.html` | 唯一前端页面，用户要求保留 |
-| 🔴 冻结 | `ClawWork/clawwork_demo.html` → `clawwork_demo.html.bak.old` | 零引用，PoC Demo 遗留 |
+| 🔴 冻结 | `ClawAI/clawwork_demo.html` → `clawwork_demo.html.bak.old` | 零引用，PoC Demo 遗留 |
 | 🟡 建议 | `Maneki-AI/maneki_live.html` | 被 app.py 引用但文件不存在 → 建议将 `/live` 路由指向 `maneki.html` |
 
 ---
 
 ## 七、建议后续行动
 
-1. **恢复就绪**：`ClawWork/clawwork_demo.html` 如需恢复，将 `.bak.old` 后缀移除即可
+1. **恢复就绪**：`ClawAI/clawwork_demo.html` 如需恢复，将 `.bak.old` 后缀移除即可
 2. **深度清理**：确认 `clawwork_demo.html.bak.old` 长期无问题后，可考虑 `git rm` 彻底移除
 3. **连接 `maneki.html`**：`app.py:506` 引用不存在的 `maneki_live.html`，建议将 `/live` 路由改为指向 `maneki.html`：`LIVE_FACTORY_HTML_PATH = os.path.join(base_dir, "maneki.html")`
-4. **`ClawWork/index.html` (根目录)**：未被 Python 文件显式引用，可能为 standalone 文档入口，建议人工确认角色后决定去留
+4. **`ClawAI/index.html` (根目录)**：未被 Python 文件显式引用，可能为 standalone 文档入口，建议人工确认角色后决定去留

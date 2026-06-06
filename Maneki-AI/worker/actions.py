@@ -1,6 +1,6 @@
 """
 Worker Actions — 工兵部门原子动作集
-基于 ClawWork 的 Tool 模式，每个 Action 有明确的 Input -> Process -> Output 结构。
+基于 ClawAI 的 Tool 模式，每个 Action 有明确的 Input -> Process -> Output 结构。
 所有 Action 调用 DeepSeek API 执行具体任务。
 
 安全规范：DEEPSEEK_API_KEY 通过 os.getenv 读取。
@@ -37,7 +37,7 @@ DEEPSEEK_TEMPERATURE = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.3"))
 
 
 class BaseAction(ABC):
-    """Base class for all Worker Actions — mirrors ClawWork Tool pattern."""
+    """Base class for all Worker Actions — mirrors ClawAI Tool pattern."""
 
     @property
     @abstractmethod

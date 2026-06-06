@@ -95,8 +95,8 @@ index 0905bec4..3191ee4c 100644
  **ClawMode: `ModuleNotFoundError: clawmode_integration`**
  鈫?Run `export PYTHONPATH="$(pwd):$PYTHONPATH"` from the repo root.
 @@ -550,4 +557,3 @@ PRs and issues welcome! The codebase is clean and modular. Key extension points:
-   <em> Thanks for visiting 鉁?ClawWork!</em><br><br>
-   <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.ClawWork&style=for-the-badge&color=00d4ff" alt="Views">
+   <em> Thanks for visiting 鉁?ClawAI!</em><br><br>
+   <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.ClawAI&style=for-the-badge&color=00d4ff" alt="Views">
  </p>
 -
 diff --git a/livebench/README.md b/livebench/README.md
