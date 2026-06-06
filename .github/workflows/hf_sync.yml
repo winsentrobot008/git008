@@ -1,8 +1,11 @@
-name: Sync to Hugging Face
+name: Sync to Hugging Face Spaces
 
 on:
   push:
-    branches: ['*']
+    branches: [main]
+
+  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   sync-to-hf:
@@ -12,9 +15,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Push to Hugging Face
+      - name: Push to Hugging Face Spaces
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
         run: |
-          git remote add hf "https://winsentrobot008:$HF_TOKEN@huggingface.co/spaces/winsentrobot008/git008"
-          git push hf master --force
+          git remote add hf "https://aoogoost:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}"
+          git push -f hf main:master
