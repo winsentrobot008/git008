@@ -21,4 +21,4 @@ jobs:
           HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
         run: |
           git remote add hf "https://aoogoost:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}"
-          git push -f hf main:master
+          git push -f hf main
