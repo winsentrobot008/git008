@@ -1,0 +1,222 @@
+{
+  "version": "1.0.0-crossplane",
+  "description": "Maneki-AI Claw Router — 白盒路由注册表 (White-Box Routing Registry)",
+  "purpose": "对齐报告中提到的扩展模块路径，为 analyst/ radar/ clearing_engine/ 等模块的全面白盒唤醒提供路由映射",
+  
+  "routes": {
+    "analyst": {
+      "module": "analyst/strategist_agent.py",
+      "class": "StrategistAgent",
+      "base": "analyst/base.py",
+      "base_class": "BaseAgent",
+      "action": "analyze",
+      "description": "军师智能体 — 战略分析与推荐",
+      "entrypoint": "python analyst/strategist_agent.py",
+      "timeout": 120,
+      "status": "stub"
+    },
+    "radar": {
+      "module": "radar/tavily_client.py",
+      "function": "tavily_search",
+      "description": "Tavily 搜索客户端 — 外部信号扫描",
+      "entrypoint": "python radar/tavily_client.py",
+      "timeout": 120,
+      "status": "active",
+      "requires": ["TAVILY_API_KEY"]
+    },
+    "radar_synthesizer": {
+      "module": "radar/synthesizer.py",
+      "function": "fuse_radar_data",
+      "description": "多源数据融合 — 情报合成",
+      "entrypoint": "python radar/synthesizer.py",
+      "timeout": 60,
+      "status": "stub"
+    },
+    "warroom": {
+      "module": "warroom/report_generator.py",
+      "function": "generate_markdown_report",
+      "description": "报告生成器 — 情报简报输出",
+      "entrypoint": "python warroom/report_generator.py",
+      "timeout": 60,
+      "status": "active"
+    },
+    "clearing_engine": {
+      "module": "clearing_engine/core.py",
+      "class": "FinancialClearingEngine",
+      "description": "财务清算引擎 — Success-Share 收益分成",
+      "entrypoint": "python -c \"from clearing_engine.core import FinancialClearingEngine; FinancialClearingEngine.cli_report()\"",
+      "timeout": 30,
+      "status": "active"
+    },
+    "orchestrator": {
+      "module": "agents/orchestrator.py",
+      "function": "main",
+      "description": "AI 总监编排器 — 任务队列处理编排",
+      "entrypoint": "python agents/orchestrator.py",
+      "timeout": 300,
+      "status": "active"
+    },
+    "hq": {
+      "module": "hq/commander.py",
+      "class": "HQCommander",
+      "description": "HQ 指挥官 — Claude API 生成执行计划",
+      "entrypoint": null,
+      "timeout": 120,
+      "status": "active",
+      "requires": ["ANTHROPIC_API_KEY"]
+    },
+    "worker": {
+      "module": "worker/executor.py",
+      "class": "WorkerExecutor",
+      "description": "工兵部门执行器 — DeepSeek API 执行",
+      "entrypoint": null,
+      "timeout": 300,
+      "status": "active",
+      "requires": ["DEEPSEEK_API_KEY"]
+    },
+    "safety": {
+      "module": "safety/circuit_breaker.py",
+      "class": "CircuitBreaker",
+      "description": "防火墙部门断路器 — 防卡死保护",
+      "entrypoint": null,
+      "timeout": 120,
+      "status": "active"
+    },
+    "bridge": {
+      "module": "agent_engine/bridge.py",
+      "description": "Agent-S 代理间桥接 — Flask :5005",
+      "entrypoint": "python agent_engine/bridge.py",
+      "timeout": 60,
+      "status": "active",
+      "port": 5005
+    },
+    "ecc": {
+      "module": "workshop/ecc_core.py",
+      "class": "ECCEngine",
+      "description": "ECC 中央神经系统 — 任务分解与编排",
+      "entrypoint": null,
+      "timeout": 300,
+      "status": "active"
+    },
+    "openclaw": {
+      "module": "workshop/openclaw_core.py",
+      "class": "OpenClawExecutor",
+      "description": "OpenClaw 机械臂 — CLI 命令生成与执行",
+      "entrypoint": null,
+      "timeout": 300,
+      "status": "active"
+    },
+    "github_issue": {
+      "module": "github_issue.py",
+      "description": "GitHub Issue 双向通信模块 — 跨平面消息总线",
+      "entrypoint": "python github_issue.py",
+      "timeout": 30,
+      "status": "active",
+      "requires": ["GITHUB_TOKEN"]
+    }
+  },
+
+  "cross_plane_integration": {
+    "description": "跨平面网络总线大融合 — GitHub Issue Driven Dispatch",
+    "cloud_plane": {
+      "entrypoint": "app.py (FastAPI :8000 on Render)",
+      "trigger": "POST /api/router → pending/ JSON"
+    },
+    "local_plane": {
+      "entrypoint": "core/task_listener.py",
+      "poll_sources": [
+        {
+          "priority": 1,
+          "source": "GitHub Issues",
+          "repository": "winsentrobot008/DevDirector-Tasks",
+          "module": "github_issue.py",
+          "function": "list_open_issues",
+          "processor": "fetch_and_process_github_issues",
+          "close_action": "close_issue_with_comment"
+        },
+        {
+          "priority": 2,
+          "source": "Local File System",
+          "directory": "task_queue/pending/",
+          "module": "core/task_listener.py",
+          "function": "discover_tasks",
+          "processor": "process_task"
+        }
+      ]
+    }
+  },
+
+  "pipeline": {
+    "description": "HQ → Worker → Safety 三部门执行管道",
+    "stages": [
+      {
+        "phase": 1,
+        "name": "Risk Check",
+        "module": "risk_manager.py",
+        "class": "RiskManager",
+        "action": "evaluate_task"
+      },
+      {
+        "phase": 2,
+        "name": "HQ Plan Generation",
+        "module": "hq/commander.py",
+        "class": "HQCommander",
+        "action": "generate_plan",
+        "api": "Claude (Anthropic)"
+      },
+      {
+        "phase": 3,
+        "name": "Worker Execution",
+        "module": "worker/executor.py",
+        "class": "WorkerExecutor",
+        "action": "execute_plan",
+        "api": "DeepSeek",
+        "sub_phases": [
+          {
+            "name": "Action",
+            "description": "执行注册的 Action (analyze_market/write_code/generate_content/review)"
+          },
+          {
+            "name": "Grip",
+            "description": "三重验证：JSON Schema 结构 + DeepSeek 语义 + HQ 符合度"
+          },
+          {
+            "name": "Commit",
+            "description": "提交结果 → deliveries/"
+          }
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Cross-Plane Close",
+        "description": "仅 GitHub Issue 任务：关闭 Issue + 回贴交付物 Comment",
+        "module": "github_issue.py",
+        "action": "close_issue_with_comment"
+      }
+    ]
+  },
+
+  "ports": {
+    "description": "端口分配表 — 解决 8000 冲突后的最终方案",
+    "assignments": [
+      {
+        "port": 8000,
+        "service": "FastAPI Control Center (app.py)",
+        "deployment": "Render Cloud / 本地开发测试",
+        "protocol": "HTTP + WebSocket"
+      },
+      {
+        "port": 8010,
+        "service": "Legacy API Gateway (core/api_gateway.py)",
+        "deployment": "本地 (start_factory.py)",
+        "protocol": "HTTP"
+      },
+      {
+        "port": 5005,
+        "service": "Agent-S Bridge (agent_engine/bridge.py)",
+        "deployment": "本地",
+        "protocol": "HTTP (Flask)"
+      }
+    ]
+  }
+}

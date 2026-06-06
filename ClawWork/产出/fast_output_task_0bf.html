@@ -1,0 +1,388 @@
+我是AI助手，我来帮您生成一个关于洞庭湖的交互式信息页面。这是一个完整的HTML文件，包含洞庭湖的地理、生态、文化等核心内容。
+
+```html
+file:index.html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>洞庭湖 · 云梦泽</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(145deg, #e8f0f2 0%, #d4e4e8 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1100px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 48px;
+            box-shadow: 0 20px 40px rgba(0, 40, 60, 0.15), 0 8px 20px rgba(0, 0, 0, 0.05);
+            padding: 2.5rem 2.8rem;
+            transition: all 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 1.8rem 1.2rem;
+                border-radius: 32px;
+            }
+        }
+
+        h1 {
+            font-size: 3.2rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: #0a3b40;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            border-bottom: 3px solid #a2c9ce;
+            padding-bottom: 18px;
+            margin-bottom: 28px;
+        }
+
+        h1 small {
+            font-size: 1.4rem;
+            font-weight: 400;
+            color: #3b6f78;
+            letter-spacing: 1px;
+            background: rgba(162, 201, 206, 0.25);
+            padding: 4px 18px;
+            border-radius: 40px;
+            backdrop-filter: blur(4px);
+        }
+
+        .subhead {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+            color: #1f5159;
+            font-weight: 400;
+            font-size: 1.1rem;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 12px 24px;
+            border-radius: 60px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+            margin: 32px 0 20px;
+        }
+
+        @media (max-width: 780px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border-radius: 32px;
+            padding: 1.8rem 2rem;
+            box-shadow: 0 6px 16px rgba(0, 30, 40, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            transition: transform 0.15s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 14px 28px rgba(0, 40, 60, 0.08);
+        }
+
+        .card h2 {
+            font-size: 1.8rem;
+            font-weight: 500;
+            color: #0e4b54;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-left: 6px solid #3f8a94;
+            padding-left: 18px;
+        }
+
+        .card p {
+            line-height: 1.7;
+            font-size: 1.05rem;
+            color: #1f3f44;
+            margin-bottom: 14px;
+        }
+
+        .card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .card li {
+            padding: 8px 0 8px 28px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="%233f8a94"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>') left center no-repeat;
+            background-size: 18px;
+            color: #1b454d;
+            font-size: 1rem;
+            border-bottom: 1px dashed rgba(63, 138, 148, 0.15);
+        }
+
+        .card li:last-child {
+            border-bottom: none;
+        }
+
+        .stat-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px 28px;
+            margin: 18px 0 8px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.5);
+            padding: 10px 22px;
+            border-radius: 60px;
+            backdrop-filter: blur(2px);
+            font-weight: 500;
+            color: #0a3b40;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            font-size: 1rem;
+        }
+
+        .stat-item strong {
+            font-weight: 700;
+            color: #1b6b77;
+        }
+
+        .quote-box {
+            background: rgba(44, 104, 112, 0.08);
+            border-radius: 28px;
+            padding: 22px 28px;
+            margin: 30px 0 18px;
+            border-left: 8px solid #3f8a94;
+            font-style: italic;
+            color: #1b4d55;
+            font-size: 1.2rem;
+            line-height: 1.8;
+            backdrop-filter: blur(4px);
+        }
+
+        .quote-box cite {
+            display: block;
+            margin-top: 10px;
+            font-style: normal;
+            font-weight: 400;
+            color: #2d6b75;
+            letter-spacing: 0.5px;
+        }
+
+        .gallery-preview {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin: 18px 0 8px;
+        }
+
+        .gallery-preview span {
+            background: #d4e9ed;
+            padding: 6px 18px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            color: #12464f;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(2px);
+            font-weight: 500;
+        }
+
+        .footer-note {
+            margin-top: 40px;
+            text-align: center;
+            color: #2b646e;
+            font-size: 0.95rem;
+            border-top: 1px solid rgba(162, 201, 206, 0.4);
+            padding-top: 28px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+
+        .footer-note a {
+            color: #1a6b78;
+            text-decoration: none;
+            border-bottom: 1px dotted #3f8a94;
+        }
+
+        .footer-note a:hover {
+            color: #083f48;
+            border-bottom: 1px solid #083f48;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #3f8a94;
+            color: white;
+            padding: 4px 16px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            margin-right: 6px;
+        }
+
+        .flex-between {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .water-anim {
+            display: inline-block;
+            animation: wave 3s infinite ease-in-out;
+        }
+
+        @keyframes wave {
+            0% { opacity: 0.7; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.04); }
+            100% { opacity: 0.7; transform: scale(1); }
+        }
+
+        .emoji-lg {
+            font-size: 2.2rem;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>
+        🌊 洞庭湖
+        <small>云梦泽 · 八百里</small>
+        <span style="margin-left: auto; font-size: 1.6rem;" class="water-anim">🏞️</span>
+    </h1>
+
+    <div class="subhead">
+        <span>📍 湖南省 · 长江中游荆江南岸</span>
+        <span>🌿 中国第二大淡水湖 · 国际重要湿地</span>
+    </div>
+
+    <!-- 快速数据 -->
+    <div style="display: flex; flex-wrap: wrap; gap: 12px 20px; justify-content: center; margin-bottom: 20px;">
+        <span class="stat-item">📐 面积 <strong>2,820 km²</strong> (丰水期)</span>
+        <span class="stat-item">💧 平均水深 <strong>6.7 m</strong></span>
+        <span class="stat-item">🏞️ 蓄水量 <strong>≈ 220亿 m³</strong></span>
+        <span class="stat-item">🐦 鸟类 <strong>> 300种</strong></span>
+    </div>
+
+    <!-- 双栏核心信息 -->
+    <div class="grid-2">
+        <div class="card">
+            <h2>🌏 地理 · 生态</h2>
+            <p>洞庭湖古称“云梦泽”，是长江流域最重要的调蓄湖泊之一，也是全球重要的湿地生态系统。每年丰水期湖泊面积可扩展至枯水期的3倍以上，形成独特的“江湖两利”景观。</p>
+            <ul>
+                <li>承纳湘、资、沅、澧四水，吞吐长江</li>
+                <li>湿地类型：湖泊、沼泽、草甸、泥滩</li>
+                <li>植物 1,400+ 种，鱼类 110+ 种</li>
+                <li>白鹤、东方白鹳、黑鹳等珍稀候鸟栖息地</li>
+                <li>1992 年列入《国际重要湿地名录》</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>📜 人文 · 历史</h2>
+            <p>洞庭湖是湖湘文化的摇篮，屈原、李白、杜甫、刘禹锡、范仲淹等历代文人留下上千首诗词。范仲淹《岳阳楼记》“先天下之忧而忧，后天下之乐而乐”即写于洞庭湖畔。</p>
+            <ul>
+                <li>🏯 岳阳楼 · 江南三大名楼之一</li>
+                <li>🎣 渔歌、龙舟、洞庭渔鼓</li>
+                <li>🌾 鱼米之乡 · 重要商品粮基地</li>
+                <li>⛵ 君山岛 · 湘妃竹与爱情传说</li>
+                <li>📖 屈原《九歌》《湘夫人》发源地</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 特色卡片：生态保护 & 旅游 -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0;">
+        <div class="card" style="background: rgba(235, 248, 240, 0.6);">
+            <h2>🛡️ 保护 · 修复</h2>
+            <p>近年来实施“洞庭湖生态环境专项整治三年行动”，关闭污染企业，恢复湿地面积超过130平方公里。江豚、麋鹿等珍稀物种数量回升。</p>
+            <div class="stat-row">
+                <span class="stat-item">🐬 江豚 <strong>约 120 头</strong></span>
+                <span class="stat-item">🦌 麋鹿 <strong>> 200 只</strong></span>
+            </div>
+            <p style="margin-top: 8px; font-size: 0.95rem;">✅ 水质持续改善，总磷浓度下降 42% (2018–2023)</p>
+        </div>
+        <div class="card" style="background: rgba(240, 244, 235, 0.6);">
+            <h2>⛵ 游览 · 体验</h2>
+            <p>洞庭湖四季皆景：春赏苇芽、夏观荷花、秋看芦花、冬候鸟翔集。推荐乘船游湖、登岳阳楼、探访君山岛。</p>
+            <div class="gallery-preview">
+                <span>🌅 洞庭夕照</span>
+                <span>🪷 团湖荷花</span>
+                <span>🐦 采桑湖观鸟</span>
+                <span>🏔️ 君山银针</span>
+            </div>
+            <p style="margin-top: 10px;">🚩 东洞庭湖国家级自然保护区 · 免费开放</p>
+        </div>
+    </div>
+
+    <!-- 诗词引用 -->
+    <div class="quote-box">
+        “予观夫巴陵胜状，在洞庭一湖。衔远山，吞长江，浩浩汤汤，横无际涯；朝晖夕阴，气象万千。此则岳阳楼之大观也。”
+        <cite>—— 范仲淹《岳阳楼记》</cite>
+    </div>
+
+    <!-- 水文/气候小贴士 -->
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin: 10px 0 20px;">
+        <span class="stat-item">🌧️ 年降水量 1,200–1,400 mm</span>
+        <span class="stat-item">🌡️ 年均温 16.5–17.5°C</span>
+        <span class="stat-item">⏳ 枯水期 11月–次年3月</span>
+        <span class="stat-item">💦 丰水期 6–9月</span>
+    </div>
+
+    <!-- 你知道吗？ -->
+    <div class="card" style="background: rgba(255, 245, 225, 0.4); margin-top: 12px;">
+        <h2 style="font-size: 1.6rem;">🧠 你知道吗？</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div>
+                <p>🔹 洞庭湖在枯水期面积仅约 700 km²，而丰水期最大可达 3,900 km²，如同“呼吸的湖泊”。</p>
+                <p>🔹 君山岛上有 72 峰，二妃墓、柳毅井等古迹，被誉为“洞庭明珠”。</p>
+            </div>
+            <div>
+                <p>🔹 洞庭湖区的“江豚湾”是长江江豚的重要栖息地，近年多次拍摄到母子豚。</p>
+                <p>🔹 湖中特产“洞庭银鱼”无鳞透明，被誉为“鱼中人参”。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- footer -->
+    <div class="footer-note">
+        <span>🌿 保护洞庭湖 · 守护母亲湖</span>
+        <span>📸 图片来自公开资源 · 数据综合自湖南省水利厅/林业局</span>
+        <span><a href="#">🏞️ 了解更多</a> · <a href="#">🐦 观鸟指南</a></span>
+    </div>
+
+    <!-- 交互式小彩蛋：点击显示更多趣味 -->
+    <div style="text-align: center; margin-top: 28px;">
+        <button id="funFactBtn" style="background: #3f8a94; border: none; color: white; padding: 12px 32px; border-radius: 60px; font-size: 1rem; font-weight: 500; cursor: pointer; backdrop-filter: blur(4px); box-shadow: 0 4px 10px rgba(0,0,0,0.05); transition: all 0.15s; border: 1px

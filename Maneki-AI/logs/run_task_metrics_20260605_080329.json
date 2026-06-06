@@ -1,0 +1,9 @@
+{
+  "command": "python -c \"from clearing_engine.core import FinancialClearingEngine; import json; e=FinancialClearingEngine(); print(json.dumps(e.get_metrics_dict()['display'], indent=2))\"",
+  "returncode": 0,
+  "stdout": "{\n  \"total_value\": \"$0.00\",\n  \"total_costs\": \"$0.00\",\n  \"total_fees\": \"$0.00\",\n  \"total_savings\": \"$0.00\",\n  \"avg_roi\": \"0.0x\",\n  \"success_rate\": \"100%\",\n  \"net_profit\": \"$0.00\"\n}\n",
+  "stderr": "",
+  "success": true,
+  "started_at": "2026-06-05T08:03:29.310808+00:00",
+  "finished_at": "2026-06-05T08:03:29.574303+00:00"
+}

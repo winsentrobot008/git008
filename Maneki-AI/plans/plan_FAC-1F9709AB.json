@@ -1,0 +1,41 @@
+{
+  "task_id": "FAC-1F9709AB",
+  "goal": "搞个APP",
+  "created_at": "2026-06-05T06:32:31Z",
+  "model": "mock",
+  "generated_by": "mock_rules",
+  "steps": [
+    {
+      "step": 1,
+      "action": "define_requirements",
+      "input": {
+        "goal": "搞个APP"
+      },
+      "description": "需求分析与核心功能定义"
+    },
+    {
+      "step": 2,
+      "action": "design_architecture",
+      "input": {
+        "goal": "搞个APP"
+      },
+      "description": "系统架构与数据结构设计"
+    },
+    {
+      "step": 3,
+      "action": "design_ui_ux",
+      "input": {
+        "goal": "搞个APP"
+      },
+      "description": "UI/UX 逻辑与功能实现"
+    },
+    {
+      "step": 4,
+      "action": "write_code",
+      "input": {
+        "description": "搞个APP"
+      },
+      "description": "代码生成与验证"
+    }
+  ]
+}

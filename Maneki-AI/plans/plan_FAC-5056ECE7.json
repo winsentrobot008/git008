@@ -1,0 +1,50 @@
+{
+  "task_id": "FAC-5056ECE7",
+  "goal": "搞个APP",
+  "created_at": "2026-06-05T06:51:29Z",
+  "model": "mock",
+  "generated_by": "mock_rules",
+  "steps": [
+    {
+      "step": 1,
+      "action": "define_requirements",
+      "input": {
+        "goal": "搞个APP"
+      },
+      "description": "需求分析与核心功能定义"
+    },
+    {
+      "step": 2,
+      "action": "design_architecture",
+      "input": {
+        "goal": "搞个APP"
+      },
+      "description": "系统架构与数据结构设计"
+    },
+    {
+      "step": 3,
+      "action": "design_ui_ux",
+      "input": {
+        "goal": "搞个APP"
+      },
+      "description": "UI/UX 逻辑与功能实现"
+    },
+    {
+      "step": 4,
+      "action": "write_code",
+      "input": {
+        "description": "搞个APP"
+      },
+      "description": "代码生成与验证"
+    },
+    {
+      "step": 5,
+      "action": "build_artifact",
+      "input": {
+        "source_file": "{{GENERATED_FILE}}",
+        "language": "{{GENERATED_LANGUAGE}}"
+      },
+      "description": "总装编译 · 构建可执行产物"
+    }
+  ]
+}

@@ -4,12 +4,18 @@ WorkerExecutor — 工兵部门执行器
 集成 CircuitBreaker 实现防卡死保护。
 
 路径规范：所有路径通过 pathlib 处理相对路径。
+
+支持两种运行模式:
+  1. 库模式: 直接 import WorkerExecutor，调用 execute_plan()
+  2. 子进程模式: python -m worker.executor，通过 stdin 读取 Plan JSON，stdout 输出结果 JSON
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
@@ -67,6 +73,21 @@ class WorkerExecutor:
             action_name = step.get("action", "")
             action_input = step.get("input", {})
 
+            # ── Resolve {{GENERATED_FILE}} / {{GENERATED_LANGUAGE}} from prior steps ─
+            resolved_input = dict(action_input)
+            for key, val in list(resolved_input.items()):
+                if val == "{{GENERATED_FILE}}" or val == "{{GENERATED_LANGUAGE}}":
+                    for sr in steps_results:
+                        out = sr.get("result", {}).get("output", {})
+                        if key == "source_file" and out.get("filename"):
+                            gen_dir = PROJECT_ROOT / "generated_outputs" / task_id
+                            resolved_input[key] = str(gen_dir / out["filename"])
+                            logger.info(f"[Worker] Resolved source_file → {resolved_input[key]}")
+                        elif key == "language" and out.get("language"):
+                            resolved_input[key] = out["language"]
+                            logger.info(f"[Worker] Resolved language → {resolved_input[key]}")
+            action_input = resolved_input
+
             logger.info(
                 f"[Worker] Step {step_num}/{len(steps)}: {action_name}"
             )
@@ -74,6 +95,30 @@ class WorkerExecutor:
             # Heartbeat from Cline-anti-freeze rules
             if step_num % 5 == 0:
                 logger.info("[Worker] [治理心跳] 运行中")
+
+            # ── Broadcast step start to WebSocket ──────────────────────
+            try:
+                from urllib.request import Request, urlopen
+                import json as _json
+                _broadcast_payload = _json.dumps({
+                    "type": "agent_thinking",
+                    "task_id": task_id,
+                    "step": step_num,
+                    "total": len(steps),
+                    "action": action_name,
+                    "agent": "Maneki-Worker",
+                    "message": f"正在执行 Step {step_num}/{len(steps)}: {action_name}",
+                    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }).encode("utf-8")
+                _req = Request(
+                    "http://localhost:8000/api/broadcast",
+                    data=_broadcast_payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                urlopen(_req, timeout=2)
+            except Exception:
+                pass
 
             # ── Phase 1: Action (执行) ─────────────────────────────────
             try:
@@ -122,6 +167,61 @@ class WorkerExecutor:
                 # ── Phase 3: Commit (提交) ──────────────────────────────
                 if step_result.get("status") == "success":
                     logger.info(f"[Executor] Step {step_num} COMMIT")
+
+                    # ── Broadcast step_complete to WebSocket ─────────
+                    try:
+                        from urllib.request import Request, urlopen
+                        import json as _json2
+                        _done_payload = _json2.dumps({
+                            "type": "step_complete",
+                            "task_id": task_id,
+                            "step": step_num,
+                            "total": len(steps),
+                            "action": action_name,
+                            "message": f"Step {step_num}/{len(steps)} 完成: {action_name}",
+                            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        }).encode("utf-8")
+                        _req2 = Request(
+                            "http://localhost:8000/api/broadcast",
+                            data=_done_payload,
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        urlopen(_req2, timeout=2)
+                    except Exception:
+                        pass
+
+                    # ── Eager-write code files for subsequent build steps ─
+                    if action_name == "write_code":
+                        code = step_result.get("output", {}).get("code", "")
+                        filename = step_result.get("output", {}).get("filename", "")
+                        if code and filename:
+                            gen_dir = PROJECT_ROOT / "generated_outputs" / task_id
+                            gen_dir.mkdir(parents=True, exist_ok=True)
+                            filepath = gen_dir / filename
+                            with open(filepath, "w", encoding="utf-8") as cf:
+                                cf.write(code)
+                            logger.info(f"[Executor] Eager-wrote code: {filepath}")
+
+                            # ── Broadcast code_generated to WebSocket ─
+                            try:
+                                _code_payload = _json2.dumps({
+                                    "type": "code_generated",
+                                    "task_id": task_id,
+                                    "step": step_num,
+                                    "filename": filename,
+                                    "message": f"代码已生成: {filename}",
+                                    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                }).encode("utf-8")
+                                _req3 = Request(
+                                    "http://localhost:8000/api/broadcast",
+                                    data=_code_payload,
+                                    headers={"Content-Type": "application/json"},
+                                    method="POST",
+                                )
+                                urlopen(_req3, timeout=2)
+                            except Exception:
+                                pass
 
                 steps_results.append({
                     "step": step_num,
@@ -248,3 +348,114 @@ class WorkerExecutor:
                 "completed_at": now,
             }, f, indent=2, ensure_ascii=False)
         logger.info(f"[Worker] Deliverable saved: {output_path}")
+
+        # ── Materialize code files from write_code actions ──────────
+        gen_dir = PROJECT_ROOT / "generated_outputs" / task_id
+        gen_dir.mkdir(parents=True, exist_ok=True)
+        generated_files: list[str] = []
+        for sr in steps_results:
+            result = sr.get("result", {})
+            output = result.get("output", {})
+            code = output.get("code", "")
+            filename = output.get("filename", "")
+            language = output.get("language", "")
+            if code and filename:
+                filepath = gen_dir / filename
+                with open(filepath, "w", encoding="utf-8") as cf:
+                    cf.write(code)
+                generated_files.append(str(filepath))
+                logger.info(f"[Worker] Code file saved: {filepath}")
+        # Write manifest
+        manifest_path = gen_dir / "manifest.json"
+        with open(manifest_path, "w", encoding="utf-8") as mf:
+            json.dump({
+                "task_id": task_id, "goal": goal, "status": status,
+                "files": generated_files, "completed_at": now,
+            }, mf, indent=2, ensure_ascii=False)
+        logger.info(f"[Worker] {len(generated_files)} code file(s) materialised in {gen_dir}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Standalone subprocess entrypoint — for Popen-based execution from task_listener
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_standalone():
+    """
+    Standalone Worker process entrypoint.
+
+    Reads a Plan JSON dict from stdin, executes it via WorkerExecutor,
+    and writes the result JSON to stdout.  All errors are captured and
+    returned as structured JSON so the parent process never hangs on
+    a broken pipe or unhandled exception.
+
+    Expected input format (stdin):
+        {"plan": {...}, "circuit_breaker_enabled": true/false}
+
+    Output format (stdout, single line JSON):
+        {"status": "ok"/"error", "result": {...}, "error": "..."}
+    """
+    import traceback
+    import signal as _signal
+
+    # Ignore SIGINT in child — parent controls lifecycle via os.kill / taskkill
+    try:
+        _signal.signal(_signal.SIGINT, _signal.SIG_IGN)
+    except Exception:
+        pass
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [Worker] %(levelname)s %(message)s",
+        stream=sys.stderr,  # stderr is for logs, stdout is for result JSON
+    )
+
+    try:
+        raw_input = sys.stdin.read()
+        if not raw_input.strip():
+            _emit_error("Empty stdin — no Plan JSON received")
+            return
+
+        input_data = json.loads(raw_input)
+        plan = input_data.get("plan", {})
+        breaker_enabled = input_data.get("circuit_breaker_enabled", False)
+
+        if not plan or not plan.get("steps"):
+            _emit_error("Plan missing or empty — no steps to execute")
+            return
+
+        # Optionally instantiate CircuitBreaker
+        breaker = None
+        if breaker_enabled:
+            try:
+                from safety.circuit_breaker import CircuitBreaker
+                breaker = CircuitBreaker()
+            except ImportError:
+                logger.warning("[Worker-standalone] CircuitBreaker not available, continuing without")
+
+        executor = WorkerExecutor(circuit_breaker=breaker)
+        execution_result = executor.execute_plan(plan)
+
+        _emit_ok(execution_result)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"[Worker-standalone] JSON parse error: {e}")
+        _emit_error(f"JSON parse error: {e}")
+    except Exception:
+        logger.error(f"[Worker-standalone] Fatal exception:\n{traceback.format_exc()}")
+        _emit_error(traceback.format_exc())
+
+
+def _emit_ok(result: dict):
+    """Write a success envelope to stdout."""
+    sys.stdout.write(json.dumps({"status": "ok", "result": result}, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def _emit_error(message: str):
+    """Write an error envelope to stdout."""
+    sys.stdout.write(json.dumps({"status": "error", "error": str(message)}, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    _run_standalone()

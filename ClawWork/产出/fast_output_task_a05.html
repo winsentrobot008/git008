@@ -1,0 +1,444 @@
+这是您需要的调色板APP HTML代码。它是一个可直接运行的色彩探索与调配工具，您可以在浏览器中打开使用。
+```html
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>🎨 调色板 · 色彩探索</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: #0b0b0e;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+    }
+
+    .app {
+      max-width: 480px;
+      width: 100%;
+      background: rgba(24, 24, 30, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 48px;
+      padding: 24px 20px 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04);
+      transition: box-shadow 0.2s;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: #f0edf5;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding-left: 4px;
+    }
+    h1 span {
+      background: #3b3b4a;
+      padding: 2px 12px;
+      border-radius: 40px;
+      font-size: 14px;
+      font-weight: 400;
+      color: #b9b4cc;
+    }
+
+    /* 主色块 */
+    .color-preview {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 36px;
+      background: #ff6b6b;
+      margin-bottom: 24px;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+      transition: background 0.08s ease;
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start;
+      padding: 20px;
+    }
+
+    .color-code-badge {
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 8px 16px;
+      border-radius: 60px;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 0.5px solid rgba(255,255,255,0.08);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 滑块控制区 */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin: 10px 0 20px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 450;
+      color: #b9b4cc;
+      padding: 0 4px;
+    }
+    .control-label span:last-child {
+      background: #2a2a36;
+      padding: 0 10px;
+      border-radius: 40px;
+      font-size: 13px;
+      color: #ddd8ec;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 12px;
+      background: #2e2e3a;
+      outline: none;
+      transition: background 0.2s;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 30px;
+      background: white;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+      border: 2px solid rgba(255,255,255,0.3);
+      transition: 0.06s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.06);
+      background: #f2f0f8;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 30px;
+      background: white;
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+    /* 自定义滑块轨道颜色 */
+    .slider-red::-webkit-slider-runnable-track { background: linear-gradient(to right, #3a1a1a, #ff3b3b); }
+    .slider-green::-webkit-slider-runnable-track { background: linear-gradient(to right, #1a3a1a, #3bff3b); }
+    .slider-blue::-webkit-slider-runnable-track { background: linear-gradient(to right, #1a1a3a, #3b3bff); }
+    .slider-red::-moz-range-track { background: linear-gradient(to right, #3a1a1a, #ff3b3b); }
+    .slider-green::-moz-range-track { background: linear-gradient(to right, #1a3a1a, #3bff3b); }
+    .slider-blue::-moz-range-track { background: linear-gradient(to right, #1a1a3a, #3b3bff); }
+
+    /* 快速调色板 + 动作 */
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 8px;
+      margin: 8px 0 12px;
+      align-items: center;
+    }
+
+    .swatch-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .swatch {
+      width: 38px;
+      height: 38px;
+      border-radius: 40px;
+      border: 2px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+      transition: all 0.1s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .swatch:hover {
+      transform: scale(1.08);
+      border-color: rgba(255,255,255,0.5);
+    }
+    .swatch:active {
+      transform: scale(0.94);
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .icon-btn {
+      background: #2e2e3c;
+      border: none;
+      border-radius: 40px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: #e0dcee;
+      cursor: pointer;
+      transition: 0.12s;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      border: 0.5px solid rgba(255,255,255,0.03);
+    }
+    .icon-btn:hover {
+      background: #3f3f52;
+      color: white;
+      transform: scale(0.96);
+    }
+    .icon-btn:active {
+      transform: scale(0.88);
+      background: #52526a;
+    }
+
+    /* 色值详情 */
+    .color-details {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 8px;
+      padding: 8px 4px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .color-chip {
+      background: #1c1c26;
+      padding: 6px 14px;
+      border-radius: 40px;
+      font-size: 13px;
+      font-weight: 450;
+      color: #c8c4da;
+      letter-spacing: 0.3px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .color-chip span {
+      color: #f0edf5;
+      font-weight: 500;
+    }
+
+    .footer-note {
+      color: #5f5b72;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 16px;
+      letter-spacing: 0.2px;
+    }
+
+    @media (max-width: 420px) {
+      .app { padding: 16px; }
+      .swatch { width: 32px; height: 32px; }
+      .icon-btn { width: 40px; height: 40px; font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>🎨 调色板 <span>随意调</span></h1>
+
+    <!-- 颜色预览 -->
+    <div class="color-preview" id="colorPreview">
+      <div class="color-code-badge" id="hexCode">#FF6B6B</div>
+    </div>
+
+    <!-- 滑块控制 -->
+    <div class="controls">
+      <div class="control-group">
+        <div class="control-label">
+          <span>🔴 红</span>
+          <span id="redValue">107</span>
+        </div>
+        <input type="range" id="redSlider" class="slider-red" min="0" max="255" value="107">
+      </div>
+      <div class="control-group">
+        <div class="control-label">
+          <span>🟢 绿</span>
+          <span id="greenValue">107</span>
+        </div>
+        <input type="range" id="greenSlider" class="slider-green" min="0" max="255" value="107">
+      </div>
+      <div class="control-group">
+        <div class="control-label">
+          <span>🔵 蓝</span>
+          <span id="blueValue">107</span>
+        </div>
+        <input type="range" id="blueSlider" class="slider-blue" min="0" max="255" value="107">
+      </div>
+    </div>
+
+    <!-- 快捷色板和操作 -->
+    <div class="quick-actions">
+      <div class="swatch-grid" id="swatchGrid">
+        <!-- 预设色块 (js 也会生成) -->
+      </div>
+      <div class="action-buttons">
+        <button class="icon-btn" id="randomBtn" title="随机色彩">🎲</button>
+        <button class="icon-btn" id="copyBtn" title="复制 HEX">📋</button>
+      </div>
+    </div>
+
+    <!-- 颜色详情 -->
+    <div class="color-details">
+      <div class="color-chip">RGB <span id="rgbDetail">(107, 107, 107)</span></div>
+      <div class="color-chip">HSL <span id="hslDetail">(0°, 0%, 42%)</span></div>
+    </div>
+    <div class="footer-note">⇅ 拖动滑块 · 点击色块 · 随机探索</div>
+  </div>
+
+  <script>
+    (function(){
+      // DOM 元素
+      const redSlider = document.getElementById('redSlider');
+      const greenSlider = document.getElementById('greenSlider');
+      const blueSlider = document.getElementById('blueSlider');
+      const redValue = document.getElementById('redValue');
+      const greenValue = document.getElementById('greenValue');
+      const blueValue = document.getElementById('blueValue');
+      const colorPreview = document.getElementById('colorPreview');
+      const hexCode = document.getElementById('hexCode');
+      const rgbDetail = document.getElementById('rgbDetail');
+      const hslDetail = document.getElementById('hslDetail');
+      const swatchGrid = document.getElementById('swatchGrid');
+      const randomBtn = document.getElementById('randomBtn');
+      const copyBtn = document.getElementById('copyBtn');
+
+      // ---- 状态 ----
+      let currentR = 107, currentG = 107, currentB = 107;
+
+      // ---- 工具函数 ----
+      function rgbToHex(r, g, b) {
+        return '#' + [r, g, b].map(c => Math.round(c).toString(16).padStart(2, '0')).join('').toUpperCase();
+      }
+
+      function rgbToHsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+        if (max === min) {
+          h = s = 0;
+        } else {
+          const d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+            case g: h = ((b - r) / d + 2) / 6; break;
+            case b: h = ((r - g) / d + 4) / 6; break;
+            default: h = 0;
+          }
+        }
+        h = Math.round(h * 360);
+        s = Math.round(s * 100);
+        l = Math.round(l * 100);
+        return { h, s, l };
+      }
+
+      function updateUIFromSliders() {
+        const r = parseInt(redSlider.value, 10);
+        const g = parseInt(greenSlider.value, 10);
+        const b = parseInt(blueSlider.value, 10);
+        currentR = r; currentG = g; currentB = b;
+
+        // 数值显示
+        redValue.textContent = r;
+        greenValue.textContent = g;
+        blueValue.textContent = b;
+
+        // 预览背景
+        const bgColor = `rgb(${r}, ${g}, ${b})`;
+        colorPreview.style.background = bgColor;
+
+        // HEX
+        const hex = rgbToHex(r, g, b);
+        hexCode.textContent = hex;
+
+        // RGB 详情
+        rgbDetail.textContent = `(${r}, ${g}, ${b})`;
+
+        // HSL
+        const hsl = rgbToHsl(r, g, b);
+        hslDetail.textContent = `(${hsl.h}°, ${hsl.s}%, ${hsl.l}%)`;
+      }
+
+      // 从外部设置颜色 (r,g,b) 并同步滑块 & UI
+      function setColor(r, g, b) {
+        r = Math.min(255, Math.max(0, Math.round(r)));
+        g = Math.min(255, Math.max(0, Math.round(g)));
+        b = Math.min(255, Math.max(0, Math.round(b)));
+        redSlider.value = r;
+        greenSlider.value = g;
+        blueSlider.value = b;
+        updateUIFromSliders();
+      }
+
+      // ---- 预设色板 ----
+      const presetColors = [
+        { r: 255, g: 107, b: 107 },  // 珊瑚
+        { r: 255, g: 215, b: 0 },    // 金
+        { r: 80, g: 200, b: 120 },   // 薄荷
+        { r: 64, g: 150, b: 255 },   // 天蓝
+        { r: 180, g: 120, b: 255 },  // 淡紫
+        { r: 255, g: 140, b: 50 },   // 橘
+        { r: 255, g: 80, b: 140 },   // 粉红
+        { r: 30, g: 200, b: 200 },   // 青绿
+        { r: 255, g: 80, b: 80 },    // 红
+        { r: 180, g: 220, b: 255 },  // 淡蓝
+        { r: 220, g: 180, b: 255 },  // 浅紫
+        { r: 255, g: 220, b: 140 },  // 杏色
+      ];
+
+      function renderSwatches() {
+        swatchGrid.innerHTML = '';
+        presetColors.forEach(c => {
+          const swatch = document.createElement('div');
+          swatch.className = 'swatch';
+          swatch.style.background = `rgb(${c.r}, ${c.g}, ${c.b})`;
+          swatch.dataset.r = c.r;
+          swatch.dataset.g = c.g;
+          swatch.dataset.b = c.b;
+          swatch.addEventListener('click', function(e) {
+            const r = parseInt(this.dataset.r, 10);
+            const g = parseInt(this.dataset.g, 10);
+            const b = parseInt(this.dataset.b, 10);
+            setColor(r, g, b);
+          });
+          swatchGrid.appendChild(swatch);
+        });
+      }
+
+      // ---- 随机颜色 ----
+      function randomColor() {
+        const r = Math.floor(Math.random() * 256);
+        const g = Math.floor(Math.random() * 256);
+        const b =

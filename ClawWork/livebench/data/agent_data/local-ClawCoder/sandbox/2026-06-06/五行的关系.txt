@@ -1,0 +1,52 @@
+五行平衡APP - 设计文档
+
+五行的相生相克关系：
+
+相生（Generating）：
+木生火（Wood feeds Fire）
+火生土（Fire creates Earth/Ash）
+土生金（Earth bears Metal）
+金生水（Metal carries Water）
+水生木（Water nourishes Wood）
+
+相克（Controlling）：
+木克土（Wood breaks Earth）
+土克水（Earth dams Water）
+水克火（Water extinguishes Fire）
+火克金（Fire melts Metal）
+金克木（Metal cuts Wood）
+
+五行与人体器官对应：
+木：肝、胆、目
+火：心、小肠、舌
+土：脾、胃、口
+金：肺、大肠、鼻
+水：肾、膀胱、耳
+
+五行与情绪对应：
+木：怒
+火：喜
+土：思
+金：悲
+水：恐
+
+五行与季节对应：
+木：春
+火：夏
+土：长夏
+金：秋
+水：冬
+
+五行与颜色对应：
+木：绿/青
+火：红
+土：黄
+金：白
+水：黑/蓝
+
+五行与方位对应：
+木：东
+火：南
+土：中
+金：西
+水：北

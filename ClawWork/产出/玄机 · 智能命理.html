@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<!-- saved from url=(0089)https://aoogoost-clawwork.hf.space/artifacts/%E6%90%9E%E4%B8%AA%E7%AE%97%E5%91%BDapp.html -->
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>玄机 · 智能命理</title>
+  <style>
+    /* 全局重置 & 微渐变暗黑苹果风 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at 30% 10%, #1e1c2a 0%, #13111b 80%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      backdrop-filter: blur(1px);
+    }
+
+    /* 主卡片 — 毛玻璃 + 微渐变 */
+    .fortune-card {
+      max-width: 480px;
+      width: 100%;
+      background: rgba(32, 28, 46, 0.55);
+      backdrop-filter: blur(24px) saturate(1.2);
+      -webkit-backdrop-filter: blur(24px) saturate(1.2);
+      border-radius: 56px;
+      padding: 32px 24px 36px;
+      box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      transition: all 0.2s ease;
+    }
+
+    /* 标题区 — 微光文字 */
+    .title-section {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .title-section h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #e6daff 0%, #b7a9e6 50%, #8f7ed4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 20px rgba(150, 120, 255, 0.2);
+    }
+
+    .title-section .sub {
+      font-size: 14px;
+      color: rgba(220, 210, 255, 0.5);
+      letter-spacing: 6px;
+      margin-top: 6px;
+      font-weight: 300;
+    }
+
+    /* 输入区 — 暗色玻璃 */
+    .input-area {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .input-group {
+      position: relative;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(230, 220, 255, 0.7);
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      padding-left: 6px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 16px 20px;
+      background: rgba(18, 15, 30, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 40px;
+      font-size: 16px;
+      color: #f0ebff;
+      outline: none;
+      transition: all 0.25s ease;
+      backdrop-filter: blur(4px);
+      box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .input-group input:focus {
+      border-color: rgba(180, 150, 255, 0.4);
+      background: rgba(28, 22, 48, 0.7);
+      box-shadow: 0 0 0 4px rgba(140, 100, 255, 0.08), inset 0 2px 6px rgba(0,0,0,0.5);
+    }
+
+    .input-group input::placeholder {
+      color: rgba(200, 190, 230, 0.25);
+      font-weight: 300;
+      letter-spacing: 1px;
+    }
+
+    /* 按钮 — 微光渐变 */
+    .action-btn {
+      background: linear-gradient(145deg, #2f284a, #1d1733);
+      border: none;
+      border-radius: 60px;
+      padding: 18px 24px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: #ddd6ff;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03);
+      transition: all 0.2s ease;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .action-btn:active {
+      transform: scale(0.96);
+      background: linear-gradient(145deg, #251f3c, #16112b);
+      box-shadow: 0 4px 12px -4px #000;
+    }
+
+    .action-btn .sparkle {
+      font-size: 20px;
+      opacity: 0.7;
+    }
+
+    /* 结果卡片 — 毛玻璃面板 */
+    .result-panel {
+      margin-top: 28px;
+      background: rgba(12, 10, 22, 0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 48px;
+      padding: 24px 22px;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.4);
+      transition: all 0.3s ease;
+      min-height: 120px;
+    }
+
+    .result-placeholder {
+      text-align: center;
+      color: rgba(200, 190, 240, 0.2);
+      font-size: 15px;
+      letter-spacing: 2px;
+      padding: 8px 0;
+    }
+
+    .result-placeholder .icon {
+      font-size: 42px;
+      opacity: 0.3;
+      margin-bottom: 6px;
+    }
+
+    /* 动态结果内容 */
+    .fortune-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .fortune-item {
+      display: flex;
+      align-items: baseline;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding: 8px 0 10px;
+    }
+
+    .fortune-item:last-child {
+      border-bottom: none;
+    }
+
+    .fortune-tag {
+      width: 80px;
+      font-size: 14px;
+      font-weight: 400;
+      color: rgba(190, 175, 255, 0.5);
+      letter-spacing: 1px;
+    }
+
+    .fortune-value {
+      flex: 1;
+      font-size: 18px;
+      font-weight: 500;
+      color: #eae3ff;
+      text-shadow: 0 0 12px rgba(170, 140, 255, 0.08);
+      word-break: break-word;
+    }
+
+    .fortune-value.highlight {
+      background: linear-gradient(120deg, #dcc8ff, #b196ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 600;
+    }
+
+    .badge-glow {
+      display: inline-block;
+      background: rgba(120, 80, 200, 0.15);
+      padding: 0 12px;
+      border-radius: 30px;
+      backdrop-filter: blur(2px);
+      border: 1px solid rgba(255, 200, 255, 0.03);
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(180, 170, 220, 0.2);
+      letter-spacing: 2px;
+      font-weight: 300;
+    }
+
+    /* 简单响应式 */
+    @media (max-width: 420px) {
+      .fortune-card {
+        padding: 24px 18px 28px;
+        border-radius: 40px;
+      }
+      .title-section h1 {
+        font-size: 26px;
+      }
+      .action-btn {
+        font-size: 16px;
+        padding: 16px 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="fortune-card">
+    <div class="title-section">
+      <h1>✦ 玄 机</h1>
+      <div class="sub">· 智能命理 ·</div>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="input-area">
+      <div class="input-group">
+        <label>☰ 姓名</label>
+        <input type="text" id="nameInput" placeholder="输入你的名字" value="林晓" maxlength="20">
+      </div>
+      <div class="input-group">
+        <label>✧ 出生月日 (四位)</label>
+        <input type="text" id="birthInput" placeholder="例如 0521" value="1128" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+      </div>
+      <button class="action-btn" id="fortuneBtn">
+        <span class="sparkle">✦</span> 推 演 命 盘 <span class="sparkle">✦</span>
+      </button>
+    </div>
+
+    <!-- 结果展示 -->
+    <div class="result-panel" id="resultPanel">
+      <div class="result-placeholder" id="placeholder" style="display: none;">
+        <div class="icon">☯</div>
+        <div>输入信息 · 窥探天机</div>
+      </div>
+      <div class="fortune-content" id="fortuneContent" style="display: flex;">
+        <div class="fortune-item">
+          <span class="fortune-tag">命 格</span>
+          <span class="fortune-value highlight" id="destinyValue">廉贞星 · 孤高自许，权谋在握</span>
+        </div>
+        <div class="fortune-item">
+          <span class="fortune-tag">星 座</span>
+          <span class="fortune-value" id="zodiacValue">魔羯座 (12月31日)</span>
+        </div>
+        <div class="fortune-item">
+          <span class="fortune-tag">今日运</span>
+          <span class="fortune-value" id="luckValue">云开见日 · 中平</span>
+        </div>
+        <div class="fortune-item">
+          <span class="fortune-tag">签 语</span>
+          <span class="fortune-value" id="oracleValue">「海压竹枝低复举，风吹山角晦还明」</span>
+        </div>
+      </div>
+    </div>
+    <div class="footer-note">⋆ 仅供娱乐 · 心诚则灵 ⋆</div>
+  </div>
+
+  <script>
+    (function() {
+      // ---------- 命理数据库 ----------
+      const destinyPool = [
+        { name: '天机星', desc: '慧极必伤，算无遗策' },
+        { name: '七杀星', desc: '破旧立新，将星入命' },
+        { name: '紫微星', desc: '帝星临凡，众望所归' },
+        { name: '贪狼星', desc: '桃花泛滥，智勇双全' },
+        { name: '太阴星', desc: '清辉自照，以柔克刚' },
+        { name: '太阳星', desc: '光明磊落，贵人扶持' },
+        { name: '武曲星', desc: '刚毅果决，财禄丰足' },
+        { name: '廉贞星', desc: '孤高自许，权谋在握' }
+      ];
+
+      const zodiacMap = {
+        '01': '魔羯', '02': '水瓶', '03': '双鱼', '04': '白羊',
+        '05': '金牛', '06': '双子', '07': '巨蟹', '08': '狮子',
+        '09': '处女', '10': '天秤', '11': '天蝎', '12': '射手'
+      };
+
+      const luckList = [
+        '紫气东来 · 大吉', '和风细雨 · 小吉', '云开见日 · 中平',
+        '暗流涌动 · 小凶', '否极泰来 · 大吉', '静水流深 · 小吉',
+        '韬光养晦 · 中平', '谨言慎行 · 小凶', '天降甘霖 · 大吉',
+        '雾锁重楼 · 中平', '星月交辉 · 小吉', '破晓之时 · 大吉'
+      ];
+
+      const oracleList = [
+        '心若冰清，天塌不惊', '流水不争先，争的是滔滔不绝',
+        '见自己，见天地，见众生', '福祸无门，惟人自召',
+        '凡是过往，皆为序章', '静坐常思己过，闲谈莫论人非',
+        '山重水复疑无路，柳暗花明又一村', '知命不惧，日日自新',
+        '清风徐来，水波不兴', '海压竹枝低复举，风吹山角晦还明',
+        '莫愁千里路，自有到来风', '身如琉璃，内外明澈'
+      ];
+
+      // DOM 元素
+      const nameInput = document.getElementById('nameInput');
+      const birthInput = document.getElementById('birthInput');
+      const fortuneBtn = document.getElementById('fortuneBtn');
+
+      const placeholder = document.getElementById('placeholder');
+      const fortuneContent = document.getElementById('fortuneContent');
+      const destinyValue = document.getElementById('destinyValue');
+      const zodiacValue = document.getElementById('zodiacValue');
+      const luckValue = document.getElementById('luckValue');
+      const oracleValue = document.getElementById('oracleValue');
+
+      // 工具：根据输入字符串生成伪随机索引 (确定性)
+      function pseudoRandomIndex(str, maxIndex) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash; // 转换为32位整数
+        }
+        // 取绝对值，然后映射到 [0, maxIndex-1]
+        const positive = Math.abs(hash);
+        return positive % maxIndex;
+      }
+
+      // 核心推演函数
+      function performFortune() {
+        // 获取并清洗输入
+        let name = nameInput.value.trim();
+        let birth = birthInput.value.trim();
+
+        // 如果名字为空，给默认
+        if (name === '') {
+          name = '无名';
+          nameInput.value = name;
+        }
+
+        // 出生月日处理：只保留数字，补位或截断
+        let digits = birth.replace(/\D/g, '');
+        if (digits.length === 0) {
+          digits = '0601'; // 默认
+          birthInput.value = digits;
+        } else if (digits.length === 1) {
+          digits = '0' + digits + '01';
+        } else if (digits.length === 2) {
+          digits = digits + '01';
+        } else if (digits.length === 3) {
+          digits = '0' + digits;
+        } else if (digits.length > 4) {
+          digits = digits.slice(0, 4);
+        }
+        // 保证4位
+        if (digits.length < 4) {
+          digits = digits.padEnd(4, '0');
+        }
+        birthInput.value = digits;
+
+        // 提取月、日 (用于星座)
+        const monthStr = digits.substring(0, 2);
+        const dayStr = digits.substring(2, 4);
+        let monthNum = parseInt(monthStr, 10);
+        let dayNum = parseInt(dayStr, 10);
+        // 边界修正
+        if (monthNum < 1) monthNum = 1;
+        if (monthNum > 12) monthNum = 12;
+        if (dayNum < 1) dayNum = 1;
+        // 粗略限制天数 (不考虑各月实际)
+        if (dayNum > 31) dayNum = 31;
+
+        // 构造用于随机种子的字符串 (结合姓名+月日)
+        const seedBase = name + digits + '玄机';
+
+        // ---- 1. 命格 ----
+        const destIdx = pseudoRandomIndex(seedBase + 'destiny', destinyPool.length);
+        const chosenDestiny = destinyPool[destIdx];
+        destinyValue.textContent = `${chosenDestiny.name} · ${chosenDestiny.desc}`;
+
+        // ---- 2. 星座 ----
+        let zodiacKey = monthStr;
+        // 边界：如果月份不在01-12，修正
+        if (monthNum < 1 || monthNum > 12) zodiacKey = '01';
+        else if (monthNum < 10) zodiacKey = '0' + monthNum;
+        else zodiacKey = String(monthNum);
+        
+        let zodiacLabel = zodiacMap[zodiacKey] || '天秤';
+        // 根据日期微调 (简单双鱼/白羊边界)
+        if (monthNum === 1 && dayNum >= 20) zodiacLabel = '水瓶';
+        else if (monthNum === 2 && dayNum >= 19) zodiacLabel = '双鱼';
+        else if (monthNum === 3 && dayNum >= 21) zodiacLabel = '白羊';
+        else if (monthNum === 4 && dayNum >= 20) zodiacLabel = '金牛';
+        else if (monthNum === 5 && dayNum >= 21) zodiacLabel = '双子';
+        else if (monthNum === 6 && dayNum >= 22) zodiacLabel = '巨蟹';
+        else if (monthNum === 7 && dayNum >= 23) zodiacLabel = '狮子';
+        else if (monthNum === 8 && dayNum >= 23) zodiacLabel = '处女';
+        else if (monthNum === 9 && dayNum >= 23) zodiacLabel = '天秤';
+        else if (monthNum === 10 && dayNum >= 24) zodiacLabel = '天蝎';
+        else if (monthNum === 11 && dayNum >= 23) zodiacLabel = '射手';
+        else if (monthNum === 12 && dayNum >= 22) zodiacLabel = '魔羯';
+        // 美化
+        zodiacValue.textContent = `${zodiacLabel}座 (${monthNum}月${dayNum}日)`;
+
+        // ---- 3. 今日运 ----
+        const luckIdx = pseudoRandomIndex(seedBase + 'luck', luckList.length);
+        luckValue.textContent = luckList[luckIdx];
+
+        // ---- 4. 签语 ----
+        const oracleIdx = pseudoRandomIndex(seedBase + 'oracle', oracleList.length);
+        oracleValue.textContent = `「${oracleList[oracleIdx]}」`;
+
+        // 切换显示
+        placeholder.style.display = 'none';
+        fortuneContent.style.display = 'flex';
+      }
+
+      // 绑定点击事件
+      fortuneBtn.addEventListener('click', performFortune);
+
+      // 键盘支持：回车触发
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          // 如果焦点在输入框内，触发推演
+          const active = document.activeElement;
+          if (active === nameInput || active === birthInput) {
+            e.preventDefault();
+            performFortune();
+          }
+        }
+      });
+
+      // 输入框过滤：出生月日只允许数字
+      birthInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/\D/g, '');
+        if (this.value.length > 4) {
+          this.value = this.value.slice(0, 4);
+        }
+      });
+
+      // 初始化：自动运行一次（演示）
+      setTimeout(() => {
+        performFortune();
+      }, 120);
+    })();
+  </script>
+
+<xykj-audio-pro style="z-index: 2147483647; position: absolute; left: 0px; top: 0px;"></xykj-audio-pro></body></html>

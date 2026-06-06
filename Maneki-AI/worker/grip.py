@@ -167,9 +167,13 @@ class GripVerifier:
 
         required_fields: dict[str, list[str]] = {
             "analyze_market": ["analysis", "trends"],
+            "define_requirements": ["mvp_scope", "functional_requirements"],
+            "design_architecture": ["architecture", "tech_stack", "modules"],
+            "design_ui_ux": ["user_flow", "components", "states"],
             "write_code": ["code", "filename"],
             "generate_content": ["content", "title"],
             "review": ["approved", "feedback"],
+            "build_artifact": ["output_path", "success_status"],
         }
 
         fields = required_fields.get(action_name, [])

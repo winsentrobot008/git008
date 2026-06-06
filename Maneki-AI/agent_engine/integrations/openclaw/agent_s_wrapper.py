@@ -12,6 +12,19 @@ import subprocess
 import sys
 import os
 import shutil
+from pathlib import Path
+
+# ============================================================
+# 动态模式识别
+# ============================================================
+IS_PROD = os.getenv("DEPLOY_ENV") == "production"
+
+# ============================================================
+# 路径映射兼容 -- 所有路径基于 AGENT_S_WRAPPER_ROOT 相对计算
+# ============================================================
+AGENT_S_WRAPPER_ROOT = Path(__file__).parent.resolve()
+# Agent-S 日志默认存储在项目下的 logs/agent_s/ 目录而非 ~/workspace
+_LOGS_BASE = AGENT_S_WRAPPER_ROOT / "logs" / "agent_s"
 
 
 def run_agent_s(task, max_steps=15, enable_reflection=True, enable_local_env=False):
@@ -87,14 +100,14 @@ def run_agent_s(task, max_steps=15, enable_reflection=True, enable_local_env=Fal
             return {
                 "status": "success",
                 "message": f"Agent-S completed the task: {task}",
-                "logs_directory": os.path.expanduser("~/workspace/Agent-S/logs/"),
+                "logs_directory": str(_LOGS_BASE),
                 "note": "Output was streamed to terminal. Check logs for details."
             }
         else:
             return {
                 "status": "error",
                 "message": f"Agent-S failed with return code {result.returncode}",
-                "logs_directory": os.path.expanduser("~/workspace/Agent-S/logs/"),
+                "logs_directory": str(_LOGS_BASE),
                 "note": "Check logs for error details."
             }
 

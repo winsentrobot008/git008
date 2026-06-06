@@ -7,13 +7,15 @@ Provides endpoints for n8n, Agent-S, and the Web Frontend to
 interact with the task factory.
 
 Endpoints:
-  POST /api/task         — Inject a new task into the pending queue (n8n/Agent-S)
-  POST /api/submit-task  — Submit a task from the web frontend (status → PENDING)
-  GET  /api/tasks        — List all tasks with their current status
-  GET  /api/tasks/{id}   — Get a single task's status and report
-  GET  /api/health       — Health check endpoint
+  GET  /                   — Serve the Web Control Center (index.html)
+  POST /api/dispatch       — Dispatch task to AI Board (Web UI)
+  POST /api/task           — Inject a new task into the pending queue (n8n/Agent-S)
+  POST /api/submit-task    — Submit a task from the web frontend (status → PENDING)
+  GET  /api/tasks          — List all tasks with their current status
+  GET  /api/tasks/{id}     — Get a single task's status and report
+  GET  /api/health         — Health check endpoint
 
-Default port: 8000
+Default port: 8010
 """
 
 import os
@@ -31,7 +33,7 @@ PROCESSING_DIR = os.path.join(PROJECT_ROOT, "task_queue", "processing")
 COMPLETED_DIR = os.path.join(PROJECT_ROOT, "task_queue", "completed")
 LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")
 
-DEFAULT_PORT = 8000
+DEFAULT_PORT = 8010
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -162,7 +164,9 @@ class ManekiAPIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path, segs = self._parse_path()
 
-        if path == "/api/task":
+        if path == "/api/dispatch":
+            self._handle_dispatch()
+        elif path == "/api/task":
             self._handle_post_task()
         elif path == "/api/submit-task":
             self._handle_submit_task()
@@ -171,6 +175,81 @@ class ManekiAPIHandler(BaseHTTPRequestHandler):
                 "error": "Not Found",
                 "message": f"Endpoint POST {path} not found."
             })
+
+    def _handle_dispatch(self):
+        """POST /api/dispatch — Web UI: dispatch task to AI Board."""
+        payload = self._read_json_body()
+        if payload is None:
+            self._send_json_response(400, {
+                "error": "Bad Request",
+                "message": "Invalid or empty JSON body."
+            })
+            return
+
+        task_id = payload.get("task_id", "")
+        description = payload.get("description", "")
+        tags = payload.get("tags", [])
+
+        if not task_id or not description:
+            self._send_json_response(400, {
+                "error": "Bad Request",
+                "message": "Missing 'task_id' or 'description'."
+            })
+            return
+
+        # Map tags to AI model assignment
+        model_map = {
+            "strategy": "Gemini (Strategy Director)",
+            "orchestration": "Gemini (Strategy Director)",
+            "code": "DeepSeek (Lead Engineer)",
+            "logic": "DeepSeek (Lead Engineer)",
+            "creative": "Doubao (Creative Director)",
+            "marketing": "Doubao (Creative Director)",
+            "social": "Yuanbao (Social Integrator)",
+            "audit": "OpenAI/Claude (Auditor)",
+            "standardization": "OpenAI/Claude (Auditor)",
+        }
+        assigned = "Gemini (Strategy Director)"  # default
+        for tag in tags:
+            tag_lower = tag.lower().strip()
+            if tag_lower in model_map:
+                assigned = model_map[tag_lower]
+                break
+
+        _ensure_dirs()
+        now = _now_iso()
+        record = {
+            "task_id": task_id,
+            "status": "PENDING",
+            "parameters": {
+                "script_name": "orchestrate",
+                "description": description,
+                "tags": tags,
+                "assigned_model": assigned,
+            },
+            "result_log": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        filepath = os.path.join(PENDING_DIR, f"task_{task_id}.json")
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(record, f, indent=2)
+        except IOError as e:
+            self._send_json_response(500, {
+                "error": "Internal Server Error",
+                "message": f"Failed to save task: {str(e)}"
+            })
+            return
+
+        self._send_json_response(200, {
+            "status": "success",
+            "task_id": task_id,
+            "assigned_model": assigned,
+            "message": f"Task dispatched to {assigned} via ECC orchestration chain."
+        })
+        print(f"[api_gateway] Dispatched {task_id} -> {assigned} (tags: {tags})")
 
     def _handle_post_task(self):
         """POST /api/task — n8n/Agent-S style: strict validation."""
@@ -274,10 +353,27 @@ class ManekiAPIHandler(BaseHTTPRequestHandler):
 
     # ── GET ────────────────────────────────────────────────────────────────
 
+    def _serve_html(self, path: str):
+        """Serve an HTML file from the templates directory."""
+        filepath = os.path.join(PROJECT_ROOT, "templates", path)
+        if not os.path.isfile(filepath):
+            self._send_json_response(404, {"error": "Not Found", "message": f"Page '{path}' not found."})
+            return
+        with open(filepath, "r", encoding="utf-8") as f:
+            html = f.read()
+        body = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         path, segs = self._parse_path()
 
-        if path == "/api/health":
+        if path == "/" or path == "/index.html":
+            self._serve_html("index.html")
+        elif path == "/api/health":
             self._handle_get_health()
         elif path == "/api/tasks":
             self._handle_list_tasks()
@@ -285,10 +381,7 @@ class ManekiAPIHandler(BaseHTTPRequestHandler):
             # GET /api/tasks/{task_id}
             self._handle_get_task(segs[2])
         else:
-            self._send_json_response(404, {
-                "error": "Not Found",
-                "message": f"Endpoint GET {path} not found."
-            })
+            self._serve_html("index.html")
 
     def _handle_get_health(self):
         self._send_json_response(200, {

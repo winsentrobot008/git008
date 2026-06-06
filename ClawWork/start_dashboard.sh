@@ -87,7 +87,7 @@ trap cleanup INT TERM
 
 # Kill existing processes before starting
 echo -e "${BLUE}🔍 Checking for existing services...${NC}"
-kill_port 8000 "Backend API"
+kill_port 8010 "Backend API"
 kill_port 3000 "Frontend"
 echo ""
 
@@ -138,8 +138,8 @@ echo -e "${GREEN}🎉 LiveBench Dashboard is running!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  ${BLUE}📊 Dashboard:${NC}  http://localhost:3000"
-echo -e "  ${BLUE}🔧 Backend API:${NC} http://localhost:8000"
-echo -e "  ${BLUE}📚 API Docs:${NC}    http://localhost:8000/docs"
+echo -e "  ${BLUE}🔧 Backend API:${NC} http://localhost:8010"
+echo -e "  ${BLUE}📚 API Docs:${NC}    http://localhost:8010/docs"
 echo ""
 echo -e "${BLUE}📝 Logs:${NC}"
 echo -e "  API:      tail -f logs/api.log"

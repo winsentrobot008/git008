@@ -1,0 +1,10 @@
+{
+  "task_id": "TEST-LOCAL-001",
+  "status": "PENDING",
+  "parameters": {
+    "script_name": "echo_test"
+  },
+  "result_log": null,
+  "created_at": "2026-06-05T08:00:52Z",
+  "updated_at": "2026-06-05T08:00:52Z"
+}

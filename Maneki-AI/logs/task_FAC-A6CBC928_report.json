@@ -1,0 +1,25 @@
+{
+  "task_id": "FAC-A6CBC928",
+  "status": "SUCCESS",
+  "detail": {
+    "total_steps": 1,
+    "successful_steps": 1,
+    "average_score": 0.75,
+    "details": [
+      {
+        "analysis": "Market analysis for: \u8bbe\u8ba1\u4e2a\u7f51\u9875\uff0c\u4ea4\u6613\u6bd4\u7279\u5e01\u7684. Key trends identified.",
+        "score": 0.75,
+        "trends": [
+          "Emerging demand",
+          "Digital transformation"
+        ],
+        "recommendations": [
+          "Invest in AI",
+          "Expand market reach"
+        ]
+      }
+    ]
+  },
+  "created_at": "2026-06-04T19:35:50Z",
+  "updated_at": "2026-06-04T19:35:50Z"
+}

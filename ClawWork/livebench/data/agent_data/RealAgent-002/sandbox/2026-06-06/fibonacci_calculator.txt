@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""
+Fibonacci Number Calculator
+
+This script provides multiple functions to calculate Fibonacci numbers:
+1. fibonacci_recursive(n) - Recursive approach (inefficient for large n)
+2. fibonacci_memoization(n) - Recursive with memoization (efficient)
+3. fibonacci_iterative(n) - Iterative approach (most efficient)
+4. fibonacci_generator(n) - Generator yielding sequence up to n
+
+Usage:
+    python fibonacci_calculator.py [n]
+
+    If n is provided as a command-line argument, it calculates the nth Fibonacci number.
+    Otherwise, it demonstrates various methods.
+"""
+
+import sys
+from functools import lru_cache
+
+
+# === Method 1: Simple Recursive (Inefficient for large n) ===
+def fibonacci_recursive(n):
+    """
+    Calculate the nth Fibonacci number using simple recursion.
+    
+    Args:
+        n: Non-negative integer
+        
+    Returns:
+        The nth Fibonacci number
+        
+    Time Complexity: O(2^n)
+    Space Complexity: O(n)
+    """
+    if n < 0:
+        raise ValueError("Fibonacci is not defined for negative numbers")
+    if n <= 1:
+        return n
+    return fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2)
+
+
+# === Method 2: Recursive with Memoization ===
+@lru_cache(maxsize=None)
+def fibonacci_memoization(n):
+    """
+    Calculate the nth Fibonacci number using recursion with memoization.
+    
+    Args:
+        n: Non-negative integer
+        
+    Returns:
+        The nth Fibonacci number
+        
+    Time Complexity: O(n)
+    Space Complexity: O(n)
+    """
+    if n < 0:
+        raise ValueError("Fibonacci is not defined for negative numbers")
+    if n <= 1:
+        return n
+    return fibonacci_memoization(n - 1) + fibonacci_memoization(n - 2)
+
+
+# === Method 3: Iterative (Most Efficient) ===
+def fibonacci_iterative(n):
+    """
+    Calculate the nth Fibonacci number using iteration.
+    
+    Args:
+        n: Non-negative integer
+        
+    Returns:
+        The nth Fibonacci number
+        
+    Time Complexity: O(n)
+    Space Complexity: O(1)
+    """
+    if n < 0:
+        raise ValueError("Fibonacci is not defined for negative numbers")
+    if n <= 1:
+        return n
+    
+    a, b = 0, 1
+    for _ in range(2, n + 1):
+        a, b = b, a + b
+    return b
+
+
+# === Method 4: Generator ===
+def fibonacci_generator(limit):
+    """
+    Generate Fibonacci numbers up to the nth term.
+    
+    Args:
+        limit: Number of Fibonacci terms to generate (non-negative integer)
+        
+    Yields:
+        Fibonacci numbers sequentially
+        
+    Time Complexity: O(n)
+    Space Complexity: O(1)
+    """
+    if limit < 0:
+        raise ValueError("Limit cannot be negative")
+    
+    a, b = 0, 1
+    for _ in range(limit + 1):
+        yield a
+        a, b = b, a + b
+
+
+# === Method 5: Matrix Exponentiation (Fast for very large n) ===
+def fibonacci_matrix(n):
+    """
+    Calculate the nth Fibonacci number using matrix exponentiation.
+    
+    Uses the identity:
+    | F(n+1)  F(n)   |   =   | 1  1 |^n
+    | F(n)    F(n-1) |       | 1  0 |
+    
+    Args:
+        n: Non-negative integer
+        
+    Returns:
+        The nth Fibonacci number
+        
+    Time Complexity: O(log n)
+    Space Complexity: O(log n)
+    """
+    if n < 0:
+        raise ValueError("Fibonacci is not defined for negative numbers")
+    if n <= 1:
+        return n
+    
+    def matrix_multiply(a, b):
+        """Multiply two 2x2 matrices."""
+        return [
+            [a[0][0] * b[0][0] + a[0][1] * b[1][0], a[0][0] * b[0][1] + a[0][1] * b[1][1]],
+            [a[1][0] * b[0][0] + a[1][1] * b[1][0], a[1][0] * b[0][1] + a[1][1] * b[1][1]]
+        ]
+    
+    def matrix_power(matrix, exp):
+        """Raise a 2x2 matrix to the power exp using binary exponentiation."""
+        if exp == 1:
+            return matrix
+        if exp % 2 == 0:
+            half = matrix_power(matrix, exp // 2)
+            return matrix_multiply(half, half)
+        else:
+            return matrix_multiply(matrix, matrix_power(matrix, exp - 1))
+    
+    base_matrix = [[1, 1], [1, 0]]
+    result_matrix = matrix_power(base_matrix, n)
+    return result_matrix[0][1]
+
+
+# === Utility Functions ===
+def fibonacci_sequence(n):
+    """
+    Return the Fibonacci sequence from F(0) to F(n).
+    
+    Args:
+        n: Non-negative integer
+        
+    Returns:
+        List of Fibonacci numbers from F(0) to F(n)
+    """
+    return list(fibonacci_generator(n))
+
+
+def is_fibonacci(num):
+    """
+    Check if a number is a Fibonacci number.
+    
+    A number is Fibonacci if and only if one or both of 
+    (5*n^2 + 4) or (5*n^2 - 4) is a perfect square.
+    
+    Args:
+        num: Integer to check
+        
+    Returns:
+        True if num is a Fibonacci number, False otherwise
+    """
+    import math
+    
+    def is_perfect_square(x):
+        if x < 0:
+            return False
+        s = int(math.isqrt(x))
+        return s * s == x
+    
+    if num < 0:
+        return False
+    
+    return is_perfect_square(5 * num * num + 4) or is_perfect_square(5 * num * num - 4)
+
+
+# === Main Demonstration ===
+def main():
+    """Demonstrate Fibonacci calculation methods."""
+    
+    print("=" * 60)
+    print("FIBONACCI NUMBER CALCULATOR")
+    print("=" * 60)
+    print()
+    
+    # Check for command-line argument
+    if len(sys.argv) > 1:
+        try:
+            n = int(sys.argv[1])
+            if n < 0:
+                print("Error: Please provide a non-negative integer.")
+                sys.exit(1)
+            
+            print(f"Calculating F({n}) using various methods:\n")
+            print(f"  Iterative:       F({n}) = {fibonacci_iterative(n)}")
+            print(f"  Memoization:     F({n}) = {fibonacci_memoization(n)}")
+            print(f"  Matrix:          F({n}) = {fibonacci_matrix(n)}")
+            
+            if n <= 30:
+                print(f"  Recursive:       F({n}) = {fibonacci_recursive(n)}")
+            else:
+                print(f"  Recursive:       Skipped (too slow for n > 30)")
+            
+            print(f"\nSequence up to F({n}):")
+            seq = fibonacci_sequence(n)
+            print(f"  {seq}")
+            
+        except ValueError:
+            print("Error: Please provide a valid integer.")
+            sys.exit(1)
+    else:
+        # Interactive demonstration
+        print("Demonstrating different Fibonacci calculation methods:")
+        print()
+        
+        test_values = [0, 1, 2, 5, 10, 20, 30, 50]
+        
+        print("n  | Iterative | Memoization | Matrix")
+        print("-" * 45)
+        for n in test_values:
+            it = fibonacci_iterative(n)
+            mem = fibonacci_memoization(n)
+            mat = fibonacci_matrix(n)
+            print(f"{n:2d} | {it:9d} | {mem:11d} | {mat:5d}")
+        
+        print()
+        print("Sequence F(0) through F(15):")
+        print(f"  {fibonacci_sequence(15)}")
+        print()
+        
+        # Check some numbers
+        check_nums = [0, 1, 2, 3, 4, 5, 8, 10, 13, 21, 22, 34, 55, 100]
+        print("Fibonacci number check:")
+        print(f"  {'Number':>8} | {'Fibonacci?':>10}")
+        print("  " + "-" * 21)
+        for num in check_nums:
+            result = "Yes" if is_fibonacci(num) else "No"
+            print(f"  {num:>8} | {result:>10}")
+
+
+if __name__ == "__main__":
+    main()

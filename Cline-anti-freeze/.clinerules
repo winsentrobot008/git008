@@ -8,6 +8,9 @@
 # 引用独立治理仓库的全局宪法
 Read rules from Cline-anti-freeze/.clinerules
 
+# 引用正式宪法文件（唯一源）
+Read constitution from Cline-anti-freeze/CONSTITUTION.md
+
 # 工作空间规则
 - 所有业务项目通过 governance_linker.py 自动链接全局宪法
 - 治理文件统一由 Cline-anti-freeze/ 管理，勿在项目内重复创建
@@ -56,6 +59,129 @@ Read rules from Cline-anti-freeze/.clinerules
 # - 【RULE: 编码统一原则】所有源代码必须使用 UTF-8 (无 BOM) 编码。在执行文件操作前，必须进行编码校验，自动清除 U+FEFF 字符。
 #
 # ============================================
+# 历史故障防御规则（基于 error_log.md）
+# ============================================
+
+# 6. 权限防火墙（Permission Firewall）
+#    故障来源: 2026-06-04 PermissionDenied → C:\Windows\system32\config
+#    - 严禁 Agent 尝试扫描系统关键目录（如 C:\Windows、System32、C:\Program Files 等）。
+#    - 任何文件操作若返回 PermissionDenied，必须首先检查当前工作目录的属性，
+#      确认是否误入了受保护的系统路径。
+#    - 若检测到目标路径为系统关键目录，立即中止操作并输出：
+#      "[权限防火墙] 已拦截对系统关键目录的访问：<path>"。
+#    - 所有批量文件扫描（如 search_files、list_files）必须限定在工作空间内，
+#      严禁向上遍历至系统根目录。
+
+# 7. Git 安全门禁（Git Security Gate）
+#    故障来源: 2026-06-04 GitPushError → No configured push destination
+#    - 在执行任何 Git 操作（push、fetch、pull）前，必须先调用 do_git.py 检查远程仓库配置。
+#    - 若 do_git.py 返回未配置远程仓库的状态，严禁执行 git push，改为输出诊断日志：
+#      "[Git安全门禁] 远程仓库未配置，已拦截 git push 操作。请检查 remote origin 配置。"
+#    - 仅当远程仓库配置验证通过后，方可执行后续 Git 网络操作。
+#    - 本地操作（如 commit、add、log、diff）不受此限制。
+
+# 8. 阻塞探测器（IOBlock Detector）
+#    故障来源: 2026-06-04 IOBlock → Get-ChildItem 目录遍历卡死
+#    - 在执行任何 Get-ChildItem 或大批量目录遍历时，必须注入进度提示或设置超时限制。
+#    - PowerShell 环境下，对高容量目录使用 Get-ChildItem 时必须添加 -ErrorAction SilentlyContinue
+#      并限制遍历深度（如 -Depth 2），防止终端输出饱和导致进程挂起。
+#    - 推荐使用超时包装器：任何遍历操作不得超过 60 秒，超时则主动中断并报告。
+#    - 若使用 Python 环境，批量遍历必须配合 tqdm 进度条或设置 timeout 参数。
+#    - 若检测到 IO 操作超过阈值无响应，必须输出：
+#      "[阻塞探测器] IO 操作超时，已中断。路径：<path>，已耗时：<seconds>s"
+
+# ============================================
+# 多实例并行协作协议（Multi-Instance Protocol）
+# 版本: 1.0 — 2026-06-05 宪法修正案
+# ============================================
+
+# 9. 工位职能隔离（Functional Isolation）
+#    - 开发工位（业务窗口）：仅被允许进行业务逻辑编码，严禁修改全局治理核心文件
+#      （/Cline-anti-freeze/.clinerules, clinerules.yaml, protocols, governance_evolution.md, monitor.py, governance_linker.py）。
+#    - 治理工位（监控窗口）：拥有全局治理规则的"编辑权"与"执法权"，负责运行 monitor.py 及归档 error_log.md。
+#    - 每个实例在启动时必须通过 governance_linker.py --boot-check 验证角色与治理中心有效性。
+#    - 若开发工位尝试修改宪法核心文件，必须立即输出告警并拒绝操作：
+#      "[宪法保护] 写入被拒绝！当前实例角色：development，目标文件：<path>"
+
+# 10. 并行写入互斥（Write Mutex）
+#    - 任何并行运行的实例在向 error_log.md 写入日志时，必须遵循格式：
+#      [时间戳 | 实例ID | 模块/错误内容]
+#    - 严禁多个实例同时对同一业务文件进行 write_to_file 操作，需通过 FileLock 互斥机制规避。
+#    - governance_linker.py 提供 FileLock 上下文管理器，超时 30 秒。
+
+# 11. 宪法唯一源（Single Source of Truth）
+#    - 所有实例在启动时，必须通过 governance_linker.py 检查指向的治理中心是否为
+#      /Cline-anti-freeze/。
+#    - 若检测到当前运行实例非"治理工位"却试图修改宪法，需立刻弹出警告并拒绝操作。
+#    - 治理中心核心文件列表定义于 governance_linker.py 的 CONSTITUTION_FILES。
+
+# 12. 心跳同步机制（Heartbeat Synchronization）
+#    - 治理工位负责维护全局 monitor.py 的运行（通过 --daemon 模式）。
+#    - 开发工位在执行长任务（>30秒）时，需向 error_log.md 发送"心跳存活信号"：
+#      格式: ## [时间戳 | 实例ID | HEARTBEAT]
+#    - 治理工位每 60 秒扫描一次 error_log.md 中各实例的心跳，超过 90 秒无心跳则
+#      判定为"失活"并写入告警日志。
+#    - 连续 5 次告警后触发 kill_all_agents() 自愈流程。
+
+# 13. Master 分支推送加锁检查（Master Push Lock Gate）
+#    来源: 治理宪法修正案 — 2026-06-05 治理工位初始化
+#    - 所有对 master 分支的推送，必须通过 do_git.py 进行加锁检查，防止多实例并发推送冲突。
+#    - 推送前必须执行: python do_git.py --push --verify-lock
+#    - 若 do_git.py 返回锁冲突状态，严禁执行 git push，改为输出告警:
+#      "[Master推送锁] 检测到并发推送冲突，已拦截。请等待当前推送完成后重试。"
+#    - 本地操作（如 commit、add、log、diff）不受此限制。
+#    - 推送操作完成后，do_git.py 自动释放锁文件。
+
+# ============================================
 # 加载声明
 # ============================================
 # 本文件已加载 — 防卡死协议已挂载。
+
+# ============================================
+# 14. 防御性编程规则 — 路径零歧义原则（Zero-Ambiguity Principle）
+#    宪法来源: 2026-06-05 防御性编程宪法修正案 — 阶段六
+#    - 所有涉及路径的字符串，必须强制包裹在 " 双引号内（例如 "${path}"）。
+#    - 禁止直接使用路径拼接，必须使用 Node.js 的 path.join() 或 Python 的 os.path.join()
+#      处理，确保自动识别 OS 的路径分隔符。
+#    - Python 代码中应优先使用 lib/path_utils.py 提供的 safe_quote() / join_path() / abs_path()
+#      等防御性编程函数。
+#    - PS1/BAT 脚本中，所有路径参数必须用双引号包裹，使用 -LiteralPath 替代 -Path。
+
+# 15. 防御性编程规则 — 执行命令标准化（Standardized Execution）
+#    宪法来源: 2026-06-05 防御性编程宪法修正案 — 阶段六
+#    - 以后调用所有脚本（如 run_in_sandbox.py），严禁使用 cd/Set-Location/Push-Location
+#      进入目录后再执行。
+#    - 必须使用绝对路径直接执行：
+#      PowerShell:  & "C:/绝对路径/脚本.ps1" "参数"
+#      Batch:       "C:\绝对路径\脚本.exe" "参数"
+#      Python:      subprocess.run([sys.executable, quote_abs_path("脚本.py"), ...])
+#    - 这一修改能彻底避开 PowerShell 的 Set-Location（即 cd 命令）路径解析冲突。
+#    - Git 操作使用 git -C "绝对路径" <command> 替代先 cd 再执行。
+
+# 16. 防御性编程规则 — 强制静默重试（Silent Retry）
+#    宪法来源: 2026-06-05 防御性编程宪法修正案 — 阶段六
+#    - 如果任务执行失败，禁止在终端抛出大量错误信息轰炸。
+#    - 自动检测错误码，如果是因为路径解析错误，必须自动执行一次"引号封装修复"，
+#      重试至多 2 次。
+#    - 如果依然失败，请记录到 error.log 并向我发送一次性总结，严禁死循环。
+#    - 在 Python 代码中，应优先使用 lib/path_utils.run_command() 实现自动化静默重试。
+
+# ============================================
+# 自主扫描与登记协议（Auto-Scan & Register Protocol）
+# ============================================
+
+# 17. 自主扫描与登记协议（Auto-Scan & Register Protocol）
+# 版本: 1.0 — 2026-06-05 第三法则
+# ============================================
+#
+# 自动巡检：在任何 VSC 实例启动时，Cline 必须扫描 git008 根目录下的所有顶级文件夹。
+# 差异对比：将扫描结果与 Cline-anti-freeze/project_registry.md 进行比对。
+# 发现即登记：若发现未登记的文件夹，自动执行"入列仪式"：
+#   - 在 registry.md 中追加登记记录。
+#   - 验证该文件夹是否符合独立项目结构（是否存在 .cline_context）。
+#   - 运行治理链接脚本，确保该项目纳入监控覆盖范围。
+# 状态报告：若发现新项目，必须在启动后的首次对话中向老板汇报：
+#   "发现新项目 [项目名]，已将其纳入治理体系。"
+#
+# 实现：由 Cline-anti-freeze/onboard_scanner.py 负责扫描逻辑。
+# 触发：governance_linker.py 在 boot_check() 初始化时自动调用 onboard_scanner.py。

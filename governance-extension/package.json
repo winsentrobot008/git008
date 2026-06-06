@@ -1,0 +1,45 @@
+{
+  "name": "cline-governance-center",
+  "displayName": "Cline 治理中心",
+  "description": "Cline-anti-freeze 原生治理侧边栏 — 健康监控、全局控制、告警通知",
+  "version": "2.0.0",
+  "publisher": "cline-governance",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cline-governance.openView",
+        "title": "打开治理面板",
+        "icon": "$(dashboard)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cline-governance",
+          "title": "Cline 治理中心",
+          "icon": "media/governance-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cline-governance": [
+        {
+          "type": "webview",
+          "id": "cline-governance.panel",
+          "name": "治理面板"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "FAC-F9015293",
+  "goal": "test orchestration pipeline",
+  "created_at": "2026-06-05T08:01:15Z",
+  "model": "mock",
+  "generated_by": "mock_rules",
+  "steps": [
+    {
+      "step": 1,
+      "action": "analyze_market",
+      "input": {
+        "topic": "test orchestration pipeline"
+      }
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Project-X 独立依赖
+# 严禁与父目录下其他项目共享环境依赖
+# 协议：Project Onboarding Protocol v1.0

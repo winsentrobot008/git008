@@ -1,0 +1,16 @@
+{
+  "task_id": "FAC-133DE252",
+  "goal": "设计个网页，交易比特币的",
+  "created_at": "2026-06-04T19:35:50Z",
+  "model": "mock",
+  "generated_by": "mock_rules",
+  "steps": [
+    {
+      "step": 1,
+      "action": "analyze_market",
+      "input": {
+        "topic": "设计个网页，交易比特币的"
+      }
+    }
+  ]
+}

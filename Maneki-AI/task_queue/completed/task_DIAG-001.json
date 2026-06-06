@@ -1,0 +1,7 @@
+{
+  "task_id": "DIAG-001",
+  "parameters": {
+    "goal": "Echo diagnostic test - verify pipeline health"
+  },
+  "description": "Diagnostic test task"
+}

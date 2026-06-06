@@ -1,0 +1,25 @@
+{
+  "task_id": "FAC-89284F87",
+  "goal": "设计个算命APP",
+  "status": "success",
+  "aggregate_output": {
+    "total_steps": 1,
+    "successful_steps": 1,
+    "average_score": 0.75,
+    "details": [
+      {
+        "analysis": "Market analysis for: 设计个算命APP. Key trends identified.",
+        "score": 0.75,
+        "trends": [
+          "Emerging demand",
+          "Digital transformation"
+        ],
+        "recommendations": [
+          "Invest in AI",
+          "Expand market reach"
+        ]
+      }
+    ]
+  },
+  "completed_at": "2026-06-04T19:46:20Z"
+}

@@ -1,0 +1,25 @@
+{
+  "task_id": "FAC-133DE252",
+  "goal": "设计个网页，交易比特币的",
+  "status": "success",
+  "aggregate_output": {
+    "total_steps": 1,
+    "successful_steps": 1,
+    "average_score": 0.75,
+    "details": [
+      {
+        "analysis": "Market analysis for: 设计个网页，交易比特币的. Key trends identified.",
+        "score": 0.75,
+        "trends": [
+          "Emerging demand",
+          "Digital transformation"
+        ],
+        "recommendations": [
+          "Invest in AI",
+          "Expand market reach"
+        ]
+      }
+    ]
+  },
+  "completed_at": "2026-06-04T19:35:50Z"
+}

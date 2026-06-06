@@ -1,0 +1,7 @@
+{
+  "pause_all_production": false,
+  "risk_threshold": 0.7,
+  "heartbeat_timeout_sec": 120,
+  "auto_self_heal": true,
+  "alert_broadcast": true
+}

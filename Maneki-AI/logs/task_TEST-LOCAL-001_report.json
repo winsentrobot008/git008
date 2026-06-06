@@ -1,0 +1,9 @@
+{
+  "task_id": "TEST-LOCAL-001",
+  "status": "FAILED",
+  "detail": {
+    "error": "Goal cannot be empty"
+  },
+  "created_at": "2026-06-05T08:00:55Z",
+  "updated_at": "2026-06-05T08:00:55Z"
+}

@@ -1,0 +1,9 @@
+{
+  "command": "python -c \"from clearing_engine.core import FinancialClearingEngine; engine = FinancialClearingEngine(); print('✅ Financial Clearing Engine ready')\"",
+  "returncode": 1,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nUnicodeEncodeError: 'gbk' codec can't encode character '\\u2705' in position 0: illegal multibyte sequence\n",
+  "success": false,
+  "started_at": "2026-06-05T08:02:38.465375+00:00",
+  "finished_at": "2026-06-05T08:02:38.673801+00:00"
+}

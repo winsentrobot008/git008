@@ -1,0 +1,41 @@
+{
+  "task_id": "FAC-D57FC062",
+  "goal": "设计个算命APP，包含核心功能逻辑",
+  "created_at": "2026-06-04T19:59:50Z",
+  "model": "mock",
+  "generated_by": "mock_rules",
+  "steps": [
+    {
+      "step": 1,
+      "action": "define_requirements",
+      "input": {
+        "goal": "设计个算命APP，包含核心功能逻辑"
+      },
+      "description": "需求分析与核心功能定义"
+    },
+    {
+      "step": 2,
+      "action": "design_architecture",
+      "input": {
+        "goal": "设计个算命APP，包含核心功能逻辑"
+      },
+      "description": "系统架构与数据结构设计"
+    },
+    {
+      "step": 3,
+      "action": "design_ui_ux",
+      "input": {
+        "goal": "设计个算命APP，包含核心功能逻辑"
+      },
+      "description": "UI/UX 逻辑与功能实现"
+    },
+    {
+      "step": 4,
+      "action": "write_code",
+      "input": {
+        "description": "设计个算命APP，包含核心功能逻辑"
+      },
+      "description": "代码生成与验证"
+    }
+  ]
+}

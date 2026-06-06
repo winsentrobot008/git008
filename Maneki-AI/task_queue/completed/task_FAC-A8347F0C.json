@@ -1,0 +1,11 @@
+{
+  "task_id": "FAC-A8347F0C",
+  "status": "PENDING",
+  "parameters": {
+    "script_name": "factory_goal",
+    "goal": "\u8bbe\u8ba1\u4e2a\u7b97\u547dAPP"
+  },
+  "result_log": null,
+  "created_at": "2026-06-04T19:56:04Z",
+  "updated_at": "2026-06-04T19:56:04Z"
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-run_task.py â€?Standalone task runner for Maneki-AI.
+run_task.py â€” Standalone task runner for Maneki-AI.
 
 Reads commands.json and executes the corresponding CLI command via subprocess.
 This is NOT a VS Code plugin. It is a standalone Python script.
@@ -39,8 +40,11 @@ def execute_command(command: str, timeout: int = 300, cwd: str | None = None) ->
             shell=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=cwd,
             timeout=timeout,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         return {
             "command": command,

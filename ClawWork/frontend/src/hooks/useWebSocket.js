@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { IS_STATIC } from '../api'
+import { IS_STATIC, API_BASE_URL } from '../api'
 
 export const useWebSocket = () => {
   const [lastMessage, setLastMessage]       = useState(null)
@@ -11,8 +11,9 @@ export const useWebSocket = () => {
     if (IS_STATIC) return
 
     const connectWebSocket = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.hostname}:${window.location.port}/ws`
+      // 使用相对路径 /ws，通过 Vite 代理转发到后端 ws://localhost:8010/ws
+      // 避免在前端 dev 环境下因 API_BASE_URL 指向 localhost:3000 而连接自身
+      const wsUrl = '/ws'
 
       ws.current = new WebSocket(wsUrl)
 

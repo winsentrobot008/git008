@@ -17,9 +17,24 @@ CLAUDE_TEMPERATURE = float(os.getenv("CLAUDE_TEMPERATURE", "0.3"))
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANS_DIR = PROJECT_ROOT / "plans"
 
-PLAN_SYSTEM_PROMPT = """You are HQ Commander. Decompose user goal into steps.
-Output ONLY valid JSON. Actions: analyze_market, write_code, generate_content, review.
-JSON: {"task_id":"<UUID>","goal":"<goal>","created_at":"<ISO>","model":"<model>","steps":[{"step":1,"action":"<action>","input":{}},...]}"""
+PLAN_SYSTEM_PROMPT = """你不仅是分析师，更是首席架构师。对于开发类任务，严禁只输出分析步骤，必须规划出完整的工程实施路径。
+
+## 强制规划规范（设计/开发/构建类需求）
+当用户提出"设计、开发、构建、创建、实现"等需求时，必须生成至少 4 个步骤的完整蓝图：
+
+- Step 1: 需求分析与核心功能定义 — 细化用户目标，明确MVP范围和关键功能点
+- Step 2: 系统架构与数据结构设计 — 规划技术栈、模块划分、数据模型与API接口
+- Step 3: UI/UX 逻辑与功能实现 — 规划界面交互流程、组件树、状态管理与用户操作路径
+- Step 4: 代码生成与验证 — 输出具体代码实现方案，包含测试与验证策略
+
+## 可用动作
+actions: analyze_market, define_requirements, design_architecture, design_ui_ux, write_code, generate_content, review, test_verify
+
+## 输出格式
+仅输出合法 JSON，格式如下：
+{"task_id":"<UUID>","goal":"<goal>","created_at":"<ISO>","model":"<model>","steps":[{"step":1,"action":"<action>","input":{},"description":"<中文描述>"},...]}
+
+严禁输出任何非 JSON 内容。"""
 
 
 class HQCommander:
@@ -101,21 +116,28 @@ class HQCommander:
         gl = goal.lower()
         steps = []
         sn = 0
-        if any(k in gl for k in ["analyze", "market", "research"]):
-            sn += 1
-            steps.append({"step": sn, "action": "analyze_market", "input": {"topic": goal}})
-        if any(k in gl for k in ["code", "develop", "build", "python", "script"]):
-            sn += 1
-            steps.append({"step": sn, "action": "write_code", "input": {"description": goal}})
-        if any(k in gl for k in ["content", "write", "post", "article", "copy"]):
-            sn += 1
-            steps.append({"step": sn, "action": "generate_content", "input": {"prompt": goal, "style": "professional"}})
-        if len(steps) > 1:
-            sn += 1
-            steps.append({"step": sn, "action": "review", "input": {"content": "All outputs"}})
-        if not steps:
-            sn += 1
-            steps.append({"step": sn, "action": "analyze_market", "input": {"topic": goal}})
+        is_dev = any(k in gl for k in ["design", "develop", "build", "create", "code", "app", "构建", "开发", "设计", "实现", "创建", "网页", "网站", "前端"])
+        if is_dev:
+            steps = [
+                {"step": 1, "action": "define_requirements", "input": {"goal": goal}, "description": "需求分析与核心功能定义"},
+                {"step": 2, "action": "design_architecture", "input": {"goal": goal}, "description": "系统架构与数据结构设计"},
+                {"step": 3, "action": "design_ui_ux", "input": {"goal": goal}, "description": "UI/UX 逻辑与功能实现"},
+                {"step": 4, "action": "write_code", "input": {"description": goal}, "description": "代码生成与验证"},
+                {"step": 5, "action": "build_artifact", "input": {"source_file": "{{GENERATED_FILE}}", "language": "{{GENERATED_LANGUAGE}}"}, "description": "总装编译 · 构建可执行产物"},
+            ]
+        else:
+            if any(k in gl for k in ["analyze", "market", "research"]):
+                sn += 1
+                steps.append({"step": sn, "action": "analyze_market", "input": {"topic": goal}})
+            if any(k in gl for k in ["content", "write", "post", "article", "copy"]):
+                sn += 1
+                steps.append({"step": sn, "action": "generate_content", "input": {"prompt": goal, "style": "professional"}})
+            if len(steps) > 1:
+                sn += 1
+                steps.append({"step": sn, "action": "review", "input": {"content": "All outputs"}})
+            if not steps:
+                sn += 1
+                steps.append({"step": sn, "action": "analyze_market", "input": {"topic": goal}})
         return {"task_id": task_id, "goal": goal, "created_at": now, "model": "mock", "generated_by": "mock_rules", "steps": steps}
 
     def _error_plan(self, task_id, error, now):

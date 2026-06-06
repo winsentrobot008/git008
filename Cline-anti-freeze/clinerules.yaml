@@ -1,13 +1,60 @@
 # git008 治理规则 YAML 配置
-version: "1.0"
+# 版本: 2.0 — 多实例并行协作协议
+version: "2.0"
 governance:
   center: "Cline-anti-freeze"
+  single_source_of_truth: true
+
   anti_freeze:
     timeout: 120
     max_retries: 3
     context_warning: 80
     heartbeat_interval: 5
     deadlock_timeout: 60
+
+  # 多实例并行协作协议 (Multi-Instance Protocol v1.0)
+  multi_instance:
+    enabled: true
+    instance_registry: ".instance_registry.json"
+    file_lock_dir: ".locks"
+    heartbeat_grace_period: 90      # 开发工位心跳宽限期（秒）
+    heartbeat_scan_interval: 60     # 心跳扫描间隔（秒）
+    max_stale_before_self_heal: 5   # 连续失活触发自愈阈值
+
+    roles:
+      governance:
+        description: "治理工位 — 拥有宪法编辑权与执法权"
+        capabilities:
+          - 修改宪法核心文件
+          - 运行 monitor.py --daemon
+          - 归档 error_log.md
+          - 触发 kill_all_agents() 自愈
+        constitution_files:
+          - .clinerules
+          - clinerules.yaml
+          - protocols
+          - governance_evolution.md
+          - monitor.py
+          - governance_linker.py
+
+      development:
+        description: "开发工位 — 仅业务逻辑编码"
+        capabilities:
+          - 修改 Maneki-AI/ 业务代码
+          - 修改 ClawWork/ 业务代码
+          - 发送心跳信号到 error_log.md
+        restrictions:
+          - 严禁修改任何宪法核心文件
+          - 长任务（>30秒）须发送心跳
+
+  # 日志格式规范
+  error_log_format:
+    delimiter: " | "
+    fields: [timestamp, instance_id, module]
+    example: "[2026-06-05 09:00:00 | host-pid-uuid | MODULE]"
+
   rules:
     - 所有业务项目通过 governance_linker.py 自动链接全局宪法
     - 治理文件统一由 Cline-anti-freeze/ 管理
+    - 多实例并行须遵循工位职能隔离、写入互斥、宪法唯一源、心跳同步四大协议
+    - 实例启动时必须执行 governance_linker.py --boot-check

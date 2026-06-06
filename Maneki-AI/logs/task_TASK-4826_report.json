@@ -1,0 +1,9 @@
+{
+  "task_id": "TASK-4826",
+  "status": "FAILED",
+  "detail": {
+    "error": "Goal cannot be empty"
+  },
+  "created_at": "2026-06-05T08:10:16Z",
+  "updated_at": "2026-06-05T08:10:16Z"
+}

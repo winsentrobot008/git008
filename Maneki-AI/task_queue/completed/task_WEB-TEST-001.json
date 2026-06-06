@@ -1,0 +1,16 @@
+{
+  "task_id": "WEB-TEST-001",
+  "status": "PENDING",
+  "parameters": {
+    "script_name": "orchestrate",
+    "description": "Build a landing page for AI factory",
+    "tags": [
+      "code",
+      "creative"
+    ],
+    "assigned_model": "DeepSeek (Lead Engineer)"
+  },
+  "result_log": null,
+  "created_at": "2026-06-05T08:09:50Z",
+  "updated_at": "2026-06-05T08:09:50Z"
+}

@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-4826",
+  "status": "PENDING",
+  "parameters": {
+    "script_name": "orchestrate",
+    "description": "\u5411\u6cd5\u56fd\u653f\u5e9c\u9ad8\u5b98",
+    "tags": [],
+    "assigned_model": "Gemini (Strategy Director)"
+  },
+  "result_log": null,
+  "created_at": "2026-06-05T08:10:11Z",
+  "updated_at": "2026-06-05T08:10:11Z"
+}

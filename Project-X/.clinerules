@@ -1,0 +1,7 @@
+# Project-X — Business Project (Development Role)
+- This is a business/development project under git008 governance.
+- All source modifications are scoped to this directory.
+- Governance context is inherited from the parent Cline-anti-freeze.
+
+# ── 治理继承 ──
+include: ../Cline-anti-freeze/.clinerules

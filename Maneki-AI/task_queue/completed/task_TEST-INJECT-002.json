@@ -1,0 +1,11 @@
+{
+  "task_id": "TEST-INJECT-002",
+  "status": "PENDING",
+  "parameters": {
+    "script_name": "orchestrate",
+    "goal": "test orchestration pipeline"
+  },
+  "result_log": null,
+  "created_at": "2026-06-05T08:01:12Z",
+  "updated_at": "2026-06-05T08:01:12Z"
+}

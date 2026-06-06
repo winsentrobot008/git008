@@ -1,68 +1,62 @@
-/**
- * API abstraction — switches between:
- *   live mode  : FastAPI backend at /api/... (local dev with Vite proxy)
- *   static mode: pre-generated JSON files at {BASE_URL}data/... (GitHub Pages)
- *
- * Set VITE_STATIC_DATA=true at build time to enable static mode.
- */
+const API_BASE_URL = 'http://localhost:8010';
+const BASE = `${API_BASE_URL}/api`;
 
-const STATIC   = import.meta.env.VITE_STATIC_DATA === 'true'
-const BASE_URL = import.meta.env.BASE_URL || '/'          // e.g. /-Live-Bench/
+const get = async (url) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+};
 
-const staticUrl = (path) => `${BASE_URL}data/${path}`
-const liveUrl   = (path) => `/api/${path}`
+const post = async (url, body) => {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+};
 
-const get = (url) => fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
+const del = async (url) => {
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+};
 
-// ── Endpoints ─────────────────────────────────────────────────────────────────
+export { API_BASE_URL };
+export const fetchHealth = () => get(`${BASE}/health`);
 
-export const fetchAgents = () =>
-  get(STATIC ? staticUrl('agents.json') : liveUrl('agents'))
+export const fetchAgents = () => get(`${BASE}/agents`);
 
-export const fetchLeaderboard = () =>
-  get(STATIC ? staticUrl('leaderboard.json') : liveUrl('leaderboard'))
+export const fetchSchedulerAgents = () => get(`${BASE}/scheduler/agents`);
 
-export const fetchAgentDetail = (sig) =>
-  get(STATIC ? staticUrl(`agents/${encodeURIComponent(sig)}.json`) : liveUrl(`agents/${sig}`))
+export const fetchAgentDetail = (signature) => get(`${BASE}/agents/${encodeURIComponent(signature)}`);
 
-export const fetchAgentEconomic = (sig) =>
-  get(STATIC ? staticUrl(`agents/${encodeURIComponent(sig)}/economic.json`) : liveUrl(`agents/${sig}/economic`))
+export const fetchAgentEconomic = (signature) => get(`${BASE}/agents/${encodeURIComponent(signature)}/economic`);
 
-export const fetchAgentTasks = (sig) =>
-  get(STATIC ? staticUrl(`agents/${encodeURIComponent(sig)}/tasks.json`) : liveUrl(`agents/${sig}/tasks`))
+export const fetchAgentTasks = (signature) => get(`${BASE}/agents/${encodeURIComponent(signature)}/tasks`);
 
-export const fetchAgentLearning = (sig) =>
-  get(STATIC ? staticUrl(`agents/${encodeURIComponent(sig)}/learning.json`) : liveUrl(`agents/${sig}/learning`))
+export const fetchTasks = () => get(`${BASE}/tasks`);
 
-export const fetchHiddenAgents = () =>
-  get(STATIC ? staticUrl('settings/hidden-agents.json') : liveUrl('settings/hidden-agents'))
+export const fetchTaskStatus = (taskId) => get(`${BASE}/tasks/${encodeURIComponent(taskId)}`);
 
-export const fetchDisplayNames = () =>
-  get(STATIC ? staticUrl('settings/displaying-names.json') : liveUrl('settings/displaying-names'))
+export const submitTask = (data) => post(`${BASE}/tasks`, data);
 
-export const fetchArtifacts = () =>
-  get(STATIC ? staticUrl('artifacts.json') : liveUrl('artifacts/random?count=30'))
+export const resubmitTask = (taskId, prompt) => post(`${BASE}/tasks/${encodeURIComponent(taskId)}/resubmit`, { prompt });
 
-export const fetchTerminalLog = (sig, date) =>
-  get(STATIC
-    ? staticUrl(`agents/${encodeURIComponent(sig)}/terminal-logs/${date}.json`)
-    : liveUrl(`agents/${encodeURIComponent(sig)}/terminal-log/${date}`)
-  )
+export const deleteTask = (taskId) => del(`${BASE}/tasks/${encodeURIComponent(taskId)}`);
 
-/** Returns a URL that can be used directly in fetch() or as an iframe src */
-export const getArtifactFileUrl = (path) =>
-  STATIC
-    ? `${BASE_URL}data/files/${path}`
-    : `/api/artifacts/file?path=${encodeURIComponent(path)}`
+export const fetchTaskDetail = (taskId) => get(`${BASE}/tasks/${encodeURIComponent(taskId)}/detail`);
 
-/** No-op in static mode (can't persist state to GitHub Pages) */
-export const saveHiddenAgents = (hiddenArray) => {
-  if (STATIC) return Promise.resolve()
-  return fetch('/api/settings/hidden-agents', {
+export const fetchLeaderboard = () => get(`${BASE}/leaderboard`);
+
+export const fetchHiddenAgents = () => get(`${BASE}/settings/hidden-agents`);
+
+export const saveHiddenAgents = (hiddenArray) =>
+  fetch(`${BASE}/settings/hidden-agents`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hidden: hiddenArray }),
-  })
-}
+  });
 
-export const IS_STATIC = STATIC
+export const fetchDisplayNames = () => get(`${BASE}/settings/displaying-names`);

@@ -40,7 +40,7 @@ TUNNEL_SCRIPT = os.path.join(PROJECT_ROOT, "scripts", "start_tunnel.py")
 
 # Set to True to enable automatic tunnel provisioning
 ENABLE_TUNNEL = os.environ.get("MANEKI_ENABLE_TUNNEL", "1") == "1"
-TUNNEL_PORT = int(os.environ.get("MANEKI_TUNNEL_PORT", "8000"))
+TUNNEL_PORT = int(os.environ.get("MANEKI_TUNNEL_PORT", "8010"))
 TUNNEL_SUBDOMAIN = os.environ.get("MANEKI_TUNNEL_SUBDOMAIN", None)
 
 

@@ -1,0 +1,1699 @@
+diff --git a/.env.example b/.env.example
+index 4036aad7..5ec8e3c6 100644
+--- a/.env.example
++++ b/.env.example
+@@ -61,7 +61,19 @@ WEB_SEARCH_API_KEY=your-tavily-api-key-here
+ # Get API key from Alibaba Cloud DashScope: https://dashscope.aliyuncs.com/
+ OCR_VLLM_API_KEY=your-dashscope-api-key-here
+ 
+-# E2B API (for code sandbox execution)
++# Code sandbox backend for execute_code_sandbox
++# Options:
++# - e2b (default): E2B backend
++# - boxlite: BoxLite backend (experimental local virtualization)
++# BoxLite requires sync extras: pip install "boxlite[sync]>=0.6.0"
++CODE_SANDBOX_PROVIDER=e2b
++
++# Optional BoxLite runtime tuning
++# BOXLITE_IMAGE=python:slim
++# BOXLITE_MEMORY_MIB=2048
++# BOXLITE_CPUS=2
++
++# E2B API (required when sandbox provider is e2b, which is the default)
+ # Get API key at: https://e2b.dev/
+ E2B_API_KEY=your-e2b-api-key-here
+ 
+@@ -80,6 +92,7 @@ LIVEBENCH_HTTP_PORT=8010
+ # OPENAI_API_KEY=sk-proj-xxxxx
+ # EVALUATION_API_KEY=sk-proj-xxxxx  # Same or different OpenAI key
+ # WEB_SEARCH_API_KEY=tvly-xxxxx  # Tavily for search
++# CODE_SANDBOX_PROVIDER=e2b  # Default backend
+ 
+ # Example 2: Use SiliconFlow for agent, OpenAI for evaluation (cost-effective)
+ # OPENAI_API_KEY=sk-ngksq...  # SiliconFlow key
+@@ -87,10 +100,18 @@ LIVEBENCH_HTTP_PORT=8010
+ # EVALUATION_API_KEY=sk-proj-xxxxx  # Real OpenAI key for evaluation
+ # EVALUATION_API_BASE=https://api.openai.com/v1
+ # WEB_SEARCH_API_KEY=tvly-xxxxx  # Tavily for search
++# CODE_SANDBOX_PROVIDER=e2b
+ 
+ # Example 3: Use SiliconFlow for everything (if they support gpt-4o)
+ # OPENAI_API_KEY=sk-ngksq...
+ # OPENAI_API_BASE=https://api.siliconflow.com/v1
+ # WEB_SEARCH_API_KEY=tvly-xxxxx  # Tavily for search
+ # Note: Check if SiliconFlow supports gpt-4o or set EVALUATION_MODEL to supported model
++# CODE_SANDBOX_PROVIDER=e2b
+ 
++# Example 4: Force E2B sandbox backend
++# CODE_SANDBOX_PROVIDER=e2b
++# E2B_API_KEY=e2b_xxxxx
++
++# Example 5: Use BoxLite local backend (experimental)
++# CODE_SANDBOX_PROVIDER=boxlite
+diff --git a/README.md b/README.md
+index 0905bec4..3191ee4c 100644
+--- a/README.md
++++ b/README.md
+@@ -229,11 +229,12 @@ cp .env.example .env
+ | Variable | Required | Description |
+ |----------|----------|-------------|
+ | `OPENAI_API_KEY` | **Required** | OpenAI API key 鈥?used for the GPT-4o agent and LLM-based task evaluation |
+-| `E2B_API_KEY` | **Required** | [E2B](https://e2b.dev) API key 鈥?used by `execute_code` to run Python in an isolated cloud sandbox |
++| `CODE_SANDBOX_PROVIDER` | Optional | `"e2b"` (default) or `"boxlite"` 鈥?selects code sandbox backend for `execute_code_sandbox` |
++| `E2B_API_KEY` | Conditional | [E2B](https://e2b.dev) API key 鈥?required when sandbox provider is `"e2b"` (default) |
+ | `WEB_SEARCH_API_KEY` | Optional | API key for web search (Tavily default, or Jina AI) 鈥?needed if the agent uses `search_web` |
+ | `WEB_SEARCH_PROVIDER` | Optional | `"tavily"` (default) or `"jina"` 鈥?selects the search provider |
+ 
+-> **Note**: `OPENAI_API_KEY` and `E2B_API_KEY` are required for full functionality. Web search keys are only needed if the agent uses the `search_web` tool.
++> **Note**: `OPENAI_API_KEY` is required. Code sandbox defaults to E2B (`e2b-code-interpreter` + `E2B_API_KEY`). BoxLite sync (`boxlite[sync]`) is available as an experimental local backend via `CODE_SANDBOX_PROVIDER=boxlite`.
+ 
+ ---
+ 
+@@ -366,7 +367,7 @@ The agent has 8 tools available in standalone simulation mode:
+ | `get_status()` | Check balance, costs, survival tier |
+ | `search_web(query, max_results)` | Web search via Tavily or Jina AI |
+ | `create_file(filename, content, file_type)` | Create .txt, .xlsx, .docx, .pdf documents |
+-| `execute_code(code, language)` | Run Python in isolated E2B sandbox |
++| `execute_code_sandbox(code, language)` | Run Python in isolated sandbox (`e2b` default, optional `boxlite`) |
+ | `create_video(slides_json, output_filename)` | Generate MP4 from text/image slides |
+ 
+ ---
+@@ -500,8 +501,14 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
+ pip install -r requirements.txt
+ ```
+ 
++**Sandbox backend unavailable**
++鈫?Install `e2b-code-interpreter` (default backend) or `boxlite[sync]` (experimental local backend), then set `CODE_SANDBOX_PROVIDER` to `e2b` or `boxlite`.
++
++**`SyncCodeBox` import failed**
++鈫?Reinstall BoxLite with sync extras: `pip install "boxlite[sync]>=0.6.0"`.
++
+ **E2B sandbox rate limit (429)**
+-鈫?Sandboxes are killed (not closed) after each task. If you hit this, wait ~1 min for stale sandboxes to expire.
++鈫?Applies when using `CODE_SANDBOX_PROVIDER=e2b` (default). Wait ~1 min for stale sandboxes to expire.
+ 
+ **ClawMode: `ModuleNotFoundError: clawmode_integration`**
+ 鈫?Run `export PYTHONPATH="$(pwd):$PYTHONPATH"` from the repo root.
+@@ -550,4 +557,3 @@ PRs and issues welcome! The codebase is clean and modular. Key extension points:
+   <em> Thanks for visiting 鉁?ClawWork!</em><br><br>
+   <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.ClawWork&style=for-the-badge&color=00d4ff" alt="Views">
+ </p>
+-
+diff --git a/livebench/README.md b/livebench/README.md
+index 7d5f23ec..3db0d13c 100644
+--- a/livebench/README.md
++++ b/livebench/README.md
+@@ -50,6 +50,7 @@ livebench/
+ - Python 3.8+
+ - Conda environment (recommended: use `osw` env)
+ - OpenAI-compatible API access
++- Code sandbox backend (`e2b-code-interpreter` default, `boxlite[sync]` experimental opt-in)
+ - AI-Trader (for trading functionality)
+ 
+ ### Setup
+@@ -62,7 +63,7 @@ conda activate osw
+ 
+ 2. **Install dependencies**:
+ ```bash
+-pip install pandas pyarrow fastmcp langchain-mcp-adapters langchain-openai python-dotenv
++pip install pandas pyarrow fastmcp langchain-mcp-adapters langchain-openai python-dotenv "boxlite[sync]>=0.6.0" e2b-code-interpreter
+ ```
+ 
+ 3. **Configure environment variables** (`.env` file):
+@@ -71,6 +72,13 @@ pip install pandas pyarrow fastmcp langchain-mcp-adapters langchain-openai pytho
+ OPENAI_API_BASE=<your-openai-compatible-api-endpoint>
+ OPENAI_API_KEY=<your-api-key>
+ 
++# Code sandbox backend for execute_code_sandbox
++# e2b (default) or boxlite (experimental local backend)
++CODE_SANDBOX_PROVIDER=e2b
++
++# Required when provider is e2b (default)
++E2B_API_KEY=<your-e2b-api-key>
++
+ # MCP Service Ports
+ LIVEBENCH_HTTP_PORT=8010
+ 
+@@ -321,6 +329,13 @@ LIVEBENCH_HTTP_PORT=8011 python tools/start_live_services.py
+ - Ensure model returns usage statistics
+ - Adjust estimation in `LiveAgent._estimate_and_track_tokens()`
+ 
++### Sandbox Backend Issues
++- Supported providers are `e2b` (default) and `boxlite` (experimental).
++- Install E2B backend: `pip install e2b-code-interpreter`
++- Install BoxLite sync backend: `pip install "boxlite[sync]>=0.6.0"`
++- `E2B_API_KEY` is required when provider is `e2b` (default).
++- If `SyncCodeBox` import fails, reinstall `boxlite[sync]`.
++
+ ### Task Loading Errors
+ ```bash
+ # Verify gdpval dataset
+diff --git a/livebench/agent/live_agent.py b/livebench/agent/live_agent.py
+index 7f852350..b1d43587 100644
+--- a/livebench/agent/live_agent.py
++++ b/livebench/agent/live_agent.py
+@@ -241,14 +241,14 @@ async def initialize(self) -> None:
+ 
+     def _prepare_reference_files(self, date: str, task: Dict) -> List[str]:
+         """
+-        Copy task reference files to agent's sandbox AND upload to E2B sandbox for code execution.
++        Copy task reference files to agent sandbox and upload to code sandbox for execute_code.
+         
+         Args:
+             date: Current date
+             task: Task dictionary with reference_files list (can be list or numpy array)
+             
+         Returns:
+-            List of remote paths in E2B sandbox (e.g., ["/home/user/reference_files/file.pdf"])
++            List of remote paths in sandbox (e.g., ["/home/user/reference_files/file.pdf"])
+         """
+         import shutil
+         
+@@ -273,14 +273,34 @@ def _prepare_reference_files(self, date: str, task: Dict) -> List[str]:
+         
+         copied_files = []
+         missing_files = []
+-        e2b_remote_paths = []
+-        
++        sandbox_remote_paths = []
++
++        # Resolve sandbox provider before uploading anything.
++        from livebench.tools.productivity.code_execution_sandbox import (
++            upload_task_reference_files,
++            get_session_sandbox_provider,
++        )
++        try:
++            sandbox_provider = get_session_sandbox_provider()
++        except Exception as e:
++            self.logger.error(
++                "Failed to resolve sandbox provider 鈥?cannot upload reference files",
++                context={
++                    "task_id": task.get('task_id'),
++                    "date": date,
++                    "error": str(e),
++                    "error_type": type(e).__name__,
++                },
++                print_console=True
++            )
++            raise
++
+         for src_path in ref_file_paths:
+             if os.path.exists(src_path):
+                 # Copy file to sandbox, preserving filename
+                 filename = os.path.basename(src_path)
+                 dest_path = os.path.join(sandbox_dir, filename)
+-                
++
+                 try:
+                     shutil.copy2(src_path, dest_path)
+                     copied_files.append(filename)
+@@ -289,26 +309,34 @@ def _prepare_reference_files(self, date: str, task: Dict) -> List[str]:
+                         context={"src": src_path, "dest": dest_path},
+                         print_console=False
+                     )
+-                    
+-                    # Upload to E2B sandbox for execute_code access
+-                    try:
+-                        from livebench.tools.productivity.code_execution_sandbox import upload_task_reference_files
+-                        remote_paths = upload_task_reference_files([dest_path])
+-                        if remote_paths:
+-                            e2b_remote_paths.extend(remote_paths)
+-                    except Exception as e:
+-                        self.logger.warning(
+-                            f"Failed to upload {filename} to E2B sandbox: {str(e)}",
+-                            context={"file": filename},
+-                            print_console=False
+-                        )
+-                    
+                 except Exception as e:
+                     self.logger.warning(
+                         f"Failed to copy reference file: {filename}",
+                         context={"src": src_path, "error": str(e)},
+                         print_console=False
+                     )
++                    continue
++
++                # Upload to sandbox for execute_code access.
++                try:
++                    remote_paths = upload_task_reference_files([dest_path])
++                    if remote_paths:
++                        sandbox_remote_paths.extend(remote_paths)
++                except Exception as e:
++                    self.logger.error(
++                        f"Failed to upload reference file '{filename}' to {sandbox_provider} sandbox",
++                        context={
++                            "file": filename,
++                            "dest_path": dest_path,
++                            "sandbox_provider": sandbox_provider,
++                            "task_id": task.get('task_id'),
++                            "date": date,
++                            "error": str(e),
++                            "error_type": type(e).__name__,
++                        },
++                        print_console=True
++                    )
++                    raise
+             else:
+                 missing_files.append(src_path)
+                 self.logger.warning(
+@@ -319,8 +347,10 @@ def _prepare_reference_files(self, date: str, task: Dict) -> List[str]:
+         
+         if copied_files:
+             self.logger.terminal_print(f"馃搸 Copied {len(copied_files)} reference file(s) to sandbox")
+-            if e2b_remote_paths:
+-                self.logger.terminal_print(f"   馃摛 Uploaded {len(e2b_remote_paths)} file(s) to E2B sandbox")
++            if sandbox_remote_paths:
++                self.logger.terminal_print(
++                    f"   馃摛 Uploaded {len(sandbox_remote_paths)} file(s) to {sandbox_provider} sandbox"
++                )
+             self.logger.info(
+                 "Reference files prepared",
+                 context={
+@@ -328,7 +358,8 @@ def _prepare_reference_files(self, date: str, task: Dict) -> List[str]:
+                     "task_id": task.get('task_id'),
+                     "copied": copied_files,
+                     "missing": missing_files,
+-                    "e2b_paths": e2b_remote_paths
++                    "sandbox_provider": sandbox_provider,
++                    "sandbox_paths": sandbox_remote_paths,
+                 },
+                 print_console=False
+             )
+@@ -336,9 +367,12 @@ def _prepare_reference_files(self, date: str, task: Dict) -> List[str]:
+         if missing_files:
+             self.logger.terminal_print(f"鈿狅笍 Warning: {len(missing_files)} reference file(s) not found")
+         
+-        # Store E2B paths in task for prompt generation
+-        task['e2b_reference_paths'] = e2b_remote_paths
+-        return e2b_remote_paths
++        # Store provider-neutral sandbox paths for prompt generation.
++        # Keep e2b_reference_paths for backward compatibility with existing data.
++        task['sandbox_provider'] = sandbox_provider
++        task['sandbox_reference_paths'] = sandbox_remote_paths
++        task['e2b_reference_paths'] = sandbox_remote_paths
++        return sandbox_remote_paths
+ 
+     def _setup_logging(self, date: str) -> str:
+         """Set up log file path for activity messages"""
+@@ -838,7 +872,7 @@ async def run_daily_session(self, date: str) -> Optional[str]:
+         try:
+             from livebench.tools.productivity.code_execution_sandbox import SessionSandbox
+             session_sandbox = SessionSandbox.get_instance()
+-            if session_sandbox.sandbox:
++            if session_sandbox.is_active():
+                 session_sandbox.cleanup()
+                 self.logger.terminal_print("馃Ч Cleaned up task sandbox")
+         except Exception as e:
+@@ -869,13 +903,13 @@ async def run_daily_session(self, date: str) -> Optional[str]:
+             api_error=session_api_error
+         )
+         
+-        # Clean up E2B sandbox for this session
++        # Clean up sandbox session for this day
+         try:
+             from livebench.tools.productivity.code_execution_sandbox import cleanup_session_sandbox
+             cleanup_session_sandbox()
+         except Exception as e:
+             self.logger.warning(
+-                f"Failed to cleanup E2B sandbox: {str(e)}",
++                f"Failed to cleanup sandbox session: {str(e)}",
+                 context={"date": date},
+                 print_console=False
+             )
+diff --git a/livebench/agent/wrapup_workflow.py b/livebench/agent/wrapup_workflow.py
+index 112b2317..7856e41b 100644
+--- a/livebench/agent/wrapup_workflow.py
++++ b/livebench/agent/wrapup_workflow.py
+@@ -3,7 +3,7 @@
+ when the agent reaches iteration limit without completing the task.
+ 
+ This module provides a clean, modular workflow that:
+-1. Lists all artifacts in the E2B sandbox
++1. Lists all artifacts in the active code sandbox
+ 2. Asks the LLM to choose which artifacts to submit
+ 3. Downloads chosen artifacts
+ 4. Submits them for evaluation
+@@ -99,62 +99,38 @@ def _should_download(self, state: WrapUpState) -> str:
+         return "end"
+     
+     def _list_artifacts_node(self, state: WrapUpState) -> WrapUpState:
+-        """List all artifacts in the E2B sandbox"""
++        """List all artifacts in the active sandbox."""
+         try:
+-            self._log("馃攳 Listing artifacts in E2B sandbox...")
++            self._log("馃攳 Listing artifacts in active sandbox...")
+             
+             from livebench.tools.productivity.code_execution_sandbox import SessionSandbox
+             
+             session_sandbox = SessionSandbox.get_instance()
+             
+-            # Get the current date to ensure we connect to the right sandbox
+-            date = state.get("date", "unknown")
+-            sandbox = session_sandbox.get_or_create_sandbox()
+-            
+-            self._log(f"   馃摝 Connected to sandbox: {session_sandbox.sandbox_id}")
+-            
++            # Ensure we connect to the current session sandbox
++            session_sandbox.get_or_create_sandbox()
++            provider = session_sandbox.get_provider()
++            self._log(
++                f"   馃摝 Connected to {provider} sandbox: {session_sandbox.sandbox_id}"
++            )
++
+             artifact_paths = []
+             artifact_extensions = ['.txt', '.docx', '.xlsx', '.csv', '.pdf', 
+                                   '.png', '.jpg', '.jpeg', '.json', '.md', '.pptx']
+             
+             # Scan multiple directories where artifacts might be
+             directories_to_scan = ["/tmp", "/home/user", "/home/user/artifacts"]
+-            
++
+             for base_dir in directories_to_scan:
+-                try:
+-                    self._log(f"   馃攳 Scanning directory: {base_dir}")
+-                    
+-                    # E2B files.list() returns a list of file info objects
+-                    files_list = sandbox.files.list(base_dir)
+-                    
+-                    self._log(f"      Found {len(files_list)} items in {base_dir}")
+-                    
+-                    for file_info in files_list:
+-                        # E2B file info object has 'name' and 'type' attributes
+-                        # type can be 'file' or 'dir'
+-                        file_type = getattr(file_info, 'type', 'file')
+-                        file_name = getattr(file_info, 'name', str(file_info))
+-                        
+-                        # Skip directories and hidden files
+-                        if file_type == 'dir':
+-                            continue
+-                        if file_name.startswith('.'):
+-                            continue
+-                        
+-                        # Check if it's an artifact type
+-                        if any(file_name.endswith(ext) for ext in artifact_extensions):
+-                            # Construct full path
+-                            full_path = f"{base_dir}/{file_name}"
+-                            
+-                            # Avoid duplicates
+-                            if full_path not in artifact_paths:
+-                                artifact_paths.append(full_path)
+-                                self._log(f"      鉁?Found artifact: {file_name}")
+-                    
+-                except Exception as e:
+-                    # Directory might not exist or permission issues
+-                    self._log(f"      鈿狅笍 Could not list {base_dir}: {str(e)}")
+-                    continue
++                self._log(f"   馃攳 Scanning directory: {base_dir}")
++
++            artifact_paths = session_sandbox.list_artifacts(
++                base_dirs=directories_to_scan,
++                artifact_extensions=artifact_extensions,
++            )
++
++            for path in artifact_paths:
++                self._log(f"      鉁?Found artifact: {os.path.basename(path)}")
+             
+             state["available_artifacts"] = artifact_paths
+             
+diff --git a/livebench/prompts/live_agent_prompt.py b/livebench/prompts/live_agent_prompt.py
+index bb9f08a7..9b37b8c8 100644
+--- a/livebench/prompts/live_agent_prompt.py
++++ b/livebench/prompts/live_agent_prompt.py
+@@ -72,18 +72,23 @@ def get_live_agent_system_prompt(
+         if has_ref_files:
+             ref_files_list = "\n".join([f"      - {os.path.basename(f)}" for f in reference_files])
+             
+-            # Get E2B sandbox paths if available
+-            e2b_paths = work_task.get('e2b_reference_paths', [])
+-            e2b_paths_info = ""
+-            if e2b_paths:
+-                e2b_paths_list = "\n".join([f"      - {path}" for path in e2b_paths])
+-                e2b_paths_info = f"""
+-   馃敡 E2B Sandbox Paths (for execute_code):
+-{e2b_paths_list}
++            # Get sandbox paths if available (provider-neutral, with legacy fallback)
++            sandbox_paths = (
++                work_task.get('sandbox_reference_paths')
++                or work_task.get('e2b_reference_paths')
++                or []
++            )
++            sandbox_provider = work_task.get('sandbox_provider', 'sandbox')
++            sandbox_paths_info = ""
++            if sandbox_paths:
++                sandbox_paths_list = "\n".join([f"      - {path}" for path in sandbox_paths])
++                sandbox_paths_info = f"""
++   馃敡 Sandbox Paths (provider: {sandbox_provider}, for execute_code_sandbox):
++{sandbox_paths_list}
+    
+    馃挕 In your Python code, use these paths directly:
+-      Example: open("{e2b_paths[0]}", "rb")
+-      Example: pd.read_excel("{e2b_paths[0]}")"""
++      Example: open("{sandbox_paths[0]}", "rb")
++      Example: pd.read_excel("{sandbox_paths[0]}")"""
+             
+             ref_files_info = f"""
+    馃搸 Reference Files Available:
+@@ -97,8 +102,8 @@ def get_live_agent_system_prompt(
+    馃摉 How to access:
+       1. Use read_file(filetype="xlsx|docx|pdf|png|jpg|txt", file_path="...")
+          Supported: Excel, Word, PDF, Images, Text files
+-      2. Use execute_code to process files with pandas/openpyxl/docx/etc.
+-{e2b_paths_info}
++      2. Use execute_code_sandbox to process files with pandas/openpyxl/docx/etc.
++{sandbox_paths_info}
+    
+    鈿狅笍 Common mistake: Not reading/using the reference files = automatic low score!"""
+         else:
+@@ -332,7 +337,7 @@ def get_live_agent_system_prompt(
+        result = execute_code_sandbox(code="your code with ARTIFACT_PATH markers")
+        # result['downloaded_artifacts'] = ["./livebench/.../sandbox/date/report.xlsx"]
+        
+-       鉂?WRONG: submit_work(artifact_file_paths=["/tmp/report.xlsx"])  # This is E2B path!
++       鉂?WRONG: submit_work(artifact_file_paths=["/tmp/report.xlsx"])  # This is sandbox-internal path!
+        鉁?RIGHT: submit_work(artifact_file_paths=result['downloaded_artifacts'])  # Use downloaded paths!
+     
+     e) **CRITICAL: You MUST collect all file paths and pass them to submit_work!**
+@@ -351,7 +356,7 @@ def get_live_agent_system_prompt(
+     
+     馃毃 COMMON FAILURES:
+        鉂?WRONG: Create files, then call submit_work(work_output="I created files")
+-       鉂?WRONG: submit_work(artifact_file_paths=["/tmp/file.xlsx"])  # /tmp/ is in E2B!
++       鉂?WRONG: submit_work(artifact_file_paths=["/tmp/file.xlsx"])  # /tmp/ is sandbox-internal!
+        鉁?RIGHT: Use result['downloaded_artifacts'] from execute_code_sandbox
+        鉁?RIGHT: Use result['file_path'] from create_file
+ 
+@@ -456,7 +461,7 @@ def get_work_task_prompt(task: Dict, reference_files: list, max_steps: int = 15)
+    b) In your code, save to /tmp/ and print ARTIFACT_PATH marker:
+       print("ARTIFACT_PATH:/tmp/report.xlsx")
+    c) Execute: result = execute_code_sandbox(code="your code")
+-   d) Files are automatically downloaded! Use downloaded paths:
++   d) Files are automatically downloaded from the sandbox! Use downloaded paths:
+       submit_work(artifact_file_paths=result['downloaded_artifacts'])
+    e) If creating multiple files, try to combine them into ONE file if possible
+    f) Submit as soon as you have a good artifact (by iteration 10-12)
+diff --git a/livebench/requirements.txt b/livebench/requirements.txt
+index 4e5c0bd5..4aefc5a6 100644
+--- a/livebench/requirements.txt
++++ b/livebench/requirements.txt
+@@ -5,3 +5,5 @@ langchain-mcp-adapters>=0.1.0
+ langchain-openai>=0.1.0
+ python-dotenv>=1.0.0
+ langchain>=0.1.0
++boxlite[sync]>=0.6.0
++e2b-code-interpreter>=1.0.0
+diff --git a/livebench/tools/productivity/code_execution_sandbox.py b/livebench/tools/productivity/code_execution_sandbox.py
+index 3ca4fbf6..9b58ad24 100644
+--- a/livebench/tools/productivity/code_execution_sandbox.py
++++ b/livebench/tools/productivity/code_execution_sandbox.py
+@@ -1,210 +1,599 @@
+ """
+-Code execution tool with sandboxing
++Code execution tool with provider-agnostic sandboxing.
++
++Default behavior:
++- Use E2B by default (when CODE_SANDBOX_PROVIDER is unset)
++
++Supported providers via CODE_SANDBOX_PROVIDER:
++- e2b (default): E2B backend
++- boxlite: BoxLite backend (experimental local virtualization)
+ """
+ 
+-from langchain_core.tools import tool
+-from typing import Dict, Any, Optional, List
+-from e2b_code_interpreter import Sandbox
++from __future__ import annotations
++
+ import os
+ import re
+-from pathlib import Path
++import shlex
++import shutil
++import base64
++from dataclasses import dataclass
++from typing import Dict, Any, Optional, List
++
++from langchain_core.tools import tool
+ from dotenv import load_dotenv
+ 
+ load_dotenv()
+ 
++
+ # Import global state from parent module
++
+ def _get_global_state():
+-    """Get global state from parent module"""
++    """Get global state from parent module."""
+     from livebench.tools.direct_tools import _global_state
+     return _global_state
+ 
+ 
++_ARTIFACT_PATH_RE = re.compile(r"ARTIFACT_PATH:(\S+)")
++_REFERENCE_REMOTE_DIR = "/home/user/reference_files"
++_DEFAULT_ARTIFACT_DIRS = ["/tmp", "/home/user", "/home/user/artifacts"]
++_DEFAULT_ARTIFACT_EXTENSIONS = [
++    ".txt", ".docx", ".xlsx", ".csv", ".pdf", ".png", ".jpg", ".jpeg", ".json", ".md", ".pptx"
++]
++_VALID_PROVIDERS = {"boxlite", "e2b"}
++
++
++@dataclass
++class SandboxExecutionResult:
++    """Normalized execution result across sandbox providers."""
++
++    success: bool
++    exit_code: int
++    stdout: str
++    stderr: str
++
++
++class SandboxBackend:
++    """Provider backend interface.  Subclasses MUST set provider_name."""
++
++    @property
++    def provider_name(self) -> str:
++        raise NotImplementedError(
++            f"{type(self).__name__} must define 'provider_name' "
++            "(e.g. provider_name = 'e2b')"
++        )
++
++    def ensure_started(self, timeout: int = 3600) -> None:
++        raise NotImplementedError
++
++    def execute_code(self, code: str) -> SandboxExecutionResult:
++        raise NotImplementedError
++
++    def upload_reference_file(self, local_path: str, remote_dir: str = _REFERENCE_REMOTE_DIR) -> str:
++        raise NotImplementedError
++
++    def download_artifact(self, remote_path: str, local_dir: str) -> str:
++        raise NotImplementedError
++
++    def list_artifacts(self, base_dirs: List[str], artifact_extensions: List[str]) -> List[str]:
++        raise NotImplementedError
++
++    def cleanup(self) -> None:
++        raise NotImplementedError
++
++    def get_session_id(self) -> Optional[str]:
++        raise NotImplementedError
++
++    def get_native_handle(self) -> Any:
++        raise NotImplementedError
++
++
++class E2BSandboxBackend(SandboxBackend):
++    """E2B backend implementation."""
++
++    provider_name = "e2b"
++
++    def __init__(self) -> None:
++        self._sandbox = None
++        self._sandbox_id: Optional[str] = None
++        self._sandbox_cls = None
++
++    def _lazy_import(self):
++        if self._sandbox_cls is None:
++            from e2b_code_interpreter import Sandbox  # Lazy import by design
++            self._sandbox_cls = Sandbox
++
++    def ensure_started(self, timeout: int = 3600) -> None:
++        self._lazy_import()
++
++        if self._sandbox is not None:
++            try:
++                self._sandbox.files.list("/")
++                return
++            except Exception:
++                self.cleanup()
++
++        template_id = os.getenv("E2B_TEMPLATE_ID") or "gdpval-workspace"
++        self._sandbox = self._sandbox_cls.create(template_id, timeout=timeout)
++        self._sandbox_id = getattr(self._sandbox, "id", None)
++
++    def _logs_to_stdout(self, logs: Any) -> str:
++        if logs is None:
++            return ""
++        stdout_obj = getattr(logs, "stdout", None)
++        if stdout_obj is None:
++            return str(logs)
++        if isinstance(stdout_obj, list):
++            return "\n".join(str(x) for x in stdout_obj)
++        return str(stdout_obj)
++
++    def execute_code(self, code: str) -> SandboxExecutionResult:
++        self.ensure_started()
++        execution = self._sandbox.run_code(code)
++        error = getattr(execution, "error", None)
++        logs = getattr(execution, "logs", "")
++
++        stdout = self._logs_to_stdout(logs)
++        stderr = "" if error is None else str(error)
++        success = error is None
++
++        return SandboxExecutionResult(
++            success=success,
++            exit_code=0 if success else 1,
++            stdout=stdout,
++            stderr=stderr,
++        )
++
++    def upload_reference_file(self, local_path: str, remote_dir: str = _REFERENCE_REMOTE_DIR) -> str:
++        self.ensure_started()
++
++        if not os.path.exists(local_path):
++            raise FileNotFoundError(f"Reference file not found: {local_path}")
++
++        filename = os.path.basename(local_path)
++        remote_path = f"{remote_dir}/{filename}"
++        with open(local_path, "rb") as f:
++            content = f.read()
++        self._sandbox.files.write(remote_path, content)
++        return remote_path
++
++    def download_artifact(self, remote_path: str, local_dir: str) -> str:
++        self.ensure_started()
++
++        os.makedirs(local_dir, exist_ok=True)
++        content_bytes = self._sandbox.files.read(remote_path, format="bytes")
++        filename = os.path.basename(remote_path.rstrip("/"))
++        local_path = os.path.join(local_dir, filename)
++
++        with open(local_path, "wb") as f:
++            f.write(content_bytes)
++
++        return local_path
++
++    def list_artifacts(self, base_dirs: List[str], artifact_extensions: List[str]) -> List[str]:
++        self.ensure_started()
++
++        artifacts: List[str] = []
++        seen = set()
++
++        for base_dir in base_dirs:
++            try:
++                files_list = self._sandbox.files.list(base_dir)
++            except Exception:
++                continue
++
++            for file_info in files_list:
++                file_type = getattr(file_info, "type", "file")
++                file_name = getattr(file_info, "name", str(file_info))
++
++                if file_type == "dir" or file_name.startswith("."):
++                    continue
++
++                if any(file_name.endswith(ext) for ext in artifact_extensions):
++                    full_path = f"{base_dir.rstrip('/')}/{file_name}"
++                    if full_path not in seen:
++                        artifacts.append(full_path)
++                        seen.add(full_path)
++
++        return artifacts
++
++    def cleanup(self) -> None:
++        if self._sandbox is not None:
++            try:
++                self._sandbox.kill()
++            except Exception:
++                pass
++        self._sandbox = None
++        self._sandbox_id = None
++
++    def get_session_id(self) -> Optional[str]:
++        return self._sandbox_id
++
++    def get_native_handle(self) -> Any:
++        return self._sandbox
++
++
++class BoxLiteSandboxBackend(SandboxBackend):
++    """BoxLite backend implementation."""
++
++    provider_name = "boxlite"
++
++    def __init__(self) -> None:
++        self._box = None
++        self._box_id: Optional[str] = None
++        self._codebox_cls = None
++
++    def _lazy_import(self):
++        if self._codebox_cls is None:
++            try:
++                from boxlite import SyncCodeBox  # Lazy import by design
++            except Exception as exc:
++                raise RuntimeError(
++                    "BoxLite sync API is unavailable. "
++                    'Install/reinstall with: pip install "boxlite[sync]>=0.6.0"'
++                ) from exc
++
++            required_methods = ("exec", "__enter__", "__exit__")
++            missing_methods = [name for name in required_methods if not hasattr(SyncCodeBox, name)]
++            if missing_methods:
++                raise RuntimeError(
++                    "Installed BoxLite sync API is incompatible: missing "
++                    f"{', '.join(missing_methods)}. "
++                    'Install/reinstall with: pip install "boxlite[sync]>=0.6.0"'
++                )
++
++            self._codebox_cls = SyncCodeBox
++
++    def ensure_started(self, timeout: int = 3600) -> None:
++        # timeout currently unused by SyncCodeBox, but kept for interface parity
++        _ = timeout
++        self._lazy_import()
++
++        if self._box is not None:
++            try:
++                health = self._box.exec("sh", "-lc", "echo boxlite-ok")
++                if health.exit_code == 0:
++                    return
++            except Exception:
++                self.cleanup()
++
++        image = os.getenv("BOXLITE_IMAGE", "python:slim")
++        memory_mib = os.getenv("BOXLITE_MEMORY_MIB")
++        cpus = os.getenv("BOXLITE_CPUS")
++
++        kwargs: Dict[str, Any] = {"image": image, "auto_remove": True}
++        if memory_mib:
++            try:
++                kwargs["memory_mib"] = int(memory_mib)
++            except ValueError:
++                pass
++        if cpus:
++            try:
++                kwargs["cpus"] = int(cpus)
++            except ValueError:
++                pass
++
++        self._box = self._codebox_cls(**kwargs)
++        self._box.__enter__()
++        self._box_id = getattr(self._box, "id", None)
++
++    def execute_code(self, code: str) -> SandboxExecutionResult:
++        self.ensure_started()
++
++        result = self._box.exec("/usr/local/bin/python", "-c", code)
++        success = result.exit_code == 0
++
++        return SandboxExecutionResult(
++            success=success,
++            exit_code=result.exit_code,
++            stdout=result.stdout or "",
++            stderr=result.stderr or "",
++        )
++
++    def upload_reference_file(self, local_path: str, remote_dir: str = _REFERENCE_REMOTE_DIR) -> str:
++        self.ensure_started()
++
++        if not os.path.exists(local_path):
++            raise FileNotFoundError(f"Reference file not found: {local_path}")
++
++        self._box.exec("mkdir", "-p", remote_dir)
++
++        filename = os.path.basename(local_path)
++        remote_path = f"{remote_dir}/{filename}"
++        if hasattr(self._box, "copy_in"):
++            self._box.copy_in(
++                local_path,
++                remote_path,
++                overwrite=True,
++                follow_symlinks=False,
++                include_parent=False,
++            )
++            return remote_path
++
++        # Fallback for sync SDK variants without copy_in/copy_out wrappers.
++        with open(local_path, "rb") as f:
++            encoded = base64.b64encode(f.read()).decode("ascii")
++
++        upload_script = f"""
++import base64
++from pathlib import Path
++p = Path({remote_path!r})
++p.parent.mkdir(parents=True, exist_ok=True)
++p.write_bytes(base64.b64decode({encoded!r}))
++"""
++        result = self._box.exec("/usr/local/bin/python", "-c", upload_script)
++        if result.exit_code != 0:
++            raise RuntimeError(f"BoxLite upload failed for {local_path}: {result.stderr or result.stdout}")
++        return remote_path
++
++    def download_artifact(self, remote_path: str, local_dir: str) -> str:
++        self.ensure_started()
++
++        os.makedirs(local_dir, exist_ok=True)
++        filename = os.path.basename(remote_path.rstrip("/"))
++
++        staging_root = os.path.join(local_dir, ".boxlite_download")
++        os.makedirs(staging_root, exist_ok=True)
++
++        staging_target = os.path.join(staging_root, filename)
++        if os.path.isdir(staging_target):
++            shutil.rmtree(staging_target, ignore_errors=True)
++        elif os.path.exists(staging_target):
++            os.remove(staging_target)
++
++        if hasattr(self._box, "copy_out"):
++            self._box.copy_out(
++                remote_path,
++                staging_target,
++                overwrite=True,
++                follow_symlinks=False,
++                include_parent=False,
++            )
++        else:
++            # Fallback for sync SDK variants without copy_in/copy_out wrappers.
++            download_script = f"""
++import base64
++from pathlib import Path
++p = Path({remote_path!r})
++if not p.exists() or not p.is_file():
++    raise SystemExit(2)
++print(base64.b64encode(p.read_bytes()).decode('ascii'))
++"""
++            result = self._box.exec("/usr/local/bin/python", "-c", download_script)
++            if result.exit_code != 0:
++                raise RuntimeError(
++                    f"BoxLite download failed for {remote_path}: {result.stderr or result.stdout}"
++                )
++            decoded = base64.b64decode((result.stdout or "").strip())
++            with open(staging_target, "wb") as f:
++                f.write(decoded)
++
++        candidate_files: List[str] = []
++        if os.path.isfile(staging_target):
++            candidate_files = [staging_target]
++        elif os.path.isdir(staging_target):
++            for root, _dirs, files in os.walk(staging_target):
++                for f in files:
++                    candidate_files.append(os.path.join(root, f))
++
++        if not candidate_files:
++            raise RuntimeError(f"Failed to download artifact from BoxLite: {remote_path}")
++
++        final_path = os.path.join(local_dir, filename)
++        if os.path.isdir(final_path):
++            shutil.rmtree(final_path, ignore_errors=True)
++        elif os.path.exists(final_path):
++            os.remove(final_path)
++
++        shutil.move(candidate_files[0], final_path)
++
++        if os.path.isdir(staging_target):
++            shutil.rmtree(staging_target, ignore_errors=True)
++
++        return final_path
++
++    def list_artifacts(self, base_dirs: List[str], artifact_extensions: List[str]) -> List[str]:
++        self.ensure_started()
++
++        artifacts: List[str] = []
++        seen = set()
++
++        ext_clause = " -o ".join(
++            [f"-name {shlex.quote('*' + ext)}" for ext in artifact_extensions]
++        )
++
++        for base_dir in base_dirs:
++            cmd = (
++                f"if [ -d {shlex.quote(base_dir)} ]; then "
++                f"find {shlex.quote(base_dir)} -maxdepth 3 -type f \\( {ext_clause} \\) 2>/dev/null; "
++                "fi"
++            )
++            result = self._box.exec("sh", "-lc", cmd)
++            if result.exit_code not in (0, 1):
++                continue
++
++            for line in (result.stdout or "").splitlines():
++                path = line.strip()
++                if not path:
++                    continue
++                if path not in seen:
++                    artifacts.append(path)
++                    seen.add(path)
++
++        return artifacts
++
++    def cleanup(self) -> None:
++        if self._box is not None:
++            try:
++                self._box.__exit__(None, None, None)
++            except Exception:
++                pass
++        self._box = None
++        self._box_id = None
++
++    def get_session_id(self) -> Optional[str]:
++        return self._box_id
++
++    def get_native_handle(self) -> Any:
++        return self._box
++
++
+ # Session-level sandbox manager
+ class SessionSandbox:
+     """
+-    Manages a persistent E2B sandbox for an agent session.
+-    This ensures files created in one execute_code call are accessible in subsequent calls.
++    Manages a persistent sandbox session across execute_code calls.
+     """
+-    _instance: Optional['SessionSandbox'] = None
+-    
++
++    _instance: Optional["SessionSandbox"] = None
++
+     def __init__(self):
+-        self.sandbox: Optional[Sandbox] = None
++        self.backend: Optional[SandboxBackend] = None
++        self.provider: Optional[str] = None
++        self.provider_requested: str = os.getenv("CODE_SANDBOX_PROVIDER", "e2b").strip().lower() or "e2b"
++        self.provider_diagnostics: List[str] = []
++
++        # Backward-compatible attributes
++        self.sandbox = None
+         self.sandbox_id: Optional[str] = None
+-        self.uploaded_reference_files: Dict[str, str] = {}  # local_path -> remote_path
+-    
++
++        # local_path -> remote_path
++        self.uploaded_reference_files: Dict[str, str] = {}
++
+     @classmethod
+-    def get_instance(cls) -> 'SessionSandbox':
+-        """Get or create the singleton session sandbox instance"""
++    def get_instance(cls) -> "SessionSandbox":
++        """Get or create the singleton session sandbox instance."""
+         if cls._instance is None:
+             cls._instance = cls()
+         return cls._instance
+-    
++
+     @classmethod
+     def reset(cls):
+-        """Reset the session sandbox (for new sessions/days)"""
+-        if cls._instance and cls._instance.sandbox:
+-            try:
+-                cls._instance.sandbox.kill()  # Use kill() for immediate termination
+-            except:
+-                pass
++        """Reset the session sandbox (for new sessions/days)."""
++        if cls._instance:
++            cls._instance.cleanup()
+         cls._instance = None
+-    
+-    def get_or_create_sandbox(self, timeout: int = 3600) -> Sandbox:  # Default 1 hour for task duration
+-        """Get existing sandbox or create a new one, with health check"""
+-        
+-        # Health check existing sandbox
+-        if self.sandbox is not None:
+-            try:
+-                # Quick health check - list root directory
+-                self.sandbox.files.list("/")
+-                return self.sandbox  # Sandbox is healthy
+-            except Exception as e:
+-                # Sandbox is dead, clean up and recreate
+-                print(f"鈿狅笍 Sandbox {self.sandbox_id} died ({e}), recreating...")
+-
+-                try:
+-                    self.sandbox.kill()  # Use kill() for immediate termination
+-                except:
+-                    pass
+-                
+-                self.sandbox = None
+-                self.sandbox_id = None
+-                self.uploaded_reference_files = {}
+-        
+-        # Create new sandbox if needed
+-        if self.sandbox is None:
+-            try:
+-                self.sandbox = Sandbox.create("gdpval-workspace", timeout=timeout)
+-                self.sandbox_id = getattr(self.sandbox, "id", None)
+-                print(f"馃敡 Created persistent E2B sandbox: {self.sandbox_id}")
+-            except Exception as e:
+-                raise RuntimeError(f"Failed to create E2B sandbox: {str(e)}")
+-        
+-        return self.sandbox
+-    
+-    def upload_reference_file(self, local_path: str, remote_dir: str = "/home/user/reference_files") -> str:
+-        """
+-        Upload a reference file to the sandbox
+-        
+-        Args:
+-            local_path: Path to local file
+-            remote_dir: Directory in sandbox to upload to
+-            
+-        Returns:
+-            Remote path in sandbox
+-        """
+-        if not os.path.exists(local_path):
+-            raise FileNotFoundError(f"Reference file not found: {local_path}")
+-        
+-        # Check if already uploaded
+-        if local_path in self.uploaded_reference_files:
+-            print(f"鈾伙笍 Reference file already uploaded: {os.path.basename(local_path)}")
+-            return self.uploaded_reference_files[local_path]
+-        
+-        sandbox = self.get_or_create_sandbox()
+-        
+-        # Ensure remote directory exists by creating parent directories
+-        # E2B will create the directory structure if it doesn't exist
+-        print(f"馃搧 Ensuring directory exists: {remote_dir}")
+-        
+-        # Read file content
+-        with open(local_path, 'rb') as f:
+-            content = f.read()
+-        
+-        # Create remote path
+-        filename = os.path.basename(local_path)
+-        remote_path = f"{remote_dir}/{filename}"
+-        
+-        # Upload file - E2B will create parent directories automatically
++
++    @staticmethod
++    def _get_requested_provider() -> str:
++        provider = os.getenv("CODE_SANDBOX_PROVIDER", "e2b").strip().lower() or "e2b"
++        if provider not in _VALID_PROVIDERS:
++            raise ValueError(
++                f"Invalid CODE_SANDBOX_PROVIDER='{provider}'. "
++                "Valid options: boxlite, e2b."
++            )
++        return provider
++
++    def _create_backend(self, provider: str) -> SandboxBackend:
++        if provider == "boxlite":
++            return BoxLiteSandboxBackend()
++        if provider == "e2b":
++            return E2BSandboxBackend()
++        raise ValueError(f"Unknown provider: {provider}")
++
++    def _sync_compat_attrs(self) -> None:
++        if self.backend is None:
++            self.sandbox = None
++            self.sandbox_id = None
++            return
++        self.sandbox = self.backend.get_native_handle()
++        self.sandbox_id = self.backend.get_session_id()
++
++    def _ensure_backend(self, timeout: int = 3600) -> SandboxBackend:
++        self.provider_requested = self._get_requested_provider()
++
++        if self.backend is not None:
++            self.backend.ensure_started(timeout=timeout)
++            self._sync_compat_attrs()
++            return self.backend
++
++        errors: List[str] = []
++        candidate = self.provider_requested
+         try:
+-            sandbox.files.write(remote_path, content)
+-            self.uploaded_reference_files[local_path] = remote_path
+-            print(f"鉁?Uploaded reference file: {filename} -> {remote_path}")
+-            print(f"   馃搷 E2B Sandbox path: {remote_path}")
+-            print(f"   馃摝 File size: {len(content)} bytes")
+-            return remote_path
+-        except Exception as e:
+-            error_msg = f"Failed to upload file {local_path} to {remote_path}: {str(e)}"
+-            print(f"鉂?{error_msg}")
+-            raise RuntimeError(error_msg)
+-    
++            backend = self._create_backend(candidate)
++            backend.ensure_started(timeout=timeout)
++            self.backend = backend
++            self.provider = candidate
++            self.provider_diagnostics = errors
++            self._sync_compat_attrs()
++            return backend
++        except Exception as exc:
++            errors.append(f"{candidate}: {exc}")
++
++        self.provider_diagnostics = errors
++        diagnostics = "; ".join(errors) if errors else "no diagnostics available"
++        raise RuntimeError(
++            f"Failed to initialize sandbox provider (requested={self.provider_requested}). {diagnostics}"
++        )
++
++    def get_or_create_sandbox(self, timeout: int = 3600):
++        """Ensure a provider backend is ready and return its native handle."""
++        backend = self._ensure_backend(timeout=timeout)
++        return backend.get_native_handle()
++
++    def get_provider(self) -> str:
++        if self.provider:
++            return self.provider
++        return self.provider_requested
++
++    def is_active(self) -> bool:
++        return self.backend is not None
++
++    def execute_code(self, code: str) -> SandboxExecutionResult:
++        backend = self._ensure_backend(timeout=3600)
++        self._sync_compat_attrs()
++        return backend.execute_code(code)
++
++    def upload_reference_file(self, local_path: str, remote_dir: str = _REFERENCE_REMOTE_DIR) -> str:
++        backend = self._ensure_backend(timeout=3600)
++        remote_path = backend.upload_reference_file(local_path, remote_dir=remote_dir)
++        self.uploaded_reference_files[local_path] = remote_path
++        self._sync_compat_attrs()
++        return remote_path
++
+     def download_artifact(self, remote_path: str, local_dir: str) -> str:
+-        """
+-        Download an artifact file from the sandbox to local storage
+-        
+-        Args:
+-            remote_path: Path in sandbox
+-            local_dir: Local directory to save to
+-            
+-        Returns:
+-            Local path of downloaded file
+-        """
+-        if not self.sandbox:
+-            raise RuntimeError("No active sandbox")
+-        
+-        try:
+-            # Read file content as bytes to prevent corruption of binary files (PNG, DOCX, XLSX, etc.)
+-            # E2B SDK: format="bytes" returns bytearray, format="text" returns str
+-            content_bytes = self.sandbox.files.read(remote_path, format="bytes")
+-            
+-            # Create local path
+-            os.makedirs(local_dir, exist_ok=True)
+-            filename = os.path.basename(remote_path)
+-            local_path = os.path.join(local_dir, filename)
+-            
+-            # Write content as binary
+-            with open(local_path, 'wb') as f:
+-                f.write(content_bytes)
+-            
+-            print(f"馃摜 Downloaded artifact: {remote_path} -> {local_path}")
+-            return local_path
+-        except Exception as e:
+-            raise RuntimeError(f"Failed to download {remote_path}: {str(e)}")
+-    
++        backend = self._ensure_backend(timeout=3600)
++        self._sync_compat_attrs()
++        return backend.download_artifact(remote_path, local_dir)
++
++    def list_artifacts(
++        self,
++        base_dirs: Optional[List[str]] = None,
++        artifact_extensions: Optional[List[str]] = None,
++    ) -> List[str]:
++        backend = self._ensure_backend(timeout=3600)
++        self._sync_compat_attrs()
++        return backend.list_artifacts(
++            base_dirs=base_dirs or _DEFAULT_ARTIFACT_DIRS,
++            artifact_extensions=artifact_extensions or _DEFAULT_ARTIFACT_EXTENSIONS,
++        )
++
+     def cleanup(self):
+-        """Kill the sandbox and clean up resources"""
+-        if self.sandbox:
++        """Clean up provider resources."""
++        if self.backend is not None:
+             try:
+-                self.sandbox.kill()  # Use kill() for immediate termination
+-                print(f"馃Ч Killed E2B sandbox: {self.sandbox_id}")
+-            except:
++                self.backend.cleanup()
++            except Exception:
+                 pass
+-            self.sandbox = None
+-            self.sandbox_id = None
+-            self.uploaded_reference_files = {}
++        self.backend = None
++        self.provider = None
++        self.uploaded_reference_files = {}
++        self._sync_compat_attrs()
+ 
+ 
+ @tool
+ def execute_code(code: str, language: str = "python") -> Dict[str, Any]:
+     """
+-    Execute code in a persistent E2B cloud sandbox with artifact download support.
+-
+-    FEATURES:
+-    - Code runs in an isolated E2B Sandbox VM (separate from LiveBench host)
+-    - Uses persistent sandbox per session (files persist across calls)
+-    - Currently restricted to Python code via E2B Python template
+-    - No direct access to LiveBench host filesystem
+-    - API key based access control via E2B (requires E2B_API_KEY)
+-    - Automatically downloads files marked with ARTIFACT_PATH: prefix
+-
+-    ARTIFACT DOWNLOAD:
+-    - To make files accessible to submit_work, include in your code:
+-      print("ARTIFACT_PATH:/path/to/file.ext")
+-    - Files will be automatically downloaded to the agent's sandbox directory
+-    - The result will include a 'downloaded_artifacts' list with the local paths
+-    - ALWAYS use the paths from 'downloaded_artifacts' for submit_work, NOT the /tmp/ paths
+-    - Example:
+-      result = execute_code('print("ARTIFACT_PATH:/tmp/report.pdf")')
+-      # Use result['downloaded_artifacts'] for submit_work!
+-
+-    Args:
+-        code: Code to execute
+-        language: Programming language - currently only "python" supported
+-
+-    Returns:
+-        Dictionary with execution result (stdout, stderr, exit_code, downloaded_artifacts)
++    Execute code in a persistent sandbox with artifact download support.
++
++    Features:
++    - Provider selection via CODE_SANDBOX_PROVIDER (e2b default, boxlite opt-in)
++    - Persistent sandbox per session (files persist across calls)
++    - Python execution support
++    - Artifact auto-download via ARTIFACT_PATH markers
++
++    Artifact download:
++    - Print paths in code output as: ARTIFACT_PATH:/path/to/file.ext
++    - Files are downloaded to local sandbox dir and returned in downloaded_artifacts
+     """
+-    # Validate inputs
+     if not code or len(code) < 1:
+         return {"error": "Code cannot be empty"}
+ 
+@@ -212,196 +601,151 @@ def execute_code(code: str, language: str = "python") -> Dict[str, Any]:
+     if language != "python":
+         return {
+             "error": f"Language '{language}' not supported",
+-            "supported_languages": ["python"]
++            "supported_languages": ["python"],
+         }
+ 
+-    # Get global state for sandbox directory
+-    global_state = {}
+     try:
+         global_state = _get_global_state()
+     except Exception:
+-        pass
++        global_state = {}
+ 
+-    # Get or create persistent session sandbox
+     session_sandbox = SessionSandbox.get_instance()
+-    
++
+     try:
+-        sandbox = session_sandbox.get_or_create_sandbox(timeout=3600)  # 1 hour to match max task duration
+-        
+-        # Execute code
+-        try:
+-            execution = sandbox.run_code(code)
+-        except Exception as e:
+-            return {
+-                "success": False,
+-                "error": f"E2B sandbox execution failed: {str(e)}"
+-            }
++        # Ensure backend/provider is ready
++        session_sandbox.get_or_create_sandbox(timeout=3600)
+ 
+-        logs = getattr(execution, "logs", "")
+-        error = getattr(execution, "error", None)
+-        success = error is None
+-        
+-        # Extract stdout properly for artifact path detection
+-        if hasattr(logs, 'stdout'):
+-            stdout_str = '\n'.join(logs.stdout) if isinstance(logs.stdout, list) else str(logs.stdout)
+-        else:
+-            stdout_str = str(logs)
+-        
+-        # Parse ARTIFACT_PATH markers and download files
+-        downloaded_artifacts = []
+-        if success and "ARTIFACT_PATH:" in stdout_str:
+-            artifact_paths = re.findall(r'ARTIFACT_PATH:(\S+)', stdout_str)
+-            
++        execution = session_sandbox.execute_code(code)
++        provider = session_sandbox.get_provider()
++
++        downloaded_artifacts: List[str] = []
++
++        if execution.success and "ARTIFACT_PATH:" in execution.stdout:
++            artifact_paths = _ARTIFACT_PATH_RE.findall(execution.stdout)
+             if artifact_paths and global_state.get("data_path"):
+-                # Determine local download directory
+                 current_date = global_state.get("current_date", "unknown")
+-                sandbox_dir = os.path.join(
+-                    global_state["data_path"], 
+-                    "sandbox", 
+-                    current_date
++                local_sandbox_dir = os.path.join(
++                    global_state["data_path"],
++                    "sandbox",
++                    current_date,
+                 )
+-                os.makedirs(sandbox_dir, exist_ok=True)
+-                
+-                # Download each artifact
++                os.makedirs(local_sandbox_dir, exist_ok=True)
++
+                 for remote_path in artifact_paths:
+                     try:
+-                        local_path = session_sandbox.download_artifact(remote_path, sandbox_dir)
++                        local_path = session_sandbox.download_artifact(remote_path, local_sandbox_dir)
+                         downloaded_artifacts.append(local_path)
+                     except Exception as e:
+                         print(f"鈿狅笍 Warning: Could not download {remote_path}: {e}")
+-        
+-        result = {
+-            "success": success,
+-            "exit_code": 0 if success else 1,
+-            "stdout": logs if success else "",
+-            "stderr": str(error) if error else "",
++
++        result: Dict[str, Any] = {
++            "success": execution.success,
++            "exit_code": execution.exit_code,
++            "stdout": execution.stdout if execution.success else "",
++            "stderr": execution.stderr,
+             "sandbox_id": session_sandbox.sandbox_id,
+-            "message": "鉁?Code executed in E2B sandbox" if success else "鉂?E2B sandbox execution reported an error",
++            "sandbox_provider": provider,
++            "message": (
++                f"鉁?Code executed in {provider} sandbox"
++                if execution.success
++                else f"鉂?{provider} sandbox execution reported an error"
++            ),
+         }
+-        
+-        # Add reference files info if available
++
+         if session_sandbox.uploaded_reference_files:
+-            result["message"] += f"\n\n馃搸 REFERENCE FILES AVAILABLE in E2B sandbox at /home/user/reference_files/:"
+-            for local_path, remote_path in session_sandbox.uploaded_reference_files.items():
++            result["message"] += f"\n\n馃搸 REFERENCE FILES AVAILABLE in sandbox at {_REFERENCE_REMOTE_DIR}/:"
++            for _local_path, remote_path in session_sandbox.uploaded_reference_files.items():
+                 filename = os.path.basename(remote_path)
+                 result["message"] += f"\n  鈥?{filename} at {remote_path}"
+-        
+-        # Add downloaded artifacts info
++
+         if downloaded_artifacts:
+             result["downloaded_artifacts"] = downloaded_artifacts
+-            result["message"] += f"\n\n馃摜 DOWNLOADED {len(downloaded_artifacts)} ARTIFACT(S) - Use these paths for submit_work:"
++            result["message"] += (
++                f"\n\n馃摜 DOWNLOADED {len(downloaded_artifacts)} ARTIFACT(S) - Use these paths for submit_work:"
++            )
+             for path in downloaded_artifacts:
+                 result["message"] += f"\n  鉁?{path}"
+-            result["message"] += f"\n\n鈿狅笍 IMPORTANT: Use the paths above (not /tmp/ paths) when calling submit_work!"
+-        
++            result["message"] += "\n\n鈿狅笍 IMPORTANT: Use the paths above (not sandbox-internal /tmp paths) when calling submit_work!"
++
++        if session_sandbox.provider_diagnostics:
++            result["provider_diagnostics"] = session_sandbox.provider_diagnostics
++
+         return result
+-        
++
+     except Exception as e:
++        provider = session_sandbox.get_provider()
+         return {
+             "success": False,
+-            "error": f"Unexpected error during E2B sandbox execution: {str(e)}"
++            "error": f"Unexpected error during {provider} sandbox execution: {str(e)}",
++            "sandbox_provider": provider,
++            "provider_diagnostics": session_sandbox.provider_diagnostics,
+         }
+ 
+ 
+ def upload_task_reference_files(reference_file_paths: List[str]) -> List[str]:
+     """
+-    Upload reference files to the persistent E2B sandbox.
+-    This should be called when a task is assigned to make reference files available.
+-    
+-    Args:
+-        reference_file_paths: List of local file paths to upload
+-        
+-    Returns:
+-        List of remote paths in the sandbox
++    Upload reference files to the active sandbox session.
++
++    Returns remote paths inside the sandbox.
+     """
+     if not reference_file_paths:
+         return []
+-    
+-    print(f"\n馃摛 Uploading {len(reference_file_paths)} reference file(s) to E2B sandbox...")
+-    
++
+     session_sandbox = SessionSandbox.get_instance()
+-    
+-    # Ensure sandbox is created before uploading
+-    sandbox = session_sandbox.get_or_create_sandbox()
+-    print(f"鉁?E2B Sandbox ready (ID: {session_sandbox.sandbox_id})")
+-    
+-    remote_paths = []
+-    
++
++    try:
++        session_sandbox.get_or_create_sandbox(timeout=3600)
++    except Exception as e:
++        print(f"鉂?Failed to initialize sandbox for reference file upload: {e}")
++        return []
++
++    provider = session_sandbox.get_provider()
++    print(f"\n馃摛 Uploading {len(reference_file_paths)} reference file(s) to {provider} sandbox...")
++    print(f"鉁?Sandbox ready (provider: {provider}, id: {session_sandbox.sandbox_id})")
++
++    remote_paths: List[str] = []
++
+     for i, local_path in enumerate(reference_file_paths, 1):
+         try:
+             print(f"\n[{i}/{len(reference_file_paths)}] Uploading: {os.path.basename(local_path)}")
+             remote_path = session_sandbox.upload_reference_file(local_path)
+             remote_paths.append(remote_path)
++            print(f"   鉁?Uploaded to: {remote_path}")
+         except Exception as e:
+             print(f"鉂?Failed to upload {local_path}: {e}")
+-    
++
+     if remote_paths:
+-        print(f"\n鉁?Successfully uploaded {len(remote_paths)}/{len(reference_file_paths)} files to E2B sandbox")
+-        print(f"馃搷 All files are accessible at: /home/user/reference_files/")
+-        print(f"   Files uploaded:")
++        print(
++            f"\n鉁?Successfully uploaded {len(remote_paths)}/{len(reference_file_paths)} files to {provider} sandbox"
++        )
++        print(f"馃搷 All files are accessible at: {_REFERENCE_REMOTE_DIR}/")
++        print("   Files uploaded:")
+         for path in remote_paths:
+             print(f"     鈥?{path}")
+     else:
+-        print(f"\n鈿狅笍 No files were successfully uploaded")
+-    
++        print("\n鈿狅笍 No files were successfully uploaded")
++
+     return remote_paths
+ 
+ 
++def get_session_sandbox_provider() -> str:
++    """Return the active provider (or requested provider before initialization)."""
++    return SessionSandbox.get_instance().get_provider()
++
++
+ def cleanup_session_sandbox():
+-    """
+-    Clean up the session sandbox.
+-    Should be called at the end of each agent session/day.
+-    """
++    """Clean up session sandbox resources."""
+     SessionSandbox.reset()
+ 
+ 
+ if __name__ == "__main__":
+-    """
+-    Test the persistent sandbox functionality
+-    """
+-    def test1():
+-        # Test basic code execution
+-        test_code = """
+-print("Hello from E2B sandbox!")
+-for i in range(3):
+-    print("Number:", i)
+-        """
+-
+-        result = execute_code.func(test_code, language="python")
+-
+-        print("=== E2B Sandbox Execution Result ===")
+-        for k, v in result.items():
+-            print(f"{k}: {v}")
+-            
+-    def test2():
+-        # Test file persistence across calls
+-        test_code1 = """
+-with open("/tmp/test.txt", "w") as f:
+-    f.write("Hello from first call!")
++    # Basic local sanity check
++    test_code = """
++print("Hello from sandbox")
+ print("ARTIFACT_PATH:/tmp/test.txt")
+-        """
+-        
+-        result1 = execute_code.func(test_code1, language="python")
+-        print("=== First Call Result ===")
+-        print(result1.get("message"))
+-        
+-        # Second call should be able to read the file
+-        test_code2 = """
+-with open("/tmp/test.txt", "r") as f:
+-    content = f.read()
+-print(f"File content: {content}")
+-        """
+-        
+-        result2 = execute_code.func(test_code2, language="python")
+-        print("\n=== Second Call Result ===")
+-        print(result2.get("stdout"))
+-
+-    print("Running test 1: Basic execution")
+-    test1()
+-    
+-    print("\n" + "="*50)
+-    print("Running test 2: File persistence")
+-    test2()
+-    
+-    # Cleanup
+-    cleanup_session_sandbox()
+\ No newline at end of file
++with open('/tmp/test.txt', 'w') as f:
++    f.write('ok')
++"""
++    out = execute_code.func(test_code, language="python")
++    print(out)
++    cleanup_session_sandbox()
+diff --git a/requirements.txt b/requirements.txt
+index 6c2a6672..bdf2795e 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -24,6 +24,10 @@ python-dotenv>=1.0.0
+ # HTTP requests
+ requests>=2.31.0
+ 
++# Sandbox backends (BoxLite default, E2B fallback)
++boxlite[sync]>=0.6.0
++e2b-code-interpreter>=1.0.0
++
+ # Web search APIs
+ tavily-python>=0.3.0  # Tavily search (recommended)
+ 
+@@ -36,4 +40,4 @@ reportlab>=4.0.0
+ openpyxl>=3.1.0
+ xlsxwriter>=3.1.0
+ pdf2image>=1.16.0
+-Pillow>=10.0.0
+\ No newline at end of file
++Pillow>=10.0.0
+diff --git a/run_test_agent.sh b/run_test_agent.sh
+index 25b7a1b5..35fe117f 100755
+--- a/run_test_agent.sh
++++ b/run_test_agent.sh
+@@ -78,6 +78,61 @@ if [ -z "$WEB_SEARCH_API_KEY" ]; then
+ fi
+ echo "鉁?WEB_SEARCH_API_KEY set"
+ 
++# Resolve sandbox provider (explicit e2b default, optional boxlite)
++SANDBOX_PROVIDER_REQUESTED=${CODE_SANDBOX_PROVIDER:-e2b}
++SANDBOX_PROVIDER_RESOLVED=$(python - <<'PY'
++import os
++import importlib.util
++
++requested = os.getenv("CODE_SANDBOX_PROVIDER", "e2b").strip().lower() or "e2b"
++valid = {"boxlite", "e2b"}
++if requested not in valid:
++    print("invalid")
++    raise SystemExit(0)
++
++has_boxlite = False
++if importlib.util.find_spec("boxlite") is not None:
++    try:
++        from boxlite import SyncCodeBox  # noqa: F401
++        has_boxlite = True
++    except Exception:
++        has_boxlite = False
++has_e2b = importlib.util.find_spec("e2b_code_interpreter") is not None
++
++if requested == "boxlite":
++    print("boxlite" if has_boxlite else "boxlite-missing")
++else:
++    print("e2b" if has_e2b else "e2b-missing")
++PY
++)
++
++if [ "$SANDBOX_PROVIDER_RESOLVED" = "invalid" ]; then
++    echo "鉂?Invalid CODE_SANDBOX_PROVIDER: ${SANDBOX_PROVIDER_REQUESTED}"
++    echo "   Valid options: boxlite, e2b"
++    exit 1
++fi
++
++if [ "$SANDBOX_PROVIDER_RESOLVED" = "boxlite-missing" ]; then
++    echo "鉂?CODE_SANDBOX_PROVIDER=boxlite but BoxLite sync API is unavailable"
++    echo "   Install with: pip install \"boxlite[sync]>=0.6.0\""
++    echo "   Or use CODE_SANDBOX_PROVIDER=e2b"
++    exit 1
++fi
++
++if [ "$SANDBOX_PROVIDER_RESOLVED" = "e2b-missing" ]; then
++    echo "鉂?CODE_SANDBOX_PROVIDER=e2b but e2b-code-interpreter is not installed"
++    echo "   Install with: pip install e2b-code-interpreter"
++    exit 1
++fi
++
++echo "鉁?Sandbox provider: ${SANDBOX_PROVIDER_RESOLVED} (requested: ${SANDBOX_PROVIDER_REQUESTED})"
++
++if [ "$SANDBOX_PROVIDER_RESOLVED" = "e2b" ] && [ -z "$E2B_API_KEY" ]; then
++    echo "鉂?E2B_API_KEY not set (required when sandbox provider resolves to e2b)"
++    echo "   Please set it: export E2B_API_KEY='your-key-here'"
++    exit 1
++fi
++
+ echo ""
+ 
+ # Set MCP port if not set
+diff --git a/scripts/README.md b/scripts/README.md
+index 6b53d0d6..5798f94c 100644
+--- a/scripts/README.md
++++ b/scripts/README.md
+@@ -4,9 +4,12 @@ This directory contains utility scripts for the LiveBench project.
+ 
+ ## E2B Custom Sandbox Template Builder
+ 
++> This section is for the **E2B backend** (default provider: `CODE_SANDBOX_PROVIDER=e2b`).
++> Default BoxLite backend dependency: `pip install "boxlite[sync]>=0.6.0"`.
++
+ ### Overview
+ 
+-The `build_e2b_template.py` script creates a custom E2B sandbox environment with preinstalled Python packages that are commonly needed for GDPVal tasks. This eliminates the `ModuleNotFoundError` issues that agents frequently encounter when trying to create documents, spreadsheets, presentations, and PDFs.
++The `build_e2b_template.py` script creates a custom E2B sandbox environment with preinstalled Python packages that are commonly needed for GDPVal tasks. Use this when running E2B (`CODE_SANDBOX_PROVIDER=e2b`, default). This eliminates the `ModuleNotFoundError` issues that agents frequently encounter when trying to create documents, spreadsheets, presentations, and PDFs.
+ 
+ ### Problem
+ 
+@@ -138,6 +141,7 @@ e2b template build
+ After building, update your `.env` file:
+ 
+ ```bash
++CODE_SANDBOX_PROVIDER=e2b
+ E2B_TEMPLATE_ID=<your-new-template-id>
+ ```
+ 
+@@ -201,6 +205,14 @@ optional arguments:
+ 
+ ## Troubleshooting
+ 
++### "`SyncCodeBox` import failed"
++
++Install or reinstall BoxLite sync extras:
++
++```bash
++pip install "boxlite[sync]>=0.6.0"
++```
++
+ ### "E2B_API_KEY environment variable is not set"
+ 
+ Get your API key from https://e2b.dev/dashboard and set it:
+@@ -234,6 +246,6 @@ npm install -g @e2b/cli
+ 
+ ## Related Files
+ 
+-- `livebench/tools/productivity/code_execution_sandbox.py` - Uses E2B sandboxes
++- `livebench/tools/productivity/code_execution_sandbox.py` - Supports parallel E2B/BoxLite backends (`e2b` default)
+ - `explore_gdpval.py` - Explores GDPVal task data
+ - `gdpval/data/train-00000-of-00001.parquet` - GDPVal task dataset

@@ -69,9 +69,69 @@ REVIEW_SCHEMA = {
     },
 }
 
+DEFINE_REQUIREMENTS_SCHEMA = {
+    "type": "object",
+    "required": ["mvp_scope", "functional_requirements", "constraints", "success_metrics"],
+    "properties": {
+        "mvp_scope": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "functional_requirements": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "constraints": {"type": "array", "items": {"type": "string"}},
+        "success_metrics": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+DESIGN_ARCHITECTURE_SCHEMA = {
+    "type": "object",
+    "required": ["architecture", "tech_stack", "modules", "data_models"],
+    "properties": {
+        "architecture": {"type": "string", "minLength": 20},
+        "tech_stack": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "modules": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "data_models": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name", "fields"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "fields": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+            "minItems": 1,
+        },
+    },
+}
+
+DESIGN_UI_UX_SCHEMA = {
+    "type": "object",
+    "required": ["user_flow", "components", "states", "interaction_patterns"],
+    "properties": {
+        "user_flow": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "components": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "states": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "interaction_patterns": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+BUILD_ARTIFACT_SCHEMA = {
+    "type": "object",
+    "required": ["output_path", "success_status", "build_command", "build_log"],
+    "properties": {
+        "output_path": {"type": "string", "minLength": 5},
+        "success_status": {"type": "boolean"},
+        "build_command": {"type": "string", "minLength": 3},
+        "build_log": {"type": "string", "minLength": 1},
+        "artifact_size_bytes": {"type": "integer", "minimum": 0},
+    },
+}
+
 ACTION_SCHEMAS = {
     "analyze_market": ANALYZE_MARKET_SCHEMA,
+    "define_requirements": DEFINE_REQUIREMENTS_SCHEMA,
+    "design_architecture": DESIGN_ARCHITECTURE_SCHEMA,
+    "design_ui_ux": DESIGN_UI_UX_SCHEMA,
     "write_code": WRITE_CODE_SCHEMA,
+    "build_artifact": BUILD_ARTIFACT_SCHEMA,
     "generate_content": GENERATE_CONTENT_SCHEMA,
     "review": REVIEW_SCHEMA,
 }

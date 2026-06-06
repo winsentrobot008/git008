@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maneki-AI 实时工厂 · AI Factory Live</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:linear-gradient(135deg,#0d1117,#161b22,#0d1117);color:#c9d1d9;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem 1rem}
+  .container{max-width:1100px;width:100%}
+  
+  /* Header */
+  header{text-align:center;margin-bottom:2rem}
+  header h1{font-size:2.2rem;font-weight:700;background:linear-gradient(90deg,#58a6ff,#3fb950,#58a6ff);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s ease-in-out infinite}
+  @keyframes shimmer{0%,100%{background-position:0% center}50%{background-position:200% center}}
+  header p{color:#8b949e;margin-top:.5rem;font-size:.95rem}
+  .status-badge{display:inline-block;margin-top:.75rem;padding:.3rem 1rem;border-radius:20px;font-size:.8rem;font-weight:600}
+  .status-badge.online{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+  .status-badge.offline{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+  .status-badge.checking{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.3)}
+
+  /* Cards */
+  .card{background:rgba(255,255,255,.03);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;transition:border-color .3s,box-shadow .3s}
+  .card:hover{border-color:rgba(88,166,255,.15);box-shadow:0 0 30px rgba(88,166,255,.04)}
+  .card h2{font-size:1.1rem;font-weight:600;margin-bottom:1rem;color:#8b949e;display:flex;align-items:center;gap:.5rem}
+  .card h2 .icon{font-size:1.3rem}
+
+  /* Input */
+  .input-group{display:flex;gap:.75rem;flex-wrap:wrap}
+  .input-group input,.input-group select{flex:1;min-width:200px;padding:.75rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#c9d1d9;font-size:.95rem;outline:none;transition:border-color .3s}
+  .input-group input:focus,.input-group select:focus{border-color:#58a6ff;box-shadow:0 0 0 3px rgba(88,166,255,.12)}
+  .input-group input::placeholder{color:#484f58}
+  .input-group select option{background:#161b22;color:#c9d1d9}
+
+  .btn{padding:.75rem 1.5rem;border-radius:10px;border:none;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .3s;display:inline-flex;align-items:center;gap:.5rem}
+  .btn-primary{background:linear-gradient(135deg,#238636,#3fb950);color:#fff}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(63,185,80,.25)}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+  .btn-secondary{background:rgba(255,255,255,.06);color:#8b949e;border:1px solid rgba(255,255,255,.08)}
+  .btn-secondary:hover{background:rgba(255,255,255,.1)}
+  .btn-danger{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.25)}
+  .btn-danger:hover{background:rgba(248,81,73,.25)}
+
+  /* Live Stream */
+  .live-stream{margin-top:1rem;padding:1rem;border-radius:10px;background:rgba(0,0,0,.3);min-height:200px;max-height:500px;overflow-y:auto;font-size:.85rem;line-height:1.6;font-family:'SF Mono','Fira Code','Consolas',monospace;display:none}
+  .live-stream.visible{display:block}
+  .live-stream .entry{padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.02);animation:fadeIn .3s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+  .live-stream .entry .time{color:#484f58;font-size:.75rem;margin-right:.5rem}
+  .live-stream .entry .tag{display:inline-block;padding:.1rem .4rem;border-radius:4px;font-size:.7rem;font-weight:600;margin-right:.4rem;text-transform:uppercase}
+  .tag-thinking{background:rgba(210,153,34,.15);color:#d29922}
+  .tag-code{background:rgba(88,166,255,.15);color:#58a6ff}
+  .tag-artifact{background:rgba(188,140,255,.15);color:#bc8cff}
+  .tag-submit{background:rgba(63,185,80,.15);color:#3fb950}
+  .tag-complete{background:rgba(63,185,80,.25);color:#7ee787}
+  .tag-error{background:rgba(248,81,73,.15);color:#f85149}
+  .tag-info{background:rgba(88,166,255,.15);color:#79c0ff}
+  .tag-balance{background:rgba(255,123,114,.15);color:#ff7b72}
+  .tag-dispatch{background:rgba(210,153,34,.2);color:#e3b341}
+  .live-stream .entry .msg{color:#c9d1d9}
+  .live-stream .entry .code-block{background:rgba(0,0,0,.3);border-left:2px solid #58a6ff;padding:.5rem;margin:.3rem 0;border-radius:4px;font-size:.8rem;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto;color:#a5d6ff}
+
+  /* Stream Controls */
+  .stream-controls{display:flex;gap:.5rem;margin-bottom:.75rem;align-items:center}
+  .stream-controls .ws-indicator{display:flex;align-items:center;gap:.4rem;font-size:.8rem;color:#8b949e}
+  .ws-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .ws-dot.connected{background:#3fb950;box-shadow:0 0 6px #3fb950}
+  .ws-dot.disconnected{background:#f85149}
+  .ws-dot.connecting{background:#d29922;animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .task-status-bar{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem}
+  .task-status-item{display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:#8b949e}
+  .task-status-item .num{font-weight:700;color:#58a6ff;font-size:1.1rem}
+
+  /* AI Board */
+  .board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem}
+  .board-card{background:rgba(255,255,255,.03);border-radius:12px;padding:1rem;border:1px solid rgba(255,255,255,.05);transition:all .3s}
+  .board-card:hover{background:rgba(255,255,255,.06);transform:translateY(-2px)}
+  .board-card .name{font-weight:600;font-size:.95rem;margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem}
+  .board-card .role{font-size:.75rem;color:#8b949e;margin-bottom:.5rem}
+  .board-card .balance{font-size:1.1rem;font-weight:700;color:#3fb950}
+  .board-card .meta{font-size:.73rem;color:#484f58;margin-top:.3rem}
+  .board-card .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.3rem}
+  .status-dot.active{background:#3fb950}
+  .status-dot.idle{background:#d29922}
+  .status-dot.offline{background:#484f58}
+  .board-card .busy-badge{display:inline-block;padding:.1rem .4rem;border-radius:4px;font-size:.7rem;background:rgba(210,153,34,.15);color:#d29922;margin-left:.3rem}
+
+  /* Stats */
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.75rem;margin-bottom:1rem}
+  .stat-item{text-align:center;padding:.75rem;background:rgba(255,255,255,.02);border-radius:10px}
+  .stat-item .value{font-size:1.4rem;font-weight:700;color:#58a6ff}
+  .stat-item .label{font-size:.7rem;color:#484f58;text-transform:uppercase;letter-spacing:.5px;margin-top:.2rem}
+
+  footer{margin-top:3rem;text-align:center;color:#30363d;font-size:.8rem}
+  footer a{color:#58a6ff;text-decoration:none}
+  footer a:hover{text-decoration:underline}
+
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+
+  @media(max-width:600px){body{padding:1rem .75rem}header h1{font-size:1.6rem}.card{padding:1rem}.board-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🏭 Maneki-AI 实时工厂</h1>
+    <p>AI 董事会 · 多模型协作 · 实时流回传 · Success-Share 收益分成</p>
+    <span id="statusBadge" class="status-badge checking">⏳ 检查连接中...</span>
+  </header>
+
+  <!-- Stats -->
+  <div class="card">
+    <h2><span class="icon">📊</span> 工厂概览</h2>
+    <div class="stats-row">
+      <div class="stat-item"><div class="value" id="statModels">-</div><div class="label">AI 董事会成员</div></div>
+      <div class="stat-item"><div class="value" id="statTasks">-</div><div class="label">总任务数</div></div>
+      <div class="stat-item"><div class="value" id="statCompleted">-</div><div class="label">已完成</div></div>
+      <div class="stat-item"><div class="value" id="statRevenue">-</div><div class="label">累计收益 ($)</div></div>
+    </div>
+  </div>
+
+  <!-- Task Input -->
+  <div class="card">
+    <h2><span class="icon">🎯</span> 提交生产任务</h2>
+    <div class="input-group">
+      <input type="text" id="taskInput" placeholder="输入商业目标，例如：搞个3D投掷游戏 / 写一份市场分析报告..." />
+      <select id="modelSelect">
+        <option value="">🤖 自动路由（AI 董事会）</option>
+        <option value="deepseek">🔧 DeepSeek — 深度逻辑</option>
+        <option value="gemini">🧠 Gemini — 战略调度</option>
+        <option value="doubao">🎨 豆包 — 创意营销</option>
+        <option value="openai">📋 OpenAI — 标准化审计</option>
+      </select>
+      <button class="btn btn-primary" id="submitBtn" onclick="submitTask()">🚀 启动工厂</button>
+    </div>
+    <div class="task-status-bar" id="taskStatusBar" style="display:none">
+      <div class="task-status-item">⚙️ 运行中: <span class="num" id="runningCount">0</span></div>
+      <div class="task-status-item">✅ 已完成: <span class="num" id="completedCount">0</span></div>
+      <div class="task-status-item">❌ 失败: <span class="num" id="failedCount">0</span></div>
+    </div>
+    <div class="stream-controls">
+      <div class="ws-indicator"><span class="ws-dot disconnected" id="wsDot"></span><span id="wsStatus">未连接</span></div>
+      <button class="btn btn-secondary" id="connectWsBtn" onclick="toggleWebSocket()" style="padding:.4rem .75rem;font-size:.8rem">连接 WebSocket</button>
+      <button class="btn btn-secondary" onclick="clearStream()" style="padding:.4rem .75rem;font-size:.8rem">清空</button>
+      <button class="btn btn-danger" id="autoScrollBtn" onclick="toggleAutoScroll()" style="padding:.4rem .75rem;font-size:.8rem">自动滚动: ON</button>
+    </div>
+    <div id="liveStream" class="live-stream">
+      <div class="entry"><span class="tag tag-info">INFO</span><span class="msg">连接到服务器后，AI 工厂的实时生产日志将显示在这里...</span></div>
+    </div>
+  </div>
+
+  <!-- AI Board -->
+  <div class="card">
+    <h2><span class="icon">🤖</span> AI 董事会</h2>
+    <div id="boardList" class="board-grid">
+      <div style="grid-column:1/-1;text-align:center;color:#484f58;padding:2rem 0">加载中...</div>
+    </div>
+  </div>
+
+  <!-- API Info -->
+  <div class="card">
+    <h2><span class="icon">🔗</span> API 端点</h2>
+    <div style="font-size:.85rem;line-height:1.8;color:#8b949e">
+      <div><code style="background:rgba(255,255,255,.04);padding:.15rem .4rem;border-radius:4px">POST /api/router</code> — 提交商业目标 → AI 董事会自动路由</div>
+      <div><code style="background:rgba(255,255,255,.04);padding:.15rem .4rem;border-radius:4px">GET /api/tasks/{id}</code> — 查询任务状态与日志</div>
+      <div><code style="background:rgba(255,255,255,.04);padding:.15rem .4rem;border-radius:4px">GET /api/board</code> — AI 董事会成员状态</div>
+      <div><code style="background:rgba(255,255,255,.04);padding:.15rem .4rem;border-radius:4px">GET /api/settlement</code> — Success-Share 收益分成数据</div>
+      <div><code style="background:rgba(255,255,255,.04);padding:.15rem .4rem;border-radius:4px">WS /ws</code> — WebSocket 实时生产流</div>
+    </div>
+  </div>
+
+  <footer>
+    Maneki-AI Factory · <a href="/factory" target="_blank">经典工厂界面</a> · v0.4.0-live
+  </footer>
+</div>
+
+<script>
+// ===== Configuration =====
+var API_BASE = window.location.origin;
+var ls = localStorage.getItem('maneki_api_base');
+if (ls) API_BASE = ls;
+
+var ws = null, wsConnected = false, autoScroll = true;
+var runningTasks = 0, completedTasks = 0, failedTasks = 0;
+
+// ===== API Helpers =====
+function apiGet(path) {
+  return fetch(API_BASE + path, {headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
+}
+function apiPost(path, body) {
+  return fetch(API_BASE + path, {
+    method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+    body:JSON.stringify(body),signal:AbortSignal.timeout(15000)
+  }).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
+}
+
+// ===== Connection Check =====
+function checkConnection() {
+  var b = document.getElementById('statusBadge');
+  b.className = 'status-badge checking'; b.textContent = '⏳ 检查连接中...';
+  apiGet('/api/health').then(function(d){
+    b.className = 'status-badge online'; b.textContent = '✅ 已连接 · ' + (d.version || 'Maneki-AI Factory');
+    autoConnectWs();
+  }).catch(function(e){
+    b.className = 'status-badge offline'; b.textContent = '❌ 无法连接: ' + e.message;
+  });
+}
+
+// ===== WebSocket =====
+function autoConnectWs() {
+  // Auto-connect if not already connected
+  if (!wsConnected) connectWs();
+}
+
+function connectWs() {
+  var url = API_BASE.replace(/^http/,'ws')+'/ws';
+  var dot = document.getElementById('wsDot'), st = document.getElementById('wsStatus'), btn = document.getElementById('connectWsBtn');
+  dot.className = 'ws-dot connecting'; st.textContent = '连接中...'; btn.textContent = '连接中...'; btn.disabled = true;
+  try {
+    ws = new WebSocket(url);
+    ws.onopen = function(){
+      wsConnected = true;
+      dot.className='ws-dot connected'; st.textContent='已连接 · 实时流';
+      btn.textContent='断开'; btn.disabled=false;
+      addEntry('info','✅ WebSocket 已连接到 Maneki-AI 工厂实时流');
+    };
+    ws.onmessage = function(e){
+      try { var msg = JSON.parse(e.data); handleMsg(msg); }
+      catch(ex) { addEntry('info', e.data); }
+    };
+    ws.onclose = function(){
+      wsConnected = false;
+      dot.className='ws-dot disconnected'; st.textContent='未连接';
+      btn.textContent='连接 WebSocket'; btn.disabled=false;
+      addEntry('info','🔌 WebSocket 已断开');
+      // Auto-reconnect after 3s
+      setTimeout(function(){ if(!wsConnected) connectWs(); }, 3000);
+    };
+    ws.onerror = function(){
+      addEntry('error','WebSocket 连接错误');
+      if (ws) { try { ws.close(); } catch(e){} }
+    };
+  } catch(e) {
+    addEntry('error','WebSocket 初始化失败: '+e.message);
+  }
+}
+
+function disconnectWs(){ if(ws){ ws.close(); ws=null; } }
+function toggleWebSocket(){ if(wsConnected) disconnectWs(); else connectWs(); }
+
+// ===== Handle WebSocket Messages =====
+function handleMsg(msg){
+  var t = msg.type||'unknown';
+  switch(t){
+    case 'connected':
+      addEntry('info','✅ 已连接到 Maneki-AI 工厂实时流 · '+(msg.message||''));
+      break;
+    case 'heartbeat': case 'pong': break;
+
+    // Board / Dispatch events
+    case 'board_initialized':
+      addEntry('info','🏭 AI 董事会初始化完成 · '+(msg.models||[]).length+' 个模型就绪');
+      break;
+    case 'task_dispatched':
+      addEntry('dispatch','📤 任务已分发 → '+(msg.assigned_model||'自动路由')+' · ID: '+(msg.task_id||'').slice(-8));
+      break;
+    case 'model_selected':
+      addEntry('info','🤖 董事会路由: '+(msg.model||'')+' 负责执行此任务 · 理由: '+(msg.reason||''));
+      break;
+
+    // Execution events
+    case 'task_queued':
+      addEntry('info','📋 任务 ['+(msg.task_id||'').slice(-8)+'] 已进入生产队列');
+      break;
+    case 'task_started':
+      runningTasks++; updateCounts();
+      addEntry('info','🚀 任务 ['+(msg.task_id||'').slice(-8)+'] 开始执行 · Agent: '+(msg.agent||'ECC'));
+      break;
+    case 'task_assigned':
+      addEntry('info','📝 任务描述: '+(msg.prompt||msg.goal||'').slice(0,100));
+      break;
+    case 'agent_thinking':
+      var th = msg.thought||msg.message||'';
+      if (th) addEntry('thinking', th.slice(0,300));
+      break;
+    case 'ecc_decompose':
+      addEntry('info','🧩 ECC 任务分解 · '+(msg.steps||0)+' 个执行步骤');
+      break;
+    case 'code_generated':
+      addEntry('code','💻 生成代码 ('+(msg.language||'python')+'):', (msg.code||'').slice(0,300));
+      break;
+    case 'artifact_created':
+      addEntry('artifact','📄 创建文件: '+(msg.file_path||msg.filename||''));
+      break;
+    case 'work_submitted':
+      addEntry('submit','✅ 工作已提交! 估值: $'+(msg.estimated_value||0).toFixed(2)+' · 收益分成: $'+(msg.service_charge||0).toFixed(2));
+      break;
+    case 'settlement':
+      addEntry('balance','💰 Success-Share 结算: 净利润 $'+(msg.net_profit||0).toFixed(2)+' · 服务费 $'+(msg.service_charge||0).toFixed(2)+' ('+(msg.tier||'core')+')');
+      break;
+    case 'task_completed':
+      runningTasks = Math.max(0, runningTasks-1); completedTasks++;
+      updateCounts();
+      addEntry('complete','🎉 任务完成! '+ (msg.message||'') +' · 收益: $'+(msg.revenue||0).toFixed(2));
+      loadBoard();
+      break;
+    case 'task_error':
+      runningTasks = Math.max(0, runningTasks-1); failedTasks++;
+      updateCounts();
+      addEntry('error','❌ 任务错误: '+(msg.error||'').slice(0,300));
+      break;
+    case 'task_finished':
+      addEntry('complete','🏁 任务结束 · 状态: '+msg.status+' · 估值: $'+(msg.value||0).toFixed(2));
+      loadBoard();
+      break;
+    case 'balance_update':
+      if (msg.data && msg.data.revenue !== undefined) {
+        addEntry('balance','💰 累计收益更新: $'+msg.data.revenue.toFixed(2)+' · 任务数: '+(msg.data.tasks||0));
+      }
+      break;
+    case 'board_update':
+      loadBoard();
+      break;
+    case 'risk_assessment':
+      addEntry('info','🛡️ 风险评估: '+(msg.result||'')+' · '+(msg.message||''));
+      break;
+    default:
+      addEntry('info', t+': '+JSON.stringify(msg).slice(0,200));
+  }
+}
+
+function addEntry(tag, msg, code){
+  var stream = document.getElementById('liveStream');
+  stream.classList.add('visible');
+  var entry = document.createElement('div');
+  entry.className = 'entry';
+  var time = new Date().toLocaleTimeString();
+  var tagMap = {
+    thinking:'tag-thinking', code:'tag-code', artifact:'tag-artifact',
+    submit:'tag-submit', complete:'tag-complete', error:'tag-error',
+    info:'tag-info', balance:'tag-balance', dispatch:'tag-dispatch'
+  };
+  var tc = tagMap[tag]||'tag-info';
+  var h = '<span class="time">'+time+'</span><span class="tag '+tc+'">'+tag.toUpperCase()+'</span><span class="msg">'+esc(msg)+'</span>';
+  if (code) h += '<div class="code-block">'+esc(code)+'</div>';
+  entry.innerHTML = h;
+  stream.appendChild(entry);
+  while (stream.children.length > 200) stream.removeChild(stream.firstChild);
+  if (autoScroll) stream.scrollTop = stream.scrollHeight;
+}
+function esc(t){var d=document.createElement('div');d.textContent=t;return d.innerHTML;}
+function clearStream(){var s=document.getElementById('liveStream');s.innerHTML='';s.classList.remove('visible');}
+function toggleAutoScroll(){
+  autoScroll=!autoScroll;
+  document.getElementById('autoScrollBtn').textContent='自动滚动: '+(autoScroll?'ON':'OFF');
+  if (autoScroll) document.getElementById('liveStream').scrollTop=document.getElementById('liveStream').scrollHeight;
+}
+function updateCounts(){
+  document.getElementById('runningCount').textContent=runningTasks;
+  document.getElementById('completedCount').textContent=completedTasks;
+  document.getElementById('failedCount').textContent=failedTasks;
+  document.getElementById('taskStatusBar').style.display='flex';
+}
+
+// ===== Load AI Board =====
+function loadBoard(){
+  apiGet('/api/board').then(function(d){
+    var models = d.models||[];
+    var c = document.getElementById('boardList');
+    if (!models.length){
+      c.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#484f58;padding:2rem 0">🤷 暂无 AI 董事会数据</div>';
+      return;
+    }
+    c.innerHTML = models.map(function(m){
+      var st = (m.status||'idle').toLowerCase();
+      var dc = st==='active'?'active':st==='idle'?'idle':'offline';
+      var busy = m.current_task;
+      return '<div class="board-card">'+
+        '<div class="name">'+(m.icon||'🤖')+' '+m.name+(busy?'<span class="busy-badge">工作中</span>':'')+'</div>'+
+        '<div class="role">'+m.role+'</div>'+
+        '<div class="balance">'+m.tasks+' 个任务 · $'+(m.revenue||0).toFixed(2)+'</div>'+
+        '<div class="meta"><span class="status-dot '+dc+'"></span>'+(m.status||'Idle')+' · 成功率: '+(m.success_rate||0)+'%</div>'+
+        '</div>';
+    }).join('');
+    document.getElementById('statModels').textContent = models.length;
+    document.getElementById('statTasks').textContent = models.reduce(function(s,m){return s+(m.tasks||0);},0);
+    document.getElementById('statCompleted').textContent = models.reduce(function(s,m){return s+(m.completed||0);},0);
+    document.getElementById('statRevenue').textContent = models.reduce(function(s,m){return s+(m.revenue||0);},0).toFixed(2);
+  }).catch(function(e){
+    console.log('Board load error:', e);
+    // Use fallback static board
+    renderStaticBoard();
+  });
+}
+
+// ===== Static AI Board (fallback when API unavailable) =====
+function renderStaticBoard(){
+  var models = [
+    {name:'DeepSeek',icon:'🔧',role:'深度逻辑与架构 · 代码生成',status:'active',tasks:0,completed:0,revenue:0,success_rate:0},
+    {name:'Gemini',icon:'🧠',role:'战略与调度 · 全局统筹',status:'idle',tasks:0,completed:0,revenue:0,success_rate:0},
+    {name:'Doubao',icon:'🎨',role:'创意与本土化 · 营销策划',status:'idle',tasks:0,completed:0,revenue:0,success_rate:0},
+    {name:'OpenAI',icon:'📋',role:'全球通用标准 · 审计',status:'idle',tasks:0,completed:0,revenue:0,success_rate:0},
+    {name:'Yuanbao',icon:'🌐',role:'生态整合 · 社交数据链路',status:'idle',tasks:0,completed:0,revenue:0,success_rate:0}
+  ];
+  var c = document.getElementById('boardList');
+  c.innerHTML = models.map(function(m){
+    var dc = m.status==='active'?'active':m.status==='idle'?'idle':'offline';
+    return '<div class="board-card">'+
+      '<div class="name">'+m.icon+' '+m.name+'</div>'+
+      '<div class="role">'+m.role+'</div>'+
+      '<div class="meta"><span class="status-dot '+dc+'"></span>'+(m.status||'Idle')+'</div>'+
+      '</div>';
+  }).join('');
+  document.getElementById('statModels').textContent = models.length;
+}
+
+// ===== Submit Task =====
+function submitTask(){
+  var input = document.getElementById('taskInput');
+  var goal = input.value.trim();
+  var model = document.getElementById('modelSelect').value;
+  var btn = document.getElementById('submitBtn');
+  if (!goal){ addEntry('error','⚠️ 请输入商业目标'); return; }
+  btn.disabled = true;
+  btn.textContent = '⏳ 工厂启动中...';
+  addEntry('info','🏭 正在提交生产任务: '+goal.slice(0,100)+'...');
+
+  // Try WebSocket live submit first, fallback to REST
+  var payload = { goal: goal };
+  if (model) payload.model = model;
+
+  // Use REST API for task submission (reliable)
+  apiPost('/api/router', payload).then(function(res){
+    if (res.status === 'success') {
+      addEntry('complete','✅ 任务已创建! ID: '+res.task_id+' · '+res.message);
+      input.value = '';
+      // Broadcast via WebSocket if connected
+      if (wsConnected && ws) {
+        try { ws.send(JSON.stringify({type:'task_submitted',task_id:res.task_id,goal:goal})); } catch(e){}
+      }
+    } else {
+      addEntry('error','❌ 任务创建失败: '+(res.message||'未知错误'));
+    }
+  }).catch(function(e){
+    addEntry('error','❌ 提交失败: '+e.message);
+  }).finally(function(){
+    btn.disabled = false;
+    btn.textContent = '🚀 启动工厂';
+  });
+}
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', function(){
+  // Enter key to submit
+  document.getElementById('taskInput').addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitTask(); }
+  });
+  // Start
+  checkConnection();
+  loadBoard();
+  // Auto-refresh board every 10s
+  setInterval(loadBoard, 10000);
+});
+</script>
+</body>
+</html>

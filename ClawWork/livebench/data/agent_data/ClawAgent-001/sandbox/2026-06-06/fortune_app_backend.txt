@@ -1,0 +1,379 @@
+"""
+算命APP - 后端核心算法模块
+Fortune Telling App - Core Algorithm Module
+"""
+
+import json
+import math
+import random
+from datetime import datetime, date
+import hashlib
+
+# ==================== 天干地支系统 ====================
+TIAN_GAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸']
+DI_ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
+
+# 五行
+WU_XING = ['金', '木', '水', '火', '土']
+
+# 天干对应五行
+TIAN_GAN_WU_XING = {
+    '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土',
+    '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水'
+}
+
+# 地支对应五行
+DI_ZHI_WU_XING = {
+    '子': '水', '丑': '土', '寅': '木', '卯': '木', '辰': '土', '巳': '火',
+    '午': '火', '未': '土', '申': '金', '酉': '金', '戌': '土', '亥': '水'
+}
+
+# 生肖
+SHENG_XIAO = ['鼠', '牛', '虎', '兔', '龙', '蛇', '马', '羊', '猴', '鸡', '狗', '猪']
+
+# 生肖对应地支
+SHENG_XIAO_DI_ZHI = {
+    '鼠': '子', '牛': '丑', '虎': '寅', '兔': '卯', '龙': '辰', '蛇': '巳',
+    '马': '午', '羊': '未', '猴': '申', '鸡': '酉', '狗': '戌', '猪': '亥'
+}
+
+# ==================== 八字计算 ====================
+def get_year_gan_zhi(year):
+    """获取年柱天干地支"""
+    gan_idx = (year - 4) % 10
+    zhi_idx = (year - 4) % 12
+    return TIAN_GAN[gan_idx], DI_ZHI[zhi_idx]
+
+def get_month_gan_zhi(year, month):
+    """获取月柱天干地支（简化版）"""
+    # 年干索引
+    year_gan_idx = (year - 4) % 10
+    # 月干从年干开始推算
+    month_gan_start = (year_gan_idx % 5) * 2
+    gan_idx = (month_gan_start + month - 1) % 10
+    zhi_idx = (month + 1) % 12
+    return TIAN_GAN[gan_idx], DI_ZHI[zhi_idx]
+
+def get_day_gan_zhi(year, month, day):
+    """获取日柱天干地支（使用简化算法）"""
+    # 使用基准日期：1900年1月1日为甲子日
+    base_date = date(1900, 1, 1)
+    target_date = date(year, month, day)
+    delta = (target_date - base_date).days
+    gan_idx = delta % 10
+    zhi_idx = delta % 12
+    return TIAN_GAN[gan_idx], DI_ZHI[zhi_idx]
+
+def get_hour_gan_zhi(day_gan, hour):
+    """获取时柱天干地支"""
+    day_gan_idx = TIAN_GAN.index(day_gan)
+    # 时支索引（每两小时一个时辰）
+    zhi_idx = (hour + 1) // 2 % 12
+    # 时干根据日干推算
+    gan_idx = (day_gan_idx % 5) * 2 + zhi_idx
+    gan_idx = gan_idx % 10
+    return TIAN_GAN[gan_idx], DI_ZHI[zhi_idx]
+
+def calculate_bazi(year, month, day, hour):
+    """计算八字"""
+    yg, yz = get_year_gan_zhi(year)
+    mg, mz = get_month_gan_zhi(year, month)
+    dg, dz = get_day_gan_zhi(year, month, day)
+    hg, hz = get_hour_gan_zhi(dg, hour)
+    
+    bazi = {
+        'year': {'gan': yg, 'zhi': yz, 'wuxing_gan': TIAN_GAN_WU_XING[yg], 'wuxing_zhi': DI_ZHI_WU_XING[yz]},
+        'month': {'gan': mg, 'zhi': mz, 'wuxing_gan': TIAN_GAN_WU_XING[mg], 'wuxing_zhi': DI_ZHI_WU_XING[mz]},
+        'day': {'gan': dg, 'zhi': dz, 'wuxing_gan': TIAN_GAN_WU_XING[dg], 'wuxing_zhi': DI_ZHI_WU_XING[dz]},
+        'hour': {'gan': hg, 'zhi': hz, 'wuxing_gan': TIAN_GAN_WU_XING[hg], 'wuxing_zhi': DI_ZHI_WU_XING[hz]}
+    }
+    return bazi
+
+def get_sheng_xiao(year):
+    """获取生肖"""
+    idx = (year - 4) % 12
+    return SHENG_XIAO[idx]
+
+def analyze_wuxing(bazi):
+    """分析五行分布"""
+    wuxing_count = {'金': 0, '木': 0, '水': 0, '火': 0, '土': 0}
+    for pillar in ['year', 'month', 'day', 'hour']:
+        wx_gan = bazi[pillar]['wuxing_gan']
+        wx_zhi = bazi[pillar]['wuxing_zhi']
+        wuxing_count[wx_gan] = wuxing_count.get(wx_gan, 0) + 1
+        wuxing_count[wx_zhi] = wuxing_count.get(wx_zhi, 0) + 1
+    
+    # 找最多和最少的
+    max_wx = max(wuxing_count, key=wuxing_count.get)
+    min_wx = min(wuxing_count, key=wuxing_count.get)
+    
+    return wuxing_count, max_wx, min_wx
+
+# ==================== 姓名分析 ====================
+# 五格数理（简化版）
+GE_SHUI = {
+    1: '吉祥', 2: '凶', 3: '吉', 4: '凶', 5: '大吉', 6: '吉', 7: '大吉', 8: '吉', 9: '凶', 10: '凶',
+    11: '大吉', 12: '凶', 13: '大吉', 14: '凶', 15: '大吉', 16: '大吉', 17: '吉', 18: '吉', 19: '凶', 20: '凶',
+    21: '大吉', 22: '凶', 23: '大吉', 24: '大吉', 25: '吉', 26: '凶', 27: '吉', 28: '凶', 29: '大吉', 30: '凶',
+    31: '大吉', 32: '大吉', 33: '大吉', 34: '凶', 35: '吉', 36: '凶', 37: '大吉', 38: '凶', 39: '大吉', 40: '凶',
+    41: '大吉', 42: '凶', 43: '凶', 44: '凶', 45: '大吉', 46: '凶', 47: '大吉', 48: '大吉', 49: '凶', 50: '凶',
+    51: '吉', 52: '大吉', 53: '凶', 54: '凶', 55: '吉', 56: '凶', 57: '吉', 58: '凶', 59: '凶', 60: '凶',
+    61: '大吉', 62: '凶', 63: '大吉', 64: '凶', 65: '大吉', 66: '凶', 67: '大吉', 68: '大吉', 69: '凶', 70: '凶',
+    71: '凶', 72: '凶', 73: '吉', 74: '凶', 75: '吉', 76: '凶', 77: '吉', 78: '吉', 79: '凶', 80: '凶',
+    81: '大吉'
+}
+
+def get_stroke_count(char):
+    """获取汉字笔画数（简化版，使用Unicode编码映射）"""
+    # 常用汉字的笔画映射
+    stroke_dict = {
+        '一': 1, '二': 2, '三': 3, '四': 5, '五': 4, '六': 4, '七': 2, '八': 2, '九': 2, '十': 2,
+        '王': 4, '李': 7, '张': 7, '刘': 6, '陈': 7, '杨': 7, '赵': 9, '黄': 11, '周': 8, '吴': 7,
+        '徐': 10, '孙': 6, '马': 3, '朱': 6, '胡': 9, '郭': 10, '何': 7, '高': 10, '林': 8, '罗': 8,
+        '郑': 8, '梁': 11, '谢': 12, '宋': 7, '唐': 10, '韩': 12, '曹': 11, '许': 6, '邓': 4, '冯': 5,
+        '天': 4, '地': 6, '人': 2, '和': 8, '平': 5, '安': 6, '乐': 5, '福': 13, '德': 15, '善': 12,
+        '明': 8, '亮': 9, '文': 4, '武': 8, '成': 6, '功': 5, '志': 7, '勇': 9, '伟': 6, '强': 12,
+        '子': 3, '女': 3, '学': 8, '习': 3, '大': 3, '小': 3, '上': 3, '下': 3, '中': 4, '国': 8,
+        '华': 6, '伟': 6, '刚': 6, '毅': 15, '峰': 10, '山': 3, '水': 4, '海': 10, '江': 6, '河': 8,
+        '云': 4, '龙': 5, '凤': 4, '金': 8, '木': 4, '土': 3, '日': 4, '月': 4, '星': 9, '光': 6,
+        '春': 9, '夏': 10, '秋': 9, '冬': 5, '东': 5, '南': 9, '西': 6, '北': 5, '方': 4, '白': 5,
+        '飞': 3, '翔': 12, '鹏': 13, '程': 12, '路': 13, '远': 7, '达': 6, '通': 10, '建': 8, '设': 6,
+    }
+    return stroke_dict.get(char, 1)  # 默认返回1
+
+def analyze_name(lastname, firstname):
+    """分析姓名五格"""
+    # 计算笔画
+    last_strokes = sum(get_stroke_count(c) for c in lastname)
+    first_strokes = sum(get_stroke_count(c) for c in firstname)
+    total_strokes = last_strokes + first_strokes
+    
+    # 天格：姓氏笔画+1
+    tian_ge = last_strokes + 1
+    # 人格：姓氏最后一字+名字第一字
+    ren_ge = get_stroke_count(lastname[-1]) + get_stroke_count(firstname[0]) if firstname else get_stroke_count(lastname[-1])
+    # 地格：名字笔画相加
+    di_ge = first_strokes + 1 if len(firstname) <= 1 else first_strokes
+    # 外格：总格-人格+1
+    wai_ge = total_strokes - ren_ge + 1
+    # 总格：全部笔画
+    zong_ge = total_strokes + 1
+    
+    result = {
+        '天格': {'num': tian_ge, 'luck': GE_SHUI.get(tian_ge, '未知')},
+        '人格': {'num': ren_ge, 'luck': GE_SHUI.get(ren_ge, '未知')},
+        '地格': {'num': di_ge, 'luck': GE_SHUI.get(di_ge, '未知')},
+        '外格': {'num': wai_ge, 'luck': GE_SHUI.get(wai_ge, '未知')},
+        '总格': {'num': zong_ge, 'luck': GE_SHUI.get(zong_ge, '未知')}
+    }
+    
+    return result
+
+# ==================== 星座计算 ====================
+CONSTELLATIONS = [
+    (1, 20, '摩羯座', '♑'), (2, 19, '水瓶座', '♒'), (3, 21, '双鱼座', '♓'),
+    (4, 20, '白羊座', '♈'), (5, 21, '金牛座', '♉'), (6, 22, '双子座', '♊'),
+    (7, 23, '巨蟹座', '♋'), (8, 23, '狮子座', '♌'), (9, 23, '处女座', '♍'),
+    (10, 24, '天秤座', '♎'), (11, 23, '天蝎座', '♏'), (12, 22, '射手座', '♐')
+]
+
+CONSTELLATION_FORTUNES = {
+    '白羊座': {'career': '充满干劲，适合开拓新项目', 'love': '热情主动，桃花运旺盛', 'wealth': '财运上升，适合投资', 'health': '注意劳逸结合'},
+    '金牛座': {'career': '稳扎稳打，收获在望', 'love': '感情稳定，宜多沟通', 'wealth': '财运亨通，储蓄增加', 'health': '身体状况良好'},
+    '双子座': {'career': '思维活跃，创意无限', 'love': '社交活跃，魅力四射', 'wealth': '偏财运佳，有意想不到的收入', 'health': '注意神经系统调节'},
+    '巨蟹座': {'career': '家庭温暖是事业后盾', 'love': '温柔体贴，关系和睦', 'wealth': '财运平稳，宜守成', 'health': '注意肠胃健康'},
+    '狮子座': {'career': '领导力强，事业上升期', 'love': '魅力无法挡，桃花朵朵', 'wealth': '财运旺盛，宜拓展', 'health': '注意心脏保养'},
+    '处女座': {'career': '精益求精，获得认可', 'love': '细腻体贴，感情升温', 'wealth': '财运稳定，适合理财', 'health': '注意消化系统'},
+    '天秤座': {'career': '人际关系带来机遇', 'love': '魅力十足，桃花运佳', 'wealth': '合作生财，财运不错', 'health': '注意肾脏功能'},
+    '天蝎座': {'career': '专注执着，必有所成', 'love': '深情专一，感情深厚', 'wealth': '偏财运旺，投资有方', 'health': '注意生殖系统'},
+    '射手座': {'career': '机遇不断，适合旅行', 'love': '自由奔放，桃花来自远方', 'wealth': '财运多变，宜谨慎', 'health': '注意运动损伤'},
+    '摩羯座': {'career': '脚踏实地，步步高升', 'love': '稳重可靠，感情长久', 'wealth': '财运稳步上升', 'health': '注意骨骼关节'},
+    '水瓶座': {'career': '创意无限，适合创新领域', 'love': '思想独特，吸引知己', 'wealth': '财运起伏，宜创新', 'health': '注意血液循环'},
+    '双鱼座': {'career': '灵感丰富，艺术运佳', 'love': '浪漫多情，感情丰富', 'wealth': '财运波动，宜节俭', 'health': '注意免疫力'}
+}
+
+def get_constellation(month, day):
+    """获取星座"""
+    for m, d, name, symbol in CONSTELLATIONS:
+        if month == m and day >= d:
+            return name, symbol
+        elif month == m and day < d:
+            prev = CONSTELLATIONS[CONSTELLATIONS.index((m, d, name, symbol)) - 1]
+            return prev[2], prev[3]
+    return '摩羯座', '♑'
+
+# ==================== 每日运势 ====================
+def daily_fortune(constellation_name):
+    """获取每日运势"""
+    base = CONSTELLATION_FORTUNES.get(constellation_name, {})
+    today = datetime.now()
+    # 基于日期生成随机但稳定的运势
+    seed = int(hashlib.md5(f"{constellation_name}{today.strftime('%Y%m%d')}".encode()).hexdigest(), 16)
+    random.seed(seed)
+    
+    luck_score = random.randint(60, 99)
+    lucky_number = random.randint(1, 50)
+    lucky_color = random.choice(['红色', '金色', '蓝色', '绿色', '紫色', '白色', '黑色', '黄色'])
+    
+    random.seed()  # 重置随机种子
+    
+    return {
+        'score': luck_score,
+        'lucky_number': lucky_number,
+        'lucky_color': lucky_color,
+        'career': base.get('career', '平稳发展'),
+        'love': base.get('love', '顺其自然'),
+        'wealth': base.get('wealth', '财运平稳'),
+        'health': base.get('health', '身体健康'),
+        'advice': generate_advice(luck_score, constellation_name)
+    }
+
+def generate_advice(score, constellation):
+    """生成运势建议"""
+    advices = [
+        '今日宜保持积极乐观的心态，好运自然来！',
+        '把握当下，珍惜眼前人，生活处处有惊喜。',
+        '静心思考，规划未来，机会留给有准备的人。',
+        '多与朋友交流，社交带来新的机遇。',
+        '保持耐心，好事多磨，终会柳暗花明。',
+        '今日适合学习新知识，提升自我价值。',
+        '关注身体健康，适度运动带来好心情。',
+        '理财需谨慎，不宜冲动消费。',
+        '感情上多点包容，关系会更加融洽。',
+        '工作上积极主动，会有意想不到的收获。'
+    ]
+    idx = (score + len(constellation)) % len(advices)
+    return advices[idx]
+
+# ==================== 综合算命 ====================
+def comprehensive_fortune(birth_year, birth_month, birth_day, birth_hour, lastname, firstname):
+    """综合算命分析"""
+    # 1. 八字分析
+    bazi = calculate_bazi(birth_year, birth_month, birth_day, birth_hour)
+    wx_count, max_wx, min_wx = analyze_wuxing(bazi)
+    sheng_xiao = get_sheng_xiao(birth_year)
+    
+    # 2. 星座分析
+    const_name, const_symbol = get_constellation(birth_month, birth_day)
+    fortune = daily_fortune(const_name)
+    
+    # 3. 姓名分析
+    name_analysis = analyze_name(lastname, firstname)
+    
+    # 4. 综合解读
+    bazi_text = f"{bazi['year']['gan']}{bazi['year']['zhi']}年 {bazi['month']['gan']}{bazi['month']['zhi']}月 {bazi['day']['gan']}{bazi['day']['zhi']}日 {bazi['hour']['gan']}{bazi['hour']['zhi']}时"
+    
+    wx_balance = '五行均衡' if max(wx_count.values()) - min(wx_count.values()) <= 2 else f'{max_wx}偏旺，{min_wx}偏弱'
+    
+    # 姓名总评
+    good_count = sum(1 for v in name_analysis.values() if '吉' in v['luck'])
+    name_rating = '大吉' if good_count >= 4 else '吉' if good_count >= 2 else '一般'
+    
+    result = {
+        'personal': {
+            'name': lastname + firstname,
+            'birth': f'{birth_year}年{birth_month}月{birth_day}日{birth_hour}时',
+            'age': datetime.now().year - birth_year,
+            'sheng_xiao': sheng_xiao,
+            'constellation': const_name,
+            'constellation_symbol': const_symbol
+        },
+        'bazi': {
+            'full': bazi_text,
+            'details': bazi,
+            'wuxing': wx_count,
+            'wuxing_analysis': wx_balance
+        },
+        'name_analysis': {
+            'wuge': name_analysis,
+            'rating': name_rating
+        },
+        'daily_fortune': fortune,
+        'summary': f'【{lastname}{firstname}】生于{birth_year}年，生肖{sheng_xiao}，星座{const_name} {const_symbol}。\n'
+                  f'八字：{bazi_text}\n'
+                  f'五行分析：{wx_balance}\n'
+                  f'姓名评分：{name_rating}\n'
+                  f'今日运势评分：{fortune["score"]}分\n'
+                  f'幸运数字：{fortune["lucky_number"]}，幸运色：{fortune["lucky_color"]}\n'
+                  f'建议：{fortune["advice"]}'
+    }
+    
+    return result
+
+# ==================== API接口类 ====================
+class FortuneAPI:
+    """算命API接口"""
+    
+    @staticmethod
+    def get_bazi(year, month, day, hour):
+        """获取八字"""
+        try:
+            bazi = calculate_bazi(year, month, day, hour)
+            wx_count, max_wx, min_wx = analyze_wuxing(bazi)
+            sx = get_sheng_xiao(year)
+            
+            bazi_text = f"{bazi['year']['gan']}{bazi['year']['zhi']}年 {bazi['month']['gan']}{bazi['month']['zhi']}月 {bazi['day']['gan']}{bazi['day']['zhi']}日 {bazi['hour']['gan']}{bazi['hour']['zhi']}时"
+            
+            return {
+                'success': True,
+                'bazi': bazi,
+                'bazi_text': bazi_text,
+                'wuxing': wx_count,
+                'wuxing_analysis': f'{max_wx}偏旺，{min_wx}偏弱',
+                'sheng_xiao': sx
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    @staticmethod
+    def get_name_analysis(lastname, firstname):
+        """获取姓名分析"""
+        try:
+            result = analyze_name(lastname, firstname)
+            good_count = sum(1 for v in result.values() if '吉' in v['luck'])
+            rating = '大吉' if good_count >= 4 else '吉' if good_count >= 2 else '一般'
+            return {
+                'success': True,
+                'wuge': result,
+                'rating': rating
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    @staticmethod
+    def get_daily_fortune(constellation_name):
+        """获取每日运势"""
+        try:
+            fortune = daily_fortune(constellation_name)
+            return {'success': True, 'fortune': fortune}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    @staticmethod
+    def get_comprehensive(birth_year, birth_month, birth_day, birth_hour, lastname, firstname):
+        """获取综合算命结果"""
+        try:
+            result = comprehensive_fortune(birth_year, birth_month, birth_day, birth_hour, lastname, firstname)
+            return {'success': True, 'result': result}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+# 测试代码
+if __name__ == '__main__':
+    # 测试示例
+    api = FortuneAPI()
+    
+    # 1. 八字测试
+    print("=== 八字测试 ===")
+    result = api.get_bazi(1990, 5, 15, 10)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    
+    # 2. 姓名测试
+    print("\n=== 姓名测试 ===")
+    result = api.get_name_analysis('张', '伟明')
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    
+    # 3. 综合测试
+    print("\n=== 综合测试 ===")
+    result = api.get_comprehensive(1990, 5, 15, 10, '张', '伟明')
+    print(json.dumps(result, ensure_ascii=False, indent=2))

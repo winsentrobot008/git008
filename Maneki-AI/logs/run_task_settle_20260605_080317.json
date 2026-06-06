@@ -1,0 +1,9 @@
+{
+  "command": "python -c \"from clearing_engine.core import FinancialClearingEngine; engine = FinancialClearingEngine(); print('✅ Financial Clearing Engine ready')\"",
+  "returncode": 0,
+  "stdout": "✅ Financial Clearing Engine ready\n",
+  "stderr": "",
+  "success": true,
+  "started_at": "2026-06-05T08:03:17.660988+00:00",
+  "finished_at": "2026-06-05T08:03:17.878036+00:00"
+}

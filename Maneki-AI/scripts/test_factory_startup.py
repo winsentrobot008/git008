@@ -58,40 +58,26 @@ time.sleep(0.3)  # Give reader a moment to finish current readline
 # Terminate the factory and all its children
 print("[test] Terminating start_factory.py and all child processes...")
 
-# First try graceful termination via signal
+# Try graceful termination
 if sys.platform == "win32":
-    # On Windows, use taskkill but ONLY on the child process tree
-    # First get the children
-    result = subprocess.run(
-        ["wmic", "process", "where", f"ParentProcessId={proc.pid}", "get", "ProcessId"],
-        capture_output=True, text=True, timeout=5
+    # On Windows, use taskkill /T to kill process tree
+    subprocess.run(
+        ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=5
     )
-    child_pids = []
-    for line in result.stdout.strip().split('\n')[1:]:
-        line = line.strip()
-        if line and line.isdigit():
-            child_pids.append(int(line))
-    
-    print(f"[test] Child PIDs found: {child_pids}")
-    
-    # Kill children first
-    for cpid in child_pids:
-        subprocess.run(
-            ["taskkill", "/F", "/T", "/PID", str(cpid)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=5
-        )
-    
-    # Then kill parent
-    proc.terminate()
+    try:
+        proc.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 else:
     os.kill(proc.pid, signal.SIGTERM)
-
-try:
-    proc.wait(timeout=5)
-except subprocess.TimeoutExpired:
-    proc.kill()
-    proc.wait()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 reader.join(timeout=2)
 

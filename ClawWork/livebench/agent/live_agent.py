@@ -9,16 +9,16 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from agent.economic_tracker import track_response_tokens
 from dotenv import load_dotenv
 
 # Import LiveBench components
-import sys
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
-
 from agent.economic_tracker import EconomicTracker
 from agent.message_formatter import format_tool_result_message, format_result_for_logging
 from work.task_manager import TaskManager
@@ -31,8 +31,8 @@ from prompts.live_agent_prompt import (
 )
 from livebench.utils.logger import LiveBenchLogger, set_global_logger
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override=True to overwrite system env vars)
+load_dotenv(override=True)
 
 
 class LiveAgent:
@@ -194,11 +194,25 @@ class LiveAgent:
         """Initialize agent components"""
         print(f"🚀 Initializing LiveAgent: {self.signature}")
 
+        # ── Fix #2: 显式 DeepSeek API 链路诊断日志 ────────
+        _ds_key = os.getenv("DEEPSEEK_API_KEY") or ""
+        _oa_key = os.getenv("OPENAI_API_KEY") or ""
+        print(f"[DEBUG] LiveAgent binding model. Active Base URL: {self.openai_base_url}")
+        print(f"[DEBUG] LiveAgent active OPENAI_API_KEY length: {len(_oa_key)}")
+        print(f"[DEBUG] LiveAgent DEEPSEEK_API_KEY length: {len(_ds_key)}")
+        print(f"[DEBUG] LiveAgent model: {self.basemodel}")
+
+        # 当启用 DeepSeek 时，强制覆盖 base_url 确保不发送到 OpenAI 默认端点
+        if self.is_deepseek and not self.openai_base_url:
+            self.openai_base_url = "https://api.deepseek.com/v1"
+            print(f"[DEBUG] Force-patched base_url to DeepSeek endpoint: {self.openai_base_url}")
+
         # Initialize economic tracker
         self.economic_tracker.initialize()
 
-        # Load tasks
-        self.task_manager.load_tasks()
+        # Load tasks (heavy sync I/O — execute in thread pool to avoid blocking event loop)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.task_manager.load_tasks)
 
         # Get tools directly (no MCP)
         from livebench.tools.direct_tools import get_all_tools, set_global_state as set_tool_state
@@ -448,6 +462,16 @@ class LiveAgent:
             except Exception as e:
                 error_type = type(e).__name__
                 is_timeout = isinstance(e, (asyncio.TimeoutError, TimeoutError))
+                is_auth = "AuthenticationError" in error_type or "authentication" in error_type.lower() or "401" in str(e)
+                
+                # AuthenticationError: 立即终止，无需重试
+                if is_auth:
+                    self.logger.error(
+                        f"❌ API 认证失败（无需重试）: {str(e)[:200]}",
+                        exception=e,
+                        print_console=True
+                    )
+                    raise e
                 
                 self.logger.warning(
                     f"Agent invocation attempt {attempt}/{self.max_retries} failed",
