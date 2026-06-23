@@ -20,7 +20,7 @@ from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from agent.economic_tracker import track_response_tokens
+from livebench.agent.economic_tracker import track_response_tokens
 
 
 class WrapUpState(TypedDict):

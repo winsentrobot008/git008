@@ -19,12 +19,15 @@ RUN pip install --no-cache-dir --upgrade -r requirements.txt
 # 复制当前目录下的所有后端代码到容器中，并确保所有权属于非 root 用户
 COPY --chown=user:user . .
 
+# 确保启动脚本可执行
+RUN chmod +x start.sh
+
 # 切换到非 root 用户运行环境
 USER user
 
 # 暴露 Hugging Face Spaces 默认探测的 7860 端口
 EXPOSE 7860
 
-# 启动 FastAPI 后端（通过 uvicorn 运行，绑定 0.0.0.0 和 7860 端口）
-# 这里的 main:app 需要根据你具体的 FastAPI 启动文件名进行微调（如果是 server.py 则改为 server:app）
-CMD ["uvicorn", "livebench.api.server:app", "--host", "0.0.0.0", "--port", "7860"]
+# 启动双进程：FastAPI 后端 + 后台任务执行器 Worker
+# 使用 start.sh 同时启动 server 和 worker，确保 queued 任务被消费
+CMD ["./start.sh"]

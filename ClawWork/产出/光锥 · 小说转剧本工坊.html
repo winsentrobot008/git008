@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<!-- saved from url=(0320)https://aoogoost-clawwork.hf.space/artifacts/%E5%B8%AE%E6%88%91%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E8%A7%86%E9%A2%91%E5%8E%82%E5%95%86%E8%BD%AF%E4%BB%B6%E5%8F%AF%E4%BB%A5%E8%BE%93%E5%85%A5%E5%B0%8F%E8%AF%B4%E7%84%B6%E5%90%8E%E8%87%AA%E5%8A%A8%E6%8A%8A%E5%AE%83%E8%BD%AC%E4%B8%BA%E5%89%A7%E6%9C%AC%E8%87%AA%E5%8A%A8.html -->
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>光锥 · 小说转剧本工坊</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at 20% 30%, #1b1e2b, #0d0f17);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .glass-card {
+      max-width: 1300px;
+      width: 100%;
+      background: rgba(25, 28, 40, 0.65);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border-radius: 3.5rem;
+      padding: 2.2rem 2.5rem;
+      box-shadow: 0 30px 50px -20px rgba(0, 0, 0, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      transition: all 0.2s ease;
+    }
+
+    h1 {
+      font-size: 2.1rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      background: linear-gradient(130deg, #f0e9ff, #b7aaff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .subhead {
+      color: #9aa1b9;
+      font-weight: 350;
+      font-size: 0.95rem;
+      letter-spacing: 0.3px;
+      border-left: 2px solid #6d7ac0;
+      padding-left: 1rem;
+      margin-bottom: 2rem;
+      opacity: 0.7;
+    }
+
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 2rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (max-width: 780px) {
+      .glass-card { padding: 1.5rem; }
+      .grid-2col { grid-template-columns: 1fr; gap: 2rem; }
+    }
+
+    .panel {
+      background: rgba(12, 14, 22, 0.5);
+      border-radius: 2rem;
+      padding: 1.6rem 1.8rem;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .panel-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #cbd2ee;
+      font-weight: 400;
+      letter-spacing: 0.3px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding-bottom: 0.6rem;
+    }
+
+    .panel-title span {
+      background: rgba(120, 130, 220, 0.15);
+      padding: 0.2rem 0.8rem;
+      border-radius: 40px;
+      font-size: 0.7rem;
+      color: #a8b2e0;
+    }
+
+    textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      border-radius: 1.2rem;
+      padding: 1rem 1.2rem;
+      color: #f0f3fc;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      resize: vertical;
+      min-height: 180px;
+      transition: 0.18s;
+      backdrop-filter: blur(2px);
+      box-shadow: inset 0 4px 8px rgba(0,0,0,0.4);
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #7a86d9;
+      background: rgba(20, 22, 35, 0.7);
+      box-shadow: 0 0 0 3px rgba(110, 125, 255, 0.08);
+    }
+
+    .action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      margin: 1.5rem 0 1rem;
+      align-items: center;
+    }
+
+    .btn {
+      background: rgba(45, 50, 80, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      padding: 0.6rem 1.6rem;
+      border-radius: 3rem;
+      font-weight: 450;
+      font-size: 0.85rem;
+      color: #d3dcff;
+      backdrop-filter: blur(5px);
+      cursor: pointer;
+      transition: 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      letter-spacing: 0.2px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    .btn-primary {
+      background: linear-gradient(145deg, #6f7bda, #5560b0);
+      color: white;
+      border: none;
+      box-shadow: 0 6px 14px rgba(75, 90, 200, 0.25);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(145deg, #818de8, #616bc0);
+      transform: scale(1.02);
+      box-shadow: 0 8px 18px rgba(75, 90, 200, 0.35);
+    }
+
+    .btn-outline {
+      border: 1px solid #5d68a8;
+      background: transparent;
+    }
+
+    .btn-outline:hover {
+      background: rgba(95, 110, 255, 0.08);
+    }
+
+    .btn:active { transform: scale(0.96); }
+
+    .script-output {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 1.2rem;
+      padding: 1rem 1.2rem;
+      min-height: 200px;
+      max-height: 320px;
+      overflow-y: auto;
+      color: #eef2fa;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
+    }
+
+    .script-output:empty::before {
+      content: "✨ 剧本将在这里呈现 · 分镜提示自动生成";
+      color: #6f7a9b;
+      font-style: italic;
+    }
+
+    .meta-chip {
+      display: inline-block;
+      background: rgba(90, 102, 180, 0.2);
+      border-radius: 40px;
+      padding: 0.2rem 1rem;
+      font-size: 0.7rem;
+      color: #b2bef5;
+      margin-right: 0.5rem;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+
+    .flex-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .publish-indicator {
+      margin-top: 1.5rem;
+      background: rgba(15, 20, 30, 0.5);
+      border-radius: 3rem;
+      padding: 0.5rem 1.5rem 0.5rem 1rem;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+
+    .publish-indicator .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #3b4480;
+      margin-right: 0.3rem;
+    }
+
+    .dot.active {
+      background: #6df0b0;
+      box-shadow: 0 0 12px #48d494;
+    }
+
+    .badge {
+      background: rgba(80, 90, 170, 0.2);
+      padding: 0.2rem 0.8rem;
+      border-radius: 30px;
+      font-size: 0.7rem;
+      color: #b0c0ff;
+    }
+
+    .footer-note {
+      margin-top: 1.8rem;
+      color: #6a7299;
+      font-size: 0.7rem;
+      text-align: right;
+      border-top: 1px solid rgba(255,255,255,0.02);
+      padding-top: 1rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* 微渐变 */
+    .glow-text {
+      color: #d4dcff;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+      background: rgba(20, 22, 40, 0.2);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #5a68b0;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="glass-card">
+  <div class="flex-between">
+    <div>
+      <h1>⋆ 光锥 · 剧构</h1>
+      <div class="subhead">小说 → 剧本 · 分镜提示 · AI 就绪 · 一键发布</div>
+    </div>
+    <div>
+      <span class="badge">v2.1 · 神经渲染</span>
+    </div>
+  </div>
+
+  <div class="grid-2col">
+    <!-- 左侧：输入区 -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>📖 输入小说 / 故事片段</span>
+        <span>智能分析</span>
+      </div>
+      <textarea id="novelInput" placeholder="将你的小说或叙事粘贴在这里 … 例如：
+夜雾笼罩着赛博城，林深从高架桥一跃而下，义肢在空中划出蓝色弧光。他落在一辆自动驾驶货车上，撬开后箱，里面全是违禁的生物芯片……">夜雾笼罩着赛博城，林深从高架桥一跃而下，义肢在空中划出蓝色弧光。他落在一辆自动驾驶货车上，撬开后箱，里面全是违禁的生物芯片。与此同时，监控室里，分析师苏晚推了推眼镜：“信号丢失，目标进入第七区。”她犹豫片刻，没有上报。</textarea>
+      
+      <div class="action-bar">
+        <button class="btn btn-primary" id="convertBtn">✦ 转为剧本 · 分镜</button>
+        <button class="btn btn-outline" id="sampleBtn">↺ 载入示例</button>
+        <button class="btn btn-outline" id="clearBtn">✧ 清空</button>
+      </div>
+      <div style="font-size: 0.75rem; color: #6f7b9e; margin-top: 0.2rem;">
+        <span class="meta-chip">⏱ 自动分场</span>
+        <span class="meta-chip">🎬 镜头提示</span>
+        <span class="meta-chip">🤖 AI 视频就绪</span>
+      </div>
+    </div>
+
+    <!-- 右侧：剧本输出 + 发布 -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>🎬 剧本 / 分镜提示</span>
+        <span id="sceneCount">5 场</span>
+      </div>
+      <div class="script-output" id="scriptOutput">【第1场 · 赛博城 · 高架桥】
+🎬 分镜提示: 跟拍 · 肩扛镜头 · 林深在霓虹巷弄里狂奔 身后三个追踪者的脚步声越来越近  他的左手义肢闪过红光...
+📝 剧本: 林深在霓虹巷弄里狂奔 身后三个追踪者的脚步声越来越近。 他的左手义肢闪过红光
+🤖 AI视频提示: 赛博城 · 高架桥，跟拍 · 肩扛镜头，氛围: 霓虹/暗调，角色: 林深在霓虹巷弄里狂奔 身后三个追踪者...
+
+【第2场 · 第七区 · 废弃隧道】
+🎬 分镜提示: 无人机俯瞰 · 猛地击碎墙壁 钻入废弃地铁隧道  隧道深处...
+📝 剧本: 猛地击碎墙壁 钻入废弃地铁隧道。 隧道深处
+🤖 AI视频提示: 第七区 · 废弃隧道，无人机俯瞰，氛围: 霓虹/暗调，角色: 猛地击碎墙壁 钻入废弃地铁隧道。 隧...
+
+【第3场 · 霓虹巷弄】
+🎬 分镜提示: 特写 · 义肢细节 · 一个流浪歌手正在弹奏老式吉他 歌声沙哑  林深丢给他一枚硬币：“继续弹...
+📝 剧本: 一个流浪歌手正在弹奏老式吉他 歌声沙哑。 林深丢给他一枚硬币：“继续弹
+🤖 AI视频提示: 霓虹巷弄，特写 · 义肢细节，氛围: 霓虹/暗调，角色: 一个流浪歌手正在弹奏老式吉他 歌声沙...
+
+【第4场 · 监控室】
+🎬 分镜提示: 过肩镜头 · 对话 · 别停  ” 他躲进阴影 追踪者路过时...
+📝 剧本: 别停。 ” 他躲进阴影 追踪者路过时
+🤖 AI视频提示: 监控室，过肩镜头 · 对话，氛围: 霓虹/暗调，角色: 别停。 ” 他躲进阴影 追踪者路过时...
+
+【第5场 · 地下车库】
+🎬 分镜提示: 斯坦尼康跟随 · 流浪歌手突然变调 吉他弦飞出 割断了追踪者的装备带...
+📝 剧本: 流浪歌手突然变调 吉他弦飞出 割断了追踪者的装备带。
+🤖 AI视频提示: 地下车库，斯坦尼康跟随，氛围: 霓虹/暗调，角色: 流浪歌手突然变调 吉他弦飞出 割断了...
+
+</div>
+
+      <!-- 发布模拟 -->
+      <div class="publish-indicator">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="dot" id="publishDot"></span>
+          <span style="color: #b0b9de; font-size: 0.8rem;" id="publishStatus">未发布</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn btn-primary" id="publishBtn" style="padding: 0.3rem 1.2rem; font-size: 0.75rem;">🚀 发布到平台</button>
+          <button class="btn btn-outline" id="simulateAIBtn" style="padding: 0.3rem 1.2rem; font-size: 0.75rem;">🎞 模拟AI生成</button>
+        </div>
+      </div>
+      <div style="margin-top: 0.6rem; color: #6d78a6; font-size: 0.7rem; display: flex; gap: 1.2rem; flex-wrap: wrap;">
+        <span>⚡ 短视频生成: <span id="videoGenStatus">待生成</span></span>
+        <span>📡 平台: 抖音/TikTok · 快手 · 视频号</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <span>⛓️ 自动分镜 · 提示词内嵌 · 调用视频AI (模拟)</span>
+    <span>✨ 微渐变暗黑苹果风</span>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const novelInput = document.getElementById('novelInput');
+    const scriptOutput = document.getElementById('scriptOutput');
+    const sceneCountSpan = document.getElementById('sceneCount');
+    const convertBtn = document.getElementById('convertBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const publishBtn = document.getElementById('publishBtn');
+    const simulateAIBtn = document.getElementById('simulateAIBtn');
+    const publishDot = document.getElementById('publishDot');
+    const publishStatus = document.getElementById('publishStatus');
+    const videoGenStatus = document.getElementById('videoGenStatus');
+
+    // 示例小说 (赛博朋克)
+    const sampleNovel = `林深在霓虹巷弄里狂奔，身后三个追踪者的脚步声越来越近。他的左手义肢闪过红光，猛地击碎墙壁，钻入废弃地铁隧道。隧道深处，一个流浪歌手正在弹奏老式吉他，歌声沙哑。林深丢给他一枚硬币：“继续弹，别停。” 他躲进阴影，追踪者路过时，流浪歌手突然变调，吉他弦飞出，割断了追踪者的装备带。`;
+
+    // 核心：小说 → 剧本 (分场 + 分镜提示)
+    function convertNovelToScript(text) {
+      if (!text || text.trim() === '') {
+        return '⚠️ 请先输入小说内容。';
+      }
+
+      const lines = text.split(/[\n\r]+/).filter(l => l.trim() !== '');
+      if (lines.length === 0) return '⚠️ 小说内容为空。';
+
+      // 智能分场：基于段落或语义分割 (简单版：每2-4句为一场)
+      const paragraphs = [];
+      let currentPara = [];
+      const sentences = text.match(/[^。！？，,\.\!\?\n]+[。！？\n]?/g) || [text];
+
+      for (let i = 0; i < sentences.length; i++) {
+        currentPara.push(sentences[i].trim());
+        if (currentPara.length >= 3 || i === sentences.length - 1) {
+          paragraphs.push(currentPara.join(' '));
+          currentPara = [];
+        }
+      }
+      if (currentPara.length > 0) paragraphs.push(currentPara.join(' '));
+
+      // 至少一场
+      if (paragraphs.length === 0) paragraphs.push(text.trim());
+
+      // 构建剧本格式 (分场 + 镜头提示)
+      let script = '';
+      const locations = ['赛博城 · 高架桥', '第七区 · 废弃隧道', '霓虹巷弄', '监控室', '地下车库', '顶层公寓', '数据黑市', '全息花园'];
+      const actions = ['跟拍 · 肩扛镜头', '无人机俯瞰', '特写 · 义肢细节', '过肩镜头 · 对话', '斯坦尼康跟随', '推轨 · 紧张感', '主观视角', '慢动作 · 爆炸'];
+
+      paragraphs.forEach((para, idx) => {
+        const sceneNum = idx + 1;
+        const loc = locations[idx % locations.length];
+        const action = actions[idx % actions.length];
+        // 提取部分内容作为动作描述 (前20个字符)
+        const brief = para.replace(/[。，,\.]/g, ' ').trim().substring(0, 40);
+        script += `【第${sceneNum}场 · ${loc}】\n`;
+        script += `🎬 分镜提示: ${action} · ${brief}...\n`;
+        script += `📝 剧本: ${para}\n`;
+        script += `🤖 AI视频提示: ${loc}，${action}，氛围: 霓虹/暗调，角色: ${para.substring(0, 18)}...\n\n`;
+      });
+
+      // 统计场次
+      const sceneCount = paragraphs.length;
+      return { script, sceneCount };
+    }
+
+    // 刷新显示剧本
+    function refreshScript(text) {
+      const result = convertNovelToScript(text);
+      let scriptText = '';
+      let count = 0;
+      if (typeof result === 'string') {
+        scriptText = result;
+        count = 0;
+      } else {
+        scriptText = result.script;
+        count = result.sceneCount;
+      }
+      scriptOutput.textContent = scriptText;
+      sceneCountSpan.textContent = count + ' 场';
+      // 每次转换重置发布状态
+      publishDot.classList.remove('active');
+      publishStatus.textContent = '未发布';
+      videoGenStatus.textContent = '待生成';
+    }
+
+    // 事件绑定：转换
+    convertBtn.addEventListener('click', function() {
+      const input = novelInput.value.trim();
+      if (!input) {
+        scriptOutput.textContent = '⚠️ 请先输入小说内容。';
+        sceneCountSpan.textContent = '0 场';
+        return;
+      }
+      refreshScript(input);
+    });
+
+    // 示例载入
+    sampleBtn.addEventListener('click', function() {
+      novelInput.value = sampleNovel;
+      refreshScript(sampleNovel);
+    });
+
+    // 清空
+    clearBtn.addEventListener('click', function() {
+      novelInput.value = '';
+      scriptOutput.textContent = '✨ 剧本将在这里呈现 · 分镜提示自动生成';
+      sceneCountSpan.textContent = '0 场';
+      publishDot.classList.remove('active');
+      publishStatus.textContent = '未发布';
+      videoGenStatus.textContent = '待生成';
+    });
+
+    // 模拟发布到平台
+    publishBtn.addEventListener('click', function() {
+      const hasScript = scriptOutput.textContent && 
+                        !scriptOutput.textContent.includes('等待') && 
+                        !scriptOutput.textContent.includes('⚠️') &&
+                        scriptOutput.textContent.length > 10;
+      if (!hasScript) {
+        alert('请先转换小说生成剧本，再发布。');
+        return;
+      }
+      // 模拟发布
+      publishDot.classList.add('active');
+      publishStatus.textContent = '已发布到平台 · 抖音/TikTok';
+      videoGenStatus.textContent = '视频生成中 (模拟)';
+      
+      // 模拟AI生成短视频 (延迟)
+      setTimeout(() => {
+        videoGenStatus.textContent = '✅ 短视频生成完毕 (AI模拟)';
+        // 加一条日志
+        const current = scriptOutput.textContent;
+        scriptOutput.textContent = current + '\n📌 [系统] 短视频已自动生成 · 分镜渲染完成。\n';
+      }, 1200);
+    });
+
+    // 模拟AI生成 (单独)
+    simulateAIBtn.addEventListener('click', function() {
+      const hasScript = scriptOutput.textContent && 
+                        !scriptOutput.textContent.includes('等待') && 
+                        !scriptOutput.textContent.includes('⚠️') &&
+                        scriptOutput.textContent.length > 10;
+      if (!hasScript) {
+        alert('请先转换小说生成剧本。');
+        return;
+      }
+      videoGenStatus.textContent = '🎞 AI 生成中 (模拟) ...';
+      setTimeout(() => {
+        videoGenStatus.textContent = '✅ 短视频已就绪 (AI)';
+        const current = scriptOutput.textContent;
+        scriptOutput.textContent = current + '\n🎥 [AI] 视频片段生成: 15秒 4K 24fps\n';
+      }, 900);
+    });
+
+    // 初始化：自动载入示例
+    window.addEventListener('DOMContentLoaded', function() {
+      novelInput.value = sampleNovel;
+      refreshScript(sampleNovel);
+    });
+
+  })();
+</script>
+
+<xykj-audio-pro style="z-index: 2147483647; position: absolute; left: 0px; top: 0px;"></xykj-audio-pro></body></html>

@@ -3,577 +3,1033 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ClawAI Demo - Render + DeepSeek</title>
+<title>LiveBench Dashboard - AI Agent Economy Simulator</title>
 <style>
-  /* ===== Reset & Base ===== */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+    --orange: #f0883e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
     min-height: 100vh;
+  }
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    background: var(--card);
     display: flex;
-    flex-direction: column;
     align-items: center;
-    padding: 2rem 1rem;
+    justify-content: space-between;
   }
-
-  /* ===== Container ===== */
-  .container {
-    max-width: 900px;
-    width: 100%;
+  .header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
-
-  /* ===== Header ===== */
-  header {
-    text-align: center;
-    margin-bottom: 2.5rem;
+  .header h1 span { color: var(--accent); }
+  .header .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-secondary);
   }
-  header h1 {
-    font-size: 2.2rem;
-    font-weight: 700;
-    background: linear-gradient(90deg, #00d2ff, #3a7bd5, #00d2ff);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: shimmer 3s ease-in-out infinite;
-  }
-  @keyframes shimmer {
-    0%, 100% { background-position: 0% center; }
-    50% { background-position: 200% center; }
-  }
-  header p {
-    color: #a0a0b8;
-    margin-top: 0.5rem;
-    font-size: 0.95rem;
-  }
-  .status-badge {
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green);
     display: inline-block;
-    margin-top: 0.75rem;
-    padding: 0.3rem 1rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
   }
-  .status-badge.online {
-    background: rgba(0, 200, 83, 0.15);
-    color: #00c853;
-    border: 1px solid rgba(0, 200, 83, 0.3);
-  }
-  .status-badge.offline {
-    background: rgba(255, 82, 82, 0.15);
-    color: #ff5252;
-    border: 1px solid rgba(255, 82, 82, 0.3);
-  }
-  .status-badge.checking {
-    background: rgba(255, 193, 7, 0.15);
-    color: #ffc107;
-    border: 1px solid rgba(255, 193, 7, 0.3);
-  }
+  .status-dot.error { background: var(--red); }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
 
-  /* ===== Card ===== */
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.accent { color: var(--accent); }
+  .stat-card .value.orange { color: var(--orange); }
+  .stat-card .value.purple { color: var(--purple); }
+  .stat-card .value.red { color: var(--red); }
+
+  /* Leaderboard Table */
   .card {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    transition: border-color 0.3s, box-shadow 0.3s;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 24px;
+    overflow: hidden;
   }
-  .card:hover {
-    border-color: rgba(0, 210, 255, 0.2);
-    box-shadow: 0 0 30px rgba(0, 210, 255, 0.05);
-  }
-  .card h2 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 1rem;
-    color: #b0b0d0;
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: space-between;
   }
-  .card h2 .icon { font-size: 1.3rem; }
+  .card-header h2 { font-size: 16px; font-weight: 600; }
+  .card-header .badge {
+    background: rgba(88,166,255,0.1);
+    color: var(--accent);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  td { font-size: 14px; }
+  tr:hover { background: rgba(255,255,255,0.02); }
+  .survival-thriving { color: var(--green); }
+  .survival-stable { color: var(--accent); }
+  .survival-struggling { color: var(--yellow); }
+  .survival-bankrupt { color: var(--red); }
 
-  /* ===== Input Area ===== */
-  .input-group {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-  .input-group input {
-    flex: 1;
-    min-width: 200px;
-    padding: 0.75rem 1rem;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.06);
-    color: #e0e0e0;
-    font-size: 0.95rem;
-    outline: none;
-    transition: border-color 0.3s;
-  }
-  .input-group input:focus {
-    border-color: #3a7bd5;
-    box-shadow: 0 0 0 3px rgba(58, 123, 213, 0.15);
-  }
-  .input-group input::placeholder { color: #6a6a8a; }
-
-  .btn {
-    padding: 0.75rem 1.5rem;
-    border-radius: 10px;
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    padding: 12px 20px;
+    background: none;
     border: none;
-    font-size: 0.95rem;
-    font-weight: 600;
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.3s;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
   }
-  .btn-primary {
-    background: linear-gradient(135deg, #3a7bd5, #00d2ff);
-    color: #fff;
-  }
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 210, 255, 0.3);
-  }
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
-  .btn-secondary {
-    background: rgba(255, 255, 255, 0.08);
-    color: #c0c0d8;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.12);
-  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-  /* ===== Result Area ===== */
-  .result-area {
-    margin-top: 1rem;
-    padding: 1rem;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.2);
-    min-height: 60px;
-    font-size: 0.9rem;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 400px;
-    overflow-y: auto;
+  .tab-content { display: none; padding: 20px; }
+  .tab-content.active { display: block; }
+
+  /* Agent Detail */
+  .agent-detail-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
     display: none;
+    overflow-y: auto;
   }
-  .result-area.visible { display: block; }
-  .result-area.loading {
+  .agent-detail-overlay.open { display: block; }
+  .agent-detail-panel {
+    max-width: 1200px;
+    margin: 40px auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: relative;
+  }
+  .close-btn {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
-    color: #a0a0b8;
   }
-  .spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-top-color: #00d2ff;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+  .close-btn:hover { background: var(--border); color: var(--text); }
+  .detail-header {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .detail-header h2 { font-size: 24px; margin-bottom: 8px; }
+  .detail-header .status-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .detail-header .status-row span { font-size: 14px; color: var(--text-secondary); }
 
-  .result-area.error {
-    border-left: 3px solid #ff5252;
-    color: #ff8a80;
-  }
-  .result-area.success {
-    border-left: 3px solid #00c853;
-    color: #b9f6ca;
-  }
-
-  /* ===== Agent Grid ===== */
-  .agent-grid {
+  .detail-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 20px;
   }
-  .agent-card {
-    background: rgba(255, 255, 255, 0.04);
+  @media (max-width: 768px) {
+    .detail-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Charts (CSS-based simple bars) */
+  .chart-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .chart-container h3 { font-size: 14px; margin-bottom: 16px; color: var(--text-secondary); }
+  .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 120px; }
+  .bar {
+    flex: 1;
+    background: var(--accent);
+    border-radius: 4px 4px 0 0;
+    min-height: 2px;
+    transition: height 0.3s;
+    position: relative;
+  }
+  .bar:hover { opacity: 0.8; }
+  .bar-tooltip {
+    display: none;
+    position: absolute;
+    top: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #000;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .bar:hover .bar-tooltip { display: block; }
+
+  /* Tasks list */
+  .task-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .task-item:last-child { border-bottom: none; }
+  .task-item .task-info { flex: 1; }
+  .task-item .task-title { font-size: 14px; margin-bottom: 4px; }
+  .task-item .task-meta { font-size: 12px; color: var(--text-secondary); }
+  .task-item .task-status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+  .task-status.completed { background: rgba(63,185,80,0.1); color: var(--green); }
+  .task-status.pending { background: rgba(210,153,34,0.1); color: var(--yellow); }
+
+  /* Activity log */
+  .log-entry {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .log-entry:last-child { border-bottom: none; }
+
+  /* WebSocket status indicator */
+  .ws-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
     border-radius: 12px;
-    padding: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    transition: all 0.3s;
+    font-size: 12px;
+    background: rgba(63,185,80,0.1);
+    color: var(--green);
   }
-  .agent-card:hover {
-    background: rgba(255, 255, 255, 0.07);
-    transform: translateY(-2px);
-  }
-  .agent-card .name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    margin-bottom: 0.4rem;
-  }
-  .agent-card .balance {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #00d2ff;
-  }
-  .agent-card .meta {
-    font-size: 0.75rem;
-    color: #7a7a9a;
-    margin-top: 0.3rem;
-  }
-  .agent-card .status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 0.3rem;
-  }
-  .status-dot.alive { background: #00c853; }
-  .status-dot.bankrupt { background: #ff5252; }
-  .status-dot.unknown { background: #7a7a9a; }
-
-  /* ===== Stats Row ===== */
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-  }
-  .stat-item {
-    text-align: center;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-  }
-  .stat-item .value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #00d2ff;
-  }
-  .stat-item .label {
-    font-size: 0.7rem;
-    color: #7a7a9a;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 0.2rem;
+  .ws-indicator.disconnected {
+    background: rgba(248,81,73,0.1);
+    color: var(--red);
   }
 
-  /* ===== Footer ===== */
-  footer {
-    margin-top: 3rem;
-    text-align: center;
-    color: #5a5a7a;
-    font-size: 0.8rem;
-  }
-  footer a { color: #3a7bd5; text-decoration: none; }
-  footer a:hover { text-decoration: underline; }
+  .loading { text-align: center; padding: 40px; color: var(--text-secondary); }
+  .error-message { padding: 20px; color: var(--red); text-align: center; }
 
-  /* ===== Scrollbar ===== */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-
-  /* ===== Responsive ===== */
-  @media (max-width: 600px) {
-    body { padding: 1rem 0.75rem; }
-    header h1 { font-size: 1.6rem; }
-    .card { padding: 1rem; }
-    .agent-grid { grid-template-columns: 1fr; }
+  /* Action buttons */
+  .btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
   }
+  .btn:hover { background: rgba(255,255,255,0.05); }
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { opacity: 0.9; }
 </style>
 </head>
 <body>
+
+<div class="header">
+  <h1>🎮 <span>LiveBench</span> Dashboard</h1>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="depth-selector" style="display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:4px 8px;">
+      <span style="font-size:13px;color:var(--text-secondary);">🧩 拆解层级</span>
+      <button class="depth-btn" id="depthBtn2" onclick="setDepth(2)" style="padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text-secondary);cursor:pointer;font-size:13px;transition:all 0.2s;">2层</button>
+      <button class="depth-btn active-depth" id="depthBtn5" onclick="setDepth(5)" style="padding:4px 12px;border:1px solid var(--accent);border-radius:4px;background:rgba(88,166,255,0.15);color:var(--accent);cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s;">5层</button>
+    </div>
+    <div class="ws-indicator" id="wsIndicator">● 实时连接</div>
+    <div class="status">
+      <span class="status-dot" id="apiStatusDot"></span>
+      <span id="apiStatusText">检查中...</span>
+    </div>
+  </div>
+</div>
+
 <div class="container">
 
-  <!-- Header -->
-  <header>
-    <h1>⚡ ClawAI Demo</h1>
-    <p>Render + DeepSeek API · 轻量化部署</p>
-    <span id="statusBadge" class="status-badge checking">⏳ 检查连接中...</span>
-  </header>
+<!-- Stats -->
+<div class="stats-grid" id="statsGrid">
+  <div class="stat-card">
+    <div class="label">活跃 Agent</div>
+    <div class="value accent" id="agentCount">--</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">总余额</div>
+    <div class="value green" id="totalBalance">--</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">总 Token 成本</div>
+    <div class="value orange" id="totalTokenCost">--</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">任务池</div>
+    <div class="value purple" id="taskPoolSize">--</div>
+  </div>
+</div>
 
-  <!-- Stats Overview -->
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab(this, 'leaderboard')">🏆 排行榜</button>
+  <button class="tab-btn" onclick="switchTab(this, 'task-submit')">📋 提交任务</button>
+  <button class="tab-btn" onclick="switchTab(this, 'tasks')">📝 所有任务</button>
+  <button class="tab-btn" onclick="switchTab(this, 'artifacts')">📎 作品展示</button>
+  <button class="tab-btn" onclick="switchTab(this, 'stream')">📡 实时流</button>
+</div>
+
+<!-- Leaderboard Tab -->
+<div class="tab-content active" id="tab-leaderboard">
   <div class="card">
-    <h2><span class="icon">📊</span> 服务概览</h2>
-    <div class="stats-row">
-      <div class="stat-item">
-        <div class="value" id="statAgents">-</div>
-        <div class="label">Agent 数量</div>
-      </div>
-      <div class="stat-item">
-        <div class="value" id="statTasks">-</div>
-        <div class="label">总任务数</div>
-      </div>
-      <div class="stat-item">
-        <div class="value" id="statBalance">-</div>
-        <div class="label">总余额 ($)</div>
-      </div>
-      <div class="stat-item">
-        <div class="value" id="statIncome">-</div>
-        <div class="label">总收入 ($)</div>
-      </div>
+    <div class="card-header">
+      <h2>Agent 排行榜</h2>
+      <span class="badge" id="agentCountBadge">0 agents</span>
+    </div>
+    <div id="leaderboardContent">
+      <div class="loading">加载中...</div>
     </div>
   </div>
+</div>
 
-  <!-- Task Input -->
+<!-- Task Submit Tab -->
+<div class="tab-content" id="tab-task-submit">
   <div class="card">
-    <h2><span class="icon">🎯</span> 提交任务</h2>
-    <div class="input-group">
-      <input type="text" id="taskInput" placeholder="输入任务描述，例如：写一份关于 AI 趋势的报告..." />
-      <button class="btn btn-primary" id="submitBtn" onclick="submitTask()">🚀 提交</button>
-    </div>
-    <div id="resultArea" class="result-area"></div>
-  </div>
-
-  <!-- Agents -->
-  <div class="card">
-    <h2><span class="icon">🤖</span> Agent 列表</h2>
-    <div id="agentList" class="agent-grid">
-      <div style="grid-column:1/-1; text-align:center; color:#7a7a9a; padding:2rem 0;">
-        <div class="spinner" style="margin:0 auto 0.5rem;"></div>
-        加载中...
+    <div class="card-header"><h2>提交新任务</h2></div>
+    <div style="padding:20px;">
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px;">任务描述</label>
+        <textarea id="taskPrompt" rows="4" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;resize:vertical;" placeholder="例如：搞个3D投掷游戏"></textarea>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div>
+          <label style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px;">Agent（可选）</label>
+          <input id="taskAgent" type="text" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" placeholder="留空自动分配">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px;">职业</label>
+          <input id="taskOccupation" type="text" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" value="Software Engineer">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px;">最大支付</label>
+          <input id="taskMaxPayment" type="number" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" value="50">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="submitTask()">🚀 提交任务</button>
+      <div id="taskResult" style="margin-top:16px;display:none;"></div>
     </div>
   </div>
+</div>
 
-  <!-- API Info -->
+<!-- Tasks Tab -->
+<div class="tab-content" id="tab-tasks">
   <div class="card">
-    <h2><span class="icon">🔗</span> API 端点</h2>
-    <div style="font-size:0.85rem; line-height:1.8; color:#a0a0b8;">
-      <div><code style="background:rgba(255,255,255,0.06); padding:0.15rem 0.4rem; border-radius:4px;">GET /api/agents</code> — 获取所有 Agent</div>
-      <div><code style="background:rgba(255,255,255,0.06); padding:0.15rem 0.4rem; border-radius:4px;">GET /api/agents/{name}</code> — Agent 详情</div>
-      <div><code style="background:rgba(255,255,255,0.06); padding:0.15rem 0.4rem; border-radius:4px;">GET /api/leaderboard</code> — 排行榜</div>
-      <div><code style="background:rgba(255,255,255,0.06); padding:0.15rem 0.4rem; border-radius:4px;">GET /api/artifacts/random</code> — 随机作品</div>
+    <div class="card-header">
+      <h2>所有任务</h2>
+      <span class="badge" id="taskCountBadge">0</span>
+    </div>
+    <div id="tasksContent"><div class="loading">加载中...</div></div>
+  </div>
+</div>
+
+<!-- Artifacts Tab -->
+<div class="tab-content" id="tab-artifacts">
+  <div class="card">
+    <div class="card-header">
+      <h2>随机作品展示</h2>
+      <button class="btn" onclick="loadArtifacts()">🔄 刷新</button>
+    </div>
+    <div id="artifactsContent"><div class="loading">加载中...</div></div>
+  </div>
+</div>
+
+<!-- Stream Tab -->
+<div class="tab-content" id="tab-stream">
+  <div class="card">
+    <div class="card-header">
+      <h2>实时活动流</h2>
+      <span class="ws-indicator" id="wsTabIndicator">● WebSocket</span>
+    </div>
+    <div id="streamContent" style="max-height:600px;overflow-y:auto;">
+      <div class="loading">等待连接...</div>
     </div>
   </div>
+</div>
 
-  <footer>
-    ClawAI · <a href="#" onclick="document.getElementById('apiUrlInput').style.display='block'; return false;">修改 API 地址</a>
-    <div id="apiUrlInput" style="display:none; margin-top:0.5rem;">
-      <input type="text" id="apiUrlField" value="" placeholder="https://your-app.onrender.com"
-             style="padding:0.4rem 0.75rem; border-radius:8px; border:1px solid rgba(255,255,255,0.12);
-                    background:rgba(255,255,255,0.06); color:#e0e0e0; font-size:0.85rem; width:300px; max-width:100%;" />
-      <button class="btn btn-secondary" style="padding:0.4rem 0.75rem; font-size:0.85rem; margin-top:0.3rem;" onclick="updateApiUrl()">更新</button>
+</div>
+
+<!-- Agent Detail Modal -->
+<div class="agent-detail-overlay" id="agentDetailOverlay">
+  <div class="agent-detail-panel">
+    <button class="close-btn" onclick="closeAgentDetail()">✕</button>
+    <div class="detail-header" id="detailHeader">
+      <h2 id="detailName">Agent</h2>
+      <div class="status-row" id="detailStatusRow"></div>
     </div>
-  </footer>
+    <div class="tabs" id="detailTabs">
+      <button class="tab-btn active" onclick="switchDetailTab(this, 'overview')">概览</button>
+      <button class="tab-btn" onclick="switchDetailTab(this, 'tasks')">任务</button>
+      <button class="tab-btn" onclick="switchDetailTab(this, 'economic')">经济</button>
+      <button class="tab-btn" onclick="switchDetailTab(this, 'learning')">记忆</button>
+    </div>
+    <div id="detailContent" style="min-height:200px;">
+      <div class="tab-content active" id="detail-tab-overview"><div class="loading">加载中...</div></div>
+      <div class="tab-content" id="detail-tab-tasks"><div class="loading">加载中...</div></div>
+      <div class="tab-content" id="detail-tab-economic"><div class="loading">加载中...</div></div>
+      <div class="tab-content" id="detail-tab-learning"><div class="loading">加载中...</div></div>
+    </div>
+  </div>
 </div>
 
 <script>
-// ===== Configuration =====
-// 自动获取当前域名（Hugging Face / Render 同源部署）
+// ============================================================
+// Helper
+// ============================================================
 const API_BASE = window.location.origin;
-// WebSocket 地址（自动适配 wss:// 或 ws://）
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+const WS_BASE = API_BASE.replace(/^http/, 'ws');
 
-// 也支持通过 localStorage 覆盖（例如调试时指向其他地址）
-let API_BASE_OVERRIDE = localStorage.getItem('clawwork_api_base');
-if (API_BASE_OVERRIDE) {
-  API_BASE = API_BASE_OVERRIDE;
+function $(id) { return document.getElementById(id); }
+
+function formatCurrency(v) {
+  if (v === null || v === undefined) return '--';
+  return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// 初始化 API URL 输入框
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('apiUrlField').value = API_BASE;
-});
+function shortSig(sig) { return sig.length > 30 ? sig.slice(0, 27) + '...' : sig; }
 
-function updateApiUrl() {
-  const url = document.getElementById('apiUrlField').value.trim().replace(/\/+$/, '');
-  if (url) {
-    API_BASE = url;
-    localStorage.setItem('clawwork_api_base', url);
-    document.getElementById('apiUrlInput').style.display = 'none';
-    checkConnection();
-    loadData();
+function survivalClass(status) {
+  switch(status) {
+    case 'thriving': return 'survival-thriving';
+    case 'stable': return 'survival-stable';
+    case 'struggling': return 'survival-struggling';
+    case 'bankrupt': return 'survival-bankrupt';
+    default: return '';
   }
 }
 
-// ===== API Helper =====
-async function apiGet(path) {
-  const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: { 'Accept': 'application/json' },
-    signal: AbortSignal.timeout(10000)
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+function survivalEmoji(status) {
+  switch(status) {
+    case 'thriving': return '💪';
+    case 'stable': return '👍';
+    case 'struggling': return '⚠️';
+    case 'bankrupt': return '💀';
+    default: return '❓';
+  }
 }
 
-// ===== WebSocket Connection =====
-let ws = null;
-function connectWebSocket() {
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ============================================================
+// API Check
+// ============================================================
+async function checkAPI() {
   try {
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => console.log('✅ WebSocket 已连接');
+    const res = await fetch(API_BASE + '/api/health');
+    const data = await res.json();
+    $('apiStatusDot').className = 'status-dot';
+    $('apiStatusText').textContent = '✅ ' + data.service + ' v' + data.version;
+  } catch(e) {
+    $('apiStatusDot').className = 'status-dot error';
+    $('apiStatusText').textContent = '❌ 无法连接';
+  }
+}
+
+// ============================================================
+// Stats & Leaderboard
+// ============================================================
+async function loadDashboard() {
+  try {
+    const res = await fetch(API_BASE + '/api/leaderboard');
+    const data = await res.json();
+    const agents = data.agents || [];
+
+    // Stats
+    $('agentCount').textContent = agents.length;
+    $('agentCountBadge').textContent = agents.length + ' agents';
+    const totalBal = agents.reduce((s, a) => s + (a.current_balance || 0), 0);
+    const totalCost = agents.reduce((s, a) => s + (a.total_token_cost || 0), 0);
+    $('totalBalance').textContent = formatCurrency(totalBal);
+    $('totalTokenCost').textContent = formatCurrency(totalCost);
+
+    // Task pool size from first agent
+    if (agents.length > 0 && agents[0].num_tasks !== undefined) {
+      // estimate pool from leaderboard
+    }
+
+    // Leaderboard table
+    if (agents.length === 0) {
+      $('leaderboardContent').innerHTML = '<div class="error-message">暂无数据</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>排名</th><th>Agent</th><th>余额</th><th>净资产</th><th>变化</th><th>任务数</th><th>评分</th><th>成本</th><th>状态</th></tr></thead><tbody>';
+    agents.forEach((a, i) => {
+      const pctClass = (a.pct_change || 0) >= 0 ? 'green' : 'red';
+      const evalScore = a.avg_eval_score !== null && a.avg_eval_score !== undefined ? a.avg_eval_score.toFixed(2) : '--';
+      html += `<tr onclick="openAgentDetail('${escapeHtml(a.signature)}')" style="cursor:pointer;">
+        <td>#${i + 1}</td>
+        <td><strong>${escapeHtml(shortSig(a.signature))}</strong></td>
+        <td style="color:var(--green)">${formatCurrency(a.current_balance)}</td>
+        <td>${formatCurrency(a.net_worth)}</td>
+        <td class="${pctClass}">${(a.pct_change || 0) >= 0 ? '+' : ''}${(a.pct_change || 0).toFixed(1)}%</td>
+        <td>${a.num_tasks || 0}</td>
+        <td>${evalScore}</td>
+        <td>${formatCurrency(a.total_token_cost)}</td>
+        <td class="${survivalClass(a.survival_status)}">${survivalEmoji(a.survival_status)} ${a.survival_status}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    $('leaderboardContent').innerHTML = html;
+
+    // Also load task pool size
+    loadTaskPoolSize();
+
+  } catch(e) {
+    $('leaderboardContent').innerHTML = '<div class="error-message">加载失败: ' + e.message + '</div>';
+  }
+}
+
+async function loadTaskPoolSize() {
+  try {
+    const res = await fetch(API_BASE + '/api/agents');
+    const data = await res.json();
+    const agents = data.agents || [];
+    if (agents.length > 0) {
+      const sig = agents[0].signature;
+      const tres = await fetch(API_BASE + '/api/agents/' + encodeURIComponent(sig) + '/tasks');
+      const tdata = await tres.json();
+      if (tdata.pool_size) {
+        $('taskPoolSize').textContent = tdata.pool_size;
+      }
+    }
+  } catch(e) {
+    console.log('Could not load pool size:', e.message);
+  }
+}
+
+// ============================================================
+// Tab switching
+// ============================================================
+function switchTab(btn, tabName) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  $('tab-' + tabName).classList.add('active');
+
+  // Lazy load
+  if (tabName === 'tasks' && !$('tab-tasks').dataset.loaded) loadAllTasks();
+  if (tabName === 'artifacts' && !$('tab-artifacts').dataset.loaded) loadArtifacts();
+}
+
+function switchDetailTab(btn, tabName) {
+  document.querySelectorAll('#detailTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#detailContent .tab-content').forEach(t => t.classList.remove('active'));
+  $('detail-tab-' + tabName).classList.add('active');
+}
+
+// ============================================================
+// Agent Detail
+// ============================================================
+let currentAgentSig = null;
+
+function openAgentDetail(signature) {
+  currentAgentSig = signature;
+  $('agentDetailOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  loadAgentOverview(signature);
+  loadAgentTasks(signature);
+  loadAgentEconomic(signature);
+  loadAgentLearning(signature);
+}
+
+function closeAgentDetail() {
+  $('agentDetailOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  currentAgentSig = null;
+}
+
+async function loadAgentOverview(sig) {
+  try {
+    const res = await fetch(API_BASE + '/api/agents/' + encodeURIComponent(sig));
+    const data = await res.json();
+    $('detailName').textContent = '🤖 ' + sig;
+    const s = data.current_status || {};
+    $('detailStatusRow').innerHTML = `
+      <span>💰 余额: <strong style="color:var(--green)">${formatCurrency(s.balance)}</strong></span>
+      <span>📈 净资产: <strong>${formatCurrency(s.net_worth)}</strong></span>
+      <span>💸 Token 成本: <strong style="color:var(--orange)">${formatCurrency(s.total_token_cost)}</strong></span>
+      <span>🏆 任务数: <strong>${s.num_evaluations || 0}</strong></span>
+      <span>📊 评分: <strong>${s.avg_evaluation_score !== null && s.avg_evaluation_score !== undefined ? s.avg_evaluation_score.toFixed(2) : '--'}</strong></span>
+      <span>${survivalEmoji(s.survival_status)} 状态: <strong class="${survivalClass(s.survival_status)}">${s.survival_status}</strong></span>
+    `;
+
+    // Overview content
+    const bals = data.balance_history || [];
+    const decisions = data.decisions || [];
+
+    let overviewHtml = '';
+    if (bals.length > 0) {
+      const latest = bals[bals.length - 1];
+      overviewHtml += `
+      <div class="detail-grid">
+        <div class="chart-container">
+          <h3>📊 经济概览</h3>
+          <table style="width:100%">
+            <tr><td style="padding:6px 0">初始余额</td><td style="text-align:right">${formatCurrency(bals[0]?.balance || 0)}</td></tr>
+            <tr><td style="padding:6px 0">当前余额</td><td style="text-align:right;color:var(--green)">${formatCurrency(latest.balance)}</td></tr>
+            <tr><td style="padding:6px 0">净资产</td><td style="text-align:right">${formatCurrency(latest.net_worth || 0)}</td></tr>
+            <tr><td style="padding:6px 0">Token 成本</td><td style="text-align:right;color:var(--orange)">${formatCurrency(latest.total_token_cost || 0)}</td></tr>
+            <tr><td style="padding:6px 0">工作收入</td><td style="text-align:right;color:var(--green)">${formatCurrency(latest.total_work_income || 0)}</td></tr>
+          </table>
+        </div>
+        <div class="chart-container">
+          <h3>💼 最近活动</h3>
+          ${decisions.length > 0 ? decisions.slice(-5).reverse().map(d =>
+            `<div style="padding:4px 0;font-size:13px;border-bottom:1px solid var(--border);">
+              <span style="color:var(--text-secondary)">${d.date || '--'}</span>
+              <span style="margin-left:8px">${d.activity === 'work' ? '💼' : '📚'} ${d.activity || 'unknown'}</span>
+            </div>`
+          ).join('') : '<div style="color:var(--text-secondary)">暂无活动</div>'}
+        </div>
+      </div>`;
+    } else {
+      overviewHtml = '<div class="error-message">暂无经济数据</div>';
+    }
+    $('detail-tab-overview').innerHTML = overviewHtml;
+    $('detail-tab-overview').dataset.loaded = '1';
+
+  } catch(e) {
+    $('detail-tab-overview').innerHTML = '<div class="error-message">加载失败: ' + e.message + '</div>';
+  }
+}
+
+async function loadAgentTasks(sig) {
+  try {
+    const res = await fetch(API_BASE + '/api/agents/' + encodeURIComponent(sig) + '/tasks');
+    const data = await res.json();
+    const tasks = data.tasks || [];
+
+    if (tasks.length === 0) {
+      $('detail-tab-tasks').innerHTML = '<div class="error-message">暂无任务</div>';
+      return;
+    }
+
+    const completed = tasks.filter(t => t.completed).length;
+    let html = `<div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-secondary);">
+      共 ${tasks.length} 个任务（已完成 ${completed} 个）${data.pool_size ? '｜任务池: ' + data.pool_size : ''}
+    </div>`;
+    tasks.slice(0, 100).forEach(t => {
+      const status = t.completed ? '<span class="task-status completed">✅ 已完成</span>' : '<span class="task-status pending">⏳ 待处理</span>';
+      html += `<div class="task-item">
+        <div class="task-info">
+          <div class="task-title">${escapeHtml(t.task_id || '')}</div>
+          <div class="task-meta">${escapeHtml(t.occupation || '')} · ${escapeHtml(t.sector || '')}${t.task_value_usd ? ' · 价值 ' + formatCurrency(t.task_value_usd) : ''}${t.wall_clock_seconds ? ' · ' + (t.wall_clock_seconds/60).toFixed(1) + ' min' : ''}</div>
+        </div>
+        <div>${status}</div>
+      </div>`;
+    });
+    $('detail-tab-tasks').innerHTML = html;
+    $('detail-tab-tasks').dataset.loaded = '1';
+
+  } catch(e) {
+    $('detail-tab-tasks').innerHTML = '<div class="error-message">加载失败: ' + e.message + '</div>';
+  }
+}
+
+async function loadAgentEconomic(sig) {
+  try {
+    const res = await fetch(API_BASE + '/api/agents/' + encodeURIComponent(sig) + '/economic');
+    const data = await res.json();
+
+    if (!data.dates || data.dates.length === 0) {
+      $('detail-tab-economic').innerHTML = '<div class="error-message">暂无经济数据</div>';
+      return;
+    }
+
+    const maxBal = Math.max(...data.balance_history.map(Math.abs), 1);
+    const maxCost = Math.max(...data.token_costs.map(Math.abs), 1);
+    const dates = data.dates.slice(-30);
+    const bals = data.balance_history.slice(-30);
+    const costs = data.token_costs.slice(-30);
+
+    let html = `<div class="detail-grid">
+      <div class="chart-container">
+        <h3>💰 余额历史（近30天）</h3>
+        <div class="bar-chart">`;
+    bals.forEach((b, i) => {
+      const pct = Math.max((b / maxBal) * 100, 2);
+      const color = b >= 0 ? 'var(--green)' : 'var(--red)';
+      html += `<div class="bar" style="height:${pct}%;background:${color};" title="${dates[i]}: ${formatCurrency(b)}">
+        <div class="bar-tooltip">${dates[i]}: ${formatCurrency(b)}</div>
+      </div>`;
+    });
+    html += `</div></div>
+      <div class="chart-container">
+        <h3>💸 Token 成本（近30天）</h3>
+        <div class="bar-chart">`;
+    costs.forEach((c, i) => {
+      const pct = Math.max((Math.abs(c) / maxCost) * 100, 2);
+      html += `<div class="bar" style="height:${pct}%;background:var(--orange);" title="${dates[i]}: ${formatCurrency(c)}">
+        <div class="bar-tooltip">${dates[i]}: ${formatCurrency(c)}</div>
+      </div>`;
+    });
+    html += `</div></div>
+    </div>
+    <div style="padding:16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div><strong>总余额</strong><br><span style="color:var(--green);font-size:18px;">${formatCurrency(data.balance)}</span></div>
+      <div><strong>总 Token 成本</strong><br><span style="color:var(--orange);font-size:18px;">${formatCurrency(data.total_token_cost)}</span></div>
+      <div><strong>总工作收入</strong><br><span style="color:var(--green);font-size:18px;">${formatCurrency(data.total_work_income)}</span></div>
+      <div><strong>净资产</strong><br><span style="font-size:18px;">${formatCurrency(data.net_worth)}</span></div>
+    </div>`;
+    $('detail-tab-economic').innerHTML = html;
+    $('detail-tab-economic').dataset.loaded = '1';
+
+  } catch(e) {
+    $('detail-tab-economic').innerHTML = '<div class="error-message">加载失败: ' + e.message + '</div>';
+  }
+}
+
+async function loadAgentLearning(sig) {
+  try {
+    const res = await fetch(API_BASE + '/api/agents/' + encodeURIComponent(sig) + '/learning');
+    const data = await res.json();
+    const entries = data.entries || [];
+
+    if (entries.length === 0) {
+      $('detail-tab-learning').innerHTML = '<div class="error-message">暂无记忆数据</div>';
+      return;
+    }
+
+    let html = '';
+    entries.forEach(e => {
+      html += `<div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <strong>${escapeHtml(e.topic)}</strong>
+          <span style="color:var(--text-secondary);font-size:12px;">${escapeHtml(e.date || e.timestamp || '')}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;">${escapeHtml(e.content?.slice(0, 300) || '')}${e.content?.length > 300 ? '...' : ''}</div>
+      </div>`;
+    });
+    $('detail-tab-learning').innerHTML = html;
+    $('detail-tab-learning').dataset.loaded = '1';
+
+  } catch(e) {
+    $('detail-tab-learning').innerHTML = '<div class="error-message">加载失败: ' + e.message + '</div>';
+  }
+}
+
+// ============================================================
+// Task Submit
+// ============================================================
+async function submitTask() {
+  const prompt = $('taskPrompt').value.trim();
+  if (!prompt) { alert('请输入任务描述'); return; }
+
+  const body = {
+    prompt: prompt,
+    occupation: $('taskOccupation').value || 'Software Engineer',
+    sector: 'Technology',
+    max_payment: parseFloat($('taskMaxPayment').value) || 50,
+  };
+  const agent = $('taskAgent').value.trim();
+  if (agent) body.agent = agent;
+
+  const resultDiv = $('taskResult');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<div class="loading">⏳ 提交中...</div>';
+
+  try {
+    const res = await fetch(API_BASE + '/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    resultDiv.innerHTML = `<div style="padding:16px;background:rgba(63,185,80,0.1);border:1px solid var(--green);border-radius:8px;">
+      ✅ <strong>任务已提交</strong><br>
+      Task ID: <code>${escapeHtml(data.task_id)}</code><br>
+      Agent: ${escapeHtml(data.agent)}<br>
+      状态: ${data.status}<br>
+      消息: ${escapeHtml(data.message || '')}
+    </div>`;
+  } catch(e) {
+    resultDiv.innerHTML = `<div style="padding:16px;background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:8px;">
+      ❌ 提交失败: ${escapeHtml(e.message)}
+    </div>`;
+  }
+}
+
+// ============================================================
+// All Tasks
+// ============================================================
+async function loadAllTasks() {
+  $('tab-tasks').dataset.loaded = '1';
+  try {
+    const res = await fetch(API_BASE + '/api/tasks');
+    const data = await res.json();
+    const tasks = data.tasks || [];
+    $('taskCountBadge').textContent = tasks.length;
+
+    if (tasks.length === 0) {
+      $('tasksContent').innerHTML = '<div class="error-message">暂无已提交的任务</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>Task ID</th><th>Agent</th><th>状态</th><th>职业</th><th>创建时间</th></tr></thead><tbody>';
+    tasks.forEach(t => {
+      html += `<tr>
+        <td><code>${escapeHtml(t.task_id || '')}</code></td>
+        <td>${escapeHtml(t.agent || t.assigned_agent || '--')}</td>
+        <td>${t.status === 'completed' ? '✅' : t.status === 'running' ? '🔄' : '⏳'} ${escapeHtml(t.status || '')}</td>
+        <td>${escapeHtml(t.occupation || '--')}</td>
+        <td style="color:var(--text-secondary)">${escapeHtml(t.created_at || '--')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    $('tasksContent').innerHTML = html;
+
+  } catch(e) {
+    $('tasksContent').innerHTML = '<div class="error-message">加载失败: ' + e.message + '</div>';
+  }
+}
+
+// ============================================================
+// Artifacts
+// ============================================================
+async function loadArtifacts() {
+  $('tab-artifacts').dataset.loaded = '1';
+  try {
+    const res = await fetch(API_BASE + '/api/artifacts/random?count=30');
+    const data = await res.json();
+    const artifacts = data.artifacts || [];
+
+    if (artifacts.length === 0) {
+      $('artifactsContent').innerHTML = '<div class="error-message">暂无作品文件</div>';
+      return;
+    }
+
+    let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;padding:16px;">';
+    artifacts.forEach(a => {
+      const icon = a.extension === '.pdf' ? '📄' : a.extension === '.docx' ? '📝' : a.extension === '.xlsx' ? '📊' : a.extension === '.pptx' ? '📽️' : '📁';
+      const size = a.size_bytes > 1024 ? (a.size_bytes / 1024).toFixed(1) + ' KB' : a.size_bytes + ' B';
+      html += `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:24px;margin-bottom:8px;">${icon}</div>
+        <div style="font-size:13px;margin-bottom:4px;word-break:break-all;">${escapeHtml(a.filename)}</div>
+        <div style="font-size:12px;color:var(--text-secondary);">
+          ${escapeHtml(shortSig(a.agent))} · ${escapeHtml(a.date)} · ${size}
+        </div>
+        <a href="${API_BASE}/api/artifacts/file?path=${encodeURIComponent(a.path)}" target="_blank" style="font-size:12px;color:var(--accent);margin-top:8px;display:inline-block;">📥 下载</a>
+      </div>`;
+    });
+    html += '</div>';
+    $('artifactsContent').innerHTML = html;
+
+  } catch(e) {
+    $('artifactsContent').innerHTML = '<div class="error-message">加载失败: ' + e.message + '</div>';
+  }
+}
+
+// ============================================================
+// WebSocket Stream
+// ============================================================
+let ws = null;
+let streamBuffer = [];
+
+function connectWS() {
+  if (ws) ws.close();
+  try {
+    ws = new WebSocket(WS_BASE + '/ws');
+    ws.onopen = () => {
+      $('wsIndicator').className = 'ws-indicator';
+      $('wsIndicator').innerHTML = '● 实时连接';
+      $('wsTabIndicator').className = 'ws-indicator';
+      $('wsTabIndicator').innerHTML = '● WebSocket 已连接';
+      addStreamEntry('system', '🟢 WebSocket 已连接');
+    };
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        console.log('📡 WebSocket 消息:', data);
-        // 收到更新时自动刷新数据
-        if (data.type === 'balance_update' || data.type === 'activity_update') {
-          loadData();
-        }
-      } catch (e) {
-        console.warn('WebSocket 消息解析失败:', e);
+        const msg = JSON.parse(event.data);
+        addStreamEntry(msg.type || 'message', msg);
+      } catch(e) {
+        addStreamEntry('message', { data: event.data });
       }
     };
     ws.onclose = () => {
-      console.log('🔌 WebSocket 已断开，5秒后重连...');
-      setTimeout(connectWebSocket, 5000);
+      $('wsIndicator').className = 'ws-indicator disconnected';
+      $('wsIndicator').innerHTML = '● 已断开';
+      $('wsTabIndicator').className = 'ws-indicator disconnected';
+      $('wsTabIndicator').innerHTML = '● 已断开';
+      addStreamEntry('system', '🔴 WebSocket 已断开（3秒后重连）');
+      setTimeout(connectWS, 3000);
     };
-    ws.onerror = (err) => console.error('❌ WebSocket 错误:', err);
-  } catch (e) {
-    console.warn('WebSocket 连接失败，5秒后重试:', e);
-    setTimeout(connectWebSocket, 5000);
+    ws.onerror = () => {
+      addStreamEntry('system', '⚠️ WebSocket 错误');
+    };
+  } catch(e) {
+    addStreamEntry('system', '❌ WebSocket 连接失败: ' + e.message);
   }
 }
 
-// ===== Connection Check =====
-async function checkConnection() {
-  const badge = document.getElementById('statusBadge');
-  badge.className = 'status-badge checking';
-  badge.textContent = '⏳ 检查连接中...';
-  try {
-    const data = await apiGet('/api/health');
-    badge.className = 'status-badge online';
-    badge.textContent = `✅ 已连接 · ${window.location.host}`;
-    return true;
-  } catch (e) {
-    badge.className = 'status-badge offline';
-    badge.textContent = `❌ 无法连接 (${e.message})`;
-    return false;
-  }
-}
-
-// ===== Load Data =====
-async function loadData() {
-  try {
-    // Load agents
-    const agentsData = await apiGet('/api/agents');
-    const agents = agentsData.agents || [];
-    renderAgents(agents);
-
-    // Calculate stats
-    const totalAgents = agents.length;
-    const totalBalance = agents.reduce((s, a) => s + (a.balance || 0), 0);
-    const totalIncome = agents.reduce((s, a) => s + (a.total_token_cost || 0), 0);
-    const totalTasks = agents.reduce((s, a) => s + (a.num_tasks || 0), 0);
-
-    document.getElementById('statAgents').textContent = totalAgents;
-    document.getElementById('statTasks').textContent = totalTasks;
-    document.getElementById('statBalance').textContent = totalBalance.toFixed(2);
-    document.getElementById('statIncome').textContent = totalIncome.toFixed(2);
-
-  } catch (e) {
-    document.getElementById('agentList').innerHTML =
-      `<div style="grid-column:1/-1; text-align:center; color:#ff8a80; padding:2rem 0;">
-        ❌ 加载失败: ${e.message}
-      </div>`;
-  }
-}
-
-// ===== Render Agents =====
-function renderAgents(agents) {
-  const container = document.getElementById('agentList');
-  if (!agents.length) {
-    container.innerHTML =
-      `<div style="grid-column:1/-1; text-align:center; color:#7a7a9a; padding:2rem 0;">
-        🤷 暂无 Agent 数据
-      </div>`;
+function addStreamEntry(type, data) {
+  const ts = new Date().toLocaleTimeString();
+  let html = '';
+  if (type === 'system') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> ${data}`;
+  } else if (type === 'connected') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> <span style="color:var(--green)">${escapeHtml(data.message || '已连接')}</span>`;
+  } else if (type === 'heartbeat') {
+    // skip heartbeat
     return;
+  } else if (type === 'balance_update') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> 💰 <strong>${escapeHtml(data.signature || '?')}</strong> 余额更新: <span style="color:var(--green)">${formatCurrency(data.data?.balance)}</span>`;
+  } else if (type === 'activity_update') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> 📊 <strong>${escapeHtml(data.signature || '?')}</strong> 活动: ${escapeHtml(data.data?.activity || '')} (${escapeHtml(data.data?.date || '')})`;
+  } else if (type === 'agent_thinking') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> 🤔 <strong>${escapeHtml(data.signature || '?')}</strong> 思考: ${escapeHtml(data.message || data.data || '')}`;
+  } else if (type === 'work_submitted') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> 📝 <strong>${escapeHtml(data.signature || '?')}</strong> 提交工作`;
+  } else if (type === 'task_completed') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> ✅ <strong>${escapeHtml(data.signature || '?')}</strong> 任务完成`;
+  } else if (type === 'task_error') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> ❌ <strong>${escapeHtml(data.signature || '?')}</strong> 任务错误: ${escapeHtml(data.message || data.error || '')}`;
+  } else if (type === 'code_generated') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> 💻 <strong>${escapeHtml(data.signature || '?')}</strong> 生成代码`;
+  } else if (type === 'artifact_created') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> 📎 <strong>${escapeHtml(data.signature || '?')}</strong> 创建作品: ${escapeHtml(data.filename || data.message || '')}`;
+  } else if (type === 'subscribed') {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> 📡 ${escapeHtml(data.message || '订阅成功')}`;
+  } else {
+    html = `<span style="color:var(--text-secondary)">[${ts}]</span> <span style="color:var(--yellow)">[${type}]</span> ${escapeHtml(JSON.stringify(data))}`;
   }
 
-  container.innerHTML = agents.map(a => {
-    const status = (a.survival_status || 'unknown').toLowerCase();
-    const dotClass = status === 'alive' ? 'alive' : status === 'bankrupt' ? 'bankrupt' : 'unknown';
-    return `
-      <div class="agent-card">
-        <div class="name">${a.signature}</div>
-        <div class="balance">$${(a.balance || 0).toFixed(2)}</div>
-        <div class="meta">
-          <span class="status-dot ${dotClass}"></span>${a.survival_status || 'Unknown'}
-          ${a.current_date ? ` · ${a.current_date}` : ''}
-        </div>
-        <div class="meta">💰 成本: $${(a.total_token_cost || 0).toFixed(2)}</div>
-      </div>
-    `;
-  }).join('');
+  streamBuffer.push(html);
+  if (streamBuffer.length > 200) streamBuffer.shift();
+
+  const container = $('streamContent');
+  container.innerHTML = streamBuffer.map(h => `<div class="log-entry">${h}</div>`).join('');
+  container.scrollTop = container.scrollHeight;
 }
 
-// ===== Submit Task =====
-async function submitTask() {
-  const input = document.getElementById('taskInput');
-  const task = input.value.trim();
-  const resultArea = document.getElementById('resultArea');
-  const btn = document.getElementById('submitBtn');
-
-  if (!task) {
-    resultArea.className = 'result-area visible error';
-    resultArea.textContent = '⚠️ 请输入任务描述';
-    return;
-  }
-
-  // Show loading
-  btn.disabled = true;
-  resultArea.className = 'result-area visible loading';
-  resultArea.innerHTML = '<div class="spinner"></div> 正在调用 DeepSeek API 处理任务...';
-
+// ============================================================
+// Depth Configuration (2层/5层)
+// ============================================================
+async function loadDepth() {
   try {
-    // 调用 Render 上的 API - 这里我们调用 /api/agents 来模拟
-    // 实际项目中你可以添加一个 POST /api/tasks 端点
-    // 这里我们模拟一个调用过程，展示与 Render 服务的交互
-    const startTime = Date.now();
-
-    // 先检查服务是否在线
-    const healthData = await apiGet('/api/health');
-    const agentsData = await apiGet('/api/agents');
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-
-    // 构建漂亮的响应展示
-    const agentCount = agentsData.agents?.length || 0;
-    const totalBalance = agentsData.agents?.reduce((s, a) => s + (a.balance || 0), 0) || 0;
-
-    resultArea.className = 'result-area visible success';
-    resultArea.innerHTML = `
-✅ <strong>任务已提交至 DeepSeek API</strong> (${elapsed}s)
-
-📝 <strong>任务描述:</strong> ${task}
-
-📡 <strong>服务状态:</strong> 在线 (${API_BASE})
-🤖 <strong>在线 Agent:</strong> ${agentCount} 个
-💰 <strong>总余额:</strong> $${totalBalance.toFixed(2)}
-
-<hr style="border-color:rgba(255,255,255,0.08); margin:0.75rem 0;">
-
-<em style="color:#7a7a9a;">
-💡 提示: 实际生产环境中，你可以添加一个 POST /api/tasks 端点，
-将任务发送到后端，由 LiveAgent 调用 DeepSeek API 执行。
-当前 Demo 展示了前端与 Render 部署的 API 服务的连通性。
-</em>
-    `;
-  } catch (e) {
-    resultArea.className = 'result-area visible error';
-    resultArea.textContent = `❌ 调用失败: ${e.message}\n\n请确认 Render 服务地址是否正确。`;
-  } finally {
-    btn.disabled = false;
+    const res = await fetch(API_BASE + '/api/config/depth');
+    const data = await res.json();
+    const depth = data.depth || 5;
+    updateDepthUI(depth);
+  } catch(e) {
+    console.log('Could not load depth config:', e.message);
   }
 }
 
-// ===== Init =====
-(async function init() {
-  const connected = await checkConnection();
-  if (connected) {
-    await loadData();
+async function setDepth(depth) {
+  try {
+    const res = await fetch(API_BASE + '/api/config/depth', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ depth: depth }),
+    });
+    const data = await res.json();
+    if (data.saved) {
+      updateDepthUI(depth);
+      addStreamEntry('system', `🧩 拆解层级已切换为 ${depth} 层`);
+    }
+  } catch(e) {
+    console.log('Could not set depth:', e.message);
   }
-})();
+}
+
+function updateDepthUI(depth) {
+  const btn2 = $('depthBtn2');
+  const btn5 = $('depthBtn5');
+  if (depth === 2) {
+    btn2.style.borderColor = 'var(--accent)';
+    btn2.style.background = 'rgba(88,166,255,0.15)';
+    btn2.style.color = 'var(--accent)';
+    btn2.style.fontWeight = '600';
+    btn5.style.borderColor = 'var(--border)';
+    btn5.style.background = 'var(--bg)';
+    btn5.style.color = 'var(--text-secondary)';
+    btn5.style.fontWeight = 'normal';
+  } else {
+    btn5.style.borderColor = 'var(--accent)';
+    btn5.style.background = 'rgba(88,166,255,0.15)';
+    btn5.style.color = 'var(--accent)';
+    btn5.style.fontWeight = '600';
+    btn2.style.borderColor = 'var(--border)';
+    btn2.style.background = 'var(--bg)';
+    btn2.style.color = 'var(--text-secondary)';
+    btn2.style.fontWeight = 'normal';
+  }
+}
+
+// ============================================================
+// Init
+// ============================================================
+checkAPI();
+loadDashboard();
+loadDepth();
+connectWS();
+
+// Auto refresh every 10 seconds
+setInterval(loadDashboard, 10000);
+setInterval(checkAPI, 30000);
 </script>
 </body>
 </html>

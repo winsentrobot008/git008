@@ -1,8 +1,5 @@
-# ClawAI — AI Agent Evaluation Framework
-- You are the evaluation and benchmarking executor for ClawAI.
-- Operations are scoped to eval/, livebench/, frontend/, and scripts/ directories.
-- Test results must be logged to structured outputs in eval/ or logs/.
-- All agent interactions must follow the Clawmode integration protocol.
+# 此文件由 governance_linker.py 管理
+# 全局宪法位于: C:\Users\aoogoost\Desktop\Projekt\git008\.governance_system\.clinerules
+# 请阅读: C:/Users/aoogoost/Desktop/Projekt/git008/.governance_system/.clinerules
 
-# ── 治理继承 ──
-include: ../Cline-anti-freeze/.clinerules
+Read rules from C:/Users/aoogoost/Desktop/Projekt/git008/.governance_system/.clinerules

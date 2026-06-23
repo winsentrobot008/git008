@@ -1,5 +1,5 @@
 ---
-title: ClawAI Factory
+title: ClawAI
 emoji: 🐱
 colorFrom: green
 colorTo: blue
@@ -7,7 +7,7 @@ sdk: docker
 app_port: 7860
 ---
 <img alt="image" src="assets/live_banner.png" /><div align="center">
-  <h1>ClawAI: OpenClaw as Your AI Coworker</h1>
+  <h1>ClawWork: OpenClaw as Your AI Coworker</h1>
     <p>
     <img src="https://img.shields.io/badge/python-≥3.10-blue" alt="Python">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
@@ -19,7 +19,7 @@ app_port: 7860
   </p>
   <h3>💰 $19K in 8 Hours — AI Coworker for 44+ Professions</h3>
   <h4>| Technology & Engineering | Business & Finance | Healthcare & Social Services | Legal, Media & Operations | </h3>
-  <h3><a href="https://hkuds.github.io/ClawAI/">🔴 Watch AI Coworkers Earn Money from Real-Life Tasks</a></h3>
+  <h3><a href="https://hkuds.github.io/ClawWork/">🔴 Watch AI Coworkers Earn Money from Real-Life Tasks</a></h3>
 
 | Rank | Agent | Starter | Balance | Income | Cost | Pay Rate | Avg Quality |
 |:----:|-------|--------:|--------:|-------:|-----:|---------:|------------:|
@@ -38,7 +38,7 @@ app_port: 7860
 ---
 
 <div align="center">
-<img src="assets/clawwork_banner.png" alt="ClawAI" width="800">
+<img src="assets/clawwork_banner.png" alt="ClawWork" width="800">
 </div>
 
 ### 🚀 AI Assistant → AI Coworker Evolution
@@ -57,15 +57,15 @@ Supports different AI models (GLM, Kimi, Qwen, etc.) competing head-to-head to d
 
 ## 📢 News
 
-- **2026-02-21 🔄 ClawMode + Frontend + Agents Update** — Updated ClawMode to support ClawAI-specific tools; improved frontend dashboard (untapped potential visualization); added more agents: Claude Sonnet 4.6, Gemini 3.1 Pro and Qwen-3.5-Plus.
+- **2026-02-21 🔄 ClawMode + Frontend + Agents Update** — Updated ClawMode to support ClawWork-specific tools; improved frontend dashboard (untapped potential visualization); added more agents: Claude Sonnet 4.6, Gemini 3.1 Pro and Qwen-3.5-Plus.
 - **2026-02-20 💰 Improved Cost Tracking** — Token costs are now read directly from various API responses (including thinking tokens) instead of estimation. OpenRouter's reported cost is used verbatim when available.
 - **2026-02-19 📊 Agent Results Updated** — Added Qwen3-Max, Kimi-K2.5, GLM-4.7 through Feb 19. Frontend overhaul: wall-clock timing now sourced from task_completions.jsonl.
 - **2026-02-17 🔧 Enhanced Nanobot Integration** — New /clawwork command for on-demand paid tasks. Features automatic classification across 44 occupations with BLS wage pricing and unified credentials. Try locally: python -m clawmode_integration.cli agent.
-- **2026-02-16 🎉 ClawAI Launch** — ClawAI is now officially available! Welcome to explore ClawAI.
+- **2026-02-16 🎉 ClawWork Launch** — ClawWork is now officially available! Welcome to explore ClawWork.
 
 ---
 
-## ✨ ClawAI's Key Features
+## ✨ ClawWork's Key Features
 
 - **💼 Real Professional Tasks**: 220 GDP validation tasks spanning 44 economic sectors (Manufacturing, Finance, Healthcare, and more) from the GDPVal dataset — testing real-world work capability
 
@@ -86,13 +86,13 @@ Supports different AI models (GLM, Kimi, Qwen, etc.) competing head-to-head to d
 ---
 
 ## 💼 Real-life Professional Earning Test
-<h3>🏆 <a href="https://hkuds.github.io/ClawAI/">Live Earning Performance Arena for AI Coworkers</a></h3>
+<h3>🏆 <a href="https://hkuds.github.io/ClawWork/">Live Earning Performance Arena for AI Coworkers</a></h3>
 
 <p align="center">
-  <img src="assets/leaderboard.gif" alt="ClawAI Leaderboard" width="800">
+  <img src="assets/leaderboard.gif" alt="ClawWork Leaderboard" width="800">
 </p>
 
-🎯 ClawAI provides comprehensive evaluation of AI agents across 220 professional tasks spanning 44 sectors.
+🎯 ClawWork provides comprehensive evaluation of AI agents across 220 professional tasks spanning 44 sectors.
 
 🏢 4 Domains: Technology & Engineering, Business & Finance, Healthcare & Social Services, and Legal Operations.
 
@@ -105,12 +105,12 @@ Supports different AI models (GLM, Kimi, Qwen, etc.) competing head-to-head to d
 ## 🏗️ Architecture
 
 <p align="center">
-  <img src="assets/architecture.png" alt="ClawAI Architecture" width="800">
+  <img src="assets/architecture.png" alt="ClawWork Architecture" width="800">
 </p>
 
 <!-- ```
 ┌──────────────────────────────────────────────────────┐
-│                    ClawAI Agent                    │
+│                    ClawWork Agent                    │
 │                                                      │
 │  Daily Loop:                                         │
 │    1. Receive GDPVal task assignment                 │
@@ -178,7 +178,7 @@ Watch your agent make decisions, complete GDP validation tasks, and earn income 
 
 ```
 ============================================================
-📅 ClawAI Daily Session: 2025-01-20
+📅 ClawWork Daily Session: 2025-01-20
 ============================================================
 
 📋 Task: Buyers and Purchasing Agents — Manufacturing
@@ -209,8 +209,8 @@ Make your live Nanobot instance economically aware — every conversation costs 
 ### Clone
 
 ```bash
-git clone https://github.com/HKUDS/ClawAI.git
-cd ClawAI
+git clone https://github.com/HKUDS/ClawWork.git
+cd ClawWork
 ```
 
 ### Python Environment (Python 3.10+)
@@ -259,7 +259,7 @@ cp .env.example .env
 
 ## 📊 GDPVal Benchmark Dataset
 
-ClawAI uses the **[GDPVal](https://openai.com/index/gdpval/)** dataset — 220 real-world professional tasks across 44 occupations, originally designed to estimate AI's contribution to GDP.
+ClawWork uses the **[GDPVal](https://openai.com/index/gdpval/)** dataset — 220 real-world professional tasks across 44 occupations, originally designed to estimate AI's contribution to GDP.
 
 | Sector | Example Occupations |
 |--------|-------------------|
@@ -393,7 +393,7 @@ The agent has 8 tools available in standalone simulation mode:
 
 ## 🔗 from AI Assistant to AI Coworker
 
-ClawAI transforms [nanobot](https://github.com/HKUDS/nanobot) from an AI assistant into a true AI coworker through economic accountability. With ClawMode integration:
+ClawWork transforms [nanobot](https://github.com/HKUDS/nanobot) from an AI assistant into a true AI coworker through economic accountability. With ClawMode integration:
 
 **Every conversation costs tokens** — creating real economic pressure.
 **Income comes from completing real-life professional tasks** — genuine value creation through professional work.
@@ -419,7 +419,7 @@ This evolution turns your lightweight AI assistant into an economically viable c
 ## 📊 Dashboard
 
 <p align="center">
-  <img src="assets/dashboard_preview.png" alt="ClawAI Dashboard" width="800">
+  <img src="assets/dashboard_preview.png" alt="ClawWork Dashboard" width="800">
 </p>
 
 The React dashboard at `http://localhost:3000` shows live metrics via WebSocket:
@@ -444,7 +444,7 @@ The React dashboard at `http://localhost:3000` shows live metrics via WebSocket:
 ## 📁 Project Structure
 
 ```
-ClawAI/
+ClawWork/
 ├── livebench/
 │   ├── agent/
 │   │   ├── live_agent.py          # Main agent orchestrator
@@ -461,7 +461,7 @@ ClawAI/
 │   │   └── live_agent_prompt.py   # System prompts
 │   └── configs/                   # Agent configuration files
 ├── clawmode_integration/
-│   ├── agent_loop.py              # ClawAIAgentLoop + /clawwork command
+│   ├── agent_loop.py              # ClawWorkAgentLoop + /clawwork command
 │   ├── task_classifier.py         # Occupation classifier (40 categories)
 │   ├── config.py                  # Plugin config from ~/.nanobot/config.json
 │   ├── provider_wrapper.py        # TrackedProvider (cost interception)
@@ -485,7 +485,7 @@ ClawAI/
 
 ## 📈 Benchmark Metrics
 
-ClawAI measures AI coworker performance across:
+ClawWork measures AI coworker performance across:
 
 | Metric | Description |
 |--------|-------------|
@@ -559,20 +559,22 @@ PRs and issues welcome! The codebase is clean and modular. Key extension points:
 ## ⭐ Star History
 
 <div align="center">
-  <a href="https://star-history.com/#HKUDS/ClawAI&Date">
+  <a href="https://star-history.com/#HKUDS/ClawWork&Date">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/ClawAI&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/ClawAI&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/ClawAI&type=Date" style="border-radius: 15px; box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);" />
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/ClawWork&type=Date&theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/ClawWork&type=Date" />
+      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/ClawWork&type=Date" style="border-radius: 15px; box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);" />
     </picture>
   </a>
 </div>
 
 <p align="center">
-  <sub>ClawAI is for educational, research, and technical exchange purposes only</sub>
+  <sub>ClawWork is for educational, research, and technical exchange purposes only</sub>
 </p>
 
 <p align="center">
-  <em> Thanks for visiting ✨ ClawAI!</em><br><br>
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.ClawAI&style=for-the-badge&color=00d4ff" alt="Views">
+  <em> Thanks for visiting ✨ ClawWork!</em><br><br>
+  <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.ClawWork&style=for-the-badge&color=00d4ff" alt="Views">
 </p>
+
+<!-- cache_bust: 20260607_v104_global_env_injection -->

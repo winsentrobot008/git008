@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="livebench",
-    version="1.0.0",
+    version="1.0.4",
     description="AI Agent Economic Survival Simulation",
     packages=find_packages(),
     python_requires=">=3.10",

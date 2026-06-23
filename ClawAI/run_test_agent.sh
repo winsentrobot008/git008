@@ -139,7 +139,8 @@ echo ""
 export LIVEBENCH_HTTP_PORT=${LIVEBENCH_HTTP_PORT:-8010}
 
 # Add project root to PYTHONPATH to ensure imports work
-export PYTHONPATH="/root/-Live-Bench:$PYTHONPATH"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
 # Extract agent info from config (basic parsing)
 AGENT_NAME=$(grep -oP '"signature"\s*:\s*"\K[^"]+' "$CONFIG_FILE" | head -1)

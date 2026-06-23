@@ -42,10 +42,10 @@ class LLMEvaluator:
         self.max_payment = max_payment
         
         # Initialize OpenAI client with separate evaluation configuration
-        # Priority: EVALUATION_API_KEY > OPENAI_API_KEY
-        api_key = os.getenv("EVALUATION_API_KEY") or os.getenv("OPENAI_API_KEY")
+        # Priority: EVALUATION_API_KEY > OPENAI_API_KEY > DEEPSEEK_API_KEY
+        api_key = os.getenv("EVALUATION_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
-            raise ValueError("Neither EVALUATION_API_KEY nor OPENAI_API_KEY found in environment")
+            raise ValueError("Neither EVALUATION_API_KEY, OPENAI_API_KEY, nor DEEPSEEK_API_KEY found in environment")
         
         # Priority: EVALUATION_API_BASE > OPENAI_API_BASE
         base_url = os.getenv("EVALUATION_API_BASE") or os.getenv("OPENAI_API_BASE")

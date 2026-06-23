@@ -8,21 +8,27 @@ This FastAPI server provides:
 - Real-time updates as agents work and learn
 """
 
+# ===== 全局环境注入（双重保险）=====
+# 在所有自定义导入之前执行，确保评估器初始化时 EVALUATION_API_KEY 已就绪
 import os
+if "DEEPSEEK_API_KEY" in os.environ and "EVALUATION_API_KEY" not in os.environ:
+    os.environ["EVALUATION_API_KEY"] = os.environ["DEEPSEEK_API_KEY"]
+# =====================================
+
 import json
 import asyncio
 import random
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, BackgroundTasks, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import glob
 
-app = FastAPI(title="LiveBench API", version="1.0.0")
+app = FastAPI(title="LiveBench API", version="1.0.4")
 
 # Enable CORS for frontend (allow all origins for Render deployment)
 app.add_middleware(
@@ -76,7 +82,7 @@ def _load_task_completions_by_task_id(agent_dir: Path) -> dict:
     by_task_id = {}
     if not completions_file.exists():
         return by_task_id
-    with open(completions_file, 'r', encoding='utf-8') as f:
+    with open(completions_file, 'r') as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -97,7 +103,7 @@ def _load_task_completions_by_date(agent_dir: Path) -> dict:
     by_date: dict = {}
     if not completions_file.exists():
         return by_date
-    with open(completions_file, 'r', encoding='utf-8') as f:
+    with open(completions_file, 'r') as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -168,10 +174,17 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         """Broadcast message to all connected clients"""
+        dead = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
-            except:
+            except Exception:
+                dead.append(connection)
+        # Clean up dead connections to prevent accumulation
+        for conn in dead:
+            try:
+                self.active_connections.remove(conn)
+            except ValueError:
                 pass
 
 
@@ -182,7 +195,7 @@ manager = ConnectionManager()
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint returning JSON (not HTML) for frontend connectivity checks"""
-    return {"status": "ok", "service": "LiveBench API", "version": "1.0.0"}
+    return {"status": "ok", "service": "LiveBench API", "version": "1.0.4"}
 
 
 @app.get("/api/agents")
@@ -201,7 +214,7 @@ async def get_agents():
             balance_file = agent_dir / "economic" / "balance.jsonl"
             balance_data = None
             if balance_file.exists():
-                with open(balance_file, 'r', encoding='utf-8') as f:
+                with open(balance_file, 'r') as f:
                     lines = f.readlines()
                     if lines:
                         balance_data = json.loads(lines[-1])
@@ -211,7 +224,7 @@ async def get_agents():
             current_activity = None
             current_date = None
             if decision_file.exists():
-                with open(decision_file, 'r', encoding='utf-8') as f:
+                with open(decision_file, 'r') as f:
                     lines = f.readlines()
                     if lines:
                         decision = json.loads(lines[-1])
@@ -244,7 +257,7 @@ async def get_agent_details(signature: str):
     balance_file = agent_dir / "economic" / "balance.jsonl"
     balance_history = []
     if balance_file.exists():
-        with open(balance_file, 'r', encoding='utf-8') as f:
+        with open(balance_file, 'r') as f:
             for line in f:
                 balance_history.append(json.loads(line))
 
@@ -252,7 +265,7 @@ async def get_agent_details(signature: str):
     decision_file = agent_dir / "decisions" / "decisions.jsonl"
     decisions = []
     if decision_file.exists():
-        with open(decision_file, 'r', encoding='utf-8') as f:
+        with open(decision_file, 'r') as f:
             for line in f:
                 decisions.append(json.loads(line))
 
@@ -262,7 +275,7 @@ async def get_agent_details(signature: str):
     evaluation_scores = []
 
     if evaluations_file.exists():
-        with open(evaluations_file, 'r', encoding='utf-8') as f:
+        with open(evaluations_file, 'r') as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -319,7 +332,7 @@ async def get_agent_tasks(signature: str):
     # Build task metadata lookup from tasks.jsonl (first occurrence per task_id)
     task_metadata: dict = {}
     if tasks_file.exists():
-        with open(tasks_file, 'r', encoding='utf-8') as f:
+        with open(tasks_file, 'r') as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -331,7 +344,7 @@ async def get_agent_tasks(signature: str):
     # Build evaluations lookup (by task_id)
     evaluations: dict = {}
     if evaluations_file.exists():
-        with open(evaluations_file, 'r', encoding='utf-8') as f:
+        with open(evaluations_file, 'r') as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -343,7 +356,7 @@ async def get_agent_tasks(signature: str):
     # Build task list from task_completions.jsonl (authoritative — one entry per task, no duplicates)
     tasks = []
     if completions_file.exists():
-        with open(completions_file, 'r', encoding='utf-8') as f:
+        with open(completions_file, 'r') as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -471,7 +484,7 @@ async def get_agent_economic(signature: str):
     token_costs = []
     work_income = []
 
-    with open(balance_file, 'r', encoding='utf-8') as f:
+    with open(balance_file, 'r') as f:
         for line in f:
             data = json.loads(line)
             dates.append(data.get("date", ""))
@@ -512,7 +525,7 @@ async def get_leaderboard():
         balance_file = agent_dir / "economic" / "balance.jsonl"
         balance_history = []
         if balance_file.exists():
-            with open(balance_file, 'r', encoding='utf-8') as f:
+            with open(balance_file, 'r') as f:
                 for line in f:
                     if line.strip():
                         balance_history.append(json.loads(line))
@@ -529,7 +542,7 @@ async def get_leaderboard():
         evaluations_file = agent_dir / "work" / "evaluations.jsonl"
         evaluation_scores = []
         if evaluations_file.exists():
-            with open(evaluations_file, 'r', encoding='utf-8') as f:
+            with open(evaluations_file, 'r') as f:
                 for line in f:
                     if line.strip():
                         eval_data = json.loads(line)
@@ -675,7 +688,7 @@ async def get_artifact_file(path: str = Query(...)):
 async def get_hidden_agents():
     """Get list of hidden agent signatures"""
     if HIDDEN_AGENTS_PATH.exists():
-        with open(HIDDEN_AGENTS_PATH, 'r', encoding='utf-8') as f:
+        with open(HIDDEN_AGENTS_PATH, 'r') as f:
             hidden = json.load(f)
         return {"hidden": hidden}
     return {"hidden": []}
@@ -712,27 +725,8 @@ _scheduler_instance = None
 def _get_scheduler():
     global _scheduler_instance
     if _scheduler_instance is None:
-        import sys
-        # 确保项目根目录在 sys.path 中，使 'livebench' 包可导入
-        _project_root = Path(__file__).parent.parent.parent
-        if str(_project_root) not in sys.path:
-            sys.path.insert(0, str(_project_root))
         from livebench.scheduler.task_scheduler import get_scheduler
-
-        # ── 创建"双通道"广播回调：WebSocket + SSE 队列 ──
-        async def _combined_broadcast(event: dict):
-            """同时广播到 WebSocket 和 SSE 队列"""
-            # 1. WebSocket 广播（保持向后兼容）
-            await manager.broadcast(event)
-            # 2. SSE 队列推送（供前端 EventSource 使用）
-            task_id = event.get("task_id")
-            if task_id and task_id in _sse_queues:
-                try:
-                    await _sse_queues[task_id].put(event)
-                except Exception:
-                    pass
-
-        _scheduler_instance = get_scheduler(broadcast_callback=_combined_broadcast)
+        _scheduler_instance = get_scheduler(broadcast_callback=manager.broadcast)
     return _scheduler_instance
 
 
@@ -744,9 +738,6 @@ class TaskSubmitRequest(BaseModel):
     occupation: Optional[str] = Field("Software Engineer", description="职业分类")
     sector: Optional[str] = Field("Technology", description="行业分类")
     max_payment: Optional[float] = Field(50.0, description="最大支付金额（美元）")
-    fast_mode: Optional[bool] = Field(False, description="（已弃用）使用 fast_mode 布尔值")
-    mode: Optional[str] = Field("deep", description="引擎模式: 'fast' (2层直通) 或 'deep' (5层自主Agent)")
-    parent_task_id: Optional[str] = Field(None, description="父任务ID（从Fast Mode升级到Deep Mode时使用）")
 
 
 class TaskSubmitResponse(BaseModel):
@@ -770,207 +761,15 @@ class TaskStatusResponse(BaseModel):
     error: Optional[str] = None
 
 
-# ── SSE 事件队列（用于 /api/stream 端点） ──────────────────
-_sse_queues: Dict[str, asyncio.Queue] = {}
-
-
-def _get_sse_queue(task_id: str) -> asyncio.Queue:
-    """获取或创建 SSE 事件队列"""
-    if task_id not in _sse_queues:
-        _sse_queues[task_id] = asyncio.Queue()
-    return _sse_queues[task_id]
-
-
-def _sse_progress_callback(task_id: str):
-    """
-    创建一个进度回调，将事件推送到 SSE 队列
-    同时也广播到 WebSocket（保持向后兼容）
-    """
-    queue = _get_sse_queue(task_id)
-
-    def _cb(event: dict):
-        event["task_id"] = task_id
-        # 推送到 SSE 队列
-        asyncio.ensure_future(queue.put(event))
-        # 同时广播到 WebSocket
-        asyncio.ensure_future(manager.broadcast(event))
-
-    return _cb
-
-
-# ── SSE 流端点（Server-Sent Events） ────────────────────────
-@app.get("/api/stream/task/{task_id}")
-async def stream_task_events(request: Request, task_id: str):
-    """
-    SSE (Server-Sent Events) 流端点。
-
-    前端通过 EventSource 连接到此端点即可接收实时事件：
-    - agent_thinking: Agent 思考日志
-    - code_generated: 代码生成进度
-    - artifact_created: 文件/作品创建
-    - work_submitted: 工作提交
-    - task_completed: 任务完成
-    - task_error: 任务错误
-
-    与 Hugging Face 在线版行为一致（使用 SSEUtils.js）。
-    """
-    queue = _get_sse_queue(task_id)
-
-    async def event_generator():
-        try:
-            # 发送初始连接事件
-            yield {
-                "event": "connected",
-                "data": json.dumps({
-                    "type": "connected",
-                    "message": "✅ SSE 流已连接",
-                    "task_id": task_id,
-                    "timestamp": datetime.now().isoformat(),
-                }),
-            }
-
-            while True:
-                # 检查客户端是否断开
-                if await request.is_disconnected():
-                    break
-
-                try:
-                    # 从队列获取下一个事件，超时 30 秒
-                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
-                    event_type = event.get("type", "message")
-                    yield {
-                        "event": event_type,
-                        "data": json.dumps(event),
-                    }
-
-                    # 如果是完成或错误事件，结束流
-                    if event_type in ("task_completed", "task_error"):
-                        yield {
-                            "event": "done",
-                            "data": json.dumps({"type": "done", "task_id": task_id}),
-                        }
-                        break
-
-                except asyncio.TimeoutError:
-                    # 发送心跳保持连接
-                    yield {
-                        "event": "heartbeat",
-                        "data": json.dumps({
-                            "type": "heartbeat",
-                            "timestamp": datetime.now().isoformat(),
-                        }),
-                    }
-
-        finally:
-            # 已断开连接的客户端不能再 yield — 否则 Python 3.12 会抛出
-            # RuntimeError("async generator ignored GeneratorExit") 并崩溃。
-            # 仅在客户端仍连接时发射 complete / close 事件。
-            try:
-                if not await request.is_disconnected():
-                    yield {
-                        "event": "complete",
-                        "data": json.dumps({
-                            "type": "complete",
-                            "event": "complete",
-                            "message": "Task finished",
-                            "task_id": task_id,
-                        }),
-                    }
-                    yield {
-                        "event": "close",
-                        "data": json.dumps({
-                            "type": "close",
-                            "message": "[DONE]",
-                            "task_id": task_id,
-                        }),
-                    }
-            except (GeneratorExit, RuntimeError, Exception):
-                # 安全兜底：如果客户端已断开或 generator 正在关闭，静默忽略
-                pass
-            # 清理队列
-            if task_id in _sse_queues:
-                del _sse_queues[task_id]
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-# ── POST /api/tasks — 双引擎动态路由 ──
+# ── POST /api/tasks — 提交任务 ──────────────────────────────
 @app.post("/api/tasks", response_model=TaskSubmitResponse)
-async def submit_task(request: TaskSubmitRequest, background_tasks: BackgroundTasks):
+async def submit_task(request: TaskSubmitRequest):
     """
     提交一个任务到调度器。
 
-    Dual-Engine 动态路由：
-    - mode="fast"（2层直通）: 跳过 LiveAgent 5 层循环，直接调用 DeepSeek API 单轮生成，约 45 秒
-    - mode="deep"（5层自主）: 使用 LiveAgent 完整 5 层执行管道（规划→执行→工具调用→提交→评估）
-
-    Agent 会调用 DeepSeek API 执行任务，并通过 SSE + WebSocket 实时回传进度。
-    使用 FastAPI BackgroundTasks 确保后台任务不会被 Python GC 静默回收。
+    Agent 会调用 DeepSeek API 执行任务，并通过 WebSocket 实时回传进度。
     """
-    import uuid as _uuid
-    task_id = f"task_{_uuid.uuid4().hex[:12]}"
-
-    # ── 引擎选择：优先 mode 字段，回退 fast_mode（向后兼容） ──
-    is_fast = (request.mode and request.mode.lower() == "fast") or request.fast_mode
-    engine_label = "FAST" if is_fast else "DEEP"
-
-    # ── 交通控制日志 ──
-    print(f"\n{'='*60}")
-    print(f"[TRAFFIC CONTROL] ⚡ Inbound task routed to [{engine_label}] engine")
-    print(f"   task_id:     {task_id}")
-    print(f"   mode:        {engine_label}")
-    print(f"   prompt:      {request.prompt[:200]}")
-    print(f"   occupation:  {request.occupation or 'Software Engineer'}")
-    print(f"   sector:      {request.sector or 'Technology'}")
-    print(f"{'='*60}\n")
-
-    if is_fast:
-        # ── 快速通道（2层直通）：直接使用 FastTaskRunner ──
-        from livebench.scheduler.fast_task_runner import FastTaskRunner
-        runner = FastTaskRunner(
-            progress_callback=_sse_progress_callback(task_id),
-        )
-
-        # 注册到调度器（用于状态查询）
-        scheduler = _get_scheduler()
-        scheduler._tasks[task_id] = {
-            "task_id": task_id,
-            "prompt": request.prompt,
-            "agent": "FastAgent-001",
-            "occupation": request.occupation or "Software Engineer",
-            "sector": request.sector or "Technology",
-            "status": "queued",
-            "created_at": datetime.now().isoformat(),
-            "mode": "fast",
-        }
-
-        # 使用 BackgroundTasks 执行快速通道任务
-        background_tasks.add_task(
-            _execute_fast_task,
-            runner, task_id, request.prompt,
-            request.occupation or "Software Engineer",
-            request.sector or "Technology",
-            request.max_payment or 50.0,
-        )
-
-        return TaskSubmitResponse(
-            task_id=task_id,
-            agent="FastAgent-001",
-            status="queued",
-            message=f"🚀 [2层直通] 任务已提交（Fast Mode），预计 ~45 秒完成",
-        )
-
-    # ── 深度通道（5层自主Agent）：使用调度器 + LiveAgent ──
     scheduler = _get_scheduler()
-
     result = await scheduler.submit_task(
         task_prompt=request.prompt,
         agent_signature=request.agent,
@@ -978,492 +777,26 @@ async def submit_task(request: TaskSubmitRequest, background_tasks: BackgroundTa
         sector=request.sector or "Technology",
         max_payment=request.max_payment or 50.0,
     )
-
-    # ── [EVOLUTION FORK] parent_task_id 处理 → 完全委托到后台线程 ──
-    # 注意：所有文件 I/O（扫描目录、复制文件）都在 BackgroundTasks 中异步执行，
-    # 不会阻塞当前请求线程。POST 立即返回 200，释放 FastAPI 事件循环
-    # 以便前端 WebSocket/SSE 握手可以立即完成。
-    if request.parent_task_id:
-        print(f"\n{'='*60}")
-        print(f"[EVOLUTION FORK] 🔄 parent_task_id={request.parent_task_id} detected. Deferring workspace seeding to BackgroundTasks.")
-        print(f"[EVOLUTION FORK] ✅ Deep task_id={result.get('task_id')} registered. Returning 200 immediately to unblock event loop.")
-        print(f"{'='*60}\n")
-
-        background_tasks.add_task(
-            _seed_and_execute_deep_task,
-            scheduler,
-            result["task_id"],
-            result["agent"],
-            request.prompt,
-            request.parent_task_id,
-            request.occupation or "Software Engineer",
-            request.sector or "Technology",
-            request.max_payment or 50.0,
-        )
-    else:
-        # 普通 Deep Mode — 无 workspace seeding
-        background_tasks.add_task(
-            scheduler._execute_task_background,
-            result["task_id"],
-            result["agent"],
-            request.prompt,
-            request.occupation or "Software Engineer",
-            request.sector or "Technology",
-            request.max_payment or 50.0,
-        )
-
     return TaskSubmitResponse(**result)
-
-
-async def _execute_fast_task(
-    runner,
-    task_id: str,
-    task_prompt: str,
-    occupation: str,
-    sector: str,
-    max_payment: float,
-):
-    """
-    后台执行快速通道任务。
-    由 BackgroundTasks 框架管理生命周期。
-    """
-    scheduler = _get_scheduler()
-    try:
-        scheduler._tasks[task_id]["status"] = "running"
-        result = await runner.run_task(
-            task_id=task_id,
-            task_prompt=task_prompt,
-            occupation=occupation,
-            sector=sector,
-            max_payment=max_payment,
-        )
-        scheduler._tasks[task_id]["status"] = result.get("status", "completed")
-        scheduler._tasks[task_id]["result"] = result
-
-        # ── Persist fast task completion to agent data disk ──
-        try:
-            _persist_fast_task_completion(
-                task_id=task_id,
-                prompt=task_prompt,
-                occupation=occupation,
-                sector=sector,
-                result=result,
-                agent_signature="FastAgent-001",
-            )
-        except Exception as persist_err:
-            print(f"[PERSIST] ⚠️ Failed to persist fast task {task_id}: {persist_err}")
-
-    except Exception as e:
-        scheduler._tasks[task_id]["status"] = "error"
-        scheduler._tasks[task_id]["error"] = str(e)
-        import traceback
-        traceback.print_exc()
-
-
-async def _seed_and_execute_deep_task(
-    scheduler,
-    task_id: str,
-    agent_signature: str,
-    task_prompt: str,
-    parent_task_id: str,
-    occupation: str,
-    sector: str,
-    max_payment: float,
-):
-    """
-    BackgroundTask: 执行 "Fast→Deep" Evolution Fork 工作流。
-
-    分两步（均在后台线程中运行，不阻塞事件循环）：
-    1. 查找父任务 (parent_task_id) 生成的工件文件，复制到新 Agent 的 sandbox
-    2. 委托给 scheduler._execute_task_background 启动 5 层 LiveAgent 循环
-    """
-    print(f"\n{'='*60}")
-    print(f"[PIPELINE EVOLUTION] 🔄 Cloning fast track sample {parent_task_id} into deep autonomous processing track.")
-    print(f"[PIPELINE EVOLUTION] 📁 Deep task: {task_id}, Agent: {agent_signature}")
-    print(f"{'='*60}\n")
-
-    # ── 步骤 1: 查找父任务工件文件 ──
-    parent_artifact_dir = Path(__file__).parent.parent.parent / "产出"
-    fast_output_files = []
-
-    if parent_artifact_dir.exists():
-        parent_short_id = parent_task_id
-        if parent_short_id.startswith("task_"):
-            parent_short_id = parent_short_id[len("task_"):]
-        parent_short_id = parent_short_id[:8]
-
-        for f in parent_artifact_dir.iterdir():
-            if f.is_file() and parent_short_id in f.name:
-                fast_output_files.append(f)
-            elif f.is_dir() and parent_short_id in f.name:
-                for sub in f.rglob("*"):
-                    if sub.is_file():
-                        fast_output_files.append(sub)
-
-        # 也从 scheduler 内存中查找父任务的 artifacts
-        parent_task_data = scheduler.get_task_status(parent_task_id)
-        if parent_task_data:
-            parent_result = parent_task_data.get("result") or {}
-            parent_artifacts = parent_result.get("artifacts", [])
-            for artifact_path in parent_artifacts:
-                if isinstance(artifact_path, str):
-                    ap = Path(artifact_path)
-                    if ap.exists() and ap.is_file():
-                        fast_output_files.append(ap)
-
-    # ── 步骤 2: 复制到新 Agent 的 sandbox ──
-    if fast_output_files:
-        # 去重
-        seen = set()
-        unique_files = []
-        for f in fast_output_files:
-            fp = str(f.resolve())
-            if fp not in seen:
-                seen.add(fp)
-                unique_files.append(f)
-
-        # 创建 seed 目录
-        new_agent_workspace = Path(__file__).parent.parent / "data" / "agent_data" / agent_signature / "sandbox"
-        new_agent_workspace.mkdir(parents=True, exist_ok=True)
-        seed_dir = new_agent_workspace / f"seeded_from_{parent_task_id[:12]}"
-        seed_dir.mkdir(parents=True, exist_ok=True)
-
-        copied_count = 0
-        for src_path in unique_files:
-            if src_path.exists():
-                dest = seed_dir / src_path.name
-                try:
-                    dest.write_bytes(src_path.read_bytes())
-                    copied_count += 1
-                    print(f"[PIPELINE EVOLUTION] ✅ Seeded: {src_path.name} -> {dest}")
-                except Exception as e:
-                    print(f"[PIPELINE EVOLUTION] ⚠️ Failed to seed {src_path.name}: {e}")
-
-        if task_id in scheduler._tasks:
-            scheduler._tasks[task_id]["seeded_from"] = parent_task_id
-            scheduler._tasks[task_id]["seeded_files_count"] = copied_count
-
-        print(f"[PIPELINE EVOLUTION] 📊 Total {copied_count}/{len(unique_files)} files seeded.\n")
-    else:
-        print(f"[PIPELINE EVOLUTION] ⚠️ parent_task_id={parent_task_id} specified but no artifacts found.\n")
-
-    # ── 步骤 3: 委托执行到 scheduler ──
-    await scheduler._execute_task_background(
-        task_id,
-        agent_signature,
-        task_prompt,
-        occupation,
-        sector,
-        max_payment,
-    )
-
-
-# ── 辅助函数：持久化 Fast Mode 任务完成记录到磁盘 ──────────
-def _persist_fast_task_completion(
-    task_id: str,
-    prompt: str,
-    occupation: str,
-    sector: str,
-    result: dict,
-    agent_signature: str = "FastAgent-001",
-):
-    """
-    将 Fast Mode 任务的完成记录写入 agent_data/{agent}/economic/task_completions.jsonl，
-    使得 GET /api/tasks 可以扫描到该任务并正确显示为 completed 状态。
-    同时也写入 work/tasks.jsonl 用于元数据查询。
-    """
-    now = datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
-    timestamp = now.isoformat()
-
-    # ── 写入 task_completions.jsonl ──
-    agent_dir = DATA_PATH / agent_signature
-    economic_dir = agent_dir / "economic"
-    economic_dir.mkdir(parents=True, exist_ok=True)
-
-    completion_entry = {
-        "task_id": task_id,
-        "prompt": prompt,
-        "occupation": occupation,
-        "sector": sector,
-        "agent": agent_signature,
-        "date": today_str,
-        "timestamp": timestamp,
-        "status": "completed",
-        "mode": "fast",
-        "wall_clock_seconds": result.get("elapsed_seconds", 0),
-        "money_earned": result.get("payment", 0),
-        "evaluation_score": result.get("evaluation_score", 0),
-        "work_submitted": True,
-    }
-
-    completions_file = economic_dir / "task_completions.jsonl"
-    with open(completions_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(completion_entry, ensure_ascii=False) + "\n")
-    print(f"[PERSIST] ✅ Written task_completions.jsonl for {task_id}")
-
-    # ── 写入 work/tasks.jsonl（元数据） ──
-    work_dir = agent_dir / "work"
-    work_dir.mkdir(parents=True, exist_ok=True)
-
-    task_meta = {
-        "task_id": task_id,
-        "prompt": prompt,
-        "occupation": occupation,
-        "sector": sector,
-        "agent": agent_signature,
-        "date": today_str,
-        "timestamp": timestamp,
-        "status": "completed",
-        "mode": "fast",
-    }
-
-    tasks_file = work_dir / "tasks.jsonl"
-    with open(tasks_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(task_meta, ensure_ascii=False) + "\n")
-    print(f"[PERSIST] ✅ Written tasks.jsonl for {task_id}")
-
-
-# ── 辅助函数：从 Agent 数据文件中查找任务 ──────────────────
-def _lookup_task_from_agent_data(task_id: str) -> dict:
-    """遍历所有 Agent 的数据文件，返回任务状态字典或 None"""
-    if not DATA_PATH.exists():
-        return None
-    for agent_dir in DATA_PATH.iterdir():
-        if not agent_dir.is_dir():
-            continue
-        agent_sig = agent_dir.name
-        completions = _load_task_completions_by_task_id(agent_dir)
-        if task_id not in completions:
-            continue
-        completion = completions[task_id]
-    # 从 tasks.jsonl 读取元数据
-    tasks_file = agent_dir / "work" / "tasks.jsonl"
-    meta = {}
-    if tasks_file.exists():
-        with open(tasks_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                entry = json.loads(line)
-                if entry.get("task_id") == task_id:
-                    meta = entry
-                    break
-    # 从 evaluations.jsonl 读取评分
-    evaluations_file = agent_dir / "work" / "evaluations.jsonl"
-    eval_data = {}
-    if evaluations_file.exists():
-        with open(evaluations_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                ev = json.loads(line)
-                if ev.get("task_id") == task_id:
-                    eval_data = ev
-                    break
-        return {
-            "task_id": task_id,
-            "status": "completed",
-            "agent": agent_sig,
-            "prompt": meta.get("prompt") or completion.get("prompt") or "",
-            "occupation": meta.get("occupation") or completion.get("occupation") or "Unknown",
-            "sector": meta.get("sector") or completion.get("sector") or "Unknown",
-            "created_at": completion.get("timestamp") or meta.get("timestamp") or "",
-            "result": {
-                "thinking_log": [],
-                "code_generated": [],
-                "artifacts": [],
-                "payment": eval_data.get("payment") or completion.get("money_earned", 0),
-                "evaluation_score": eval_data.get("evaluation_score") or completion.get("evaluation_score"),
-            },
-            "error": None,
-        }
-    return None
 
 
 # ── GET /api/tasks/{task_id} — 查询任务状态 ────────────────
 @app.get("/api/tasks/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(task_id: str):
-    """查询指定任务的状态和结果
-    
-    优先从调度器内存中查找，回退到 Agent 数据文件 (task_completions.jsonl)。
-    """
+    """查询指定任务的状态和结果"""
     scheduler = _get_scheduler()
     task = scheduler.get_task_status(task_id)
     if not task:
-        task = _lookup_task_from_agent_data(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found in scheduler or agent data files")
-    return TaskStatusResponse(**task)
-
-
-# ── GET /api/tasks/{task_id}/detail — 查询任务完整详情 ─────
-@app.get("/api/tasks/{task_id}/detail")
-async def get_task_detail(task_id: str):
-    """查询任务的完整详情，包含 thinking_log、code_generated、artifacts 等。
-    
-    优先从调度器内存中查找，如果未找到则回退到从 Agent 数据文件 (task_completions.jsonl)
-    中读取，确保前端能查看到历史任务详情。
-    """
-    scheduler = _get_scheduler()
-    task = scheduler.get_task_status(task_id)
-    if not task:
-        # ── 回退：从 Agent 数据文件中查找 ──
-        if DATA_PATH.exists():
-            for agent_dir in DATA_PATH.iterdir():
-                if not agent_dir.is_dir():
-                    continue
-                agent_sig = agent_dir.name
-                completions = _load_task_completions_by_task_id(agent_dir)
-                if task_id in completions:
-                    completion = completions[task_id]
-                    # 从 tasks.jsonl 读取元数据
-                    tasks_file = agent_dir / "work" / "tasks.jsonl"
-                    meta = {}
-                    if tasks_file.exists():
-                        with open(tasks_file, 'r', encoding='utf-8') as f:
-                            for line in f:
-                                if not line.strip():
-                                    continue
-                                entry = json.loads(line)
-                                if entry.get("task_id") == task_id:
-                                    meta = entry
-                                    break
-                    # 从 evaluations.jsonl 读取评分
-                    evaluations_file = agent_dir / "work" / "evaluations.jsonl"
-                    eval_data = {}
-                    if evaluations_file.exists():
-                        with open(evaluations_file, 'r', encoding='utf-8') as f:
-                            for line in f:
-                                if not line.strip():
-                                    continue
-                                ev = json.loads(line)
-                                if ev.get("task_id") == task_id:
-                                    eval_data = ev
-                                    break
-                    return {
-                        "task_id": task_id,
-                        "status": "completed",
-                        "agent": agent_sig,
-                        "prompt": meta.get("prompt") or completion.get("prompt") or "",
-                        "occupation": meta.get("occupation") or completion.get("occupation") or "Unknown",
-                        "sector": meta.get("sector") or completion.get("sector") or "Unknown",
-                        "created_at": completion.get("timestamp") or meta.get("timestamp") or "",
-                        "error": None,
-                        "thinking_log": [],
-                        "code_generated": [],
-                        "artifacts": [],
-                        "payment": eval_data.get("payment") or completion.get("money_earned", 0),
-                        "evaluation_score": eval_data.get("evaluation_score") or completion.get("evaluation_score"),
-                    }
-        # 在所有数据源中都未找到
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found in scheduler or agent data files")
-    # 从调度器返回
-    result = task.get("result") or {}
-    return {
-        "task_id": task["task_id"],
-        "status": task["status"],
-        "agent": task.get("agent"),
-        "prompt": task.get("prompt"),
-        "occupation": task.get("occupation"),
-        "sector": task.get("sector"),
-        "created_at": task.get("created_at"),
-        "error": task.get("error"),
-        "thinking_log": result.get("thinking_log", []),
-        "code_generated": result.get("code_generated", []),
-        "artifacts": result.get("artifacts", []),
-        "payment": result.get("payment"),
-        "evaluation_score": result.get("evaluation_score"),
-    }
-
-
-# ── DELETE /api/tasks/{task_id} — 删除/清除任务 ───────────
-@app.delete("/api/tasks/{task_id}")
-async def delete_task(task_id: str):
-    """删除指定任务。
-    
-    宽容模式：即使 task_id 不存在于调度器内存中，也返回成功响应。
-    前端在提交新任务前使用 DELETE 清除/重置状态，如果收到 404
-    会导致 Promise 悬挂，UI 卡在"提交中..."（Submitting...）状态。
-    """
-    scheduler = _get_scheduler()
-    found = scheduler.delete_task(task_id)
-    # 无论是否找到，都返回成功（宽容模式）
-    # 目的是确保该 task_id 被清除，而不是报错
-    return {
-        "status": "success",
-        "message": "Task cleared/deleted" if not found else "Task deleted",
-        "task_id": task_id,
-    }
-
-
-# ── POST /api/tasks/{task_id}/resubmit — 重新提交任务 ─────
-class TaskResubmitRequest(BaseModel):
-    prompt: Optional[str] = Field(None, description="修改后的提示词")
-
-@app.post("/api/tasks/{task_id}/resubmit")
-async def resubmit_task(task_id: str, request: TaskResubmitRequest):
-    """重新提交任务（可修改提示词）"""
-    scheduler = _get_scheduler()
-    original = scheduler.get_task_status(task_id)
-    if not original:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    prompt = request.prompt or original.get("prompt", "")
-    result = await scheduler.submit_task(
-        task_prompt=prompt,
-        agent_signature=original.get("agent"),
-        occupation=original.get("occupation") or "Software Engineer",
-        sector=original.get("sector") or "Technology",
-        max_payment=50.0,
-    )
-    return TaskSubmitResponse(**result)
+    return TaskStatusResponse(**task)
 
 
 # ── GET /api/tasks — 获取所有任务列表 ───────────────────────
 @app.get("/api/tasks")
 async def get_all_tasks():
-    """获取所有已提交的任务列表
-    
-    从调度器内存 + Agent 数据文件 (task_completions.jsonl) 合并返回。
-    """
+    """获取所有已提交的任务列表"""
     scheduler = _get_scheduler()
     tasks = scheduler.get_all_tasks()
-    # 收集调度器中已有的 task_id
-    seen_ids = {t["task_id"] for t in tasks if "task_id" in t}
-    # 从 Agent 数据文件中补充历史任务
-    if DATA_PATH.exists():
-        for agent_dir in DATA_PATH.iterdir():
-            if not agent_dir.is_dir():
-                continue
-            completions = _load_task_completions_by_task_id(agent_dir)
-            for tid, completion in completions.items():
-                if tid in seen_ids:
-                    continue
-                seen_ids.add(tid)
-                # 从 tasks.jsonl 读取元数据
-                tasks_file = agent_dir / "work" / "tasks.jsonl"
-                meta = {}
-                if tasks_file.exists():
-                    with open(tasks_file, 'r', encoding='utf-8') as f:
-                        for line in f:
-                            if not line.strip():
-                                continue
-                            entry = json.loads(line)
-                            if entry.get("task_id") == tid:
-                                meta = entry
-                                break
-                tasks.append({
-                    "task_id": tid,
-                    "status": "completed",
-                    "agent": agent_dir.name,
-                    "prompt": meta.get("prompt") or completion.get("prompt") or "",
-                    "occupation": meta.get("occupation") or completion.get("occupation") or "Unknown",
-                    "sector": meta.get("sector") or completion.get("sector") or "Unknown",
-                    "created_at": completion.get("timestamp") or meta.get("timestamp") or "",
-                    "mode": meta.get("mode") or completion.get("mode") or "deep",
-                    "error": None,
-                    "result": None,
-                })
     return {"tasks": tasks, "total": len(tasks)}
 
 
@@ -1474,6 +807,82 @@ async def get_scheduler_agents():
     scheduler = _get_scheduler()
     agents = scheduler.get_all_agents()
     return {"agents": agents}
+
+
+# ── POST /api/scheduler/execute-task — 触发任务执行 ─────────
+@app.post("/api/scheduler/execute-task")
+async def execute_task(body: dict):
+    """触发 Worker 执行指定任务"""
+    task_id = body.get("task_id")
+    if not task_id:
+        raise HTTPException(status_code=400, detail="task_id is required")
+
+    scheduler = _get_scheduler()
+    task = scheduler.get_task_status(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+    # 启动后台任务执行
+    signature = task.get("agent", "ClawAgent-001")
+    runner = scheduler._runners.get(signature)
+    if not runner:
+        raise HTTPException(status_code=404, detail=f"Runner for {signature} not found")
+
+    # 异步执行（不阻塞响应）
+    asyncio.create_task(scheduler._execute_task(
+        task_id=task_id,
+        runner=runner,
+        task_prompt=task.get("prompt", ""),
+        occupation=task.get("occupation", "Software Engineer"),
+        sector=task.get("sector", "Technology"),
+        max_payment=task.get("max_payment", 50.0),
+    ))
+
+    return {"status": "started", "task_id": task_id}
+
+
+# ── GET /api/config/depth — 获取/设置拆解层级 ─────────────
+@app.get("/api/config/depth")
+async def get_depth():
+    """获取当前拆解层级配置"""
+    try:
+        controls_path = Path(__file__).parent.parent.parent / "governance_ui.py"
+        # 读取 global_controls.json
+        gc_path = Path(__file__).parent.parent.parent / "ClawAI" / "global_controls.json"
+        alt_path = Path(__file__).parent.parent.parent / "global_controls.json"
+        
+        for p in [gc_path, alt_path]:
+            if p.exists():
+                with open(p) as f:
+                    controls = json.load(f)
+                return {"depth": controls.get("decomposition_depth", 5)}
+    except Exception:
+        pass
+    return {"depth": 5}
+
+
+@app.put("/api/config/depth")
+async def set_depth(body: dict):
+    """设置拆解层级（2或5）"""
+    depth = body.get("depth", 5)
+    depth = max(2, min(5, int(depth)))  # Clamp 2-5
+    
+    for p in [
+        Path(__file__).parent.parent.parent / "ClawAI" / "global_controls.json",
+        Path(__file__).parent.parent.parent / "global_controls.json",
+    ]:
+        if p.exists():
+            try:
+                with open(p) as f:
+                    controls = json.load(f)
+                controls["decomposition_depth"] = depth
+                with open(p, "w") as f:
+                    json.dump(controls, f, indent=2)
+                return {"depth": depth, "saved": True}
+            except Exception:
+                pass
+    
+    return {"depth": depth, "saved": False}
 
 
 # =====================================================================
@@ -1568,18 +977,26 @@ async def broadcast_message(message: dict):
     return {"status": "broadcast sent", "clients": len(manager.active_connections)}
 
 
-# File watcher for live updates (optional, for when agents are running)
+# Proactive heartbeat counter — ensures WebSocket stays alive even when no data changes
+_last_heartbeat_time = 0.0
+
+
 async def watch_agent_files():
     """
-    Watch agent data files for changes and broadcast updates
-    This runs as a background task
+    Watch agent data files for changes and broadcast updates.
+    Runs as a background task with proactive heartbeat to prevent
+    Hugging Face Spaces proxy from closing idle WebSocket connections.
     """
     import time
     last_modified = {}
+    global _last_heartbeat_time
 
     while True:
+        now = time.time()
         try:
             if DATA_PATH.exists():
+                any_activity = False
+
                 for agent_dir in DATA_PATH.iterdir():
                     if agent_dir.is_dir():
                         signature = agent_dir.name
@@ -1594,7 +1011,7 @@ async def watch_agent_files():
                                 last_modified[key] = mtime
 
                                 # Read latest balance
-                                with open(balance_file, 'r', encoding='utf-8') as f:
+                                with open(balance_file, 'r') as f:
                                     lines = f.readlines()
                                     if lines:
                                         data = json.loads(lines[-1])
@@ -1603,6 +1020,7 @@ async def watch_agent_files():
                                             "signature": signature,
                                             "data": data
                                         })
+                                any_activity = True
 
                         # Check decisions file
                         decision_file = agent_dir / "decisions" / "decisions.jsonl"
@@ -1614,7 +1032,7 @@ async def watch_agent_files():
                                 last_modified[key] = mtime
 
                                 # Read latest decision
-                                with open(decision_file, 'r', encoding='utf-8') as f:
+                                with open(decision_file, 'r') as f:
                                     lines = f.readlines()
                                     if lines:
                                         data = json.loads(lines[-1])
@@ -1623,6 +1041,16 @@ async def watch_agent_files():
                                             "signature": signature,
                                             "data": data
                                         })
+                                any_activity = True
+
+                # Send heartbeat every 10 seconds to prevent HF Spaces proxy timeout
+                if (now - _last_heartbeat_time) >= 10:
+                    _last_heartbeat_time = now
+                    await manager.broadcast({
+                        "type": "heartbeat",
+                        "timestamp": datetime.now().isoformat(),
+                    })
+
         except Exception as e:
             print(f"Error watching files: {e}")
 
@@ -1644,28 +1072,8 @@ else:
 async def startup_event():
     """Start background tasks on startup"""
     asyncio.create_task(watch_agent_files())
-    # ── 双引擎路由器状态横幅 ──
-    print("\n" + "=" * 60)
-    print("[ROUTER STATUS] ⚡ Dual-Engine Router Active. Listening on port 8010.")
-    print("[ROUTER STATUS]    🚀 Fast Mode (2-Layer) — 单轮直通 DeepSeek API, ~45 秒")
-    print("[ROUTER STATUS]    🧠  Deep Mode (5-Layer) — 完整 LiveAgent 自主执行管道")
-    print("=" * 60)
-    # ── 路由诊断：在启动时打印所有已注册端点 ──
-    print("\n" + "=" * 70)
-    print("🔍 [ROUTE DIAGNOSTIC] 已注册的所有 API 端点:")
-    print("=" * 70)
-    for route in app.routes:
-        if hasattr(route, "methods") and route.methods:
-            for method in sorted(route.methods):
-                if method in ("GET", "POST", "PUT", "DELETE", "PATCH"):
-                    print(f"  {method:6s} {route.path}")
-        elif hasattr(route, "path"):
-            print(f"  WS      {route.path}")
-    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":
     import uvicorn
-    # 硬编码端口 8010，忽略环境变量中的其他值
-    port = 8010
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

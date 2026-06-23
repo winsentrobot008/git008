@@ -13,7 +13,10 @@
 | Maneki-AI | `/Maneki-AI` | AI 智能体工厂 & 清算引擎 | 2026-Q1 |
 | ClawAI | `/ClawAI` | CLAW 模式集成 & 实时评测 | 2026-Q1 |
 | Project-X | `/Project-X` | （待定义） | 2026-06-05 |
-
+| ClawAI-B | `/ClawAI-B` | Cline 工具集成层 + Vite/TailwindCSS 仪表盘 + LiveBench 评测引擎 | 2026-06-07 |
+| ClawWork | `/ClawWork` | （自动登记） | 2026-06-16 |
+| JusticeThrower | `/JusticeThrower` | （自动登记） | 2026-06-16 |
+| ViralMint | `/ViralMint` | （自动登记） | 2026-06-16 |
 ### 实验项目 (Experimental)
 
 | 项目名称 | 路径 | 职能描述 | 注册日期 |
