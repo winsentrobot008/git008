@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 sentinel_ws_client.py — Cline-anti-freeze 哨兵 WS 客户端 (v1.0)
 ===============================================================
@@ -11,7 +11,7 @@ sentinel_ws_client.py — Cline-anti-freeze 哨兵 WS 客户端 (v1.0)
   4. 断线自动重连
 
 使用方式：
-  python sentinel_ws_client.py --project Maneki-AI
+  python sentinel_ws_client.py --project AI-WORKFLOW
   python sentinel_ws_client.py --project ClawAI --daemon
 
 子项目集成方式：
@@ -205,7 +205,7 @@ def start_sentinel(project_name: str, ws_url: str = None):
 
     Usage:
         from Cline-anti-freeze.sentinel_ws_client import start_sentinel
-        start_sentinel("Maneki-AI")
+        start_sentinel("AI-WORKFLOW")
     """
     if not _try_ws:
         print(f"[sentinel_ws] ⚠️ websockets 未安装，无法启动哨兵 ({project_name})")
@@ -235,7 +235,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Cline-anti-freeze 哨兵 WS 客户端 — 向治理控制台实时报告状态"
     )
-    parser.add_argument("--project", type=str, required=True, help="子项目名称 (如 Maneki-AI, ClawAI)")
+    parser.add_argument("--project", type=str, required=True, help="子项目名称 (如 AI-WORKFLOW, ClawAI)")
     parser.add_argument("--ws-url", type=str, default=None, help="治理控制台 WebSocket URL (默认自动发现)")
     parser.add_argument("--daemon", action="store_true", help="以守护模式持续运行")
     parser.add_argument("--once", action="store_true", help="单次发送心跳后退出")

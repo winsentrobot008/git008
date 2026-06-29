@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 heartbeat_monitor.py — Cline-anti-freeze 黑盒监控子系统 (v1.0)
 用途：
   1. 扫描所有子项目下的 .heartbeat 文件，检测 120s 无响应死锁
   2. 维护 fault_blackbox.json — 记录故障项目的最新错误快照
-  3. 触发告警联动 — 向所有运行中的 Maneki-AI WebSocket 客户端广播死锁告警
+  3. 触发告警联动 — 向所有运行中的 AI-WORKFLOW WebSocket 客户端广播死锁告警
   4. 支持 --daemon 持续监控模式
 
 跨域联动协议：
@@ -33,7 +33,7 @@ MANEKI_API_URL = os.environ.get("MANEKI_API_URL", "http://localhost:8000")
 
 # Known subproject directories to monitor (discovered via .governance_entry.py)
 SUB_PROJECTS = [
-    "Maneki-AI",
+    "AI-WORKFLOW",
     "ClawAI",
     "Project-X",
     "视频生产APP",
@@ -168,7 +168,7 @@ def check_heartbeat(project: dict) -> dict:
 
 def broadcast_alert(project_name: str, status: str, error_snapshot: list[dict]):
     """
-    Broadcast a deadlock alert to the Maneki-AI /api/broadcast endpoint.
+    Broadcast a deadlock alert to the AI-WORKFLOW /api/broadcast endpoint.
     This notifies all running WebSocket clients (other VSC windows).
     """
     alert = {

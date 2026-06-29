@@ -1,0 +1,7 @@
+{
+  "ws_port": 8769,
+  "http_port": 8501,
+  "host": "localhost",
+  "status": "active",
+  "governance_ui": "http://localhost:8501"
+}

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Git Remote Token Injector -- HF Spaces / Local dual-mode (Production-Ready)
 ============================================================================
@@ -44,7 +44,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 # 安全白名单：仅允许以下目录被 Git 操作触及
 SAFE_PATHS = {
     "project_root": PROJECT_ROOT,
-    "maneki_ai": PROJECT_ROOT / "Maneki-AI",
+    "maneki_ai": PROJECT_ROOT / "AI-WORKFLOW",
     "clawwork": PROJECT_ROOT / "ClawAI",
     "cline_anti_freeze": PROJECT_ROOT / "Cline-anti-freeze",
 }
@@ -455,7 +455,7 @@ def main():
     args = parse_args()
     repo_path = resolve_repo_path(args.cwd) if args.cwd else resolve_repo_path()
 
-    log_section("Maneki-AI Git Token Injector (Production-Ready)")
+    log_section("AI-WORKFLOW Git Token Injector (Production-Ready)")
     print(f"  时间: {__import__('datetime').datetime.now().isoformat()}")
     print(f"  生产模式:        {'是 (DEPLOY_ENV=production)' if IS_PROD else '否 (本地)'}")
     print(f"  PROJECT_ROOT:    {PROJECT_ROOT}")

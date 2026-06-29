@@ -1,1 +1,0 @@
-﻿"""Maneki-AI Radar Layer"""

@@ -1,0 +1,40 @@
+{
+  "audit_event": "project_rename",
+  "actor": "ZOOCODE",
+  "action": "rename",
+  "from": "Maneki-AI",
+  "to": "AI-WORKFLOW",
+  "timestamp": "2026-06-29T08:48:00+02:00",
+  "branch": "rename/maneki-to-ai-workflow",
+  "backup_branch": "rename/maneki-to-ai-workflow-backup",
+  "scope": {
+    "directory_rename": "Maneki-AI/ → AI-WORKFLOW/",
+    "text_replacements": "全库文本替换（Markdown/Python/YAML/JSON/HTML/JS等）",
+    "governance_chain": [
+      "Cline-anti-freeze/governance_linker.py",
+      "Cline-anti-freeze/heartbeat_monitor.py",
+      "Cline-anti-freeze/sentinel_ws_client.py",
+      "Cline-anti-freeze/do_git.py",
+      "Cline-anti-freeze/monitor.py",
+      "Cline-anti-freeze/project_registry.md",
+      "Cline-anti-freeze/.clinerules"
+    ],
+    "migration_artifacts": [
+      "docs/rename-maneki-to-ai-workflow.md",
+      "migration-scripts/rename-maneki-to-ai-workflow/preview-changes.ps1",
+      "migration-scripts/rename-maneki-to-ai-workflow/apply-changes.ps1",
+      "migration-scripts/rename-maneki-to-ai-workflow/rollback.ps1"
+    ]
+  },
+  "compatibility": {
+    "Maneki-AI_dir_alias": "保留为兼容别名至2026-Q3",
+    "MANEKI_API_URL_env": "保留兼容识别",
+    "cli_project_name": "--project Maneki-AI 仍被接受（显示deprecation warning）"
+  },
+  "external_resources_not_changed": [
+    "https://maneki-ai.onrender.com/ (Render部署)",
+    "https://github.com/winsentrobot008/Maneki-AI (GitHub仓库)",
+    "Maneki-AI OAuth客户端注册",
+    "Docker镜像标签 maneki-ai:*"
+  ]
+}

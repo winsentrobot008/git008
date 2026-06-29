@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 governance_linker.py — 治理链接器 & 多实例角色验证
 =====================================================
@@ -49,7 +49,7 @@ CONSTITUTION_FILES = [
 
 # 业务项目目录（开发工位合法操作范围）
 BUSINESS_DIRS = [
-    ROOT_DIR / "Maneki-AI",
+    ROOT_DIR / "AI-WORKFLOW",
     ROOT_DIR / "ClawAI",
     ROOT_DIR / "Project-X",
 ]
