@@ -1,0 +1,29 @@
+# InnerSage 依赖清单（占位）
+# 由 ZOO 在实现阶段解注具体版本
+
+# === LLM / 对话 ===
+# openai>=1.0.0            # OpenAI / Azure OpenAI API
+# anthropic                # Claude API (备选)
+
+# === 音频 / 转录 ===
+# openai-whisper            # OpenAI Whisper (本地转录)
+# whisperx                  # WhisperX (说话人分离 + 对齐)
+# ffmpeg-python             # FFmpeg Python 绑定
+
+# === 向量 / 搜索 ===
+# faiss-cpu                 # Facebook AI 相似度搜索
+# sentence-transformers     # 多语言句子嵌入
+# chromadb                  # 轻量向量数据库
+
+# === 视频 ===
+# yt-dlp                    # YouTube 下载
+# pysubs2                   # 字幕解析
+
+# === 工作流 ===
+# langchain                 # LLM 编排框架
+# pyyaml                    # YAML 配置解析
+
+# === 工具 ===
+# pydantic                  # 数据验证
+# loguru                    # 结构化日志
+# rich                      # 终端美化输出

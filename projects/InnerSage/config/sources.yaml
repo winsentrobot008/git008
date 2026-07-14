@@ -1,0 +1,31 @@
+# InnerSage 视频来源配置
+# 定义蒸馏流水线抓取的知识来源
+
+# YouTube 播放列表 / 频道
+youtube:
+  - name: "Tao Te Ching Lectures"
+    url: "https://youtube.com/playlist?list=PL_EXAMPLE_LAOZI"
+    language: "zh"
+    enabled: false     # 由 ZOO 实现时设为 true
+
+  - name: "Alan Watts Archive"
+    url: "https://youtube.com/@alanwattsarchive"
+    language: "en"
+    enabled: false
+
+  - name: "Meditation & Mindfulness"
+    url: "https://youtube.com/playlist?list=PL_EXAMPLE_MEDITATION"
+    language: "en"
+    enabled: false
+
+# 本地文件夹（已下载的视频 / 音频）
+local:
+  - name: "本地课程素材"
+    path: "../data/raw_videos"
+    enabled: false
+
+# RSS / 播客（预留）
+podcast:
+  - name: "The Zen Hour"
+    rss: "https://example.com/zen-hour/feed.xml"
+    enabled: false
