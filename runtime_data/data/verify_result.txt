@@ -1,0 +1,49 @@
+=== ROOT DIRECTORY ===
+  [FILE] .clinerules
+  [FILE] .env
+  [DIR] .git
+  [DIR] .github
+  [FILE] .gitignore
+  [FILE] .heartbeat
+  [DIR] Cline-anti-freeze
+  [FILE] README.md
+  [FILE] _verify.py
+  [DIR] assets
+  [DIR] data
+  [FILE] git008_AUDIT_REPORT.md
+  [DIR] projects
+  [DIR] research
+  [DIR] scripts
+  [DIR] second-brain
+  [DIR] vision-engine
+
+=== projects/ ===
+  [DIR] Confession
+  [DIR] OpenMontage
+  [DIR] RoastBro
+  [DIR] ViralMint
+
+=== scripts/ ===
+  [FILE] _fix_emojis.py
+  [FILE] git008_main_panel.py
+  [FILE] test_pipeline_run.py
+
+=== research/ ===
+
+=== CHECKS ===
+core/ exists: False
+Confession/ at root: False
+Confession/ in projects: True
+RoastBro/ at root: False
+RoastBro/ in projects: True
+git008_main_panel.py at root: False
+test_pipeline_run.py at root: False
+_fix_emojis.py at root: False
+git008_main_panel.py in scripts: True
+test_pipeline_run.py in scripts: True
+_fix_emojis.py in scripts: True
+second-brain/ at root: True
+vision-engine/ at root: True
+$null exists: False
+_reorg.py exists: False
+_verify.py exists: True

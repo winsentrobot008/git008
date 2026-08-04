@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZOO · Generate</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d0d0d; color: #e0e0e0; font-family: 'Segoe UI',system-ui,sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+  .card { background: #1a1a2e; border-radius: 16px; padding: 2rem; width: 420px; max-width: 94vw; box-shadow: 0 0 40px rgba(0,200,255,.12); }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; color: #7ecfff; letter-spacing: .02em; }
+  .sub { color: #888; font-size: .85rem; margin-bottom: 1.5rem; }
+  label { display: block; font-size: .8rem; color: #aaa; margin-bottom: .3rem; }
+  input, select { width: 100%; padding: .55rem .75rem; border-radius: 8px; border: 1px solid #333; background: #12121e; color: #eee; font-size: .9rem; margin-bottom: 1rem; transition: border .2s; }
+  input:focus, select:focus { outline: none; border-color: #3a9eff; }
+  button { width: 100%; padding: .7rem; border: none; border-radius: 10px; background: linear-gradient(135deg,#3a9eff,#5b4fff); color: #fff; font-weight: 600; font-size: 1rem; cursor: pointer; transition: opacity .2s, transform .1s; }
+  button:hover { opacity: .92; }
+  button:active { transform: scale(.98); }
+  #result { margin-top: 1.2rem; background: #12121e; border-radius: 10px; padding: .9rem; font-family: 'Cascadia Code','JetBrains Mono',monospace; font-size: .78rem; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow-y: auto; border: 1px solid #222; display: none; }
+  #result.show { display: block; }
+  .badge { display: inline-block; background: #2a5a2a; color: #8f8; border-radius: 6px; padding: .15rem .55rem; font-size: .7rem; margin-left: .4rem; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🧪 Generate Video <span class="badge">mock</span></h1>
+  <p class="sub">POST → /api/generate_video</p>
+
+  <label for="voice">Voice</label>
+  <select id="voice">
+    <option value="default">Default</option>
+    <option value="alloy">Alloy</option>
+    <option value="echo">Echo</option>
+    <option value="nova">Nova</option>
+  </select>
+
+  <label for="prompt">Prompt / Script (optional)</label>
+  <input type="text" id="prompt" placeholder="e.g. A cinematic car chase..." value="Test drive">
+
+  <button id="btn">🚀 Generate</button>
+
+  <div id="result"></div>
+</div>
+
+<script>
+const btn = document.getElementById('btn');
+const result = document.getElementById('result');
+
+btn.addEventListener('click', async () => {
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating...';
+  result.classList.remove('show');
+
+  try {
+    const voice = document.getElementById('voice').value;
+    const prompt = document.getElementById('prompt').value || 'default prompt';
+
+    const res = await fetch('/api/generate_video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice, prompt })
+    });
+
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    result.classList.add('show');
+  } catch (err) {
+    result.textContent = '❌ Error: ' + err.message;
+    result.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 Generate';
+  }
+});
+</script>
+</body>
+</html>

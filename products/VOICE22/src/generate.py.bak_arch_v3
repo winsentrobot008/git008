@@ -1,0 +1,86 @@
+# src/generate.py
+import re
+import time
+import os
+import shutil
+from pydub import AudioSegment
+import config
+
+def ensure_dirs():
+    os.makedirs(config.OUTPUT_DIR, exist_ok=True)
+    if os.path.exists(config.TEMP_DIR):
+        shutil.rmtree(config.TEMP_DIR)
+    os.makedirs(config.TEMP_DIR, exist_ok=True)
+
+def parse_script():
+    pattern = re.compile(r'\[(\d{2}:\d{2})\]-\[(\d{2}:\d{2})\]\s*\[([AB])\]\s*(.*)')
+    lines = []
+    with open(config.SCRIPT_FILE, 'r', encoding='utf-8') as f:
+        for line in f:
+            match = pattern.search(line)
+            if match:
+                start, end, speaker, text = match.groups()
+                lines.append({
+                    "start": start, "end": end,
+                    "speaker": speaker, "text": text.strip()
+                })
+    return lines
+
+def time_to_ms(time_str):
+    m, s = map(int, time_str.split(':'))
+    return (m * 60 + s) * 1000
+
+def get_voice_params(speaker):
+    if speaker == 'A':
+        return config.VOICE_A_REF, config.VOICE_A_DESC, config.VOICE_A_EMOTION
+    return config.VOICE_B_REF, config.VOICE_B_DESC, config.VOICE_B_EMOTION
+
+def synthesize_audio(line_data, index):
+    text = line_data['text']
+    speaker = line_data['speaker']
+    ref_audio, desc, emo = get_voice_params(speaker)
+    instruction = f"{desc}. Speak with {emo}."
+    output_path = os.path.join(config.TEMP_DIR, f"seg_{index:03d}_{speaker}.wav")
+    
+    print(f"[{index+1}] Synthesizing [{speaker}]: {text[:20]}...")
+    
+    # 模拟模式：生成对应时长的静音占位，无需TTS环境
+    if config.SIMULATE_MODE:
+        duration_ms = len(text) * 80  # 按字数估算时长，符合口语节奏
+        AudioSegment.silent(duration=duration_ms).export(output_path, format="wav")
+        print("   (Simulate mode: generated silence placeholder)")
+    # 真实TTS模式（后续启用）
+    # else:
+    #     from transformers import AutoModel
+    #     tts = AutoModel.from_pretrained("Qwen/Qwen3-TTS-1.7B-Instruct", trust_remote_code=True)
+    #     tts.generate(text, output_path, reference_audio=ref_audio, instruction=instruction, speed=config.SPEED)
+    
+    return output_path
+
+def generate():
+    ensure_dirs()
+    script_lines = parse_script()
+    if not script_lines:
+        print("ERROR: No valid script lines found. Check assets/scripts/script.txt format.")
+        return
+    
+    total_duration = time_to_ms(script_lines[-1]["end"])
+    final_audio = AudioSegment.silent(duration=total_duration)
+    print(f"Loaded {len(script_lines)} script lines. Total duration: {total_duration/1000}s")
+    
+    temp_files = []
+    for i, line in enumerate(script_lines):
+        audio_path = synthesize_audio(line, i)
+        temp_files.append(audio_path)
+        segment = AudioSegment.from_wav(audio_path)
+        final_audio = final_audio.overlay(segment, position=time_to_ms(line["start"]))
+        time.sleep(0.1)
+    
+    output_path = os.path.join(config.OUTPUT_DIR, f"roast_{int(time.time())}.mp3")
+    final_audio.export(output_path, format="mp3", bitrate=config.BITRATE)
+    
+    shutil.rmtree(config.TEMP_DIR)
+    print(f"\n[OK] Generation complete! Output: {output_path}")
+
+if __name__ == "__main__":
+    generate()

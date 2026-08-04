@@ -1,0 +1,50 @@
+{
+  "timeline_id": "tl-20260716T082359Z-4dc6d843",
+  "ratio": "1:1",
+  "total_duration": 10,
+  "scenes": [
+    {
+      "id": 1,
+      "emotion": "焦虑",
+      "duration": 5,
+      "style": {
+        "tone": "cold"
+      }
+    },
+    {
+      "id": 2,
+      "emotion": "平静",
+      "duration": 5,
+      "style": {
+        "tone": "neutral"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "video",
+      "clips": [
+        {
+          "scene_id": 1,
+          "asset": "",
+          "asset_type": "image",
+          "duration": 5,
+          "filters": {
+            "color": "colorbalance=rs=.05:gs=.05:bs=.1"
+          },
+          "emotion": "焦虑"
+        },
+        {
+          "scene_id": 2,
+          "asset": "",
+          "asset_type": "image",
+          "duration": 5,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        }
+      ]
+    }
+  ]
+}

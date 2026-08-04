@@ -1,0 +1,10 @@
+{
+  "task_id": "UNATTENDED-TEST-001",
+  "timestamp": 1785606461,
+  "status": "NEED_HUMAN",
+  "result": {
+    "product": "fireworkbloom",
+    "exit_code": -4058
+  },
+  "log_trace": "verify-archive"
+}

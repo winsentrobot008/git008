@@ -1,0 +1,39 @@
+# ============================================================
+# 白龙马 Sentinel 哨兵配置（White Dragon Horse Sentinel）
+# 配套宪法：../CONSTITUTION.md（只检不改 · Headful E2E · 报告闭环）
+# 版本：1.0 ｜ 生效：2026-08-04
+# ============================================================
+
+sentinel_version: 1.0
+enabled: true
+
+cdp:
+  # 9222 CDP 监听（纯被动附加，严禁 kill/restart/擅自拉起 Chrome）
+  host: 127.0.0.1
+  port: 9222
+  connect_current: true
+  launch_policy: passive_attach_only   # 仅 connect_over_cdp，严禁拉起新 Chrome
+
+e2e:
+  headless: false                      # 仅 Headful 巡检（有头可视模式）
+  slow_mo: 500                         # 操作延迟 500ms，便于 CEO 观察
+
+safe_pause:
+  enabled: true                        # 物理打字 Safe Pause 熔断
+  watcher: pynput                      # 监听人类硬件输入（鼠标位移 / 按键）
+  watch:
+    - mouse
+    - keyboard
+  triggers:
+    focus_loss: pause                  # 焦点丢失 → 立即暂停
+    key_anomaly: pause                 # 按键异常 → 立即暂停
+  handoff: human_in_the_loop           # 熔断后交还控制权给人类
+
+timeout:
+  command_seconds: 30                  # 命令单次执行超时（与 Codex Sentinel 对齐）
+  poll_seconds: 5                      # 任务轮询间隔
+  report_wait_seconds: 600             # 报告等待超时上限
+
+reports:
+  markdown_dir: qa_delivery/reports            # Markdown 质检报告入库目录
+  screenshots_dir: qa_delivery/reports/screenshots

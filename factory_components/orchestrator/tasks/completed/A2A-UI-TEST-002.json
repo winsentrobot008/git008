@@ -1,0 +1,7 @@
+{
+  "task_id": "A2A-UI-TEST-002",
+  "test_type": "ui_e2e",
+  "target_product": "fireworkbloom",
+  "url": "file:///C:/Users/aoogoost/Desktop/Projekt/git008/runtime_data/_ui_test.html",
+  "command": "UI_E2E_INSPECT"
+}

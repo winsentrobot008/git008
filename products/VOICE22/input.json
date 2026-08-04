@@ -1,0 +1,19 @@
+{
+  "script": "A： “啊哈！我浪了一圈回来找你复婚了！高兴不？”\nB： “复婚？！我都离婚三个月了，早就有新女朋友了！\nA： “什么？！才三个月！你个渣男！我不管，还是你最好，复婚！现在就复！”",
+  "voice_profiles": {
+    "A": {
+      "age": 45,
+      "gender_tone": 0.8,
+      "emotion": 0.9,
+      "mode": "tts",
+      "voice_opt": "zh-CN-YunxiNeural"
+    },
+    "B": {
+      "age": 25,
+      "gender_tone": 0.3,
+      "emotion": 0.2,
+      "mode": "tts",
+      "voice_opt": "zh-CN-XiaoxiaoNeural"
+    }
+  }
+}

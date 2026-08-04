@@ -1,0 +1,44 @@
+# RoastBro — Core Dependencies
+# Python >= 3.10
+
+# === Audio / Speech ===
+openai-whisper>=20231117
+TTS>=0.20.0                        # Coqui TTS for voice synthesis
+
+# === Video Processing ===
+moviepy>=1.0.3
+opencv-python>=4.8.0
+Pillow>=10.2.0
+
+# === ML / AI ===
+torch>=2.1.0
+transformers>=4.36.0
+accelerate>=0.25.0
+
+# === Web / API ===
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+httpx>=0.25.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# === Dashboard ===
+streamlit>=1.28.0
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.18.0
+
+# === Scraping ===
+playwright>=1.40.0
+beautifulsoup4>=4.12.0
+yt-dlp>=2026.7.4
+
+# === Publishing ===
+google-api-python-client>=2.108.0
+google-auth-oauthlib>=1.1.0
+
+# === Utilities ===
+pyyaml>=6.0
+aiofiles>=23.2.1
+rich>=13.7.0

@@ -1,0 +1,13 @@
+[
+  {
+    "id": "night_batch_01",
+    "enabled": true,
+    "run_time": "02:00",
+    "scripts_dir": "data/nightly_scripts",
+    "output_dir": "data/nightly_output",
+    "max_jobs": 10,
+    "ratio": "1:1",
+    "voice": "default",
+    "description": "Nightly batch: process scripts in data/nightly_scripts/"
+  }
+]

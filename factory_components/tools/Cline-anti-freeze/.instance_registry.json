@@ -1,0 +1,10 @@
+{
+  "HomPC-13452-dd788000": {
+    "role": "governance",
+    "pid": 10720,
+    "hostname": "HomPC",
+    "platform": "Windows",
+    "registered_at": "2026-07-12T12:52:41.199875",
+    "last_heartbeat": "2026-07-12T12:52:41.199875"
+  }
+}

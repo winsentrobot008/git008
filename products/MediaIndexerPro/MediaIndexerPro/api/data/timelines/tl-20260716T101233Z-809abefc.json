@@ -1,0 +1,32 @@
+{
+  "timeline_id": "tl-20260716T101233Z-809abefc",
+  "ratio": "1:1",
+  "total_duration": 5,
+  "scenes": [
+    {
+      "id": 1,
+      "emotion": "平静",
+      "duration": 5,
+      "style": {
+        "tone": "neutral"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "video",
+      "clips": [
+        {
+          "scene_id": 1,
+          "asset": "",
+          "asset_type": "image",
+          "duration": 5,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        }
+      ]
+    }
+  ]
+}

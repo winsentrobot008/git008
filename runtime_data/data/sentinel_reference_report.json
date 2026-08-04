@@ -1,0 +1,942 @@
+{
+  "scan_time": "2026-07-13T18:01:51.205186+00:00",
+  "total_sentinel_active": 30,
+  "total_sentinel_missing": 7,
+  "sentinel_active": [
+    {
+      "file": "_governance_audit.py",
+      "category": "other",
+      "refs": [
+        {
+          "line": 18,
+          "keyword": "guard",
+          "text": "'constitution', 'constitution.rules', 'constitution.guard', 'constitution.validators',"
+        },
+        {
+          "line": 19,
+          "keyword": "anti_freeze",
+          "text": "'KARPATHY_CONSTITUTION', 'anti_freeze_check', 'constitution_check', 'governance_check',"
+        },
+        {
+          "line": 23,
+          "keyword": "sentinel",
+          "text": "'sentinel', 'hooks', 'guard', 'safety_check', 'pre_task_check', 'post_task_check',"
+        },
+        {
+          "line": 24,
+          "keyword": "sentinel",
+          "text": "'anti_freeze', 'sentinel_ws', 'sentinel_check', 'governance_hook',"
+        },
+        {
+          "line": 100,
+          "keyword": "sentinel",
+          "text": "sentinel_refs = []"
+        },
+        {
+          "line": 120,
+          "keyword": "sentinel",
+          "text": "sentinel_refs.append({'line': i, 'keyword': kw, 'text': s[:120]})"
+        },
+        {
+          "line": 123,
+          "keyword": "sentinel",
+          "text": "return imports, from_imports, constitution_refs, sentinel_refs"
+        },
+        {
+          "line": 147,
+          "keyword": "sentinel",
+          "text": "'sentinel_refs': sent_refs,"
+        },
+        {
+          "line": 198,
+          "keyword": "anti_freeze",
+          "text": "# Bypass: modules that directly call anti_freeze without importing constitution"
+        },
+        {
+          "line": 199,
+          "keyword": "sentinel",
+          "text": "for ref in data.get('sentinel_refs', []):"
+        },
+        {
+          "line": 200,
+          "keyword": "anti_freeze",
+          "text": "if 'anti_freeze' in ref['keyword'] and not has_const:"
+        },
+        {
+          "line": 229,
+          "keyword": "sentinel",
+          "text": "def step3_sentinel(scan):"
+        },
+        {
+          "line": 234,
+          "keyword": "sentinel",
+          "text": "sentinel_active = []"
+        },
+        {
+          "line": 235,
+          "keyword": "sentinel",
+          "text": "sentinel_missing = []"
+        },
+        {
+          "line": 238,
+          "keyword": "sentinel",
+          "text": "has_sentinel = len(data['sentinel_refs']) > 0"
+        },
+        {
+          "line": 240,
+          "keyword": "sentinel",
+          "text": "if has_sentinel:"
+        },
+        {
+          "line": 241,
+          "keyword": "sentinel",
+          "text": "sentinel_active.append({"
+        },
+        {
+          "line": 244,
+          "keyword": "sentinel",
+          "text": "'refs': data['sentinel_refs'],"
+        },
+        {
+          "line": 248,
+          "keyword": "sentinel",
+          "text": "# Task entry points that should have sentinel"
+        },
+        {
+          "line": 252,
+          "keyword": "sentinel",
+          "text": "if is_entry and not has_sentinel:"
+        },
+        {
+          "line": 253,
+          "keyword": "sentinel",
+          "text": "sentinel_missing.append({"
+        },
+        {
+          "line": 261,
+          "keyword": "sentinel",
+          "text": "'total_sentinel_active': len(sentinel_active),"
+        },
+        {
+          "line": 262,
+          "keyword": "sentinel",
+          "text": "'total_sentinel_missing': len(sentinel_missing),"
+        },
+        {
+          "line": 263,
+          "keyword": "sentinel",
+          "text": "'sentinel_active': sentinel_active,"
+        },
+        {
+          "line": 264,
+          "keyword": "sentinel",
+          "text": "'sentinel_missing': sentinel_missing,"
+        },
+        {
+          "line": 267,
+          "keyword": "sentinel",
+          "text": "out = os.path.join(DATA, 'sentinel_reference_report.json')"
+        },
+        {
+          "line": 270,
+          "keyword": "sentinel",
+          "text": "print(f'\\n  Sentinel active: {len(sentinel_active)}')"
+        },
+        {
+          "line": 271,
+          "keyword": "sentinel",
+          "text": "print(f'  Sentinel missing (entries): {len(sentinel_missing)}')"
+        },
+        {
+          "line": 346,
+          "keyword": "hooks",
+          "text": "md_lines.append('    └─ Sentinel (guard, hooks)')"
+        },
+        {
+          "line": 386,
+          "keyword": "sentinel",
+          "text": "# Protected by sentinel"
+        },
+        {
+          "line": 387,
+          "keyword": "sentinel",
+          "text": "sentinel_protected = len(sent_report['sentinel_active'])"
+        },
+        {
+          "line": 410,
+          "keyword": "sentinel",
+          "text": "'sentinel_coverage': {"
+        },
+        {
+          "line": 412,
+          "keyword": "sentinel",
+          "text": "'protected': sentinel_protected,"
+        },
+        {
+          "line": 413,
+          "keyword": "sentinel",
+          "text": "'missing_entries': len(sent_report['sentinel_missing']),"
+        },
+        {
+          "line": 428,
+          "keyword": "sentinel",
+          "text": "print(f'  Sentinel active: {sentinel_protected}')"
+        },
+        {
+          "line": 508,
+          "keyword": "sentinel",
+          "text": "L(f'| Sentinel-active modules | {sent_report[\"total_sentinel_active\"]} |')"
+        },
+        {
+          "line": 510,
+          "keyword": "sentinel",
+          "text": "L(f'| Sentinel-missing entry points | {sent_report[\"total_sentinel_missing\"]} |')"
+        },
+        {
+          "line": 541,
+          "keyword": "sentinel",
+          "text": "L(f'Sentinel-active: {sent_report[\"total_sentinel_active\"]} modules')"
+        },
+        {
+          "line": 543,
+          "keyword": "sentinel",
+          "text": "if sent_report['sentinel_active']:"
+        },
+        {
+          "line": 548,
+          "keyword": "sentinel",
+          "text": "for m in sent_report['sentinel_active'][:20]:"
+        },
+        {
+          "line": 553,
+          "keyword": "sentinel",
+          "text": "if sent_report['sentinel_missing']:"
+        },
+        {
+          "line": 558,
+          "keyword": "sentinel",
+          "text": "for m in sent_report['sentinel_missing']:"
+        },
+        {
+          "line": 604,
+          "keyword": "sentinel",
+          "text": "if data['sentinel_refs']:"
+        },
+        {
+          "line": 619,
+          "keyword": "sentinel",
+          "text": "L('Governance coverage is strong. Constitution and sentinel mechanisms are active.')"
+        },
+        {
+          "line": 635,
+          "keyword": "sentinel",
+          "text": "if sent_report['total_sentinel_missing'] > 0:"
+        },
+        {
+          "line": 636,
+          "keyword": "sentinel",
+          "text": "recs.append(f'- Add sentinel hooks to {sent_report[\"total_sentinel_missing\"]} entry points')"
+        },
+        {
+          "line": 662,
+          "keyword": "sentinel",
+          "text": "s3 = step3_sentinel(s1)"
+        },
+        {
+          "line": 673,
+          "keyword": "sentinel",
+          "text": "print(f'  Sentinel active: {s3[\"total_sentinel_active\"]}')"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/do_git.py",
+      "category": "governance_core",
+      "refs": [
+        {
+          "line": 49,
+          "keyword": "anti_freeze",
+          "text": "\"cline_anti_freeze\": PROJECT_ROOT / \"Cline-anti-freeze\","
+        },
+        {
+          "line": 79,
+          "keyword": "guard",
+          "text": "def enforce_production_guardrails():"
+        },
+        {
+          "line": 467,
+          "keyword": "guard",
+          "text": "enforce_production_guardrails()"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/governance_linker.py",
+      "category": "governance_core",
+      "refs": [
+        {
+          "line": 585,
+          "keyword": "anti_freeze",
+          "text": "from Cline_anti_freeze import onboard_scanner"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/governance_ui.py",
+      "category": "governance_core",
+      "refs": [
+        {
+          "line": 74,
+          "keyword": "sentinel",
+          "text": "self.latest_ws_messages: List[Dict] = []  # recent WS messages from sentinels"
+        },
+        {
+          "line": 327,
+          "keyword": "sentinel",
+          "text": "# WebSocket Server (for sentinel status reporting)"
+        },
+        {
+          "line": 341,
+          "keyword": "sentinel",
+          "text": "\"\"\"Handle incoming WebSocket connections from sentinels.\"\"\""
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/monitor.py",
+      "category": "governance_core",
+      "refs": [
+        {
+          "line": 53,
+          "keyword": "sentinel",
+          "text": "SENTINEL_PID_FILE = ANTI_FREEZE_DIR / \".sentinel.pid\""
+        },
+        {
+          "line": 69,
+          "keyword": "sentinel",
+          "text": "GOVERNANCE_INSTANCE_ID = \"governance-sentinel-001\""
+        },
+        {
+          "line": 526,
+          "keyword": "sentinel",
+          "text": "def sentinel_daemon():"
+        },
+        {
+          "line": 584,
+          "keyword": "sentinel",
+          "text": "log_error(f\"连续 {MAX_CONSECUTIVE_ERRORS} 次关键状态，触发自愈\", \"sentinel\", instance_id=instance_id)"
+        },
+        {
+          "line": 594,
+          "keyword": "sentinel",
+          "text": "log_error(f\"守护循环异常: {e}\", \"sentinel\", instance_id=instance_id)"
+        },
+        {
+          "line": 621,
+          "keyword": "sentinel",
+          "text": "sentinel_daemon()"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/sentinel_ws_client.py",
+      "category": "governance_core",
+      "refs": [
+        {
+          "line": 3,
+          "keyword": "sentinel",
+          "text": "sentinel_ws_client.py — Cline-anti-freeze 哨兵 WS 客户端 (v1.0)"
+        },
+        {
+          "line": 14,
+          "keyword": "sentinel",
+          "text": "python sentinel_ws_client.py --project AI-WORKFLOW"
+        },
+        {
+          "line": 15,
+          "keyword": "sentinel",
+          "text": "python sentinel_ws_client.py --project ClawAI --daemon"
+        },
+        {
+          "line": 18,
+          "keyword": "sentinel",
+          "text": "在每个子项目的 .governance_entry.py 中调用 start_sentinel()"
+        },
+        {
+          "line": 103,
+          "keyword": "sentinel",
+          "text": "return f\"sentinel-{os.getpid()}\""
+        },
+        {
+          "line": 109,
+          "keyword": "sentinel",
+          "text": "async def sentinel_client(project_name: str, ws_url: str = None):"
+        },
+        {
+          "line": 118,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 哨兵启动: project={project_name}, instance={instance_id}\")"
+        },
+        {
+          "line": 119,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 目标: {ws_url}\")"
+        },
+        {
+          "line": 122,
+          "keyword": "sentinel",
+          "text": "print(\"[sentinel_ws] ⚠️ websockets 未安装，无法连接。请 pip install websockets\")"
+        },
+        {
+          "line": 129,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 正在连接治理控制台...\")"
+        },
+        {
+          "line": 131,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] ✅ 已连接到治理控制台\")"
+        },
+        {
+          "line": 182,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 连接断开，将在 {RECONNECT_DELAY}s 后重连...\")"
+        },
+        {
+          "line": 185,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] ⚠️ 发送异常: {e}\")"
+        },
+        {
+          "line": 191,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 连接失败 ({e})，{delay}s 后重试...\")"
+        },
+        {
+          "line": 194,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] ⚠️ 未知错误: {e}\")"
+        },
+        {
+          "line": 201,
+          "keyword": "sentinel",
+          "text": "def start_sentinel(project_name: str, ws_url: str = None):"
+        },
+        {
+          "line": 203,
+          "keyword": "sentinel",
+          "text": "Launch the sentinel WebSocket client in a background daemon thread."
+        },
+        {
+          "line": 207,
+          "keyword": "sentinel",
+          "text": "from Cline-anti-freeze.sentinel_ws_client import start_sentinel"
+        },
+        {
+          "line": 208,
+          "keyword": "sentinel",
+          "text": "start_sentinel(\"AI-WORKFLOW\")"
+        },
+        {
+          "line": 211,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] ⚠️ websockets 未安装，无法启动哨兵 ({project_name})\")"
+        },
+        {
+          "line": 219,
+          "keyword": "sentinel",
+          "text": "loop.run_until_complete(sentinel_client(project_name, ws_url))"
+        },
+        {
+          "line": 221,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 哨兵线程异常 ({project_name}): {e}\")"
+        },
+        {
+          "line": 223,
+          "keyword": "sentinel",
+          "text": "t = threading.Thread(target=_run, daemon=True, name=f\"sentinel-{project_name}\")"
+        },
+        {
+          "line": 225,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 哨兵后台线程已启动: {project_name}\")"
+        },
+        {
+          "line": 253,
+          "keyword": "sentinel",
+          "text": "asyncio.run(sentinel_client(args.project, args.ws_url))"
+        },
+        {
+          "line": 255,
+          "keyword": "sentinel",
+          "text": "print(f\"\\n[sentinel_ws] 哨兵 ({args.project}) 已停止\")"
+        },
+        {
+          "line": 258,
+          "keyword": "sentinel",
+          "text": "thread = start_sentinel(args.project, args.ws_url)"
+        },
+        {
+          "line": 260,
+          "keyword": "sentinel",
+          "text": "print(f\"[sentinel_ws] 哨兵已启动，按 Ctrl+C 退出\")"
+        },
+        {
+          "line": 265,
+          "keyword": "sentinel",
+          "text": "print(f\"\\n[sentinel_ws] 哨兵 ({args.project}) 已停止\")"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/constitution/rules.py",
+      "category": "constitution",
+      "refs": [
+        {
+          "line": 8,
+          "keyword": "anti_freeze",
+          "text": "def anti_freeze_check(plan_steps):"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/executor/init_new_project.py",
+      "category": "executor",
+      "refs": [
+        {
+          "line": 22,
+          "keyword": "anti_freeze",
+          "text": "app_template = \"\"\"from core.constitution.rules import KARPATHY_CONSTITUTION, anti_freeze_check"
+        },
+        {
+          "line": 27,
+          "keyword": "anti_freeze",
+          "text": "# anti_freeze_check(plan_steps)"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/runtime/linly_talker_engine/GPT_SoVITS/AR/utils/initialize.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 4,
+          "keyword": "guard",
+          "text": "from typeguard import check_argument_types"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/runtime/linly_talker_engine/Musetalk/musetalk/utils/dwpose/default_runtime.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 3,
+          "keyword": "hooks",
+          "text": "# hooks"
+        },
+        {
+          "line": 4,
+          "keyword": "hooks",
+          "text": "default_hooks = dict("
+        },
+        {
+          "line": 18,
+          "keyword": "hooks",
+          "text": "# custom hooks"
+        },
+        {
+          "line": 19,
+          "keyword": "hooks",
+          "text": "custom_hooks = ["
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/runtime/linly_talker_engine/Musetalk/musetalk/utils/dwpose/rtmpose-l_8xb32-270e_coco-ubody-wholebody-384x288.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 235,
+          "keyword": "hooks",
+          "text": "# hooks"
+        },
+        {
+          "line": 236,
+          "keyword": "hooks",
+          "text": "default_hooks = dict("
+        },
+        {
+          "line": 240,
+          "keyword": "hooks",
+          "text": "custom_hooks = ["
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/runtime/linly_talker_engine/Musetalk/musetalk/whisper/whisper/decoding.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 128,
+          "keyword": "hooks",
+          "text": "\"\"\"Clean up any resources or hooks after decoding is finished\"\"\""
+        },
+        {
+          "line": 137,
+          "keyword": "hooks",
+          "text": "self.hooks = []"
+        },
+        {
+          "line": 141,
+          "keyword": "hooks",
+          "text": "self.kv_cache, self.hooks = self.model.install_kv_cache_hooks()"
+        },
+        {
+          "line": 152,
+          "keyword": "hooks",
+          "text": "for hook in self.hooks:"
+        },
+        {
+          "line": 156,
+          "keyword": "hooks",
+          "text": "self.hooks = []"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/runtime/linly_talker_engine/Musetalk/musetalk/whisper/whisper/model.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 76,
+          "keyword": "hooks",
+          "text": "# hooks, if installed (i.e. kv_cache is not None), will prepend the cached kv tensors;"
+        },
+        {
+          "line": 256,
+          "keyword": "hooks",
+          "text": "def install_kv_cache_hooks(self, cache: Optional[dict] = None):"
+        },
+        {
+          "line": 260,
+          "keyword": "hooks",
+          "text": "all caches, and the necessary hooks for the key and value projection modules that save the"
+        },
+        {
+          "line": 267,
+          "keyword": "hooks",
+          "text": "hooks : List[RemovableHandle]"
+        },
+        {
+          "line": 268,
+          "keyword": "hooks",
+          "text": "List of PyTorch RemovableHandle objects to stop the hooks to be called"
+        },
+        {
+          "line": 271,
+          "keyword": "hooks",
+          "text": "hooks = []"
+        },
+        {
+          "line": 280,
+          "keyword": "hooks",
+          "text": "def install_hooks(layer: nn.Module):"
+        },
+        {
+          "line": 282,
+          "keyword": "hooks",
+          "text": "hooks.append(layer.key.register_forward_hook(save_to_cache))"
+        },
+        {
+          "line": 283,
+          "keyword": "hooks",
+          "text": "hooks.append(layer.value.register_forward_hook(save_to_cache))"
+        },
+        {
+          "line": 285,
+          "keyword": "hooks",
+          "text": "self.decoder.apply(install_hooks)"
+        },
+        {
+          "line": 286,
+          "keyword": "hooks",
+          "text": "return cache, hooks"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tests/backlot/test_state.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 312,
+          "keyword": "guard",
+          "text": "# Regression guard: an existing non-raster-but-showable image (.svg)"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tests/tools/test_cogvideo_i2v_variant.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 68,
+          "keyword": "sentinel",
+          "text": "sentinel = ToolResult(success=True, data={\"output\": \"out.mp4\"})"
+        },
+        {
+          "line": 71,
+          "keyword": "sentinel",
+          "text": "return sentinel"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tests/tools/test_mps_device.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 78,
+          "keyword": "guard",
+          "text": "# get_torch_device — MPS guard (torch.backends.mps missing)"
+        },
+        {
+          "line": 201,
+          "keyword": "guard",
+          "text": "# upscale.py — signature guard for device="
+        },
+        {
+          "line": 204,
+          "keyword": "guard",
+          "text": "def test_upscale_build_upsampler_uses_signature_guard(monkeypatch):"
+        },
+        {
+          "line": 285,
+          "keyword": "guard",
+          "text": "# face_restore.py — signature guard and device routing"
+        },
+        {
+          "line": 288,
+          "keyword": "guard",
+          "text": "def test_face_restore_uses_signature_guard(monkeypatch):"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tests/tools/test_provider_model_defaults.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 25,
+          "keyword": "guard",
+          "text": "# schema default guards the silent-model-swap path without a network call."
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tools/animatediff_lite.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 67,
+          "keyword": "safety_check",
+          "text": "safety_checker=None,"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tools/sd15_fallback.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 74,
+          "keyword": "safety_check",
+          "text": "safety_checker=None,"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tools/sd15_local.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 68,
+          "keyword": "safety_check",
+          "text": "safety_checker=None,"
+        }
+      ]
+    },
+    {
+      "file": "projects/OpenMontage/tools/video/_shared.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 158,
+          "keyword": "guard",
+          "text": "MPS detection is guarded for torch builds that lack ``torch.backends.mps``"
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/orchestrator.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 62,
+          "keyword": "guard",
+          "text": "from compliance.compliance_guard import ComplianceGuard"
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/run_test.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 418,
+          "keyword": "guard",
+          "text": "from compliance.compliance_guard import ComplianceGuard"
+        },
+        {
+          "line": 419,
+          "keyword": "guard",
+          "text": "compliance_guard = ComplianceGuard()"
+        },
+        {
+          "line": 420,
+          "keyword": "guard",
+          "text": "compliance_report = compliance_guard.check_for_publication(script, platform=\"youtube\")"
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/compliance/compliance_guard.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 86,
+          "keyword": "guard",
+          "text": "guard = ComplianceGuard()"
+        },
+        {
+          "line": 87,
+          "keyword": "guard",
+          "text": "report = guard.check_script(script_text)"
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/compliance/gp_privacy.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 2,
+          "keyword": "guard",
+          "text": "Ethical Safeguard Layer — Privacy & Audit Module"
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/compliance/__init__.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 15,
+          "keyword": "guard",
+          "text": "from .compliance_guard import ComplianceGuard, ComplianceReport, RiskLevel"
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/editor/om_video/_shared.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 158,
+          "keyword": "guard",
+          "text": "MPS detection is guarded for torch builds that lack ``torch.backends.mps``"
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/scripts/gp_prompt_builder.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 58,
+          "keyword": "guard",
+          "text": "\"expression\": \"reserved and tranquil, subtle smile, eyes with guarded warmth\","
+        },
+        {
+          "line": 61,
+          "keyword": "guard",
+          "text": "\"core_emotion\": \"guarded tenderness\","
+        }
+      ]
+    },
+    {
+      "file": "projects/RoastBro/scripts/roast_script_engine.py",
+      "category": "business",
+      "refs": [
+        {
+          "line": 243,
+          "keyword": "safety_check",
+          "text": "safe=self._safety_check(content),"
+        },
+        {
+          "line": 376,
+          "keyword": "safety_check",
+          "text": "def _safety_check(self, content: str) -> bool:"
+        }
+      ]
+    },
+    {
+      "file": "second-brain/scripts/knowledge_linker.py",
+      "category": "protected_asset",
+      "refs": [
+        {
+          "line": 175,
+          "keyword": "guard",
+          "text": "def guard_whitelist(operation: str, target: Path, detail: str = \"\") -> None:"
+        },
+        {
+          "line": 226,
+          "keyword": "guard",
+          "text": "guard_whitelist(operation, target, detail)"
+        }
+      ]
+    }
+  ],
+  "sentinel_missing": [
+    {
+      "file": "Cline-anti-freeze/executor/analyze_server.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/fork_main.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/fork_server.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_main.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_server.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/online_agent.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/server.py",
+      "category": "executor"
+    }
+  ]
+}

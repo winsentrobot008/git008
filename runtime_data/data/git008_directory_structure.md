@@ -1,0 +1,2196 @@
+# GIT008 Directory Structure Report
+
+Generated: 2026-07-13T17:48:52.172880+00:00
+Root: c:\Users\aoogoost\Desktop\Projekt\git008
+
+---
+
+# [ROOT] git008
+  - $null
+  - README.md
+  - _fix_emojis.py
+  - _zoo_full_repair.py
+  - git008_AUDIT_REPORT.md
+  - git008_main_panel.py
+  - test_pipeline_run.py
+- assets/
+  - ceo/
+  - ceo_clones/
+- [GOV] Governance Center Cline-anti-freeze/
+  - CHANGELOG.md
+  - CONSTITUTION.md
+  - auto_enforce.py
+  - clinerules.yaml
+  - do_git.py
+  - error_log.md
+  - error_reporter.py
+  - fault_blackbox.json
+  - global_controls.json
+  - governance_evolution.md
+  - governance_linker.py
+  - governance_task.json
+  - governance_ui.py
+  - heartbeat_monitor.py
+  - install_governance.py
+  - monitor.py
+  - onboard_scanner.py
+  - package-lock.json
+  - project_registry.md
+  - protocols
+  - sentinel_ws_client.py
+  - watchdog.py
+  - [GOV] Governance Center audit_logs/
+    - GOVERNANCE-FIX-REPORT.md
+    - ROOT-AUDIT-REPORT.md
+    - SUBPROJECT-AUDIT-REPORT.md
+    - rename-maneki-to-ai-workflow-20260629.json
+    - system_diagnostics_summary.md
+  - [GOV] Governance Center constitution/
+    - rules.py
+  - [GOV] Governance Center executor/
+    - Dockerfile
+    - _extract_pr.py
+    - analyze_fork.py
+    - analyze_server.py
+    - fork_main.py
+    - fork_scheduler_init.py
+    - fork_server.py
+    - hf_app.py
+    - hf_code_exec_sandbox.py
+    - hf_live_agent.py
+    - hf_main.py
+    - hf_repo_info.json
+    - hf_server.py
+    - hf_task_scheduler.py
+    - init_new_project.py
+    - online_agent.py
+    - online_sandbox.py
+    - online_wrapup.py
+    - server.py
+  - [GOV] Governance Center fork_system/
+    - fork_file_list.txt
+    - fork_info.json
+    - fork_tree.json
+  - [GOV] Governance Center governance_logs/
+    - livebench_api.log
+    - livebench_api_err.log
+    - vite.log
+    - vite_err.log
+    - [GOV] Governance Center bak/
+      - index.html.radiobuttons.bak
+  - [GOV] Governance Center memory-bank/
+    - [GOV] Governance Center branch/
+      - [GOV] Governance Center dev/
+        - activeContext.md
+      - [GOV] Governance Center gov/
+        - governanceLog.md
+    - [GOV] Governance Center global/
+      - AGENTS.md
+      - projectbrief.md
+  - [GOV] Governance Center sandbox/
+    - code_execution_sandbox.py
+- [CONF] Confession Confession/
+  - $null
+  - GEMINI_EXECUTION_SPEC.md
+  - LICENSE
+  - README.md
+  - SANCTUARY_VOID_README-v2.pdf
+  - governance_hook.py
+  - main.py
+  - package.json
+  - qa_guard.py
+  - vercel.json
+  - [CONF] Confession api/
+    - confess.js
+  - [CONF] Confession backend/
+    - [CONF] Confession pkg_builder/
+  - [CONF] Confession docs/
+    - audit-report-20260629.md
+    - aurora-engine-report-v10.0.md
+    - hf-deploy-guide.md
+    - marketing-plan.md
+    - privacy-policy.md
+    - project-spec.md
+  - [CONF] Confession hf-space/
+    - admin_panel.py
+    - app_old.py
+    - model_config.json
+    - persona_config.json
+    - persona_engine.py
+    - render.yaml
+    - requirements.txt
+    - [CONF] Confession assets/
+      - 2026-07-02 194922.png
+      - Gemini_Generated_Image_fwz0avfwz0avfwz0.png
+      - PZIfI.jpg
+      - tOnsi.jpg
+      - theme.css
+      - [CONF] Confession images/
+        - confession-room-1.jpg
+        - confession-room.jpg
+      - [CONF] Confession lottie/
+        - burn.json
+        - light.json
+        - water.json
+      - [CONF] Confession ui/
+  - [CONF] Confession legal/
+  - [CONF] Confession locales/
+    - en.json
+    - es.json
+    - jp.json
+    - kr.json
+    - sv.json
+    - zh.json
+  - [CONF] Confession mobile-client/
+    - [CONF] Confession android/
+    - [CONF] Confession ios/
+    - [CONF] Confession shared/
+  - [CONF] Confession models/
+    - model_choices.md
+  - [CONF] Confession persona/
+    - father_en.txt
+    - father_es.txt
+    - father_jp.txt
+    - father_kr.txt
+    - father_sv.txt
+    - father_zh.txt
+  - [BRAIN] Second Brain second-brain/
+    - [BRAIN] Second Brain docs/
+      - ARCHITECTURE.md
+  - [CONF] Confession static/
+    - church_bg.jpg
+    - i18n.js
+    - index.html
+    - parallax.js
+    - ritual_transition.js
+    - script.js
+    - script.v2.js
+    - style.css
+- [OLD] Legacy Core core/
+  - README.md
+  - [OLD] Legacy Core archive/
+  - [OLD] Legacy Core configs/
+  - [CONST] Constitution constitution/
+  - [OLD] Legacy Core data/
+  - [OLD] Legacy Core docs/
+  - [FORK] Fork System fork_system/
+  - [OLD] Legacy Core scripts/
+  - [OLD] Legacy Core tools/
+- [DATA] Data data/
+  - import_broken_list.json
+  - import_fix_report.json
+  - import_scan_report.json
+  - zoo_self_test_report.json
+  - [DATA] Data autohunter/
+  - [DATA] Data autoscout/
+  - [DATA] Data cache/
+    - [DATA] Data frames/
+      - frame_1.0s.jpg
+      - frame_10.0s.jpg
+      - frame_11.0s.jpg
+      - frame_12.0s.jpg
+      - frame_13.0s.jpg
+      - frame_14.0s.jpg
+      - frame_15.0s.jpg
+      - frame_16.0s.jpg
+      - frame_17.0s.jpg
+      - frame_18.0s.jpg
+      - frame_19.0s.jpg
+      - frame_2.0s.jpg
+      - frame_20.0s.jpg
+      - frame_21.0s.jpg
+      - frame_22.0s.jpg
+      - frame_23.0s.jpg
+      - frame_24.0s.jpg
+      - frame_25.0s.jpg
+      - frame_26.0s.jpg
+      - frame_27.0s.jpg
+      - frame_28.0s.jpg
+      - frame_29.0s.jpg
+      - frame_3.0s.jpg
+      - frame_30.0s.jpg
+      - frame_31.0s.jpg
+      - frame_32.0s.jpg
+      - frame_33.0s.jpg
+      - frame_34.0s.jpg
+      - frame_35.0s.jpg
+      - frame_36.0s.jpg
+      - frame_37.0s.jpg
+      - frame_38.0s.jpg
+      - frame_39.0s.jpg
+      - frame_4.0s.jpg
+      - frame_40.0s.jpg
+      - frame_41.0s.jpg
+      - frame_42.0s.jpg
+      - frame_43.0s.jpg
+      - frame_44.0s.jpg
+      - frame_45.0s.jpg
+      - frame_46.0s.jpg
+      - frame_47.0s.jpg
+      - frame_48.0s.jpg
+      - frame_49.0s.jpg
+      - frame_5.0s.jpg
+      - frame_50.0s.jpg
+      - frame_52.0s.jpg
+      - frame_53.0s.jpg
+      - frame_54.0s.jpg
+      - frame_55.0s.jpg
+      - frame_56.0s.jpg
+      - frame_57.0s.jpg
+      - frame_58.0s.jpg
+      - frame_59.0s.jpg
+      - frame_6.0s.jpg
+      - frame_60.0s.jpg
+      - frame_7.0s.jpg
+      - frame_8.0s.jpg
+      - frame_9.0s.jpg
+    - [DATA] Data temp/
+    - [DATA] Data voice/
+  - [DATA] Data outputs/
+- [PROJ] Projects projects/
+  - [PROJ] Projects OpenMontage/
+    - AGENT_GUIDE.md
+    - CLAUDE.md
+    - CODEX.md
+    - COPILOT.md
+    - CURSOR.md
+    - LICENSE
+    - Makefile
+    - PROJECT_CONTEXT.md
+    - config.yaml
+    - diagram.png
+    - render-demo.sh
+    - render_demo.py
+    - requirements-dev.txt
+    - requirements-gpu.txt
+    - requirements.txt
+    - run_pipeline.py
+    - setup.py
+    - [PROJ] Projects agents/
+      - __init__.py
+      - video_agent.py
+    - [PROJ] Projects archive/
+    - [PROJ] Projects assets/
+      - logo.png
+      - showcase.jpg
+      - signal-from-tomorrow-demo.mp4
+      - social_preview.png
+    - [PROJ] Projects backlot/
+      - README.md
+      - __init__.py
+      - __main__.py
+      - app.py
+      - server.py
+      - state.py
+      - [PROJ] Projects ui/
+        - board.css
+        - board.html
+        - board.js
+        - ceo.html
+        - index.html
+        - lib.js
+        - library.js
+    - [PROJ] Projects configs/
+    - [PROJ] Projects data/
+    - [PROJ] Projects docs/
+      - ARCHITECTURE.md
+      - PROVIDERS.md
+      - PR_REVIEW_GUIDE.md
+      - apple-silicon-mps.md
+      - comfyui-adapter-plan.md
+      - [PROJ] Projects images/
+        - [PROJ] Projects backlot/
+          - board-live.png
+          - library.png
+          - script-gate.png
+          - storyboard.png
+      - [PROJ] Projects stage-gates/
+    - [PROJ] Projects ink-theater/
+      - README.md
+      - THIRD_PARTY_NOTICES.md
+      - ink-puppet.js
+      - ink-theater.js
+      - [PROJ] Projects assets/
+        - OFL.txt
+        - patrickhand.ttf
+      - [PROJ] Projects examples/
+        - README.md
+        - [PROJ] Projects mocap-figure/
+          - clips.js
+          - index.html
+          - ink-puppet.js
+          - ink-theater.js
+          - [PROJ] Projects assets/
+            - OFL.txt
+            - patrickhand.ttf
+      - [PROJ] Projects mocap/
+        - NOTE.md
+        - add-motion.mjs
+        - bvh2clip.mjs
+        - catalog.json
+        - clips.js
+        - [PROJ] Projects clips/
+          - climb.json
+          - dance_glide.json
+          - dance_spin.json
+          - jump.json
+          - kick.json
+          - march.json
+          - run.json
+          - shuffle.json
+          - sit.json
+          - twist.json
+          - walk.json
+          - wave.json
+    - [PROJ] Projects lib/
+      - __init__.py
+      - checkpoint.py
+      - clip_embedder.py
+      - config_model.py
+      - corpus.py
+      - delivery_promise.py
+      - env_loader.py
+      - events.py
+      - hyperframes_style_bridge.py
+      - media_profiles.py
+      - paths.py
+      - pipeline_loader.py
+      - playbook_generator.py
+      - scoring.py
+      - shot_prompt_builder.py
+      - slideshow_risk.py
+      - source_media_review.py
+      - variation_checker.py
+      - verify_scene_pacing.py
+      - [PROJ] Projects providers/
+        - __init__.py
+    - [PROJ] Projects models/
+      - [PROJ] Projects piper/
+        - en_US-lessac-medium.onnx
+        - en_US-lessac-medium.onnx.json
+    - [PROJ] Projects openmontage.egg-info/
+      - PKG-INFO
+      - SOURCES.txt
+      - dependency_links.txt
+      - requires.txt
+      - top_level.txt
+    - [PROJ] Projects output/
+      - cinematic_ae75d6a015cf.mp4
+      - [PROJ] Projects agent/
+        - cinematic_agent_20260707_201039.mp4
+        - cinematic_agent_20260707_201112.mp4
+      - [PROJ] Projects fallback/
+        - final.mp4
+        - frame_0.png
+        - frame_1.png
+        - frame_2.png
+        - out.mp4
+        - voice.wav
+      - [PROJ] Projects mvp/
+      - [PROJ] Projects sd15/
+        - frame_0.png
+        - frame_1.png
+        - frame_2.png
+    - [PROJ] Projects pipeline_defs/
+      - animated-explainer.yaml
+      - animation.yaml
+      - avatar-spokesperson.yaml
+      - character-animation.yaml
+      - cinematic.yaml
+      - clip-factory.yaml
+      - documentary-montage.yaml
+      - framework-smoke.yaml
+      - hybrid.yaml
+      - localization-dub.yaml
+      - podcast-repurpose.yaml
+      - screen-demo.yaml
+      - talking-head.yaml
+    - [PROJ] Projects projects/
+      - [PROJ] Projects demos/
+        - [PROJ] Projects renders/
+          - code-to-screen.mp4
+          - focusflow-pitch.mp4
+          - world-in-numbers.mp4
+    - [PROJ] Projects remotion-composer/
+      - SCENE_TYPES.md
+      - package-lock.json
+      - package.json
+      - titled_video_props.json
+      - tsconfig.json
+      - [PROJ] Projects public/
+        - [PROJ] Projects demo-props/
+          - code-to-screen.json
+          - focusflow-pitch.json
+          - world-in-numbers.json
+      - [PROJ] Projects src/
+        - CinematicRenderer.tsx
+        - CollageBurst.tsx
+        - Explainer.tsx
+        - LyricOverlay.tsx
+        - Root.tsx
+        - TalkingHead.tsx
+        - TitledVideo.tsx
+        - index.tsx
+        - [PROJ] Projects cinematic/
+          - fixtures.ts
+          - types.ts
+        - [PROJ] Projects components/
+          - AnimeScene.tsx
+          - CalloutBox.tsx
+          - CaptionOverlay.tsx
+          - ComparisonCard.tsx
+          - EndTag.tsx
+          - HeroTitle.tsx
+          - ParticleOverlay.tsx
+          - ProductReveal.tsx
+          - ProgressBar.tsx
+          - ProviderChip.tsx
+          - ScreenshotScene.tsx
+          - SectionTitle.tsx
+          - StatCard.tsx
+          - StatReveal.tsx
+          - TerminalScene.tsx
+          - TextCard.tsx
+          - index.ts
+          - [PROJ] Projects charts/
+            - BarChart.tsx
+            - KPIGrid.tsx
+            - LineChart.tsx
+            - PieChart.tsx
+            - index.ts
+    - [PROJ] Projects runtime/
+      - [PROJ] Projects linly_talker_engine/
+        - AutoDL部署.md
+        - LICENSE
+        - README.md
+        - README_zh.md
+        - SECURITY.md
+        - app.py
+        - app_img.py
+        - app_multi.py
+        - app_musetalk.py
+        - app_talk.py
+        - app_vits.py
+        - colab_webui.ipynb
+        - configs.py
+        - requirements_app.txt
+        - requirements_webui.txt
+        - webui.py
+        - 常见问题汇总.md
+        - [PROJ] Projects api/
+          - README.md
+          - llm_api.py
+          - llm_client.py
+          - requirements.txt
+          - talker_api.py
+          - talker_client.py
+          - tts_api.py
+          - tts_client.py
+        - [PROJ] Projects ASR/
+          - FunASR.py
+          - OmniSenseVoice.py
+          - README.md
+          - Whisper.py
+          - __init__.py
+          - requirements_OmniSenseVoice.txt
+          - requirements_funasr.txt
+        - [PROJ] Projects ChatTTS/
+        - [PROJ] Projects checkpoints/
+          - README.md
+        - [PROJ] Projects CosyVoice/
+        - [PROJ] Projects docs/
+          - Alipay.jpg
+          - Certificate.md
+          - GPT-SoVITS.png
+          - HOI.png
+          - HOI_en.png
+          - QR.jpg
+          - TTS.png
+          - UI.jpg
+          - UI.png
+          - UI2.jpg
+          - UI2.png
+          - UI3.png
+          - UI4.png
+          - UI5.png
+          - WeChatpay.jpg
+          - WebUI.png
+          - WebUI2.png
+          - WebUI3.png
+          - XTTS.png
+          - example.png
+          - linly_logo.png
+        - [PROJ] Projects examples/
+          - [PROJ] Projects source_image/
+            - art_0.png
+            - art_1.png
+            - art_10.png
+            - art_11.png
+            - art_12.png
+            - art_13.png
+            - art_14.png
+            - art_15.png
+            - art_16.png
+            - art_17.png
+            - art_18.png
+            - art_19.png
+            - art_2.png
+            - art_20.png
+            - art_3.png
+            - art_4.png
+            - art_5.png
+            - art_6.png
+            - art_7.png
+            - art_8.png
+            - art_9.png
+            - full3.png
+            - full4.jpeg
+            - full_body_1.png
+            - full_body_2.png
+            - happy.png
+            - happy1.png
+            - people_0.png
+            - sad.png
+            - sad1.png
+        - [PROJ] Projects face_detection/
+          - README.md
+          - __init__.py
+          - api.py
+          - models.py
+          - utils.py
+          - [PROJ] Projects detection/
+            - __init__.py
+            - core.py
+            - [PROJ] Projects sfd/
+              - __init__.py
+              - bbox.py
+              - detect.py
+              - net_s3fd.py
+              - sfd_detector.py
+        - [PROJ] Projects GPT_SoVITS/
+          - inference_gui.py
+          - inference_webui.py
+          - my_utils.py
+          - onnx_export.py
+          - process_ckpt.py
+          - s1_train.py
+          - s2_train.py
+          - utils.py
+          - [PROJ] Projects AR/
+            - __init__.py
+            - [PROJ] Projects data/
+              - __init__.py
+              - bucket_sampler.py
+              - data_module.py
+              - dataset.py
+            - [PROJ] Projects models/
+              - __init__.py
+              - t2s_lightning_module.py
+              - t2s_lightning_module_onnx.py
+              - t2s_model.py
+              - t2s_model_onnx.py
+              - utils.py
+            - [PROJ] Projects modules/
+              - __init__.py
+              - activation.py
+              - activation_onnx.py
+              - embedding.py
+              - embedding_onnx.py
+              - lr_schedulers.py
+              - optim.py
+              - patched_mha_with_cache.py
+              - patched_mha_with_cache_onnx.py
+              - scaling.py
+              - transformer.py
+              - transformer_onnx.py
+            - [PROJ] Projects text_processing/
+              - __init__.py
+              - phonemizer.py
+              - symbols.py
+            - [PROJ] Projects utils/
+              - __init__.py
+              - initialize.py
+              - io.py
+          - [PROJ] Projects configs/
+            - s1.yaml
+            - s1big.yaml
+            - s1big2.yaml
+            - s1longer.yaml
+            - s1mq.yaml
+            - s2.json
+            - train.yaml
+          - [PROJ] Projects feature_extractor/
+            - __init__.py
+            - cnhubert.py
+            - whisper_enc.py
+          - [PROJ] Projects module/
+            - __init__.py
+            - attentions.py
+            - attentions_onnx.py
+            - commons.py
+            - core_vq.py
+            - data_utils.py
+            - losses.py
+            - mel_processing.py
+            - models.py
+            - models_onnx.py
+            - modules.py
+            - mrte_model.py
+            - quantize.py
+            - transforms.py
+          - [PROJ] Projects prepare_datasets/
+            - 1-get-text.py
+            - 2-get-hubert-wav32k.py
+            - 3-get-semantic.py
+          - [PROJ] Projects pretrained_models/
+          - [PROJ] Projects text/
+            - __init__.py
+            - chinese.py
+            - cleaner.py
+            - cmudict-fast.rep
+            - cmudict.rep
+            - engdict-hot.rep
+            - engdict_cache.pickle
+            - english.py
+            - japanese.py
+            - opencpop-strict.txt
+            - symbols.py
+            - tone_sandhi.py
+            - [PROJ] Projects zh_normalization/
+              - README.md
+              - __init__.py
+              - char_convert.py
+              - chronology.py
+              - constants.py
+              - num.py
+              - phonecode.py
+              - quantifier.py
+              - text_normlization.py
+        - [PROJ] Projects https_cert/
+          - cert.pem
+          - key.pem
+        - [PROJ] Projects inputs/
+          - boy.png
+          - ceo-demo.mp4
+          - example.png
+          - girl.png
+          - [PROJ] Projects first_frame_dir_boy/
+            - boy.mat
+            - boy.png
+            - boy_landmarks.txt
+          - [PROJ] Projects first_frame_dir_girl/
+            - girl.mat
+            - girl.png
+            - girl_landmarks.txt
+        - [PROJ] Projects LLM/
+          - ChatGLM.py
+          - ChatGPT.py
+          - GPT4Free.py
+          - Gemini.py
+          - Linly-api-fast.py
+          - Linly.py
+          - Llama2Chinese.py
+          - QAnything.py
+          - Qwen.py
+          - Qwen2.py
+          - README.md
+          - __init__.py
+          - llamacppchat.py
+          - template.py
+        - [PROJ] Projects Musetalk/
+          - [PROJ] Projects configs/
+            - [PROJ] Projects inference/
+              - realtime.yaml
+              - test.yaml
+          - [PROJ] Projects data/
+            - [PROJ] Projects video/
+              - man_musev.mp4
+              - monalisa_musev.mp4
+              - musk_musev.mp4
+              - seaside4_musev.mp4
+              - sit_musev.mp4
+              - sun_musev.mp4
+              - yongen_musev.mp4
+          - [PROJ] Projects musetalk/
+            - [PROJ] Projects models/
+              - unet.py
+              - vae.py
+            - [PROJ] Projects utils/
+              - __init__.py
+              - blending.py
+              - preprocessing.py
+              - utils.py
+              - [PROJ] Projects dwpose/
+                - default_runtime.py
+                - rtmpose-l_8xb32-270e_coco-ubody-wholebody-384x288.py
+              - [PROJ] Projects face_detection/
+                - README.md
+                - __init__.py
+                - api.py
+                - models.py
+                - utils.py
+                - [PROJ] Projects detection/
+                  - __init__.py
+                  - core.py
+                  - [PROJ] Projects sfd/
+                    - __init__.py
+                    - bbox.py
+                    - detect.py
+                    - net_s3fd.py
+                    - sfd_detector.py
+              - [PROJ] Projects face_parsing/
+                - __init__.py
+                - model.py
+                - resnet.py
+            - [PROJ] Projects whisper/
+              - audio2feature.py
+              - [PROJ] Projects whisper/
+                - __init__.py
+                - __main__.py
+                - audio.py
+                - decoding.py
+                - model.py
+                - tokenizer.py
+                - transcribe.py
+                - utils.py
+                - [PROJ] Projects assets/
+                  - mel_filters.npz
+                  - [PROJ] Projects gpt2/
+                    - merges.txt
+                    - special_tokens_map.json
+                    - tokenizer_config.json
+                    - vocab.json
+                  - [PROJ] Projects multilingual/
+                    - added_tokens.json
+                    - merges.txt
+                    - special_tokens_map.json
+                    - tokenizer_config.json
+                    - vocab.json
+                - [PROJ] Projects normalizers/
+                  - __init__.py
+                  - basic.py
+                  - english.json
+                  - english.py
+          - [PROJ] Projects scripts/
+            - inference.py
+            - realtime_inference.py
+        - [PROJ] Projects NeRF/
+          - encoding.py
+          - [PROJ] Projects data_utils/
+            - hubert.py
+            - process.py
+            - wav2mel.py
+            - wav2mel_hparams.py
+            - [PROJ] Projects deepspeech_features/
+              - README.md
+              - deepspeech_features.py
+              - deepspeech_store.py
+              - extract_ds_features.py
+              - extract_wav.py
+              - fea_win.py
+            - [PROJ] Projects face_parsing/
+              - logger.py
+              - model.py
+              - resnet.py
+              - test.py
+            - [PROJ] Projects face_tracking/
+              - __init__.py
+              - convert_BFM.py
+              - data_loader.py
+              - face_tracker.py
+              - facemodel.py
+              - geo_transform.py
+              - render_3dmm.py
+              - render_land.py
+              - util.py
+          - [PROJ] Projects freqencoder/
+            - __init__.py
+            - backend.py
+            - freq.py
+            - setup.py
+            - [PROJ] Projects src/
+              - bindings.cpp
+              - freqencoder.cu
+              - freqencoder.h
+          - [PROJ] Projects gridencoder/
+            - __init__.py
+            - backend.py
+            - grid.py
+            - setup.py
+            - [PROJ] Projects src/
+              - bindings.cpp
+              - gridencoder.cu
+              - gridencoder.h
+          - [PROJ] Projects nerf_triplane/
+            - asr.py
+            - gui.py
+            - network.py
+            - provider.py
+            - renderer.py
+            - utils.py
+            - wav2vec.py
+          - [PROJ] Projects raymarching/
+            - __init__.py
+            - backend.py
+            - raymarching.py
+            - setup.py
+            - [PROJ] Projects src/
+              - bindings.cpp
+              - raymarching.cu
+              - raymarching.h
+          - [PROJ] Projects shencoder/
+            - __init__.py
+            - backend.py
+            - setup.py
+            - sphere_harmonics.py
+            - [PROJ] Projects src/
+              - bindings.cpp
+              - shencoder.cu
+              - shencoder.h
+        - [PROJ] Projects scripts/
+          - download_models.sh
+          - huggingface_download.py
+          - install.sh
+          - install_pytorch3d.py
+          - modelscope_download.py
+        - [PROJ] Projects src/
+          - Record.py
+          - cost_time.py
+          - generate_batch.py
+          - generate_facerender_batch.py
+          - hparams.py
+          - test_audio2coeff.py
+          - [PROJ] Projects audio2exp_models/
+            - audio2exp.py
+            - networks.py
+          - [PROJ] Projects audio2pose_models/
+            - audio2pose.py
+            - audio_encoder.py
+            - cvae.py
+            - discriminator.py
+            - networks.py
+            - res_unet.py
+          - [PROJ] Projects config/
+            - auido2exp.yaml
+            - auido2pose.yaml
+            - facerender.yaml
+            - facerender_pirender.yaml
+            - facerender_still.yaml
+            - similarity_Lm3D_all.mat
+          - [PROJ] Projects face3d/
+            - extract_kp_videos.py
+            - extract_kp_videos_safe.py
+            - visualize.py
+            - [PROJ] Projects data/
+              - __init__.py
+              - base_dataset.py
+              - flist_dataset.py
+              - image_folder.py
+              - template_dataset.py
+            - [PROJ] Projects models/
+              - __init__.py
+              - base_model.py
+              - bfm.py
+              - facerecon_model.py
+              - losses.py
+              - networks.py
+              - template_model.py
+              - [PROJ] Projects arcface_torch/
+                - README.md
+                - dataset.py
+                - eval_ijbc.py
+                - inference.py
+                - losses.py
+                - onnx_helper.py
+                - onnx_ijbc.py
+                - partial_fc.py
+                - requirement.txt
+                - run.sh
+                - torch2onnx.py
+                - train.py
+                - [PROJ] Projects backbones/
+                  - __init__.py
+                  - iresnet.py
+                  - iresnet2060.py
+                  - mobilefacenet.py
+                - [PROJ] Projects configs/
+                  - 3millions.py
+                  - 3millions_pfc.py
+                  - __init__.py
+                  - base.py
+                  - glint360k_mbf.py
+                  - glint360k_r100.py
+                  - glint360k_r18.py
+                  - glint360k_r34.py
+                  - glint360k_r50.py
+                  - ms1mv3_mbf.py
+                  - ms1mv3_r18.py
+                  - ms1mv3_r2060.py
+                  - ms1mv3_r34.py
+                  - ms1mv3_r50.py
+                  - speed.py
+                - [PROJ] Projects docs/
+                  - eval.md
+                  - install.md
+                  - modelzoo.md
+                  - speed_benchmark.md
+                - [PROJ] Projects eval/
+                  - __init__.py
+                  - verification.py
+                - [PROJ] Projects utils/
+                  - __init__.py
+                  - plot.py
+                  - utils_amp.py
+                  - utils_callbacks.py
+                  - utils_config.py
+                  - utils_logging.py
+                  - utils_os.py
+            - [PROJ] Projects options/
+              - __init__.py
+              - base_options.py
+              - inference_options.py
+              - test_options.py
+              - train_options.py
+            - [PROJ] Projects util/
+              - BBRegressorParam_r.mat
+              - __init__.py
+              - detect_lm68.py
+              - generate_list.py
+              - html.py
+              - load_mats.py
+              - my_awing_arch.py
+              - nvdiffrast.py
+              - preprocess.py
+              - skin_mask.py
+              - test_mean_face.txt
+              - util.py
+              - visualizer.py
+          - [PROJ] Projects facerender/
+            - animate.py
+            - pirender_animate.py
+            - [PROJ] Projects modules/
+              - dense_motion.py
+              - discriminator.py
+              - generator.py
+              - keypoint_detector.py
+              - make_animation.py
+              - mapping.py
+              - util.py
+            - [PROJ] Projects pirender/
+              - base_function.py
+              - config.py
+              - face_model.py
+            - [PROJ] Projects sync_batchnorm/
+              - __init__.py
+              - batchnorm.py
+              - comm.py
+              - replicate.py
+              - unittest.py
+          - [PROJ] Projects flagged/
+            - log.csv
+            - [PROJ] Projects output/
+          - [PROJ] Projects models/
+            - __init__.py
+            - conv.py
+            - syncnet.py
+            - wav2lip.py
+          - [PROJ] Projects modelsv2/
+            - __init__.py
+            - conv.py
+            - syncnet.py
+            - wav2lip_v2.py
+          - [PROJ] Projects torchalign/
+            - __init__.py
+            - api.py
+            - cfg.py
+            - [PROJ] Projects backbone/
+              - __init__.py
+              - hrnet.py
+              - int.idx.txt
+              - mobilenet.py
+            - [PROJ] Projects heatmap_head/
+              - __init__.py
+              - heatmap_head.py
+              - [PROJ] Projects blocks/
+                - 9a0ca4ff7c9c60fb845aab47991d5408.check.txt
+                - __init__.py
+                - head_block.py
+              - [PROJ] Projects transforms/
+                - __init__.py
+                - functional.py
+                - module.py
+          - [PROJ] Projects utils/
+            - audio.py
+            - croper.py
+            - face_enhancer.py
+            - hparams.py
+            - hparamsv2.py
+            - init_path.py
+            - model2safetensor.py
+            - paste_pic.py
+            - preprocess.py
+            - safetensor_helper.py
+            - text2speech.py
+            - utils.py
+            - videoio.py
+        - [PROJ] Projects temp/
+          - [PROJ] Projects 21013d95d4c4ef06b33018afc80698f4e9bb981562c03e1ece6e8bdf93210d70/
+            - art_5.png
+          - [PROJ] Projects 49f9e3eccaea6df02f6266cd7c9295632c88d2d309b3f606e9885564e972f42f/
+            - full_body_2.png
+          - [PROJ] Projects 59c57f91983ec077a115b7eff1839e71e6082d39c7663e81cb36ef356727c317/
+            - full_body_1.png
+          - [PROJ] Projects 5d1a86788d1590eb988909e13914574af4b9de235bdb121f8a457856762e95af/
+            - full4.jpeg
+          - [PROJ] Projects 98cdc99e73b00489e9a64691f4bbab388ea25500ca7dbd4978e160f976dd2ecc/
+            - full3.png
+          - [PROJ] Projects b43c2ccecad2f8c3604bb81c34d09ba33958424f7f5ebe0c5634b6d21a29ce97/
+            - art_13.png
+        - [PROJ] Projects TFG/
+          - MuseTalk.py
+          - MuseV.py
+          - NeRFTalk.py
+          - README.md
+          - SadTalker.py
+          - Wav2Lip.py
+          - Wav2Lipv2.py
+          - __init__.py
+          - requirements_musetalk.txt
+          - requirements_nerf.txt
+        - [PROJ] Projects TTS/
+          - EdgeTTS.py
+          - PaddleTTS.py
+          - README.md
+          - XTTS.py
+          - __init__.py
+          - edge_app.py
+          - paddletts_app.py
+          - requirements_paddle.txt
+        - [PROJ] Projects VITS/
+          - CosyVoice.py
+          - GPT_SoVITS.py
+          - README.md
+          - XTTS.py
+          - __init__.py
+          - app.py
+          - requirements_gptsovits.txt
+          - requirements_xtts.txt
+    - [PROJ] Projects schemas/
+      - __init__.py
+      - [PROJ] Projects artifacts/
+        - __init__.py
+        - action_timeline.schema.json
+        - asset_manifest.schema.json
+        - brief.schema.json
+        - character_design.schema.json
+        - character_qa_report.schema.json
+        - cost_log.schema.json
+        - decision_log.schema.json
+        - edit_decisions.schema.json
+        - final_review.schema.json
+        - pose_library.schema.json
+        - proposal_packet.schema.json
+        - publish_log.schema.json
+        - render_report.schema.json
+        - research_brief.schema.json
+        - review.schema.json
+        - rig_plan.schema.json
+        - scene_plan.schema.json
+        - script.schema.json
+        - source_media_review.schema.json
+        - video_analysis_brief.schema.json
+      - [PROJ] Projects checkpoints/
+        - __init__.py
+        - checkpoint.schema.json
+      - [PROJ] Projects pipelines/
+        - __init__.py
+        - pipeline_manifest.schema.json
+      - [PROJ] Projects styles/
+        - playbook.schema.json
+      - [PROJ] Projects tools/
+        - __init__.py
+        - video_stitch.schema.json
+    - [PROJ] Projects scripts/
+      - atelier_snapshots.py
+      - backlot_screenshot_stage.py
+      - backlot_simulate_run.py
+      - backlot_visual_eval.py
+      - backlot_watch_captures.py
+      - scaffold_atelier_project.py
+    - [PROJ] Projects skills/
+      - INDEX.md
+      - [PROJ] Projects core/
+        - color-grading.md
+        - ffmpeg.md
+        - hyperframes.md
+        - remotion.md
+        - subtitle-sync.md
+        - whisperx.md
+      - [PROJ] Projects creative/
+        - animated-drawing.md
+        - animation-pipeline.md
+        - bg-remove-usage.md
+        - broll-planning.md
+        - cinematic.md
+        - data-visualization.md
+        - diagram-gen-usage.md
+        - enhancement-strategy.md
+        - face-restore-usage.md
+        - image-gen-usage.md
+        - image-provider-usage.md
+        - ink-theater.md
+        - lip-sync-usage.md
+        - long-form.md
+        - manim-usage.md
+        - music-gen-usage.md
+        - scene-detect-usage.md
+        - screen-recording.md
+        - short-form.md
+        - sound-design.md
+        - stock-sourcing-usage.md
+        - storytelling.md
+        - talking-head-gen-usage.md
+        - typography.md
+        - upscale-usage.md
+        - video-editing.md
+        - video-gen-prompting.md
+        - video-stitching.md
+        - video-understand-usage.md
+        - [PROJ] Projects prompting/
+          - grok-prompting.md
+          - hunyuan-prompting.md
+          - ltx-prompting.md
+          - seedance-prompting.md
+          - sora-prompting.md
+          - veo-prompting.md
+      - [PROJ] Projects meta/
+        - animation-runtime-selector.md
+        - bespoke-composition.md
+        - capability-extension.md
+        - checkpoint-protocol.md
+        - creative-intake.md
+        - onboarding.md
+        - reviewer.md
+        - skill-creator.md
+        - taste-direction.md
+        - video-reference-analyst.md
+        - voice-performance-director.md
+      - [PROJ] Projects pipelines/
+        - [PROJ] Projects animation/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - proposal-director.md
+          - publish-director.md
+          - research-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects avatar-spokesperson/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - publish-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects character-animation/
+          - asset-director.md
+          - character-design-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - proposal-director.md
+          - publish-director.md
+          - research-director.md
+          - rig-plan-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects cinematic/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - proposal-director.md
+          - publish-director.md
+          - research-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects clip-factory/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - publish-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects documentary-montage/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - scene-director.md
+        - [PROJ] Projects explainer/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - proposal-director.md
+          - publish-director.md
+          - research-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects hybrid/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - publish-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects localization-dub/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - publish-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects podcast-repurpose/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - publish-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects screen-demo/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - publish-director.md
+          - scene-director.md
+          - script-director.md
+        - [PROJ] Projects talking-head/
+          - asset-director.md
+          - compose-director.md
+          - edit-director.md
+          - executive-producer.md
+          - idea-director.md
+          - publish-director.md
+          - scene-director.md
+          - script-director.md
+    - [PROJ] Projects styles/
+      - anime-ghibli.yaml
+      - clean-professional.yaml
+      - flat-motion-graphics.yaml
+      - minimalist-diagram.yaml
+      - playbook_loader.py
+      - premium-minimalist.yaml
+    - [PROJ] Projects tests/
+      - __init__.py
+      - [PROJ] Projects backlot/
+        - test_gate_scenarios.py
+        - test_server.py
+        - test_state.py
+        - test_ui_bug_bash.py
+        - test_visual_eval.py
+        - test_watch_captures.py
+      - [PROJ] Projects contracts/
+        - __init__.py
+        - test_backlot_contract.py
+        - test_character_animation_pipeline.py
+        - test_comfyui_tools.py
+        - test_dashscope_tools.py
+        - test_phase0_contracts.py
+        - test_phase1_contracts.py
+        - test_phase1_golden.py
+        - test_phase2_comparison.py
+        - test_phase2_contracts.py
+        - test_phase3_contracts.py
+        - test_runtime_presentation_contract.py
+        - test_taste_governance_contracts.py
+      - [PROJ] Projects eval/
+        - __init__.py
+        - bench_runner.py
+        - [PROJ] Projects fixtures/
+        - [PROJ] Projects golden_outputs/
+        - [PROJ] Projects golden_scenarios/
+          - talking_head_basic.json
+        - [PROJ] Projects replay_harness/
+          - __init__.py
+          - harness.py
+      - [PROJ] Projects lib/
+        - test_source_media_review_empty.py
+        - test_variation_checker_runs.py
+      - [PROJ] Projects pipelines/
+        - __init__.py
+      - [PROJ] Projects qa/
+        - QA_PLAN.md
+        - test_04_audio_mix.py
+        - test_05_video_compose.py
+        - test_06_video_stitch.py
+        - test_07_playbook_intelligence.py
+        - test_08_end_to_end.py
+        - test_09_hyperframes_compose.py
+        - [PROJ] Projects output/
+          - compose_audio.wav
+          - compose_basic.mp4
+          - compose_burn_subs.mp4
+          - compose_clip_a.mp4
+          - compose_clip_b.mp4
+          - compose_encoded.mp4
+          - compose_overlay.mp4
+          - compose_overlay.png
+          - compose_subs.srt
+          - compose_subtitled.mp4
+          - mix_basic.wav
+          - mix_delayed.wav
+          - mix_ducked.wav
+          - mix_fades.wav
+          - music_calm.mp3
+          - stitch_clip1.mp4
+          - stitch_clip2.mp4
+          - stitch_clip3.mp4
+          - stitch_clip_mismatch.mp4
+          - stitch_crossfade.mp4
+          - stitch_cut.mp4
+          - stitch_fadeblack.mp4
+          - stitch_normalized.mp4
+          - stitch_pip.mp4
+          - stitch_preview.mp4
+          - stitch_side_by_side.mp4
+          - stitch_vstack.mp4
+          - tts_short.mp3
+          - [PROJ] Projects e2e_assets/
+      - [PROJ] Projects styles/
+        - __init__.py
+      - [PROJ] Projects tools/
+        - __init__.py
+        - test_audio_mixer_ducking.py
+        - test_audio_mixer_loudnorm_target.py
+        - test_audio_mixer_segmented_music.py
+        - test_base_tool_dependencies.py
+        - test_clip_cache.py
+        - test_cogvideo_i2v_variant.py
+        - test_cost_tracker_governance.py
+        - test_delivery_promise.py
+        - test_documentary_governance.py
+        - test_export_bundle.py
+        - test_grok_video_quality_score.py
+        - test_hyperframes_compose.py
+        - test_math_animate_safety.py
+        - test_mps_device.py
+        - test_music_gen_force_instrumental.py
+        - test_music_library.py
+        - test_openai_image_multi_output.py
+        - test_pixabay_per_page_clamp.py
+        - test_provider_model_defaults.py
+        - test_remotion_diagnostics.py
+        - test_scene_detect_lavfi_escape.py
+        - test_scoring.py
+        - test_sora_video.py
+        - test_stock_source_adapters.py
+        - test_video_compose_vertical.py
+        - test_video_selector_routing.py
+    - [PROJ] Projects tools/
+      - __init__.py
+      - animate_diff.py
+      - animatediff_lite.py
+      - base_tool.py
+      - cost_tracker.py
+      - deepseek_client.py
+      - fallback_merge.py
+      - fallback_video.py
+      - fallback_voice.py
+      - ffmpeg_merge_small.py
+      - ffmpeg_mvp.py
+      - ffmpeg_small_video.py
+      - flux_client.py
+      - gemini_client.py
+      - google_credentials.py
+      - gpu_check.py
+      - local_sdxl.py
+      - merge_mvp.py
+      - piper_mvp.py
+      - piper_small.py
+      - provider_registry.py
+      - sd15_fallback.py
+      - sd15_local.py
+      - sd15_mvp.py
+      - seedance_client.py
+      - tool_registry.py
+      - [PROJ] Projects analysis/
+        - __init__.py
+        - audio_energy.py
+        - audio_probe.py
+        - composition_validator.py
+        - dashscope_asr.py
+        - face_tracker.py
+        - frame_sampler.py
+        - scene_detect.py
+        - transcriber.py
+        - transcript_fetcher.py
+        - video_analyzer.py
+        - video_downloader.py
+        - video_understand.py
+        - visual_qa.py
+      - [PROJ] Projects audio/
+        - __init__.py
+        - audio_enhance.py
+        - audio_mixer.py
+        - dashscope_tts.py
+        - doubao_tts.py
+        - elevenlabs_tts.py
+        - freesound_music.py
+        - google_tts.py
+        - music_gen.py
+        - music_library.py
+        - openai_tts.py
+        - piper_tts.py
+        - pixabay_music.py
+        - suno_music.py
+        - tts_selector.py
+      - [PROJ] Projects avatar/
+        - __init__.py
+        - linly_talker_provider.py
+        - lip_sync.py
+        - talking_head.py
+      - [PROJ] Projects capture/
+        - __init__.py
+        - cap_recorder.py
+        - screen_capture_selector.py
+        - screen_recorder.py
+      - [PROJ] Projects character/
+        - __init__.py
+        - character_animation.py
+      - [PROJ] Projects enhancement/
+        - __init__.py
+        - bg_remove.py
+        - color_grade.py
+        - eye_enhance.py
+        - face_enhance.py
+        - face_restore.py
+        - upscale.py
+      - [PROJ] Projects graphics/
+        - __init__.py
+        - code_snippet.py
+        - comfyui_image.py
+        - dashscope_image.py
+        - diagram_gen.py
+        - flux_image.py
+        - google_imagen.py
+        - grok_image.py
+        - image_gen.py
+        - image_selector.py
+        - local_diffusion.py
+        - math_animate.py
+        - openai_image.py
+        - pexels_image.py
+        - pixabay_image.py
+        - recraft_image.py
+      - [PROJ] Projects publishers/
+        - __init__.py
+        - export_bundle.py
+      - [PROJ] Projects subtitle/
+        - __init__.py
+        - subtitle_gen.py
+      - [PROJ] Projects video/
+        - __init__.py
+        - _shared.py
+        - auto_reframe.py
+        - clip_cache.py
+        - clip_search.py
+        - cogvideo_video.py
+        - comfyui_video.py
+        - corpus_builder.py
+        - direct_clip_search.py
+        - green_screen_composite.py
+        - green_screen_processor.py
+        - grok_video.py
+        - heygen_video.py
+        - higgsfield_video.py
+        - hunyuan_video.py
+        - hyperframes_compose.py
+        - kling_video.py
+        - ltx_video_local.py
+        - ltx_video_modal.py
+        - minimax_video.py
+        - pexels_video.py
+        - pixabay_video.py
+        - remotion_caption_burn.py
+        - runway_video.py
+        - seedance_replicate.py
+        - seedance_video.py
+        - showcase_card.py
+        - silence_cutter.py
+        - sora_video.py
+        - veo_video.py
+        - video_compose.py
+        - video_selector.py
+        - video_stitch.py
+        - video_trimmer.py
+        - wan_video.py
+        - [PROJ] Projects stock_sources/
+          - __init__.py
+          - archive_org.py
+          - base.py
+          - coverr.py
+          - dareful.py
+          - esa.py
+          - jaxa.py
+          - loc.py
+          - mixkit.py
+          - nara.py
+          - nasa.py
+          - noaa.py
+          - pexels.py
+          - pixabay_video.py
+          - pond5_pd.py
+          - unsplash.py
+          - videvo.py
+          - wikimedia.py
+      - [PROJ] Projects _comfyui/
+        - __init__.py
+        - client.py
+        - metadata.py
+        - [PROJ] Projects workflows/
+          - flux2-txt2img.json
+          - wan22-i2v-4step.json
+          - wan22-t2v-4step.json
+  - [PROJ] Projects ViralMint/
+    - README.md
+    - requirements.txt
+    - [PROJ] Projects archive/
+    - [PROJ] Projects backend/
+      - __init__.py
+      - main.py
+      - [PROJ] Projects queue/
+        - __init__.py
+        - video_tasks.py
+      - [PROJ] Projects routes/
+        - __init__.py
+        - mvp_small_video.py
+        - mvp_video.py
+        - small_video.py
+        - video.py
+      - [PROJ] Projects services/
+        - __init__.py
+        - openmontage.py
+    - [PROJ] Projects configs/
+    - [PROJ] Projects data/
+    - [PROJ] Projects docs/
+    - [PROJ] Projects frontend/
+      - index.html
+      - package-lock.json
+      - package.json
+      - tsconfig.json
+      - vite.config.ts
+      - [PROJ] Projects src/
+        - App.css
+        - App.tsx
+        - main.tsx
+        - [PROJ] Projects api/
+          - mvp.ts
+          - videoMaker.ts
+        - [PROJ] Projects pages/
+          - MVP.css
+          - MVP.tsx
+          - VideoMaker.css
+          - VideoMaker.tsx
+    - [PROJ] Projects scripts/
+    - [PROJ] Projects storage/
+      - [PROJ] Projects mvp/
+        - mvp_20260707_191556.mp4
+        - mvp_20260707_192058.mp4
+        - mvp_20260707_195527.mp4
+        - mvp_20260707_195648.mp4
+        - mvp_20260707_195829.mp4
+        - mvp_20260707_200911.mp4
+        - mvp_20260707_201146.mp4
+        - mvp_20260707_201302.mp4
+        - mvp_20260707_202144.mp4
+        - mvp_20260707_203104.mp4
+        - mvp_20260707_204644.mp4
+        - mvp_20260707_205108.mp4
+        - mvp_20260707_205501.mp4
+        - mvp_20260707_210122.mp4
+        - mvp_20260707_211929.mp4
+        - mvp_20260707_214726.mp4
+        - mvp_20260707_215841.mp4
+        - mvp_20260707_220329.mp4
+        - mvp_20260707_222638.mp4
+        - small_video_20260707_214951.mp4
+      - [PROJ] Projects videos/
+- research/
+- [RB] RoastBro RoastBro/
+  - $null
+  - FREEZE_README.md
+  - README.md
+  - agent_interface.py
+  - install_dependencies.bat
+  - orchestrator.py
+  - pyproject.toml
+  - requirements.txt
+  - roastbro.code-workspace
+  - run_dashboard.bat
+  - run_real_production.py
+  - run_test.py
+  - validate_and_retry.py
+  - [RB] RoastBro -p/
+  - [RB] RoastBro analyzer/
+    - __init__.py
+    - frame_analyzer.py
+    - scout_analyzer.py
+    - transcriber.py
+    - video_analyzer.py
+    - [RB] RoastBro creator_distillation/
+      - __init__.py
+      - creator_distillation.py
+    - [RB] RoastBro extractor/
+      - __init__.py
+    - [RB] RoastBro om_analysis/
+      - __init__.py
+      - audio_energy.py
+      - audio_probe.py
+      - composition_validator.py
+      - dashscope_asr.py
+      - face_tracker.py
+      - frame_sampler.py
+      - scene_detect.py
+      - transcriber.py
+      - transcript_fetcher.py
+      - video_analyzer.py
+      - video_downloader.py
+      - video_understand.py
+      - visual_qa.py
+  - [RB] RoastBro assets/
+    - [RB] RoastBro icons/
+      - roastbro.ico
+      - roastbro_logo.svg
+  - [RB] RoastBro brain/
+    - __init__.py
+    - brain_api.py
+    - index.json
+    - [RB] RoastBro memory/
+  - [RB] RoastBro compliance/
+    - __init__.py
+    - compliance_guard.py
+    - gp_privacy.py
+    - [RB] RoastBro gp/
+  - [RB] RoastBro config/
+    - default.json
+    - factory_config.json
+    - ms_safety.yaml
+    - om_config.yaml
+  - [RB] RoastBro configs/
+    - language.json
+    - zoo_source_strategy.json
+  - [RB] RoastBro dashboard/
+    - __init__.py
+    - app.py
+    - i18n.py
+    - [RB] RoastBro i18n/
+      - en.json
+      - zh.json
+    - [RB] RoastBro _legacy_pages/
+      - __init__.py
+      - analytics.py
+      - auto_hunter.py
+      - autorun.py
+      - autorun_control.py
+      - bilingual_matrix.py
+      - creator_distillation.py
+      - factory_status.py
+      - factory_tuning.py
+      - global_pipeline_overview.py
+      - hunting_zone.py
+      - pending_review.py
+      - system_ops.py
+      - [RB] RoastBro publish_center/
+        - __init__.py
+        - publish_center_preview.py
+      - [RB] RoastBro reports/
+        - __init__.py
+        - reports_view.py
+  - [RB] RoastBro data/
+    - error_log.json
+    - [RB] RoastBro autohunter/
+      - production_queue.json
+    - [RB] RoastBro autoscout/
+      - candidate_pool.json
+    - [RB] RoastBro cache/
+      - [RB] RoastBro frames/
+        - frame_1.0s.jpg
+        - frame_10.0s.jpg
+        - frame_11.0s.jpg
+        - frame_12.0s.jpg
+        - frame_13.0s.jpg
+        - frame_14.0s.jpg
+        - frame_15.0s.jpg
+        - frame_16.0s.jpg
+        - frame_17.0s.jpg
+        - frame_18.0s.jpg
+        - frame_19.0s.jpg
+        - frame_2.0s.jpg
+        - frame_20.0s.jpg
+        - frame_21.0s.jpg
+        - frame_22.0s.jpg
+        - frame_23.0s.jpg
+        - frame_24.0s.jpg
+        - frame_25.0s.jpg
+        - frame_26.0s.jpg
+        - frame_27.0s.jpg
+        - frame_28.0s.jpg
+        - frame_29.0s.jpg
+        - frame_3.0s.jpg
+        - frame_30.0s.jpg
+        - frame_31.0s.jpg
+        - frame_32.0s.jpg
+        - frame_33.0s.jpg
+        - frame_34.0s.jpg
+        - frame_35.0s.jpg
+        - frame_36.0s.jpg
+        - frame_37.0s.jpg
+        - frame_38.0s.jpg
+        - frame_39.0s.jpg
+        - frame_4.0s.jpg
+        - frame_40.0s.jpg
+        - frame_41.0s.jpg
+        - frame_42.0s.jpg
+        - frame_43.0s.jpg
+        - frame_44.0s.jpg
+        - frame_45.0s.jpg
+        - frame_46.0s.jpg
+        - frame_47.0s.jpg
+        - frame_48.0s.jpg
+        - frame_49.0s.jpg
+        - frame_5.0s.jpg
+        - frame_50.0s.jpg
+        - frame_51.0s.jpg
+        - frame_52.0s.jpg
+        - frame_53.0s.jpg
+        - frame_54.0s.jpg
+        - frame_55.0s.jpg
+        - frame_56.0s.jpg
+        - frame_57.0s.jpg
+        - frame_58.0s.jpg
+        - frame_59.0s.jpg
+        - frame_6.0s.jpg
+        - frame_60.0s.jpg
+        - frame_61.0s.jpg
+        - frame_62.0s.jpg
+        - frame_7.0s.jpg
+        - frame_8.0s.jpg
+        - frame_9.0s.jpg
+      - [RB] RoastBro temp/
+      - [RB] RoastBro voice/
+        - narration_001.wav
+        - narration_002.wav
+    - [RB] RoastBro drafts/
+    - [RB] RoastBro examples/
+      - [RB] RoastBro production_run_1/
+        - source_videos.json
+    - [RB] RoastBro metadata/
+      - Download.status.json
+      - orchestrator_stderr.log
+      - orchestrator_stdout.log
+      - pipeline_launch_errors.log
+      - pipeline_launch_errors_test.log
+    - [RB] RoastBro outputs/
+      - Download_bilibili.mp4
+      - Download_bilibili.srt
+      - Download_roasted.mp4
+      - Download_roasted.srt
+      - Download_shorts.mp4
+      - d7cb5933-4b8d-49b0-9f1f-1468bdcf8148_bilibili.mp4
+      - d7cb5933-4b8d-49b0-9f1f-1468bdcf8148_bilibili.srt
+      - d7cb5933-4b8d-49b0-9f1f-1468bdcf8148_roasted.mp4
+      - d7cb5933-4b8d-49b0-9f1f-1468bdcf8148_roasted.srt
+      - d7cb5933-4b8d-49b0-9f1f-1468bdcf8148_shorts.mp4
+    - [RB] RoastBro pending_videos/
+      - Download.mp4
+      - d7cb5933-4b8d-49b0-9f1f-1468bdcf8148.mp4
+      - tracking.json
+    - [RB] RoastBro processed/
+    - [RB] RoastBro sink/
+      - __init__.py
+  - [RB] RoastBro docs/
+    - DIGEST-REPORT.md
+    - MERGE_REPORT.md
+    - OPERATIONS.md
+    - RoastBro-MERGE-REPORT.md
+    - RoastBro-NEW-ARCHITECTURE.md
+    - SECOND-BRAIN-DIGEST.md
+    - SECOND-BRAIN-INTEGRATION.md
+    - [RB] RoastBro plans/
+      - git008-gemini-audit-report.md
+      - knowledge-linker-deep-planning.md
+      - retina-bridge-plan.md
+      - second-brain-vision-engine-onboarding-plan.md
+      - vision-processor-deep-planning.md
+      - zoo-architect-report.md
+  - [RB] RoastBro editor/
+    - __init__.py
+    - auto_editor.py
+    - gp_image_gen.py
+    - [RB] RoastBro om_graphics/
+      - __init__.py
+      - code_snippet.py
+      - comfyui_image.py
+      - dashscope_image.py
+      - diagram_gen.py
+      - flux_image.py
+      - google_imagen.py
+      - grok_image.py
+      - image_gen.py
+      - image_selector.py
+      - local_diffusion.py
+      - math_animate.py
+      - openai_image.py
+      - pexels_image.py
+      - pixabay_image.py
+      - recraft_image.py
+    - [RB] RoastBro om_subtitle/
+      - __init__.py
+      - subtitle_gen.py
+    - [RB] RoastBro om_video/
+      - __init__.py
+      - _shared.py
+      - auto_reframe.py
+      - clip_cache.py
+      - clip_search.py
+      - cogvideo_video.py
+      - comfyui_video.py
+      - corpus_builder.py
+      - direct_clip_search.py
+      - green_screen_composite.py
+      - green_screen_processor.py
+      - grok_video.py
+      - heygen_video.py
+      - higgsfield_video.py
+      - hunyuan_video.py
+      - hyperframes_compose.py
+      - kling_video.py
+      - ltx_video_local.py
+      - ltx_video_modal.py
+      - minimax_video.py
+      - pexels_video.py
+      - pixabay_video.py
+      - remotion_caption_burn.py
+      - runway_video.py
+      - seedance_replicate.py
+      - seedance_video.py
+      - showcase_card.py
+      - silence_cutter.py
+      - sora_video.py
+      - veo_video.py
+      - video_compose.py
+      - video_selector.py
+      - video_stitch.py
+      - video_trimmer.py
+      - wan_video.py
+      - [RB] RoastBro stock_sources/
+        - __init__.py
+        - archive_org.py
+        - base.py
+        - coverr.py
+        - dareful.py
+        - esa.py
+        - jaxa.py
+        - loc.py
+        - mixkit.py
+        - nara.py
+        - nasa.py
+        - noaa.py
+        - pexels.py
+        - pixabay_video.py
+        - pond5_pd.py
+        - unsplash.py
+        - videvo.py
+        - wikimedia.py
+    - [RB] RoastBro queue/
+      - video_tasks.py
+    - [RB] RoastBro services/
+      - openmontage_service.py
+    - [RB] RoastBro templates/
+      - small_video.py
+  - [RB] RoastBro logs/
+    - orchestrator.log
+  - [RB] RoastBro orchestrator/
+    - __init__.py
+    - autorun.py
+    - factory_controller.py
+    - pipeline_status.py
+  - [RB] RoastBro output/
+    - skill_vector_1.json
+    - skill_vector_2.json
+    - skill_vector_3.json
+    - [RB] RoastBro audio/
+      - [RB] RoastBro cn/
+      - [RB] RoastBro en/
+    - [RB] RoastBro pending_review/
+    - [RB] RoastBro preview/
+      - [RB] RoastBro cn/
+      - [RB] RoastBro en/
+    - [RB] RoastBro publish_logs/
+      - publish_log_20260711_163600.md
+    - [RB] RoastBro scripts/
+      - 001_roast_script.md
+      - 002_reaction_script.md
+      - 003_challenge_script.md
+      - Download_roast_script.md
+      - d7cb5933-4b8d-49b0-9f1f-1468bdcf8148_roast_script.md
+      - [RB] RoastBro cn/
+      - [RB] RoastBro en/
+        - 001_en_script.md
+        - 002_en_script.md
+        - 003_en_script.md
+    - [RB] RoastBro subtitles/
+      - 001.cn.srt
+      - 001.en.srt
+    - [RB] RoastBro video/
+      - Download_bilibili.mp4
+      - Download_long.mp4
+      - Download_shorts.mp4
+      - [RB] RoastBro cn/
+      - [RB] RoastBro en/
+  - [RB] RoastBro preview/
+    - validation_report.md
+    - validation_report_real.md
+    - validation_result.json
+    - [RB] RoastBro cn/
+      - video_20260711_214228.json
+      - video_20260711_214228.mp4
+      - video_20260711_215659.json
+      - video_20260711_215659.mp4
+      - video_20260711_215756.json
+      - video_20260711_215756.mp4
+      - video_20260711_221947.json
+      - video_20260711_221947.mp4
+      - video_20260711_223128.json
+      - video_20260711_223128.mp4
+      - video_20260711_224859.json
+      - video_20260711_224859.mp4
+      - video_20260711_225325.json
+      - video_20260711_225325.mp4
+      - video_20260711_225950.json
+      - video_20260711_225950.mp4
+      - video_20260711_230229.json
+      - video_20260711_230229.mp4
+      - video_20260711_230626.json
+      - video_20260711_230626.mp4
+      - video_20260711_230752.json
+      - video_20260711_230752.mp4
+      - video_20260711_230905.json
+      - video_20260711_230905.mp4
+    - [RB] RoastBro en/
+      - video_20260711_214228.json
+      - video_20260711_214228.mp4
+      - video_20260711_215659.json
+      - video_20260711_215659.mp4
+      - video_20260711_215756.json
+      - video_20260711_215756.mp4
+      - video_20260711_221947.json
+      - video_20260711_221947.mp4
+      - video_20260711_223128.json
+      - video_20260711_223128.mp4
+      - video_20260711_224859.json
+      - video_20260711_224859.mp4
+      - video_20260711_225325.json
+      - video_20260711_225325.mp4
+      - video_20260711_225950.json
+      - video_20260711_225950.mp4
+      - video_20260711_230229.json
+      - video_20260711_230229.mp4
+      - video_20260711_230626.json
+      - video_20260711_230626.mp4
+      - video_20260711_230752.json
+      - video_20260711_230752.mp4
+      - video_20260711_230905.json
+      - video_20260711_230905.mp4
+  - [RB] RoastBro publisher/
+    - __init__.py
+    - auto_publisher.py
+    - dual_account.py
+    - [RB] RoastBro om_export/
+      - __init__.py
+      - export_bundle.py
+    - [RB] RoastBro routes/
+      - mvp_video.py
+      - vm_video.py
+  - [RB] RoastBro reports/
+    - __init__.py
+    - daily_report.py
+    - weekly_report.py
+  - [RB] RoastBro roastpoints/
+    - __init__.py
+    - roast_score_engine.py
+  - [RB] RoastBro scrapers/
+    - __init__.py
+    - auto_hunter.py
+    - auto_scout.py
+    - bilibili_scraper.py
+    - error_log.py
+    - tiktok_scraper.py
+    - youtube_scraper.py
+    - [RB] RoastBro fetcher/
+      - __init__.py
+  - [RB] RoastBro scripts/
+    - __init__.py
+    - agent_chain.py
+    - env_check.py
+    - env_repair.py
+    - fullstack_test.py
+    - gp_feature_mapper.py
+    - gp_gene_extractor.py
+    - gp_prompt_builder.py
+    - gp_prompt_engine.py
+    - gp_text_gen.py
+    - roast_script_engine.py
+    - sample_video_generator.py
+    - [RB] RoastBro bilingual/
+      - __init__.py
+      - bilingual_engine.py
+    - [RB] RoastBro gp/
+    - [RB] RoastBro summarizer/
+      - __init__.py
+  - [RB] RoastBro seo/
+    - __init__.py
+    - seo_engine.py
+  - [RB] RoastBro shortcuts/
+    - README.txt
+  - [RB] RoastBro skills/
+    - __init__.py
+    - [RB] RoastBro video_source/
+      - __init__.py
+      - fallback_source.py
+      - ffmpeg_m3u8_source.py
+      - playwright_source.py
+      - selenium_mobile_source.py
+      - skill_selector.py
+      - tiktok_api_source.py
+      - yt_dlp_source.py
+  - [RB] RoastBro tasks/
+    - __init__.py
+    - daily_task.py
+    - scheduler_service.py
+  - [RB] RoastBro test_environment/
+    - download_test.log
+    - download_test.py
+    - verify_pipeline.log
+    - verify_pipeline.py
+  - [RB] RoastBro tools/
+    - [RB] RoastBro misc/
+      - [RB] RoastBro -Force/
+      - [RB] RoastBro -p/
+      - [RB] RoastBro mkdir/
+    - [RB] RoastBro planner/
+      - gemini_planner.py
+  - [RB] RoastBro voice/
+    - __init__.py
+    - auto_voice.py
+    - [RB] RoastBro om_audio/
+      - __init__.py
+      - audio_enhance.py
+      - audio_mixer.py
+      - dashscope_tts.py
+      - doubao_tts.py
+      - elevenlabs_tts.py
+      - freesound_music.py
+      - google_tts.py
+      - music_gen.py
+      - music_library.py
+      - openai_tts.py
+      - piper_tts.py
+      - pixabay_music.py
+      - suno_music.py
+      - tts_selector.py
+- scripts/
+- [BRAIN] Second Brain second-brain/
+  - README.md
+  - [BRAIN] Second Brain brain_api/
+    - __init__.py
+    - ceo_preferences.json
+    - knowledge_sync.py
+    - memory_loader.py
+    - semantic_search.py
+  - [BRAIN] Second Brain logs/
+    - activity.md
+    - log_manual_merge_20260711_151600.txt
+  - [BRAIN] Second Brain raw/
+  - [BRAIN] Second Brain scripts/
+    - knowledge_linker.py
+  - [BRAIN] Second Brain wiki/
+    - _wiki_agi_factory_system_map.md
+    - _wiki_autorun_setup.md
+    - _wiki_dashboard_boot_20260711_160400.md
+    - _wiki_dashboard_shortcut.md
+    - _wiki_dashboard_shortcut_integration.md
+    - _wiki_dashboard_upgrade_v3.md
+    - _wiki_dashboard_upgrade_v3_5.md
+    - _wiki_dashboard_upgrade_v4_0.md
+    - _wiki_git008_audit_report.md
+    - _wiki_global_pipeline_v1.md
+    - _wiki_production_run_1.md
+    - _wiki_publish_center_full_test.md
+    - _wiki_publish_center_preview_integration.md
+    - _wiki_roastbro_architecture_overview.md
+    - _wiki_roastbro_backend_boot.md
+    - _wiki_roastbro_merge_report.md
+    - _wiki_roastbro_pipeline_flow.md
+    - _wiki_roastbro_publish_center.md
+    - _wiki_roastbro_standalone.md
+    - _wiki_roastbro_standalone_launch.md
+    - _wiki_roastbro_workflow_20260711.md
+    - _wiki_test_desktop_photo1.png_note.md
+    - _wiki_test_office_photo2.png_note.md
+    - _wiki_tools_merge_20260711_155900.md
+    - creator_patterns.md
+    - index.md
+- [VISION] Vision Engine vision-engine/
+  - README.md
+  - requirements.txt
+  - [VISION] Vision Engine inbox/
+  - [VISION] Vision Engine logs/
+    - activity.md
+  - [VISION] Vision Engine processed/
+    - processing_log.json
+    - test_desktop_photo1.png
+    - test_desktop_photo1.png_note.md
+    - test_office_photo2.png
+    - test_office_photo2.png_note.md
+  - [VISION] Vision Engine scripts/
+    - generate_test_images.py
+    - smoke_test_report.py
+    - vision_processor.py
+
+---
+
+## Module Tags
+
+| Path | Type | Status |
+|------|------|--------|
+| `Cline-anti-freeze/` | Governance Center | READY |
+| `Cline-anti-freeze/executor/` | Executor Module | READY |
+| `Cline-anti-freeze/sandbox/` | Sandbox Module | READY |
+| `Cline-anti-freeze/fork_system/` | Fork System | READY |
+| `Cline-anti-freeze/constitution/` | Constitution Module | READY |
+| `core/` | Legacy Core | TO BE ARCHIVED |
+| `projects/` | Business Projects | READY |
+| `second-brain/` | Second Brain | READY |
+| `vision-engine/` | Vision Engine | READY |
+| `Confession/` | Confession | READY |
+| `RoastBro/` | RoastBro | READY |
+| `data/` | Data Directory | READY |

@@ -1,0 +1,18 @@
+[
+  {
+    "video_desc": "Two diplomats shake hands at a peace summit.",
+    "punchline": "That's so funny, LOL!",
+    "label": "discarded",
+    "reason": "violates layer_3_deadpan_tone — emotional buzzword 'LOL'",
+    "timestamp": "2026-07-16T16:02:34.937537+00:00"
+  },
+  {
+    "video_desc": "一只身穿迷彩服、头戴防爆头盔的哈士奇，正表情极度严肃、眼神坚毅地端坐在高科技装甲车的驾驶位上。它用两只前爪死死把住方向盘，神情紧绷地盯着前方空无一人的荒漠，仿佛正在执行一项关乎人类命运的绝密护送任务",
+    "punchline": "该犬类操作员正在执行一项标准的物流任务，其专注程度与一名处理过期罐头库存的仓库管理员无异。",
+    "label": "discarded",
+    "reason": "rejected_by_user_via_web_ui",
+    "timestamp": "2026-07-16T16:46:12.343175+00:00",
+    "humor_type": "cognitive_dissonance",
+    "source": "web_ui"
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "project": "InnerSage",
+  "agents": {
+    "emotion_agent.py": {
+      "status": "unknown"
+    },
+    "growth_agent.py": {
+      "status": "unknown"
+    },
+    "mystic_agent.py": {
+      "status": "unknown"
+    },
+    "__init__.py": {
+      "status": "unknown"
+    }
+  },
+  "updated_at": "2026-07-15T20:49:41Z"
+}

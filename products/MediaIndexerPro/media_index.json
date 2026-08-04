@@ -1,0 +1,320 @@
+{
+  "generated": "2026-07-15T18:19:56.823575",
+  "source_directory": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media",
+  "total_files": 19,
+  "total_size_bytes": 0,
+  "total_size_human": "0.0 B",
+  "type_counts": {
+    "document": 3,
+    "audio": 3,
+    "image": 4,
+    "video": 9
+  },
+  "files": [
+    {
+      "id": "media-41ec690ba09a",
+      "filename": "media-d22e9e1d8551.mp4",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\online\\media-d22e9e1d8551.mp4",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-16T14:34:00.164485",
+      "thumbnail": "",
+      "tags": [
+        "Unsplash",
+        "image"
+      ],
+      "emotion": "平静",
+      "summary": "情绪: 平静 | 关键词: lake, forest, calm water, zen | 风格: neutral/slow",
+      "objects": [
+        "lake",
+        "forest",
+        "calm water"
+      ],
+      "colors": [],
+      "scenes": [],
+      "ai_notes": "AI analyzed from filename: media d22e9e1d8551",
+      "version": 1,
+      "parent_id": null,
+      "ingested_at": "2026-07-16T14:34:00.227783"
+    },
+    {
+      "id": "media-3bd19a09b3dc",
+      "filename": "media-4ff85a0f3250.mp4",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\online\\media-4ff85a0f3250.mp4",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-16T11:14:58.222829",
+      "thumbnail": "",
+      "tags": [
+        "Pixabay",
+        "image"
+      ],
+      "emotion": "平静",
+      "summary": "情绪: 平静 | 关键词: lake, forest, calm water, zen | 风格: neutral/slow",
+      "objects": [
+        "lake",
+        "forest",
+        "calm water"
+      ],
+      "colors": [],
+      "scenes": [],
+      "ai_notes": "AI analyzed from filename: media 4ff85a0f3250",
+      "version": 1,
+      "parent_id": null,
+      "ingested_at": "2026-07-16T11:14:58.308456"
+    },
+    {
+      "id": "media-37a7e3338023",
+      "filename": "media-e081ea6a243f.mp4",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\online\\media-e081ea6a243f.mp4",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-16T11:13:58.625280",
+      "thumbnail": "",
+      "tags": [
+        "Pixabay",
+        "video"
+      ],
+      "emotion": "平静",
+      "summary": "情绪: 平静 | 关键词: lake, forest, calm water, zen | 风格: neutral/slow",
+      "objects": [
+        "lake",
+        "forest",
+        "calm water"
+      ],
+      "colors": [],
+      "scenes": [],
+      "ai_notes": "AI analyzed from filename: media e081ea6a243f",
+      "version": 1,
+      "parent_id": null,
+      "ingested_at": "2026-07-16T11:13:58.688556"
+    },
+    {
+      "id": "media-8061b098599f",
+      "filename": "media-d4d905e61b40.mp4",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\online\\media-d4d905e61b40.mp4",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-16T10:44:25.758209",
+      "thumbnail": "",
+      "tags": [
+        "Pixabay,bing",
+        "video"
+      ],
+      "emotion": "平静",
+      "summary": "情绪: 平静 | 关键词: lake, forest, calm water, zen | 风格: neutral/slow",
+      "objects": [
+        "lake",
+        "forest",
+        "calm water"
+      ],
+      "colors": [],
+      "scenes": [],
+      "ai_notes": "AI analyzed from filename: media d4d905e61b40",
+      "version": 1,
+      "parent_id": null,
+      "ingested_at": "2026-07-16T10:44:25.818247"
+    },
+    {
+      "id": "media-3c9e26c7fd6f",
+      "filename": "video.mp4",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\online\\video.mp4",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-16T09:44:54.664512",
+      "thumbnail": "",
+      "tags": [
+        "AI",
+        "tech"
+      ],
+      "emotion": "平静",
+      "summary": "情绪: 平静 | 关键词: lake, forest, calm water, zen | 风格: neutral/slow",
+      "objects": [
+        "lake",
+        "forest",
+        "calm water"
+      ],
+      "colors": [],
+      "scenes": [],
+      "ai_notes": "AI analyzed from filename: video",
+      "version": 1,
+      "parent_id": null,
+      "ingested_at": "2026-07-16T09:44:54.783802"
+    },
+    {
+      "id": "media-b95e36e66959",
+      "filename": "media-e9fac03de44d.mp4",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\online\\media-e9fac03de44d.mp4",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-16T09:23:48.236016",
+      "thumbnail": "",
+      "tags": [
+        "Pexels",
+        "video"
+      ],
+      "emotion": "平静",
+      "summary": "情绪: 平静 | 关键词: lake, forest, calm water, zen | 风格: neutral/slow",
+      "objects": [
+        "lake",
+        "forest",
+        "calm water"
+      ],
+      "colors": [],
+      "scenes": [],
+      "ai_notes": "AI analyzed from filename: media e9fac03de44d",
+      "version": 1,
+      "parent_id": null,
+      "ingested_at": "2026-07-16T09:23:48.394795"
+    },
+    {
+      "name": "data.json",
+      "path": "data.json",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\data.json",
+      "extension": ".json",
+      "type": "document",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.414772",
+      "created": "2026-07-15T18:19:52.414772"
+    },
+    {
+      "name": "notes.txt",
+      "path": "notes.txt",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\notes.txt",
+      "extension": ".txt",
+      "type": "document",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.413773",
+      "created": "2026-07-15T18:19:52.413773"
+    },
+    {
+      "name": "readme.md",
+      "path": "readme.md",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\readme.md",
+      "extension": ".md",
+      "type": "document",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.411775",
+      "created": "2026-07-15T18:19:52.411775"
+    },
+    {
+      "name": "podcast.flac",
+      "path": "audio\\podcast.flac",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\audio\\podcast.flac",
+      "extension": ".flac",
+      "type": "audio",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.393223",
+      "created": "2026-07-15T18:19:52.393223"
+    },
+    {
+      "name": "recording.wav",
+      "path": "audio\\recording.wav",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\audio\\recording.wav",
+      "extension": ".wav",
+      "type": "audio",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.390219",
+      "created": "2026-07-15T18:19:52.390219"
+    },
+    {
+      "name": "song.mp3",
+      "path": "audio\\song.mp3",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\audio\\song.mp3",
+      "extension": ".mp3",
+      "type": "audio",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.389215",
+      "created": "2026-07-15T18:19:52.389215"
+    },
+    {
+      "name": "banner.gif",
+      "path": "photos\\banner.gif",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\photos\\banner.gif",
+      "extension": ".gif",
+      "type": "image",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.332513",
+      "created": "2026-07-15T18:19:52.332513"
+    },
+    {
+      "name": "photo1.jpg",
+      "path": "photos\\photo1.jpg",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\photos\\photo1.jpg",
+      "extension": ".jpg",
+      "type": "image",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.329123",
+      "created": "2026-07-15T18:19:52.329123"
+    },
+    {
+      "name": "photo2.png",
+      "path": "photos\\photo2.png",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\photos\\photo2.png",
+      "extension": ".png",
+      "type": "image",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.330419",
+      "created": "2026-07-15T18:19:52.330419"
+    },
+    {
+      "name": "screenshot.webp",
+      "path": "photos\\screenshot.webp",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\photos\\screenshot.webp",
+      "extension": ".webp",
+      "type": "image",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.331425",
+      "created": "2026-07-15T18:19:52.331425"
+    },
+    {
+      "name": "clip.avi",
+      "path": "videos\\clip.avi",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\videos\\clip.avi",
+      "extension": ".avi",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.350757",
+      "created": "2026-07-15T18:19:52.350757"
+    },
+    {
+      "name": "demo.mp4",
+      "path": "videos\\demo.mp4",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\videos\\demo.mp4",
+      "extension": ".mp4",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.349524",
+      "created": "2026-07-15T18:19:52.349524"
+    },
+    {
+      "name": "intro.mov",
+      "path": "videos\\intro.mov",
+      "absolute_path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\videos\\intro.mov",
+      "extension": ".mov",
+      "type": "video",
+      "size_bytes": 0,
+      "size_human": "0.0 B",
+      "modified": "2026-07-15T18:19:52.351764",
+      "created": "2026-07-15T18:19:52.351764"
+    }
+  ]
+}

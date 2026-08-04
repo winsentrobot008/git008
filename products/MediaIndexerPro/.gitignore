@@ -1,0 +1,32 @@
+# MediaIndexerPro v4 — .gitignore
+
+# 🔒 Environment — NEVER commit credentials
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated / build artifacts
+api/data/generated/
+api/data/thumbs/
+api/data/jobs/
+api/data/logs/
+api/data/narrations/
+data/screenshots/
+*.mp4
+*.wav
+*.srt

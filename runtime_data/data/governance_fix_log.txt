@@ -1,0 +1,8 @@
+GOVERNANCE GAP REPAIR REPORT
+========================================
+
+Constitution imports added: 17
+Already had constitution: 0
+Sentinel hooks added: 7
+Already had sentinel: 0
+Errors: 0

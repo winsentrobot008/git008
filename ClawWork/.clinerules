@@ -1,8 +1,0 @@
-# ClawWork — AI Agent Evaluation Framework
-- You are the evaluation and benchmarking executor for ClawWork.
-- Operations are scoped to eval/, livebench/, frontend/, and scripts/ directories.
-- Test results must be logged to structured outputs in eval/ or logs/.
-- All agent interactions must follow the Clawmode integration protocol.
-
-# ── 治理继承 ──
-include: ../Cline-anti-freeze/.clinerules

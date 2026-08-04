@@ -1,0 +1,80 @@
+# MediaIndexerPro — 初始主题→关键词映射
+# 每个主题附带 5–10 个英文关键词，供搜索模块使用
+
+anxiety_personality:
+  label: "焦虑型人格"
+  keywords:
+    - "anxiety disorder"
+    - "social anxiety"
+    - "panic attack"
+    - "anxious attachment"
+    - "overthinking"
+    - "fear of failure"
+    - "anxiety relief"
+    - "mental health awareness"
+
+elon_musk:
+  label: "Elon Musk"
+  keywords:
+    - "Elon Musk"
+    - "Tesla"
+    - "SpaceX"
+    - "Neuralink"
+    - "Twitter acquisition"
+    - "Elon Musk interview"
+    - "Starship launch"
+    - "Optimus robot"
+    - "xAI"
+
+eastern_wisdom:
+  label: "东方智慧"
+  keywords:
+    - "Taoism"
+    - "Zen Buddhism"
+    - "Eastern philosophy"
+    - "Confucius"
+    - "Lao Tzu"
+    - "mindfulness meditation"
+    - "yin yang"
+    - "Buddhist teachings"
+    - "ancient Chinese wisdom"
+
+growth_psychology:
+  label: "成长心理学"
+  keywords:
+    - "growth mindset"
+    - "self improvement"
+    - "cognitive behavioral therapy"
+    - "emotional intelligence"
+    - "personal development"
+    - "resilience training"
+    - "positive psychology"
+    - "self actualization"
+    - "habit formation"
+
+business_strategy:
+  label: "商业战略"
+  keywords:
+    - "business strategy"
+    - "competitive advantage"
+    - "blue ocean strategy"
+    - "disruptive innovation"
+    - "startup growth"
+    - "business model"
+    - "strategic planning"
+    - "market analysis"
+    - "scaling business"
+
+ai_future:
+  label: "AI 未来"
+  keywords:
+    - "artificial intelligence"
+    - "AGI"
+    - "machine learning"
+    - "AI ethics"
+    - "future of AI"
+    - "large language models"
+    - "AI automation"
+    - "robotics"
+    - "deep learning"
+    - "neural networks"

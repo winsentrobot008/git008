@@ -1,0 +1,124 @@
+{
+  "test_time": "2026-07-13T17:48:52.171878+00:00",
+  "total": 23,
+  "passed": 22,
+  "failed": 1,
+  "all_pass": false,
+  "details": [
+    {
+      "label": "Cline-anti-freeze/ exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/executor/ exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/sandbox/ exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/fork_system/ exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/constitution/ exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/executor/online_agent.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/executor/server.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/executor/fork_main.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/executor/fork_server.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/executor/init_new_project.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "Cline-anti-freeze/executor/online_sandbox.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "code_execution_sandbox.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "fork_info.json exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "fork_tree.json exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "rules.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": ".governance_entry.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "install_governance.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "onboard_scanner.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "governance_linker.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "heartbeat_monitor.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "watchdog.py exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "label": "No old core.* imports",
+      "passed": false,
+      "detail": "Found 11"
+    },
+    {
+      "label": "No __pycache__ remains",
+      "passed": true,
+      "detail": "Remaining: 0"
+    }
+  ]
+}

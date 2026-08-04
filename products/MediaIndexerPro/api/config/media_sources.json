@@ -1,0 +1,39 @@
+{
+  "sources": {
+    "pexels": {
+      "mode": "real",
+      "api_key": "XIkEydoDJVkY7AX2tJWpPAsHzoBBhhKew2R8YadGTlhS1mLckCz3i4mo",
+      "enabled": true
+    },
+    "pixabay": {
+      "mode": "real",
+      "api_key": "",
+      "enabled": true
+    },
+    "unsplash": {
+      "mode": "real",
+      "api_key": "",
+      "enabled": true
+    },
+    "youtube": {
+      "mode": "real",
+      "api_key": "",
+      "enabled": true
+    },
+    "bing": {
+      "mode": "real",
+      "api_key": "",
+      "enabled": true
+    },
+    "mixkit": {
+      "mode": "real",
+      "api_key": "",
+      "enabled": true
+    }
+  },
+  "fallback": {
+    "mock_enabled": false,
+    "local_assets_enabled": true,
+    "use_picsum_thumbnails": false
+  }
+}

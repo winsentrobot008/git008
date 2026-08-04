@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"><title>VOICE22 | 导演调音台</title>
+    <style>
+        :root { --bg-dark: #0f0f1a; --card-bg: #1a1a2e; --accent: #9c27b0; --text: #e0e0e0; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-dark); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: auto; display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .card { background: var(--card-bg); border-radius: 10px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        h1, h2 { color: var(--accent); border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 0; }
+        textarea { width: 100%; height: 200px; background: #2b2b40; color: #fff; border: 1px solid #444; border-radius: 5px; padding: 10px; font-size: 14px; resize: vertical; }
+        
+        /* 调音台核心样式 */
+        .mixer { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .channel { border: 1px solid #333; border-radius: 8px; padding: 15px; background: #22223a; }
+        .channel h3 { text-align: center; margin: 0 0 15px 0; color: #fff; }
+        .knob-group { margin-bottom: 15px; }
+        .knob-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        .slider-container { display: flex; align-items: center; }
+        input[type=range] { flex-grow: 1; margin-right: 10px; -webkit-appearance: none; height: 8px; background: #444; border-radius: 4px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+        .value-display { min-width: 40px; text-align: right; font-weight: bold; color: #0f0; }
+        
+        /* 播放器与终端 */
+        .player-box { text-align: center; padding: 20px; background: #16213e; border-radius: 8px; margin-top: 20px; }
+        audio { width: 100%; margin-top: 10px; }
+        #terminal-output { height: 300px; overflow-y: auto; background: #000; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+        button { width: 100%; padding: 15px; margin-top: 20px; border: none; border-radius: 5px; background: linear-gradient(45deg, #6a1b9a, #9c27b0); color: white; font-size: 16px; font-weight: bold; cursor: pointer; }
+        button:hover { background: #ab47bc; }
+        button:disabled { background: #555; cursor: wait; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center;">🎛️ VOICE22 导演调音台</h1>
+    <div class="container">
+        <!-- 左列：剧本与调音台 -->
+        <div class="card">
+            <h2>📜 剧本编辑</h2>
+            <textarea id="script-input"></textarea>
+            
+            <h2>🎚️ 音色微调 (Director's Mixer)</h2>
+            <div class="mixer">
+                <!-- 角色A 通道 -->
+                <div class="channel">
+                    <h3>角色 A (老板/正派)</h3>
+                    <div class="knob-group">
+                        <label>年龄轴 (小孩 ←→ 老人)</label>
+                        <div class="slider-container">
+                            <input type="range" id="ageA" min="5" max="80" value="45" step="1">
+                            <span class="value-display" id="ageAVal">45</span>
+                        </div>
+                    </div>
+                    <div class="knob-group">
+                        <label>质感 (尖细 ←→ 浑厚)</label>
+                        <div class="slider-container">
+                            <input type="range" id="toneA" min="0" max="1" value="0.8" step="0.01">
+                            <span class="value-display" id="toneAVal">0.80</span>
+                        </div>
+                    </div>
+                    <div class="knob-group">
+                        <label>情绪强度 (平静 ←→ 激昂)</label>
+                        <div class="slider-container">
+                            <input type="range" id="emotionA" min="0" max="1" value="0.9" step="0.01">
+                            <span class="value-display" id="emotionAVal">0.90</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- 角色B 通道 -->
+                <div class="channel">
+                    <h3>角色 B (员工/OS)</h3>
+                    <div class="knob-group">
+                        <label>年龄轴 (小孩 ←→ 老人)</label>
+                        <div class="slider-container">
+                            <input type="range" id="ageB" min="5" max="80" value="25" step="1">
+                            <span class="value-display" id="ageBVal">25</span>
+                        </div>
+                    </div>
+                    <div class="knob-group">
+                        <label>质感 (尖细 ←→ 浑厚)</label>
+                        <div class="slider-container">
+                            <input type="range" id="toneB" min="0" max="1" value="0.3" step="0.01">
+                            <span class="value-display" id="toneBVal">0.30</span>
+                        </div>
+                    </div>
+                    <div class="knob-group">
+                        <label>情绪强度 (平静 ←→ 激昂)</label>
+                        <div class="slider-container">
+                            <input type="range" id="emotionB" min="0" max="1" value="0.2" step="0.01">
+                            <span class="value-display" id="emotionBVal">0.20</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button id="generateBtn" onclick="generateAudio()">▶️ 生成音频 (参数化)</button>
+        </div>
+
+        <!-- 右列：播放器与终端 -->
+        <div class="card">
+            <h2>🎧 预览与输出</h2>
+            <div class="player-box">
+                <audio id="player" controls></audio>
+            </div>
+            <h2>📊 执行终端</h2>
+            <div id="terminal-output">系统就绪。调整滑块后点击生成...</div>
+        </div>
+    </div>
+
+<script>
+    const terminal = document.getElementById('terminal-output');
+    const player = document.getElementById('player');
+    const generateBtn = document.getElementById('generateBtn');
+
+    // 绑定滑块实时数值显示
+    const sliders = document.querySelectorAll('input[type="range"]');
+    sliders.forEach(slider => {
+        slider.oninput = () => document.getElementById(slider.id + 'Val').innerText = parseFloat(slider.value).toFixed(2);
+    });
+
+    // 加载剧本
+    fetch('/api/script').then(res => res.text()).then(txt => document.getElementById('script-input').value = txt);
+
+    function log(msg) {
+        const time = new Date().toLocaleTimeString();
+        terminal.innerHTML += `[${time}] ${msg}\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    async function generateAudio() {
+        generateBtn.disabled = true;
+        generateBtn.innerText = '生成中...';
+        log('开始生成音频 (参数化模式)...');
+
+        // 1. 收集调音台参数
+        const job_config = {
+            script: document.getElementById('script-input').value,
+            voice_profiles: {
+                "A": {
+                    age: parseInt(document.getElementById('ageA').value),
+                    gender_tone: parseFloat(document.getElementById('toneA').value),
+                    emotion: parseFloat(document.getElementById('emotionA').value)
+                },
+                "B": {
+                    age: parseInt(document.getElementById('ageB').value),
+                    gender_tone: parseFloat(document.getElementById('toneB').value),
+                    emotion: parseFloat(document.getElementById('emotionB').value)
+                }
+            }
+        };
+
+        log(`参数 A: Age=${job_config.voice_profiles.A.age}, Tone=${job_config.voice_profiles.A.gender_tone}`);
+        log(`参数 B: Age=${job_config.voice_profiles.B.age}, Tone=${job_config.voice_profiles.B.gender_tone}`);
+
+        // 2. 发送POST请求到后端API
+        try {
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(job_config)
+            });
+            const result = await response.text();
+            log(result);
+
+            // 3. 尝试加载最新生成的音频
+            const match = result.match(/roast_\d+_[a-z0-9]+\.mp3/);
+            if (match) {
+                const audioUrl = '/output/' + match[0];
+                player.src = audioUrl + '?t=' + new Date().getTime(); // 加时间戳防止缓存
+                log(`加载音频: ${audioUrl}`);
+            } else {
+                // 回退：尝试加载 output_final.mp3
+                player.src = '/output/output_final.mp3?t=' + new Date().getTime();
+                log('加载音频: output/output_final.mp3');
+            }
+        } catch (error) {
+            log('错误: ' + error);
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.innerText = '▶️ 生成音频 (参数化)';
+        }
+    }
+</script>
+</body>
+</html>

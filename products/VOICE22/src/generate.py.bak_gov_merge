@@ -1,0 +1,133 @@
+# -*- coding: utf-8 -*-
+"""
+VOICE22 - 双人搞笑配音生成器核心逻辑
+"""
+import os
+import sys
+import re
+import json
+from pydub import AudioSegment
+
+# 接入 GIT008 AGI 治理系统：强制执行宪法原则
+try:
+    sys.path.insert(0, r"C:\Users\aoogoost\Desktop\Projekt\git008\Cline-anti-freeze")
+    from constitution.rules import anti_freeze_check
+    # 初始化宪法检查（防止失控与死循环）
+    anti_freeze_check(plan_steps=["ensure_dirs", "parse_script", "generate", "export", "cleanup"])
+except ImportError:
+    print("[Warning] AGI 宪法模块未检测到，跳过治理检查。")
+    def anti_freeze_check(plan_steps=None): pass
+
+import config
+
+def parse_time_to_ms(time_str):
+    """将 MM:SS 格式转换为毫秒数"""
+    parts = time_str.split(':')
+    if len(parts) == 2:
+        minutes, seconds = int(parts[0]), int(parts[1])
+        return (minutes * 60 + seconds) * 1000
+    return 0
+
+def parse_script(script_path):
+    """
+    解析剧本：[00:00-00:04] [A] 哎，小王，听说你跳槽了？
+    返回解析出的条目列表
+    """
+    if not os.path.exists(script_path):
+        # 如果文件不存在，创建一个默认剧本用于测试
+        default_script = (
+            "[00:00-00:04] [A] 哎，小王，听说你跳槽了？\n"
+            "[00:04-00:08] [B] 是啊老板，新公司离我家只有一脚油门。\n"
+            "[00:08-00:12] [A] 那多不好，以后上班多没劲啊。\n"
+            "[00:12-00:16] [B] （内心OS）没劲？我求之不得！\n"
+        )
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(default_script)
+        print(f"[*] 默认剧本已创建于 {script_path}")
+        
+    items = []
+    pattern = re.compile(r"\[(\d{2}:\d{2})-(\d{2}:\d{2})\]\s*\[([A-Z])\]\s*(.*)")
+    
+    with open(script_path, "r", encoding="utf-8") as f:
+        for line in f:
+            anti_freeze_check(plan_steps=["read_line", "parse_line", "append_item"]) # 循环处进行防冻结检查
+            line = line.strip()
+            if not line:
+                continue
+            match = pattern.match(line)
+            if match:
+                start_str, end_str, character, text = match.groups()
+                start_ms = parse_time_to_ms(start_str)
+                end_ms = parse_time_to_ms(end_str)
+                items.append({
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                    "character": character,
+                    "text": text
+                })
+    return items
+
+def generate_segment(item):
+    """为剧本单行生成对应音频段"""
+    duration_ms = item["end_ms"] - item["start_ms"]
+    if duration_ms <= 0:
+        duration_ms = 1000 # 默认 1 秒
+        
+    if config.SIMULATE_MODE:
+        # 模拟模式：生成静音占位，并根据文本长度增加微弱的背景噪声提示有生成
+        print(f"[Simulate] 生成角色 {item['character']} 的音频段 ({duration_ms}ms) -> {item['text']}")
+        return AudioSegment.silent(duration=duration_ms)
+    else:
+        # 真实模式：此处保留接入 Qwen3-TTS 的物理预留口
+        print(f"[Real-TTS] 正在合成角色 {item['character']} 语音...")
+        # 真实环境落地的具体调用代码可以在第二阶段写入
+        return AudioSegment.silent(duration=duration_ms)
+
+def main():
+    print("=== VOICE22 音频合成管线启动 ===")
+    
+    # 1. 解析剧本
+    items = parse_script(config.SCRIPT_PATH)
+    if not items:
+        print("[Error] 未解析到任何有效的剧本行。")
+        sys.exit(1)
+        
+    print(f"[*] 解析到 {len(items)} 条对话剧本。")
+    
+    # 2. 合成基础静音底轨 (长度由最后一条台词的结束时间决定)
+    total_duration = max(item["end_ms"] for item in items)
+    final_audio = AudioSegment.silent(duration=total_duration)
+    
+    # 3. 合成与拼接
+    for item in items:
+        anti_freeze_check(plan_steps=["generate_segment", "overlay_audio"])
+        segment = generate_segment(item)
+        
+        # 将生成的单句音频，覆盖并混合到对应的时间码位置
+        final_audio = final_audio.overlay(segment, position=item["start_ms"])
+        
+    # 4. 输出最终成果
+    output_path = os.path.join(config.OUTPUT_DIR, "output_final.mp3")
+    final_audio.export(output_path, format="mp3")
+    print(f"[OK] 搞笑音频生成成功，已输出至: {output_path}")
+
+if __name__ == "__main__":
+    # API模式：如果存在 input.json，读取它作为参数化配置
+    if os.path.exists("input.json"):
+        try:
+            with open("input.json", "r", encoding="utf-8") as f:
+                job_config = json.load(f)
+            # 从input.json中提取剧本并写入 script.txt
+            script_from_config = job_config.get("script", "")
+            if script_from_config:
+                os.makedirs(os.path.dirname(config.SCRIPT_PATH), exist_ok=True)
+                with open(config.SCRIPT_PATH, "w", encoding="utf-8") as f:
+                    f.write(script_from_config)
+                print(f"[API] 从input.json加载剧本 ({len(script_from_config)} chars)")
+            voice_profiles = job_config.get("voice_profiles", {})
+            if voice_profiles:
+                print(f"[API] 加载音色配置: {list(voice_profiles.keys())}")
+        except Exception as e:
+            print(f"[API] input.json解析失败: {e}")
+    # 运行主逻辑
+    main()

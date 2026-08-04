@@ -1,0 +1,5 @@
+{
+  "task_id": "UNATTENDED-TEST-002",
+  "target_product": "fireworkbloom",
+  "command": "npm run build"
+}

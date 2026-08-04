@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "title": "Cat Takes Over Dog's Bed — Pet Household Chaos",
+    "version": "1.0",
+    "genre": "pet_absurd_comedy",
+    "target_duration_s": 25,
+    "humor_type": "territorial_dispute_mismatched_pets"
+  },
+  "scenes": [
+    {"id": 1, "narration_en": "A lazy cat spots a cozy dog bed in the corner.", "visual_keywords": ["cat", "dog bed", "cozy", "corner"], "duration_s": 5},
+    {"id": 2, "narration_en": "The cat casually walks over and claims it as her own throne.", "visual_keywords": ["cat", "walk", "claim", "throne", "confident"], "duration_s": 5},
+    {"id": 3, "narration_en": "The dog returns and stares in disbelief at the intruder.", "visual_keywords": ["dog", "return", "stare", "disbelief", "confusion"], "duration_s": 5},
+    {"id": 4, "narration_en": "A tense standoff ensues — neither side willing to back down.", "visual_keywords": ["standoff", "tense", "cat", "dog", "faceoff"], "duration_s": 5},
+    {"id": 5, "narration_en": "They somehow end up sharing the bed, utterly confused but content.", "visual_keywords": ["sharing", "bed", "confused", "content", "cat", "dog"], "duration_s": 5}
+  ]
+}

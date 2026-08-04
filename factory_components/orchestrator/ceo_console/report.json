@@ -1,0 +1,15 @@
+{
+  "project": "CalorieAI",
+  "timestamp": "2026-08-01T12:20:58.433258",
+  "tests": {
+    "online": {
+      "status": 200
+    },
+    "local": {
+      "status": "ok"
+    },
+    "pipeline": {
+      "status": "ok"
+    }
+  }
+}

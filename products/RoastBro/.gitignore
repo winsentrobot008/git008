@@ -1,0 +1,57 @@
+# RoastBro .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+venv/
+.venv/
+env/
+
+# Data / Cache
+data/cache/*
+data/processed/*
+data/outputs/*
+!data/cache/.gitkeep
+!data/processed/.gitkeep
+!data/outputs/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ML Models
+models/
+!models/.gitkeep
+
+# Audio / Video
+*.mp4
+*.mov
+*.avi
+*.wav
+*.mp3
+*.flac
+
+# Credentials
+credentials/
+*.json
+!config/*.json

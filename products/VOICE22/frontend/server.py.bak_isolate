@@ -1,0 +1,138 @@
+# frontend/server.py — Resource-Fixed Static Router + API Gateway
+import http.server
+import socketserver
+import os
+import subprocess
+import json
+import shutil
+import urllib.parse
+import traceback
+import time
+import hashlib
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PORT = 8080
+FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'output')
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=FRONTEND_DIR, **kwargs)
+
+    def _set_headers(self, status, content_type):
+        self.send_response(status)
+        self.send_header('Content-type', content_type + '; charset=utf-8')
+        self.end_headers()
+
+    def do_GET(self):
+        # 1. API 路由
+        if self.path.startswith('/api/'):
+            self.handle_api_request()
+            return
+        
+        # 2. 前端静态资源
+        if self.path == '/':
+            self.path = '/index.html'
+        
+        static_path = os.path.join(FRONTEND_DIR, self.path.lstrip('/'))
+        if os.path.exists(static_path) and os.path.isfile(static_path):
+            self.send_static_file(static_path)
+            return
+        
+        # 3. 输出目录音频文件
+        if self.path.startswith('/output/'):
+            audio_path = os.path.join(PROJECT_ROOT, self.path.lstrip('/'))
+            if os.path.exists(audio_path) and audio_path.endswith('.mp3'):
+                self.send_static_file(audio_path)
+                return
+        
+        # 4. 404
+        self._set_headers(404, 'text/plain')
+        self.wfile.write(b'Resource not found')
+
+    def send_static_file(self, file_path):
+        """通用静态文件发送方法"""
+        mime_types = {
+            '.html': 'text/html',
+            '.css': 'text/css',
+            '.js': 'application/javascript',
+            '.json': 'application/json',
+            '.ico': 'image/x-icon',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav'
+        }
+        ext = os.path.splitext(file_path)[1]
+        content_type = mime_types.get(ext, 'application/octet-stream')
+        
+        self._set_headers(200, content_type)
+        with open(file_path, 'rb') as f:
+            self.wfile.write(f.read())
+
+    def handle_api_request(self):
+        """统一处理所有API请求"""
+        try:
+            if self.path == '/api/script':
+                script_path = os.path.join(PROJECT_ROOT, 'assets/scripts/script.txt')
+                self._set_headers(200, 'text/plain')
+                if os.path.exists(script_path):
+                    with open(script_path, 'r', encoding='utf-8') as f:
+                        self.wfile.write(f.read().encode('utf-8'))
+                else:
+                    self.wfile.write(b'Default script not found')
+            
+            elif self.path == '/api/list_audio':
+                self._set_headers(200, 'application/json')
+                if os.path.exists(OUTPUT_DIR):
+                    audio_files = [f for f in os.listdir(OUTPUT_DIR) if f.endswith('.mp3')]
+                    self.wfile.write(json.dumps(audio_files).encode('utf-8'))
+                else:
+                    self.wfile.write(json.dumps([]).encode('utf-8'))
+            
+            else:
+                self._set_headers(404, 'text/plain')
+                self.wfile.write(b'API endpoint not found')
+        
+        except Exception as e:
+            self._set_headers(500, 'text/plain')
+            self.wfile.write(f'API Error: {str(e)}'.encode('utf-8'))
+
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        
+        try:
+            if self.path == '/api/script':
+                script_path = os.path.join(PROJECT_ROOT, 'assets/scripts/script.txt')
+                with open(script_path, 'w', encoding='utf-8') as f:
+                    f.write(post_data.decode('utf-8'))
+                self._set_headers(200, 'text/plain')
+                self.wfile.write(b'Script saved successfully')
+            
+            elif self.path == '/api/generate':
+                job_config = json.loads(post_data.decode('utf-8'))
+                input_json_path = os.path.join(PROJECT_ROOT, 'input.json')
+                with open(input_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(job_config, f, ensure_ascii=False, indent=2)
+                
+                cmd = ['python', 'src/generate.py']
+                result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=60)
+                output = result.stdout + result.stderr
+                
+                self._set_headers(200, 'text/plain')
+                self.wfile.write(output.encode('utf-8'))
+            
+            else:
+                self._set_headers(404, 'text/plain')
+                self.wfile.write(b'API endpoint not found')
+        
+        except Exception as e:
+            self._set_headers(500, 'text/plain')
+            error_msg = f"Internal Server Error:\n{traceback.format_exc()}"
+            self.wfile.write(error_msg.encode('utf-8'))
+
+if __name__ == '__main__':
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print(f"VOICE22 Resource-Fixed Server serving at http://localhost:{PORT}")
+        httpd.serve_forever()

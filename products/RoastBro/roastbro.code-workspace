@@ -1,0 +1,82 @@
+{
+	"folders": [
+		{
+			"name": "🔥 RoastBro",
+			"path": "."
+		},
+		{
+			"name": "🛠️ tools",
+			"path": "tools"
+		},
+		{
+			"name": "🎬 editor",
+			"path": "editor"
+		},
+		{
+			"name": "🧠 analyzer",
+			"path": "analyzer"
+		},
+		{
+			"name": "📤 publisher",
+			"path": "publisher"
+		},
+		{
+			"name": "🗣️ voice",
+			"path": "voice"
+		},
+		{
+			"name": "✍️ scripts",
+			"path": "scripts"
+		},
+		{
+			"name": "🧩 compliance",
+			"path": "compliance"
+		},
+		{
+			"name": "📊 dashboard",
+			"path": "dashboard"
+		},
+		{
+			"name": "🧠 brain",
+			"path": "brain"
+		},
+		{
+			"name": "📦 data",
+			"path": "data"
+		},
+		{
+			"name": "📄 docs",
+			"path": "docs"
+		},
+		{
+			"name": "⚙️ config",
+			"path": "config"
+		},
+		{
+			"name": "🗄️ archive",
+			"path": "archive"
+		}
+	],
+	"settings": {
+		"workbench.colorTheme": "Default Dark Modern",
+		"workbench.iconTheme": "vs-seti",
+		"editor.fontSize": 14,
+		"editor.tabSize": 4,
+		"editor.formatOnSave": true,
+		"files.exclude": {
+			"**/__pycache__": true,
+			"**/node_modules": true,
+			"**/.venv": true
+		},
+		"python.terminal.activateEnvironment": false,
+		"python.defaultInterpreterPath": "C:\\Program Files\\Python312\\python.exe"
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-python.python",
+			"ms-python.vscode-pylance",
+			"GitHub.copilot",
+			"ms-toolsai.jupyter"
+		]
+	}
+}

@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ZOO · Media Library Pro</title>
+<style>
+:root{--bg:#0d0d0d;--surface:#1a1a2e;--surface2:#14142a;--border:#2a2a4a;--text:#e0e0e0;--text2:#888;--accent:#7ecfff;--accent2:#3a9eff;--green:#2a9d3a;--pink:#c99eff;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+/* Topbar */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:.5rem 1.2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{font-size:1rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar a{color:var(--accent2);text-decoration:none;font-size:.8rem;padding:.25rem .6rem;border-radius:6px;background:rgba(58,158,255,.1);transition:.2s}
+.topbar a:hover{background:rgba(58,158,255,.2)}
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden}
+/* Sidebar */
+.sidebar{width:240px;background:var(--surface2);border-right:1px solid var(--border);padding:.8rem;overflow-y:auto;flex-shrink:0}
+.sidebar h3{font-size:.75rem;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;margin-top:.8rem}
+.sidebar h3:first-child{margin-top:0}
+.sidebar input,.sidebar select{width:100%;padding:.35rem .5rem;border-radius:6px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.75rem;margin-bottom:.35rem;font-family:inherit;transition:border .15s}
+.sidebar input:focus,.sidebar select:focus{border-color:var(--accent2);outline:none}
+/* Mode buttons */
+.mode-group{display:flex;gap:4px;margin-bottom:.5rem}
+.mode-btn{flex:1;padding:.3rem;border:none;border-radius:6px;font-size:.72rem;cursor:pointer;font-weight:600;transition:.15s}
+.mode-btn.active{background:linear-gradient(135deg,var(--accent2),#5b4fff);color:#fff}
+.mode-btn:not(.active){background:var(--surface);color:var(--text2)}
+.mode-btn:not(.active):hover{background:#2a2a4a}
+/* Source toggles */
+.src-group{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:.4rem}
+.src-btn{padding:.2rem .3rem;border:none;border-radius:4px;font-size:.65rem;cursor:pointer;text-align:center;transition:.15s;font-weight:500}
+.src-btn.on{background:rgba(58,158,255,.2);color:var(--accent2)}
+.src-btn.off{background:var(--surface);color:var(--text2);opacity:.5}
+.src-btn:hover{opacity:.8}
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+/* Toolbar */
+.toolbar{display:flex;gap:.4rem;padding:.5rem 1rem;background:var(--surface);border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap}
+.toolbar .total{font-size:.75rem;color:var(--text2)}
+.toolbar button{padding:.3rem .7rem;border:none;border-radius:6px;font-size:.72rem;cursor:pointer;font-weight:600;transition:.15s;white-space:nowrap}
+.btn-p{background:linear-gradient(135deg,var(--accent2),#5b4fff);color:#fff}
+.btn-s{background:var(--surface);color:var(--text2)}
+.btn-s:hover{background:#2a2a4a}
+.btn-g{background:linear-gradient(135deg,var(--green),#3abf5f);color:#fff}
+.btn-r{background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff}
+.sm{font-size:.68rem;padding:.2rem .5rem}
+/* Grid */
+.grid-wrap{flex:1;overflow-y:auto;padding:.8rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.6rem}
+/* Card */
+.card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;cursor:pointer;transition:transform .2s cubic-bezier(.4,0,.2,1),border-color .2s,border-color .2s,box-shadow .2s;will-change:transform}
+.card:hover{transform:translateY(-4px) scale(1.02);border-color:var(--accent2);box-shadow:0 8px 30px rgba(58,158,255,.15)}
+.card:active{transform:translateY(-1px) scale(.98)}
+.card.selected{border-color:var(--accent);box-shadow:0 0 20px rgba(126,207,255,.2)}
+.card .thumb{height:110px;background:#12121e;display:flex;align-items:center;justify-content:center;font-size:1.8rem;position:relative;overflow:hidden}
+.card .thumb img{width:100%;height:100%;object-fit:cover}
+.card .thumb .play-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.4);opacity:0;transition:.2s;font-size:2rem}
+.card:hover .thumb .play-hint{opacity:1}
+.card .info{padding:.4rem .5rem}
+.card .info .name{font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .info .meta{font-size:.65rem;color:var(--text2);margin-top:.15rem}
+.card .info .tags{margin-top:.2rem}
+.tag{display:inline-block;padding:.1rem .3rem;border-radius:3px;font-size:.6rem;margin:1px}
+.tag-b{background:#1a2a4a;color:#6af}.tag-p{background:#3a1a2a;color:#f6a}.tag-g{background:#1a3a2a;color:#5f5}
+/* Detail Panel */
+.detail{width:400px;background:var(--surface2);border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;padding:.8rem;display:none}
+.detail h2{font-size:.85rem;color:var(--accent);margin-bottom:.4rem}
+.detail video,.detail img{width:100%;border-radius:6px;background:#000;max-height:220px}
+.detail .meta-row{display:flex;gap:.4rem;flex-wrap:wrap;margin:.5rem 0}
+.detail .meta-row .pill{padding:.2rem .5rem;border-radius:12px;font-size:.68rem;background:var(--surface);color:var(--text2);border:1px solid var(--border)}
+.detail .section{margin-top:.6rem}
+.detail .section h3{font-size:.72rem;color:var(--text2);text-transform:uppercase;margin-bottom:.2rem}
+.detail .section p{font-size:.75rem;color:#ccc;line-height:1.4}
+.detail .btn-row{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem}
+/* Edit Panel */
+.edit-panel{background:var(--surface);border-top:2px solid var(--accent2);padding:.8rem;display:none}
+.edit-panel .flex{display:flex;gap:.5rem;flex-wrap:wrap}
+.edit-panel .flex>*{flex:1;min-width:90px}
+.edit-panel label{font-size:.68rem;color:var(--text2);display:block;margin-bottom:.15rem}
+.edit-panel input,.edit-panel select{width:100%;padding:.3rem .4rem;border-radius:4px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.72rem}
+/* Result box */
+.out{background:#12121e;border-radius:6px;padding:.4rem .6rem;font-family:monospace;font-size:.68rem;white-space:pre-wrap;max-height:120px;overflow-y:auto;border:1px solid var(--border);margin-top:.4rem;display:none}
+.out.show{display:block}.out.ok{border-color:var(--green)}.out.bad{border-color:#c0392b}
+.tac{text-align:center;padding:1.5rem;color:var(--text2);font-size:.8rem}
+.tac-err{text-align:center;padding:1.5rem;color:#f55;font-size:.8rem}
+/* Search area */
+.search-bar{display:flex;gap:.4rem;margin-bottom:.4rem;align-items:center}
+.search-bar input{flex:1;padding:.35rem .6rem;border-radius:6px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.78rem;font-family:inherit}
+.search-bar input:focus{border-color:var(--accent2);outline:none}
+/* Ingest */
+.ingest-box{background:var(--surface);border-radius:var(--radius);padding:.5rem;margin-top:.4rem;display:none}
+.ingest-box input{width:100%;padding:.3rem .5rem;border-radius:4px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.72rem;margin-bottom:.3rem}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#3a3a5a}
+@media(max-width:768px){.layout{flex-direction:column}.sidebar{width:100%;max-height:180px}.detail{width:100%;max-height:250px}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>🎬 Media Library Pro</h1>
+  <div style="display:flex;gap:.4rem">
+    <span id="healthDot" style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;align-self:center"></span>
+    <a href="/">← Console</a>
+  </div>
+</div>
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h3>Mode</h3>
+    <div class="mode-group">
+      <button class="mode-btn active" id="modeLocal" onclick="setMode('local')">📍 Local</button>
+      <button class="mode-btn" id="modeOnline" onclick="setMode('online')">🌐 Online</button>
+    </div>
+    <!-- Local Search -->
+    <div id="localSearch">
+      <h3>Search</h3>
+      <input id="libQ" placeholder="Name, tags..." oninput="loadMedia()">
+      <div class="search-bar">
+        <select id="libType" onchange="loadMedia()" style="flex:1"><option value="">All types</option><option value="video">Video</option><option value="image">Image</option><option value="audio">Audio</option></select>
+        <select id="libEm" onchange="loadMedia()" style="flex:1"><option value="">Emotion</option></select>
+      </div>
+    </div>
+    <!-- v4: Humor Metadata Vault -->
+    <div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border)">
+      <h3>🎭 Humor Vault</h3>
+      <div id="humorVault" style="font-size:.68rem;color:var(--text2);margin-bottom:.3rem">
+        <span>Loading...</span>
+      </div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap" id="humorTags">
+        <span class="tag tag-p" style="cursor:pointer;opacity:.6" onclick="filterByHumor('amused')">😄 amused</span>
+        <span class="tag tag-p" style="cursor:pointer;opacity:.6" onclick="filterByHumor('curious')">🤔 curious</span>
+        <span class="tag tag-p" style="cursor:pointer;opacity:.6" onclick="filterByHumor('absurd')">🌀 absurd</span>
+        <span class="tag tag-g" style="cursor:pointer;opacity:.6" onclick="filterByHumor('cute')">🥰 cute</span>
+        <span class="tag tag-b" style="cursor:pointer;opacity:.6" onclick="filterByHumor('serious')">😐 serious</span>
+        <span class="tag tag-p" style="cursor:pointer;opacity:.6" onclick="filterByHumor('proud')">🦚 proud</span>
+        <span class="tag tag-p" style="cursor:pointer;opacity:.6" onclick="filterByHumor('awkward')">😅 awkward</span>
+        <span class="tag tag-p" style="cursor:pointer;opacity:.6" onclick="filterByHumor('judgmental')">🤨 judgmental</span>
+      </div>
+      <div style="margin-top:.3rem">
+        <label style="font-size:.65rem;color:var(--text2);display:flex;align-items:center;gap:.3rem">
+          <input type="checkbox" id="cacheOnly" onchange="loadMedia()"> 📦 Cached only
+        </label>
+      </div>
+    </div>
+    <!-- Online Search -->
+    <div id="onlineSearch" style="display:none">
+      <h3>Search Online</h3>
+      <div class="search-bar">
+        <input id="onlineQ" placeholder="Keywords..." onkeydown="if(event.key==='Enter')doOnlineSearch()">
+        <button class="btn-p sm" onclick="doOnlineSearch()">🔍</button>
+        <button class="btn-s sm" onclick="doRecommend()">🎯</button>
+      </div>
+      <h3>Sources</h3>
+      <div class="src-group" id="srcToggles">
+        <button class="src-btn on" data-src="pexels">Pexels</button>
+        <button class="src-btn on" data-src="pixabay">Pixabay</button>
+        <button class="src-btn on" data-src="unsplash">Unsplash</button>
+        <button class="src-btn on" data-src="youtube">YouTube</button>
+        <button class="src-btn on" data-src="bing">Bing</button>
+        <button class="src-btn on" data-src="mixkit">Mixkit</button>
+      </div>
+      <label style="font-size:.65rem;color:var(--text2);display:flex;align-items:center;gap:.3rem;margin-top:.2rem">
+        <input type="checkbox" id="srcAll" checked onchange="toggleAllSources()"> Select all
+      </label>
+    </div>
+    <!-- Pipeline: Auto Video -->
+    <div style="margin-top:.6rem">
+      <button class="btn-g" style="width:100%;padding:.35rem" onclick="runPipeline()">⚡ Auto Video</button>
+      <div id="pipelineInput" style="display:none;margin-top:.3rem">
+        <input id="pipelineKeyword" placeholder="Keyword: hope, tech, nature..." style="width:100%;padding:.3rem .5rem;border-radius:4px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.72rem">
+        <button class="btn-p" style="width:100%;padding:.25rem;margin-top:.2rem" onclick="doPipeline()">🚀 Generate</button>
+        <div id="pipelineResult" class="out"></div>
+      </div>
+    </div>
+    <!-- Actions -->
+    <div style="margin-top:.6rem">
+      <button class="btn-p" style="width:100%;padding:.35rem" onclick="showIngest()">+ Ingest</button>
+    </div>
+    <div class="ingest-box" id="ingestBox">
+      <input id="ingestPath" placeholder="C:\path\to\file.mp4">
+      <button class="btn-g" style="width:100%;padding:.25rem" onclick="doIngest()">📥 Ingest</button>
+      <div id="ingestResult" class="out"></div>
+    </div>
+  </div>
+  <!-- Main -->
+  <div class="main">
+    <div class="toolbar">
+      <span class="total" id="libTotal">0 items</span>
+      <button class="btn-s sm" onclick="loadMedia()">⟳</button>
+      <span style="flex:1"></span>
+      <span id="libStatus" style="font-size:.7rem;color:var(--text2)">Ready</span>
+    </div>
+    <div class="grid-wrap" id="localGrid">
+      <div id="libGrid" class="grid"></div>
+      <div id="libEmpty" class="tac">No media found</div>
+    </div>
+    <div class="grid-wrap" id="onlineGrid" style="display:none">
+      <div id="onlineResults" class="grid"></div>
+      <div id="onlineEmpty" class="tac">Search online to find media</div>
+    </div>
+  </div>
+  <!-- Detail -->
+  <div class="detail" id="detailPanel">
+    <h2 id="detailTitle">Preview</h2>
+    <video id="detailVideo" controls style="display:none"></video>
+    <img id="detailImg" style="display:none;border-radius:6px;max-height:220px">
+    <div class="meta-row" id="detailMeta"></div>
+    <div id="detailAI" style="display:none">
+      <div class="section"><h3>🤖 AI Understanding</h3><p id="detailAItext"></p><div id="detailTags"></div></div>
+      <!-- T6-2: Semantic tags (emotion + topic) -->
+      <div id="semanticTags" class="section" style="display:none;margin-top:.4rem">
+        <h3>🏷 Semantic Labels</h3>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:.2rem" id="semanticLabels"></div>
+        <button class="btn-s sm" style="margin-top:.3rem" onclick="analyzeSemantic()">🔎 Analyze</button>
+        <div id="analyzeResult" class="out" style="margin-top:.3rem"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-g sm" onclick="aiAnnotate()">🏷 Auto-Tag</button>
+        <button class="btn-s sm" onclick="imgToVideo()">🎬 Img→Video</button>
+        <button class="btn-s sm" onclick="showEdit()">✂ Edit</button>
+        <!-- T6-4: Generate Video button -->
+        <button class="btn-p sm" onclick="showGenerateVideo()">🎥 Script</button>
+        <!-- T7-7: Render Video button -->
+        <button class="btn-g sm" onclick="renderVideo()">🎬 Render</button>
+        <!-- T8-6: Voiceover button -->
+        <button class="btn-s sm" onclick="toggleVoiceover()">🎤 Voiceover</button>
+        <!-- T9-5: Cover button -->
+        <button class="btn-s sm" onclick="toggleCover()">🖼 Cover</button>
+        <a id="detailDl" href="#" download style="text-decoration:none"><button class="btn-p sm">⬇</button></a>
+      </div>
+      <div id="annotateResult" class="out"></div>
+      <div id="img2vidResult" class="out"></div>
+      <!-- T9-5: Cover Panel -->
+      <div id="coverPanel" class="section" style="display:none;margin-top:.4rem;padding:.4rem;background:var(--surface);border-radius:6px;border:1px solid var(--border)">
+        <h3>🖼 AI Cover</h3>
+        <div style="display:flex;gap:4px;margin-top:.3rem;flex-wrap:wrap;align-items:center">
+          <button class="btn-p sm" onclick="generateCover()">🎨 Generate Cover</button>
+          <button class="btn-g sm" onclick="downloadCover()">⬇ Download PNG</button>
+        </div>
+        <div id="coverPreview" style="display:none;margin-top:.3rem">
+          <img id="coverImg" style="width:100%;max-height:240px;border-radius:6px;background:#12121e;object-fit:contain">
+          <div id="coverTitle" style="font-size:.85rem;color:var(--accent);margin-top:.3rem;font-weight:700"></div>
+          <div id="coverTags" style="display:flex;gap:3px;flex-wrap:wrap;margin-top:.2rem"></div>
+        </div>
+        <div id="coverResult" class="out" style="margin-top:.3rem"></div>
+      </div>
+      <!-- T8-6: Voiceover Panel -->
+      <div id="voiceoverPanel" class="section" style="display:none;margin-top:.4rem;padding:.4rem;background:var(--surface);border-radius:6px;border:1px solid var(--border)">
+        <h3>🎤 AI Voiceover</h3>
+        <div style="display:flex;gap:4px;margin-top:.3rem;flex-wrap:wrap">
+          <select id="voLang" style="flex:1;min-width:70px;padding:.25rem;border-radius:4px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.7rem">
+            <option value="zh-CN">中文</option>
+            <option value="en-US">English</option>
+            <option value="sv-SE">Svenska</option>
+          </select>
+          <select id="voVoice" style="flex:1;min-width:70px;padding:.25rem;border-radius:4px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.7rem">
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="calm">Calm</option>
+            <option value="excited">Excited</option>
+            <option value="warm">Warm</option>
+            <option value="sad">Sad</option>
+            <option value="tech">Tech</option>
+          </select>
+          <button class="btn-p sm" onclick="generateVoiceover()">🎙 Generate</button>
+          <button class="btn-g sm" onclick="renderWithVoiceover()">🎬 Render+Voice</button>
+        </div>
+        <div id="voiceoverResult" class="out" style="margin-top:.3rem"></div>
+        <div id="voiceoverPreview" style="display:none;margin-top:.3rem">
+          <audio id="voiceoverAudio" controls style="width:100%;border-radius:4px"></audio>
+          <div id="voiceoverText" style="font-size:.72rem;color:var(--text2);margin-top:.2rem"></div>
+        </div>
+      </div>
+    </div>
+    <!-- T6-4: Script Preview Panel -->
+    <div id="scriptPreview" class="section" style="display:none;margin-top:.4rem">
+      <h3>🎥 Video Script</h3>
+      <div id="scriptClips" style="font-size:.72rem;margin-top:.2rem"></div>
+      <div id="scriptMeta" style="font-size:.68rem;color:var(--text2);margin-top:.3rem"></div>
+      <div id="generateVideoResult" class="out" style="margin-top:.3rem"></div>
+    </div>
+  </div>
+</div>
+<!-- Edit Panel -->
+<div class="edit-panel" id="editPanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+    <b style="font-size:.8rem;color:var(--accent2)">✂ Video Editor</b>
+    <button class="btn-r sm" onclick="closeEdit()">✕</button>
+  </div>
+  <div class="flex">
+    <div><label>Operation</label><select id="editOp" onchange="toggleEditFields()"><option value="trim">Trim</option><option value="compress">Compress</option><option value="filter">Filter</option><option value="subtitle">Subtitle</option></select></div>
+    <div id="editTrimFields" style="display:flex;gap:.3rem;flex:2">
+      <div style="flex:1"><label>Start</label><input id="editStart" type="number" value="0" min="0" step="0.5"></div>
+      <div style="flex:1"><label>Duration</label><input id="editDur" type="number" value="5" min="1" step="0.5"></div>
+    </div>
+    <div id="editFilterFields" style="display:none"><label>Filter</label><select id="editFilter"><option>Warm</option><option>Cold</option><option>Vintage</option><option>B&W</option><option>Sepia</option></select></div>
+  </div>
+  <div id="editSubFields" style="display:none;margin-top:.3rem"><label>Subtitle</label><input id="editSub" placeholder="Text..."></div>
+  <div class="btn-row" style="margin-top:.4rem">
+    <button class="btn-p sm" onclick="doEdit()">▶ Apply</button>
+    <button class="btn-s sm" onclick="showVersions()">📚 Versions</button>
+  </div>
+  <div id="editResult" class="out"></div>
+  <div id="versionPanel" style="display:none;margin-top:.4rem">
+    <b style="font-size:.72rem;color:var(--text2)">Version History</b>
+    <div id="versionList" style="font-size:.68rem;margin-top:.2rem"></div>
+  </div>
+</div>
+<script>
+const API='';let _items=[],_selected=null,_libData=null,_mode='local',_onlineResults=[],_shadowIndex=[];
+const $=id=>document.getElementById(id);
+async function api(m,p,b){const o={method:m,headers:{}};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b)}const r=await fetch(API+p,o);const d=await r.json();if(!r.ok)throw new Error(typeof d.detail==='string'?d.detail:`HTTP ${r.status}`);return d}
+function msg(s){$('libStatus').textContent=s}
+
+// ── v4: Load shadow index → populate humor vault ────────────────────────
+async function loadHumorVault(){
+  try{
+    const r=await fetch('/storage/humor_shadow_index.json?_='+Date.now());
+    const data=await r.json();
+    _shadowIndex=data.videos||[];
+    const emotions={};
+    _shadowIndex.forEach(e=>(e.emotions||[]).forEach(em=>{const k=em.toLowerCase();emotions[k]=(emotions[k]||0)+1}));
+    const vault=$('humorVault');
+    if(Object.keys(emotions).length){
+      vault.innerHTML=Object.entries(emotions).sort((a,b)=>b[1]-a[1]).map(([em,cnt])=>
+        `<span style="margin-right:6px">🎭 ${em}: <b style="color:var(--accent)">${cnt}</b></span>`
+      ).join('')+` · <span style="color:var(--pink)">${_shadowIndex.length} assets</span>`;
+    } else {
+      vault.innerHTML='<span>Run humor pipeline to populate</span>';
+    }
+    // Highlight matching humor tags
+    document.querySelectorAll('#humorTags .tag').forEach(t=>{
+      const em=t.textContent.trim().split(' ')[1];
+      if(emotions[em]){t.style.opacity='1';t.style.fontWeight='600'}
+    });
+  }catch(e){
+    $('humorVault').innerHTML='<span>No shadow index</span>';
+  }
+}
+
+function filterByHumor(emotion){
+  const q=$('libQ');
+  q.value=emotion;
+  q.dispatchEvent(new Event('input'));
+  msg(`🔍 Filtering by humor: ${emotion}`);
+}
+
+// ── v4: Add cache badge to card rendering ───────────────────────────────
+const _origRenderGrid=renderGrid;
+function renderGrid(){
+  // Check if we should filter by cache
+  const cacheOnly=$('cacheOnly')?.checked;
+  const items=cacheOnly ? _items.filter(x=>x.cached||x.local_path) : _items;
+  
+  const q=$('libQ').value.toLowerCase(),ef=$('libEm').value,tf=$('libType').value;
+  const filtered=items.filter(x=>{if(ef&&x.emotion!==ef)return false;if(tf&&x.type!==tf)return false;if(q&&!x.filename.toLowerCase().includes(q)&&!(x.tags||[]).some(t=>t.toLowerCase().includes(q)))return false;return true});
+  $('libTotal').textContent=filtered.length+' items';const g=$('libGrid');
+  if(!filtered.length){g.innerHTML='';$('libEmpty').style.display='block';return}
+  $('libEmpty').style.display='none';
+  const emojis={video:'🎬',image:'🖼',audio:'🎵',document:'📄'};
+  g.innerHTML=filtered.map(x=>{
+    const thumbUrl=getThumbUrl(x.filename, x.path);
+    const thumbHtml=thumbUrl
+      ? `<img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.parentNode.innerHTML='<span style=\\'font-size:2rem\\'>${emojis[x.type]||'📄'}</span>'">`
+      : `<span style="font-size:2rem">${emojis[x.type]||'📄'}</span>`;
+    const cacheBadge=(x.cached||x.local_path)?'<span style="font-size:.6rem;color:var(--green);margin-left:4px">📦</span>':'';
+    const humorScore=_shadowIndex.filter(e=>(e.humor||'').toLowerCase().includes(x.filename.split('.')[0].toLowerCase())).length;
+    return `<div class="card ${_selected?.id===x.id?'selected':''}" onclick="showDetail('${x.id}')">
+      <div class="thumb">${thumbHtml}<div class="play-hint">${x.type==='video'?'▶':'🔍'}</div></div>
+      <div class="info"><div class="name">${x.filename}${cacheBadge}</div><div class="meta">${x.type}${x.emotion?' · '+x.emotion:''}${x.size_mb?' · '+x.size_mb+'MB':''}</div><div class="tags">${(x.tags||[]).slice(0,3).map(t=>'<span class="tag tag-b">'+t+'</span>').join('')}${humorScore>0?'<span class="tag tag-g">😂 '+humorScore+'</span>':''}</div></div>
+    </div>`;
+  }).join('');
+}
+
+async function loadMedia(){
+  $('libGrid').innerHTML='<div class="tac">Loading...</div>';
+  try{
+    const d=await api('GET','/api/media/list');_libData=d;_items=d.items||[];
+    const em=d.stats?.by_emotion||{};const sel=$('libEm');const cur=sel.value;
+    sel.innerHTML='<option value="">All emotions</option>'+Object.keys(em).sort().map(k=>`<option value="${k}">${k}</option>`).join('');
+    if(cur)sel.value=cur;renderGrid();
+  }catch(e){$('libGrid').innerHTML='<div class="tac-err">'+e.message+'</div>'}
+}
+// V3: Load thumbnail map for real video previews
+let _thumbMap=null;
+async function loadThumbMap(){
+  try{
+    const r=await fetch('/api/data/thumbs/thumb_map.json');
+    _thumbMap=await r.json();
+  }catch(e){_thumbMap={}}
+}
+
+function getThumbUrl(filename, path){
+  if(!_thumbMap)return '';
+  // Try matching by path or filename
+  for(const [key, val] of Object.entries(_thumbMap)){
+    if(key.endsWith(filename)||key.includes(filename)||(path&&key.includes(path.replace(/\\/g,'/')))){
+      return val.thumb_url||'';
+    }
+  }
+  return '';
+}
+
+function renderGrid(){
+  const q=$('libQ').value.toLowerCase(),ef=$('libEm').value,tf=$('libType').value;
+  const items=_items.filter(x=>{if(ef&&x.emotion!==ef)return false;if(tf&&x.type!==tf)return false;if(q&&!x.filename.toLowerCase().includes(q)&&!(x.tags||[]).some(t=>t.toLowerCase().includes(q)))return false;return true});
+  $('libTotal').textContent=items.length+' items';const g=$('libGrid');
+  if(!items.length){g.innerHTML='';$('libEmpty').style.display='block';return}
+  $('libEmpty').style.display='none';
+  const emojis={video:'🎬',image:'🖼',audio:'🎵',document:'📄'};
+  g.innerHTML=items.map(x=>{
+    const thumbUrl=getThumbUrl(x.filename, x.path);
+    const thumbHtml=thumbUrl
+      ? `<img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.parentNode.innerHTML='<span style=\\'font-size:2rem\\'>${emojis[x.type]||'📄'}</span>'">`
+      : `<span style="font-size:2rem">${emojis[x.type]||'📄'}</span>`;
+    return `<div class="card ${_selected?.id===x.id?'selected':''}" onclick="showDetail('${x.id}')">
+      <div class="thumb">${thumbHtml}<div class="play-hint">${x.type==='video'?'▶':'🔍'}</div></div>
+      <div class="info"><div class="name">${x.filename}</div><div class="meta">${x.type}${x.emotion?' · '+x.emotion:''}${x.size_mb?' · '+x.size_mb+'MB':''}</div><div class="tags">${(x.tags||[]).slice(0,3).map(t=>'<span class="tag tag-b">'+t+'</span>').join('')}</div></div>
+    </div>`;
+  }).join('');
+}
+function showDetail(id){
+  _selected=_items.find(x=>x.id===id);if(!_selected)return;
+  $('detailPanel').style.display='block';$('detailTitle').textContent=_selected.filename;
+  const p=_selected.path||'',v=$('detailVideo'),im=$('detailImg');
+  const isVideo=p.endsWith('.mp4')||p.endsWith('.mov')||p.endsWith('.webm')||p.endsWith('.avi');
+  const isImage=p.endsWith('.jpg')||p.endsWith('.jpeg')||p.endsWith('.png')||p.endsWith('.gif')||p.endsWith('.webp');
+  if(isVideo){
+    v.style.display='block';im.style.display='none';
+    // Try to build proper path
+    let src='';
+    if(p.startsWith('http'))src=p;
+    else if(p.includes('api/data'))src='/'+p.split('api/data')[1].replace(/\\/g,'/');
+    else if(p.includes('local_assets'))src='/api/data/'+p.split('\\').pop();
+    else src='/api/data/'+p.split('\\').pop();
+    v.src=src;
+    // Also try to show thumbnail as poster
+    const thumbUrl=getThumbUrl(_selected.filename, p);
+    if(thumbUrl)v.poster=thumbUrl;
+  }else if(isImage){
+    im.style.display='block';v.style.display='none';
+    let src=p;
+    if(p.startsWith('http'))src=p;
+    else src='/api/data/'+p.split('\\').pop();
+    im.src=src;
+  }else{
+    v.style.display='none';im.style.display='none';
+  }
+  $('detailMeta').innerHTML=`<span class="pill">${_selected.type}</span><span class="pill">${_selected.emotion||'—'}</span><span class="pill">${_selected.size_mb||'?'} MB</span>`;
+  $('detailDl').href=p||'#';$('detailAI').style.display='block';
+  $('detailAItext').textContent=_selected.summary||'Click Auto-Tag for AI analysis';
+  $('detailTags').innerHTML=(_selected.tags||[]).map(t=>'<span class="tag tag-b">'+t+'</span>').join(' ');
+  // Reset semantic tags section
+  $('semanticTags').style.display='none';
+  $('semanticLabels').innerHTML='';
+  $('analyzeResult').className='out';
+  // Reset script preview section
+  $('scriptPreview').style.display='none';
+  $('scriptClips').innerHTML='';
+  $('scriptMeta').textContent='';
+  $('generateVideoResult').className='out';
+  $('annotateResult').className='out';$('img2vidResult').className='out';$('editResult').className='out';$('versionPanel').style.display='none';
+  document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
+  const idx=_items.indexOf(_selected);const card=document.querySelectorAll('.card')[idx];if(card)card.classList.add('selected');
+  msg('Selected: '+_selected.filename);
+}
+
+// Mode
+function setMode(m){
+  _mode=m;['modeLocal','modeOnline'].forEach(id=>$(id).className='mode-btn'+(id.includes(m?'Local':'Online')?' active':''));
+  ['localSearch','onlineSearch'].forEach(id=>$(id).style.display='none');$(m+'Search').style.display='block';
+  ['localGrid','onlineGrid'].forEach(id=>$(id).style.display='none');$(m+'Grid').style.display='block';
+  if(m==='local')loadMedia();
+}
+
+// Ingest
+function showIngest(){const b=$('ingestBox');b.style.display=b.style.display==='none'?'block':'none'}
+async function doIngest(){const p=$('ingestPath').value.trim();if(!p)return alert('Enter path');
+  const b=$('ingestResult');b.textContent='⏳ Ingesting...';b.className='out show';
+  try{const d=await api('POST','/api/media/ingest',{path:p});b.textContent=JSON.stringify(d,null,2);b.className='out show ok';loadMedia()}catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// AI
+async function aiAnnotate(){if(!_selected)return;const b=$('annotateResult');b.textContent='🤖 Analyzing...';b.className='out show';
+  try{const d=await api('POST','/api/media/annotate',{filename:_selected.filename});b.textContent=JSON.stringify(d,null,2);b.className='out show ok';$('detailAItext').textContent='Emotion: '+d.emotion+' | '+(d.tags||[]).join(', ');$('detailTags').innerHTML=(d.tags||[]).map(t=>'<span class="tag tag-b">'+t+'</span>').join(' ')}catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// T6-2: Semantic analysis via /api/media/analyze
+async function analyzeSemantic(){
+  if(!_selected)return;
+  const b=$('analyzeResult');b.textContent='⏳ Analyzing semantics...';b.className='out show';
+  try{
+    const d=await api('POST','/api/media/analyze',{
+      title:_selected.filename,
+      tags:_selected.tags||[],
+      source:_selected.source||'library',
+    });
+    b.textContent=JSON.stringify(d,null,2);b.className='out show ok';
+    // Display semantic labels
+    const labels=[
+      {label:'Emotion',value:d.emotion||'—',color:'#c99eff'},
+      {label:'Topic',value:d.topic||'—',color:'#7ecfff'},
+      {label:'Scene',value:d.scene||'—',color:'#5f5'},
+      {label:'Objects',value:(d.objects||[]).join(', ')||'—',color:'#fa0'},
+    ];
+    $('semanticLabels').innerHTML=labels.map(l=>`<span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:${l.color}22;color:${l.color};border:1px solid ${l.color}44"><b>${l.label}</b> ${l.value}</span>`).join('');
+    $('semanticTags').style.display='block';
+    msg('Semantic: '+d.emotion+' | '+d.topic+' | '+d.scene);
+  }catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// T6-4: Generate video script via /api/media/generate_video
+async function showGenerateVideo(){
+  if(!_selected)return;
+  const b=$('generateVideoResult');b.textContent='⏳ Generating script...';b.className='out show';
+  const sp=$('scriptPreview');sp.style.display='block';
+  try{
+    // Build media list from selected + library items
+    const mediaList=[];
+    if(_selected.path){
+      mediaList.push({
+        clip:_selected.filename,
+        filename:_selected.filename,
+        duration:5,
+        source:_selected.source||'library',
+        thumbnail:_selected.path,
+      });
+    }
+    // Add a few more from library if available
+    if(_libData&&_libData.items){
+      for(const item of _libData.items){
+        if(item.id!==_selected.id&&item.path&&mediaList.length<5){
+          mediaList.push({
+            clip:item.filename,
+            filename:item.filename,
+            duration:5,
+            source:item.source||'library',
+            thumbnail:item.path,
+          });
+        }
+      }
+    }
+    const d=await api('POST','/api/media/generate_video',{
+      keywords:_selected.filename.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),
+      emotion:_selected.emotion||'',
+      topic:'',
+      scene:'',
+      media_list:mediaList,
+    });
+    b.textContent=JSON.stringify(d,null,2);b.className='out show ok';
+    // Render script preview
+    const script=d.script||[];
+    if(script.length){
+      const emojis={fade:'🌫',dissolve:'💧',slide:'➡',zoom:'🔍',wipe:'🧹',crossfade:'🌊',blur:'🌸',__title__:'📌'};
+      $('scriptClips').innerHTML='<div style="display:flex;flex-direction:column;gap:4px">'+
+        script.map((s,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:.3rem .4rem;background:var(--surface);border-radius:4px;border:1px solid var(--border)">
+          <span style="font-size:.8rem;color:var(--text2);width:18px">${i+1}.</span>
+          <span style="font-size:.9rem">${emojis[s.transition]||'▶'}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.clip==='__title__'?'📌 '+s.text:s.clip}</span>
+          <span style="color:var(--accent2);font-weight:600">${s.duration}s</span>
+          <span style="font-size:.6rem;color:var(--text2);padding:.1rem .3rem;background:#1a2a4a;border-radius:3px">${s.transition}</span>
+        </div>`).join('')+'</div>';
+      $('scriptMeta').textContent=`⏱ Total: ${d.total_duration}s · ${d.clip_count} clips · Emotion: ${d.emotion||'—'} · Topic: ${d.topic||'—'}`;
+    } else {
+      $('scriptClips').innerHTML='<div style="color:var(--text2);padding:.5rem">No clips in script</div>';
+      $('scriptMeta').textContent='';
+    }
+    msg('Script: '+d.clip_count+' clips, '+d.total_duration+'s total');
+  }catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// T7-7: Render video via /api/media/render_video
+async function renderVideo(){
+  if(!_selected)return;
+  const b=$('generateVideoResult');b.textContent='⏳ Rendering video...';b.className='out show';
+  const sp=$('scriptPreview');sp.style.display='block';
+  try{
+    const mediaList=[];
+    if(_selected.path){
+      mediaList.push({clip:_selected.filename,filename:_selected.filename,duration:5,source:_selected.source||'library',thumbnail:_selected.path});
+    }
+    if(_libData&&_libData.items){
+      for(const item of _libData.items){
+        if(item.id!==_selected.id&&item.path&&mediaList.length<5){
+          mediaList.push({clip:item.filename,filename:item.filename,duration:5,source:item.source||'library',thumbnail:item.path});
+        }
+      }
+    }
+    const scriptResp=await api('POST','/api/media/generate_video',{
+      keywords:_selected.filename.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),
+      emotion:_selected.emotion||'',topic:'',scene:'',media_list:mediaList,
+    });
+    const renderResp=await api('POST','/api/media/render_video',{
+      script:scriptResp.script,
+      emotion:_selected.emotion||'默认',
+      topic:_selected.emotion||'general',
+      keywords:_selected.filename,
+    });
+    b.textContent=JSON.stringify(renderResp,null,2);b.className='out show ok';
+    $('scriptClips').innerHTML=renderResp.download_url
+      ? `<div style="margin-bottom:.4rem"><video src="${renderResp.download_url}" controls style="width:100%;border-radius:6px;max-height:200px;background:#000"></video></div>`
+      : '';
+    $('scriptMeta').innerHTML=`
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:.3rem">
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#2a9d3a22;color:#5f5;border:1px solid #2a9d3a44">⏱ ${renderResp.total_duration||'?'}s</span>
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#3a9eff22;color:#7ecfff;border:1px solid #3a9eff44">🎬 ${renderResp.clip_count||'?'} clips</span>
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#c99eff22;color:#c99eff;border:1px solid #c99eff44">🎵 ${renderResp.music||'—'}</span>
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#fa0;color:#000">📦 ${renderResp.size_mb||'?'} MB</span>
+      </div>
+      ${renderResp.download_url?`<a href="${renderResp.download_url}" download style="text-decoration:none"><button class="btn-g sm" style="margin-top:.3rem">⬇ Download MP4</button></a>`:''}
+    `;
+    msg('Render: '+(renderResp.filename||'done'));
+  }catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// T8-6: Voiceover controls
+let _voiceoverWav='';
+function toggleVoiceover(){
+  const p=$('voiceoverPanel');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+async function generateVoiceover(){
+  if(!_selected)return;
+  const lang=$('voLang').value,voice=$('voVoice').value;
+  const b=$('voiceoverResult');b.textContent='⏳ Generating narration...';b.className='out show';
+  try{
+    // Step 1: Generate narration text
+    const nar=await api('POST','/api/media/generate_narration',{
+      emotion:_selected.emotion||'平静',
+      topic:_selected.emotion||'general',
+      scene:'',
+      language:lang,
+    });
+    b.textContent='✅ Narration: '+nar.text+'\n⏳ Synthesizing speech...';
+    // Step 2: TTS
+    const tts=await api('POST','/api/media/tts',{
+      text:nar.text,
+      language:lang,
+      voice:voice,
+    });
+    _voiceoverWav=tts.download_url||tts.output_path||'';
+    b.textContent=JSON.stringify({narration:nar.text,tts:tts.filename,size_kb:tts.size_kb},null,2);
+    b.className='out show ok';
+    // Show audio preview
+    const ap=$('voiceoverPreview');ap.style.display='block';
+    const audio=$('voiceoverAudio');
+    audio.src=_voiceoverWav.startsWith('/')?_voiceoverWav:'/api/data/narrations/'+_voiceoverWav.split('\\').pop();
+    audio.load();
+    $('voiceoverText').textContent='🎤 '+nar.text+' ('+lang+', '+voice+')';
+    msg('Voiceover: '+(tts.size_kb||'?')+'KB');
+  }catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// T9-5: Cover generation
+let _coverUrl='';
+function toggleCover(){
+  const p=$('coverPanel');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+async function generateCover(){
+  if(!_selected)return;
+  const b=$('coverResult');b.textContent='⏳ Generating cover...';b.className='out show';
+  try{
+    const emotion=_selected.emotion||'平静';
+    const topic=_selected.emotion||'general';
+    // Generate title + tags + cover simultaneously
+    const [titleResp,tagResp,coverResp]=await Promise.all([
+      api('POST','/api/media/generate_title',{emotion,topic}),
+      api('POST','/api/media/generate_tags',{emotion,topic}),
+      api('POST','/api/media/generate_cover',{emotion,topic,scene:'',title:''}),
+    ]);
+    _coverUrl=coverResp.download_url||'';
+    b.textContent=JSON.stringify({cover:coverResp.filename,title:titleResp.best,tags:tagResp.tags},null,2);
+    b.className='out show ok';
+    // Show preview
+    const cp=$('coverPreview');cp.style.display='block';
+    $('coverImg').src=_coverUrl;
+    $('coverTitle').textContent='📌 '+titleResp.best;
+    $('coverTags').innerHTML=tagResp.tags.map(t=>`<span class="tag tag-b">${t}</span>`).join(' ');
+    msg('Cover: '+coverResp.filename+' ('+coverResp.size_kb+'KB)');
+  }catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// T10-3: Pipeline — Auto Video
+function runPipeline(){
+  const p=$('pipelineInput');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+async function doPipeline(){
+  const kw=$('pipelineKeyword').value.trim();
+  if(!kw){alert('Enter a keyword');return}
+  const b=$('pipelineResult');b.textContent='⏳ Running pipeline...';b.className='out show';
+  try{
+    const d=await api('POST','/api/media/pipeline_generate',{keyword:kw});
+    b.textContent=JSON.stringify(d,null,2);b.className='out show ok';
+    // Show results
+    const html=[];
+    if(d.cover&&d.cover.url){
+      html.push(`<div style="margin:.3rem 0"><img src="${d.cover.url}" style="width:100%;max-height:180px;border-radius:6px;object-fit:contain;background:#12121e"></div>`);
+    }
+    if(d.title){
+      html.push(`<div style="font-size:.9rem;font-weight:700;color:var(--accent);margin:.2rem 0">📌 ${d.title}</div>`);
+    }
+    if(d.tags&&d.tags.length){
+      html.push(`<div style="margin:.2rem 0">${d.tags.map(t=>`<span class="tag tag-b">${t}</span>`).join(' ')}</div>`);
+    }
+    if(d.script){
+      html.push(`<div style="font-size:.7rem;color:var(--text2);margin:.2rem 0">🎬 ${d.script.clips||'?'} clips · ⏱ ${d.script.total_duration||'?'}s</div>`);
+    }
+    if(d.video&&d.video.url){
+      html.push(`<div style="margin:.3rem 0"><video src="${d.video.url}" controls style="width:100%;border-radius:6px;max-height:200px;background:#000"></video></div>`);
+      html.push(`<div style="font-size:.7rem;color:var(--text2)">📦 ${d.video.size_mb||'?'}MB · ⏱ ${d.video.duration||'?'}s · ${d.video.clips||'?'} clips</div>`);
+      html.push(`<a href="${d.video.url}" download style="text-decoration:none"><button class="btn-g sm" style="margin-top:.3rem">⬇ Download Video</button></a>`);
+    }
+    if(d.voiceover&&d.voiceover.text){
+      html.push(`<div style="font-size:.7rem;color:var(--text2);margin-top:.2rem">🎤 ${d.voiceover.text.slice(0,60)}...</div>`);
+    }
+    if(html.length){
+      $('pipelineResult').innerHTML='<div style="padding:.4rem;background:var(--surface);border-radius:6px;margin-top:.3rem">'+html.join('')+'</div>'+b.textContent;
+      $('pipelineResult').className='out show ok';
+    }
+    msg('Pipeline: '+d.status+' | '+d.title);
+  }catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+function downloadCover(){
+  if(!_coverUrl){alert('Generate a cover first');return}
+  const a=document.createElement('a');
+  a.href=_coverUrl;a.download='cover.png';a.click();
+}
+async function renderWithVoiceover(){
+  if(!_selected){alert('Select a media item first');return}
+  if(!_voiceoverWav){alert('Generate voiceover first');return}
+  const b=$('generateVideoResult');b.textContent='⏳ Rendering with voiceover...';b.className='out show';
+  const sp=$('scriptPreview');sp.style.display='block';
+  try{
+    const mediaList=[];
+    if(_selected.path){
+      mediaList.push({clip:_selected.filename,filename:_selected.filename,duration:5,source:_selected.source||'library',thumbnail:_selected.path});
+    }
+    if(_libData&&_libData.items){
+      for(const item of _libData.items){
+        if(item.id!==_selected.id&&item.path&&mediaList.length<5){
+          mediaList.push({clip:item.filename,filename:item.filename,duration:5,source:item.source||'library',thumbnail:item.path});
+        }
+      }
+    }
+    const scriptResp=await api('POST','/api/media/generate_video',{
+      keywords:_selected.filename.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),
+      emotion:_selected.emotion||'',topic:'',scene:'',media_list:mediaList,
+    });
+    // Resolve narration_wav path
+    const wavPath=_voiceoverWav.startsWith('/')?'C:/Users/aoogoost/Desktop/Projekt/git008/projects/MediaIndexerPro/api/data/narrations/'+_voiceoverWav.split('/').pop():_voiceoverWav;
+    const renderResp=await api('POST','/api/media/render_video',{
+      script:scriptResp.script,
+      emotion:_selected.emotion||'默认',
+      topic:_selected.emotion||'general',
+      keywords:_selected.filename,
+      narration_wav:wavPath,
+    });
+    b.textContent=JSON.stringify(renderResp,null,2);b.className='out show ok';
+    // Show video player
+    $('scriptClips').innerHTML=renderResp.download_url
+      ? `<div style="margin-bottom:.4rem"><video src="${renderResp.download_url}" controls style="width:100%;border-radius:6px;max-height:200px;background:#000"></video></div>`
+      : '';
+    $('scriptMeta').innerHTML=`
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:.3rem">
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#2a9d3a22;color:#5f5;border:1px solid #2a9d3a44">⏱ ${renderResp.total_duration||'?'}s</span>
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#c99eff22;color:#c99eff;border:1px solid #c99eff44">🎵 ${renderResp.music||'—'}</span>
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#fa0;color:#000">📦 ${renderResp.size_mb||'?'} MB</span>
+        <span style="padding:.15rem .4rem;border-radius:4px;font-size:.65rem;background:#3a9eff22;color:#7ecfff;border:1px solid #3a9eff44">🎤 Voiceover</span>
+      </div>
+      ${renderResp.download_url?`<a href="${renderResp.download_url}" download style="text-decoration:none"><button class="btn-g sm" style="margin-top:.3rem">⬇ Download MP4</button></a>`:''}
+    `;
+    msg('Render with voiceover: '+(renderResp.filename||'done'));
+  }catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+async function imgToVideo(){if(!_selected)return;const p=_selected.path||'';if(!p.endsWith('.jpg')&&!p.endsWith('.png')){alert('Select image');return}
+  const b=$('img2vidResult');b.textContent='⏳ Converting...';b.className='out show';
+  try{const d=await api('POST','/api/media/image_to_video',{path:p,duration:3,effect:'ken_burns'});b.textContent=JSON.stringify(d,null,2);b.className='out show ok'}catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+
+// Source toggles
+function toggleAllSources(){const c=$('srcAll').checked;document.querySelectorAll('.src-btn').forEach(b=>{b.className='src-btn '+(c?'on':'off');b.dataset.active=c})}
+function getActiveSources(){return[...document.querySelectorAll('.src-btn.on')].map(b=>b.dataset.src).join(',')}
+
+// Online search
+async function doOnlineSearch(){
+  const q=$('onlineQ').value.trim();if(!q){alert('Enter keywords');return}
+  let src=getActiveSources();const el=$('onlineResults');
+  if(!src)src='all'; // fallback only when nothing selected
+  el.innerHTML='<div class="tac">Searching...</div>';$('onlineEmpty').style.display='none';
+  try{const d=await api('GET',`/api/media/search_online?query=${encodeURIComponent(q)}&source=${src}&limit=18`);renderOnline(d.items||[])}catch(e){el.innerHTML='<div class="tac-err">'+e.message+'</div>'}
+}
+async function doRecommend(){
+  const q=$('onlineQ').value.trim()||'recommended';const el=$('onlineResults');
+  el.innerHTML='<div class="tac">AI recommending...</div>';$('onlineEmpty').style.display='none';
+  try{const d=await api('GET',`/api/media/recommend?query=${encodeURIComponent(q)}&limit=12`);renderOnline((d.local||[]).concat(d.online||[]))}catch(e){el.innerHTML='<div class="tac-err">'+e.message+'</div>'}
+}
+function renderOnline(items){
+  const el=$('onlineResults');
+  if(!items.length){el.innerHTML='';$('onlineEmpty').style.display='block';$('onlineEmpty').textContent='No results';return}
+  _onlineResults=items;
+  el.innerHTML=items.map((x,i)=>`<div class="card"
+    onmouseenter="playHover('vid-${i}','${(x.preview_url||x.thumbnail||'').replace(/'/g,"\\'")}')"
+    onmouseleave="stopHover('vid-${i}')">
+    <div class="thumb" style="position:relative;overflow:hidden;background:#12121e">
+      <img id="img-${i}" src="${x.thumbnail||''}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.parentNode.innerHTML='🎬'" loading="lazy">
+      <video id="vid-${i}" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" muted loop playsinline preload="none"></video>
+      <div class="play-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.4);opacity:0;transition:.2s;font-size:2rem">▶</div>
+    </div>
+    <div class="info">
+      <div class="name">${x.title||'Untitled'}</div>
+      <div class="meta">${x.source||''} · ${x.type||'video'}${x.duration?' · '+x.duration:''}</div>
+      <div style="display:flex;gap:3px;margin-top:.3rem">
+        <button class="btn-g sm" style="flex:1" onclick="event.stopPropagation();importOnline(${i})">📥</button>
+        <button class="btn-s sm" onclick="event.stopPropagation();window.open('${(x.url||'#').replace(/'/g,"\\'")}','_blank')">🔗</button>
+      </div>
+    </div>
+  </div>`).join('');
+  $('libTotal').textContent=items.length+' online results';
+}
+
+// Hover play — each card has its own video element with unique ID
+function playHover(vidId, srcUrl){
+  const video=$(vidId);const img=$(vidId.replace('vid','img'));const hint=video?.parentNode?.querySelector('.play-hint');
+  if(hint)hint.style.opacity='1';
+  if(!video)return;
+  if(img)img.style.display='none';
+  video.style.display='block';
+  // Use the item's own preview_url for per-card preview, fallback to thumbnail
+  video.src=srcUrl || 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4';
+  video.currentTime=0;video.play().catch(()=>{});
+}
+function stopHover(vidId){
+  const video=$(vidId);const img=$(vidId.replace('vid','img'));
+  if(video){video.pause();video.currentTime=0;video.style.display='none';video.removeAttribute('src');video.load()}
+  if(img)img.style.display='block';
+}
+async function importOnline(idx){
+  const item=_onlineResults[idx];if(!item)return;
+  const cards=document.querySelectorAll('#onlineResults .card');if(cards[idx])cards[idx].style.opacity='.5';
+  try{const d=await api('POST','/api/media/import_online',{url:item.url,source:item.source,tags:[item.source,item.type],emotion:''});if(cards[idx]){cards[idx].style.opacity='1';cards[idx].style.borderColor='var(--green)'}msg('Imported');loadMedia()}catch(e){alert('Error: '+e.message);if(cards[idx])cards[idx].style.opacity='1'}
+}
+
+// Edit
+function showEdit(){const p=_selected?.path||'';if(!p.endsWith('.mp4')){alert('Select video');return}$('editPanel').style.display='block';$('editResult').className='out';toggleEditFields()}
+function closeEdit(){$('editPanel').style.display='none'}
+function toggleEditFields(){const op=$('editOp').value;$('editTrimFields').style.display=(op==='trim')?'flex':'none';$('editFilterFields').style.display=(op==='filter')?'block':'none';$('editSubFields').style.display=(op==='subtitle')?'block':'none'}
+async function doEdit(){if(!_selected)return;const b=$('editResult');b.textContent='⏳ Editing...';b.className='out show';
+  try{const body={path:_selected.path,operation:$('editOp').value,start:parseFloat($('editStart').value)||0,duration:parseFloat($('editDur').value)||5};if(body.operation==='filter')body.filter=$('editFilter').value;if(body.operation==='subtitle')body.subtitle=$('editSub').value;const d=await api('POST','/api/media/edit',body);b.textContent=JSON.stringify(d,null,2);b.className='out show ok';loadMedia()}catch(e){b.textContent='Error: '+e.message;b.className='out show bad'}
+}
+async function showVersions(){if(!_selected)return;$('versionPanel').style.display='block';const el=$('versionList');el.innerHTML='<div class="tac">Loading...</div>';
+  try{const d=await api('GET','/api/media/versions/'+_selected.id);el.innerHTML=(d.versions||[]).length?d.versions.map(v=>'<div style="padding:.2rem 0;border-bottom:1px solid var(--border)">V'+(v.version||'?')+': '+v.filename+' ('+(v.emotion||'—')+')</div>').join(''):'<div class="tac">No versions</div>'}catch(e){el.innerHTML='<div style="color:#f55">'+e.message+'</div>'}
+}
+
+// Source toggle click handlers
+document.querySelectorAll('.src-btn').forEach(b=>b.addEventListener('click',function(){this.className='src-btn '+(this.className.includes('on')?'off':'on')}))
+
+loadThumbMap();
+loadMedia();
+loadHumorVault();
+setInterval(loadHumorVault, 15000);
+</script>
+</body>
+</html>

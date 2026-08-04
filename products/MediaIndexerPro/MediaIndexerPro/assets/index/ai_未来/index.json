@@ -1,0 +1,3639 @@
+{
+  "topic": "AI 未来",
+  "generated_at": "2026-07-14T16:31:40.650866+00:00",
+  "total_items": 164,
+  "summary": {
+    "by_source": {
+      "YouTube": 89,
+      "DuckDuckGo": 49,
+      "Web Screenshot": 9,
+      "Web": 17
+    },
+    "by_type": {
+      "video": 89,
+      "image": 66,
+      "page": 9
+    }
+  },
+  "by_source": {
+    "YouTube": [
+      {
+        "title": "Lecture 10 - Introduction to Neural Networks | Stanford CS229: Machine Learning (Autumn 2018)",
+        "thumbnail": "https://i.ytimg.com/vi/MfIjxPh6Pys/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAl3KCkXd_mug7-7koFcF7PbNVGTA",
+        "url": "https://youtube.com/watch?v=MfIjxPh6Pys",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:20:14",
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Stanford CS229 I Machine Learning I Building Large Language Models (LLMs)",
+        "thumbnail": "https://i.ytimg.com/vi/9vM4p9NN0Ts/hq720.jpg?sqp=-oaymwE2COgCEMoBSFXyq4qpAygIARUAAIhCGAFwAcABBvABAfgB_gmAAtAFigIMCAAQARhlIGUoWDAP&rs=AOn4CLAkzupviVlheO8hQYbTm-UNV-Otmg",
+        "url": "https://youtube.com/watch?v=9vM4p9NN0Ts",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:44:31",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "AI, Machine Learning, Deep Learning and Generative AI Explained",
+        "thumbnail": "https://i.ytimg.com/vi/qYNweeDHiyU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDqKEjbYKsQ5UOPed6OpHoLzjvSqw",
+        "url": "https://youtube.com/watch?v=qYNweeDHiyU",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "10:01",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "Deep Learning | What is Deep Learning? | Deep Learning Tutorial For Beginners | 2026 | Simplilearn",
+        "thumbnail": "https://i.ytimg.com/vi/6M5VXKLf4D4/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDSt2z7TWT-blODow0reyxYEtyRCA",
+        "url": "https://youtube.com/watch?v=6M5VXKLf4D4",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "5:52",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Neural Network In 5 Minutes | What Is A Neural Network? | How Neural Networks Work | Simplilearn",
+        "thumbnail": "https://i.ytimg.com/vi/bfmFfD2RIcg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCw_B5u99yMjrgtZ8UCfzCHpvo2vQ",
+        "url": "https://youtube.com/watch?v=bfmFfD2RIcg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "5:45",
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "How to Start with Robotics? for Absolute Beginners || The Ultimate 3-Step Guide",
+        "thumbnail": "https://i.ytimg.com/vi/J0ssFp7yN8Y/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAlJs8KrlmYTbv47rmiojhwJ8wXGA",
+        "url": "https://youtube.com/watch?v=J0ssFp7yN8Y",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "10:18",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "AGI Experts: We're About To Lose Control of AI Forever.. And We Aren’t Ready",
+        "thumbnail": "https://i.ytimg.com/vi/8JuN6r0u91c/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD2sIlHfRUH7pBJ5gkoviR_08xIwA",
+        "url": "https://youtube.com/watch?v=8JuN6r0u91c",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:27:05",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Harvard CS50’s Artificial Intelligence with Python – Full University Course",
+        "thumbnail": "https://i.ytimg.com/vi/5NgNicANyqM/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCl3gGucelQ9boWetfPrhRcdm4opA",
+        "url": "https://youtube.com/watch?v=5NgNicANyqM",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "11:51:22",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "What Do Neural Networks Really Learn? Exploring the Brain of an AI Model",
+        "thumbnail": "https://i.ytimg.com/vi/jGCvY4gNnA8/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBjG11l0Va-tIh8ryAIhcxsSKqJ3Q",
+        "url": "https://youtube.com/watch?v=jGCvY4gNnA8",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "17:35",
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Stanford CS230 | Autumn 2025 | Lecture 1: Introduction to Deep Learning",
+        "thumbnail": "https://i.ytimg.com/vi/_NLHFoVNlbg/hq720.jpg?sqp=-oaymwE2COgCEMoBSFXyq4qpAygIARUAAIhCGAFwAcABBvABAfgB_gmAAtAFigIMCAAQARhlIGUoZTAP&rs=AOn4CLBbNwoDclDW6Z3Gu4d4xwUaDGOyTg",
+        "url": "https://youtube.com/watch?v=_NLHFoVNlbg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:00:17",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "How I'd Learn Machine Learning in 2026 (If I Was Starting Over)",
+        "thumbnail": "https://i.ytimg.com/vi/UZ_rK9gzVSc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB5v5cjR5fotcnLq7KOZOQCsyV6vA",
+        "url": "https://youtube.com/watch?v=UZ_rK9gzVSc",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "11:09",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "Engineering AI Ethics: What Meta Missed and Anthropic Got Right",
+        "thumbnail": "https://i.ytimg.com/vi/tVTOs24Yb7E/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBr3NFnEb93Cdlq8VZLcT6pSrokaQ",
+        "url": "https://youtube.com/watch?v=tVTOs24Yb7E",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "13:28",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "How to learn Machine Learning like a GENIUS and not waste time",
+        "thumbnail": "https://i.ytimg.com/vi/_hdUddANh_o/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCz6Efe_JDeP7u9tcganWSDExBKog",
+        "url": "https://youtube.com/watch?v=_hdUddANh_o",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "15:20",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "Everything You Need To Know About Large Language Models (LLMs)",
+        "thumbnail": "https://i.ytimg.com/vi/osKyvYJ3PRM/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAwx0t4f_CX0xlDCVyKSqxpZ2X1hQ",
+        "url": "https://youtube.com/watch?v=osKyvYJ3PRM",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "25:20",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "These 4 AI Automations Will Make You $1M (With Zero Employees)",
+        "thumbnail": "https://i.ytimg.com/vi/sDZmLFZ8BkM/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCxNwGF-TnSoy_xA29YEYR-GGBiIA",
+        "url": "https://youtube.com/watch?v=sDZmLFZ8BkM",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "17:41",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "How to Build & Sell AI Automations: Ultimate Beginner’s Guide",
+        "thumbnail": "https://i.ytimg.com/vi/5TxSqvPbnWw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDl32a92SGLfcDPnugtUcvx-VMcwQ",
+        "url": "https://youtube.com/watch?v=5TxSqvPbnWw",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:50:23",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "AGI Is Here — And Society Isn’t Ready | Peter Diamandis",
+        "thumbnail": "https://i.ytimg.com/vi/eHqIZInOxeE/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAbivpKLZgpgZy_Cx4qU6JP23TREg",
+        "url": "https://youtube.com/watch?v=eHqIZInOxeE",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:56:25",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Learn Machine Learning Like a GENIUS and Not Waste Time",
+        "thumbnail": "https://i.ytimg.com/vi/qNxrPri1V0I/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3dMhLvOes3ucKoJpwchWitJTFEQ",
+        "url": "https://youtube.com/watch?v=qNxrPri1V0I",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "15:03",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "But what is a neural network? | Deep learning chapter 1",
+        "thumbnail": "https://i.ytimg.com/vi/aircAruvnKk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDGOJz5xmjyQgBrJNUa1fLox-wUeA",
+        "url": "https://youtube.com/watch?v=aircAruvnKk",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "18:40",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Large Language Models Explained Simply (In 13 Minutes)",
+        "thumbnail": "https://i.ytimg.com/vi/UgvrrHc5BRY/hqdefault.jpg?sqp=-oaymwEcCOADEI4CSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCX1njljm0g0nE6oFy93qEFqovPzg",
+        "url": "https://youtube.com/watch?v=UgvrrHc5BRY",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "12:57",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "How To Start An AI Automation Agency (Beginners Guide)",
+        "thumbnail": "https://i.ytimg.com/vi/Dgs1tQngbec/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAMerD5cre0qQBbZJkn9XF6p5AmcA",
+        "url": "https://youtube.com/watch?v=Dgs1tQngbec",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "13:31",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "The TRUTH About Selling AI Automations to Businesses",
+        "thumbnail": "https://i.ytimg.com/vi/XUYvDbAv1IA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBkzD2-gYxCCVTK5ZjSAxph0aAOBA",
+        "url": "https://youtube.com/watch?v=XUYvDbAv1IA",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "4:28",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "All Machine Learning algorithms explained in 17 min",
+        "thumbnail": "https://i.ytimg.com/vi/E0Hmnixke2g/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB5V7AF45PiaffMkHFEAj2ftfAuiw",
+        "url": "https://youtube.com/watch?v=E0Hmnixke2g",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "16:30",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "Neural Networks Explained: Step-by-Step Walkthrough",
+        "thumbnail": "https://i.ytimg.com/vi/N9QY_fKXtFc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA-kaFnsLeqcstwyopLLfKMjXXJ4w",
+        "url": "https://youtube.com/watch?v=N9QY_fKXtFc",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "26:54",
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Google Just Revealed The Timeline From AGI To ASI",
+        "thumbnail": "https://i.ytimg.com/vi/jXGgNb0DLNg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCxs72V8ZMqiZ7cdO3tVuLosaVQWw",
+        "url": "https://youtube.com/watch?v=jXGgNb0DLNg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "16:51",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Artificial Intelligence: Complete path to 2030",
+        "thumbnail": "https://i.ytimg.com/vi/XXaUd0fGpOs/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3ih7akqBNJb8h4uZVEpnOm3p4ZA",
+        "url": "https://youtube.com/watch?v=XXaUd0fGpOs",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "2:02:04",
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "AI Automation Full Course for Beginners 2026",
+        "thumbnail": "https://i.ytimg.com/vi/uaEXcgBpLbo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCTuOQPXS2p_owrWbf9pDouVfXZjA",
+        "url": "https://youtube.com/watch?v=uaEXcgBpLbo",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "27:28",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "The Essential Main Ideas of Neural Networks",
+        "thumbnail": "https://i.ytimg.com/vi/CqOfi41LfDw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCc08dI1_oEUW9MHbtK0JRptgS9cg",
+        "url": "https://youtube.com/watch?v=CqOfi41LfDw",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "18:54",
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Machine Learning Explained in 100 Seconds",
+        "thumbnail": "https://i.ytimg.com/vi/PeMlggyqz0Y/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDvzXWKFvqGE1f7hOd6YGuMxuL0Tw",
+        "url": "https://youtube.com/watch?v=PeMlggyqz0Y",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "2:35",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "[1hr Talk] Intro to Large Language Models",
+        "thumbnail": "https://i.ytimg.com/vi/zjkBMFhNj_g/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAWw2ySedLx-WLIbk-T31w2BNRm_Q",
+        "url": "https://youtube.com/watch?v=zjkBMFhNj_g",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "59:48",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Deep Learning Crash Course for Beginners",
+        "thumbnail": "https://i.ytimg.com/vi/VyWAvY2CF9c/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA7YL7sLpc7K69rvACdgu-JZy6VAg",
+        "url": "https://youtube.com/watch?v=VyWAvY2CF9c",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:25:39",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Large Language Models explained briefly",
+        "thumbnail": "https://i.ytimg.com/vi/LPZh9BOjkQs/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLATsTncbvO7P7_ANyrCKHuFAAI6MQ",
+        "url": "https://youtube.com/watch?v=LPZh9BOjkQs",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "7:58",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "AI Automation: Complete Beginners Guide",
+        "thumbnail": "https://i.ytimg.com/vi/KSOxkhWs2Ic/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBRhCEPf1Py8ehOrNQv8g7CygunXQ",
+        "url": "https://youtube.com/watch?v=KSOxkhWs2Ic",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "7:56",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Why Grok 4.5 Just CHANGED the AGI Race",
+        "thumbnail": "https://i.ytimg.com/vi/qawxm01wtWg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDVO8eaXl-AIEGqUR8CRN1gQhUKvw",
+        "url": "https://youtube.com/watch?v=qawxm01wtWg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "10:55",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Neural Networks Explained in 5 minutes",
+        "thumbnail": "https://i.ytimg.com/vi/jmmW0F0biz0/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBZY9iTa5eDilpg1E2Cq1QwKRHkOQ",
+        "url": "https://youtube.com/watch?v=jmmW0F0biz0",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "4:32",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Explained In A Minute: Neural Networks",
+        "thumbnail": "https://i.ytimg.com/vi/rEDzUT3ymw4/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDGG6KmaRBFLpPlh2EABUpA9nCcBg",
+        "url": "https://youtube.com/watch?v=rEDzUT3ymw4",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:04",
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "The Complete Machine Learning Roadmap",
+        "thumbnail": "https://i.ytimg.com/vi/7IgVGSaQPaw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC3yTBprxUf3gn5I8VSpN3aHpBc1A",
+        "url": "https://youtube.com/watch?v=7IgVGSaQPaw",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "5:25",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "Lec 01. Introduction to Deep Learning",
+        "thumbnail": "https://i.ytimg.com/vi/6FkRvTtUc-o/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCfuoVeHgwRPPkjRyIa0Z_imsVhwA",
+        "url": "https://youtube.com/watch?v=6FkRvTtUc-o",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "1:00:51",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "11. Introduction to Machine Learning",
+        "thumbnail": "https://i.ytimg.com/vi/h0e2HAPTGF4/hq720.jpg?sqp=-oaymwE2COgCEMoBSFXyq4qpAygIARUAAIhCGAFwAcABBvABAfgB_gmAAtAFigIMCAAQARhlIGUoZTAP&rs=AOn4CLBzBlO_7G61g2WdNjPlskJa3K0O0Q",
+        "url": "https://youtube.com/watch?v=h0e2HAPTGF4",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "51:31",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "What Is AI Ethics? 4 Approaches",
+        "thumbnail": "https://i.ytimg.com/vi/hgCAmjy-z0U/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCZ031G5_xcclBk5zUtyCOJYUByPA",
+        "url": "https://youtube.com/watch?v=hgCAmjy-z0U",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "6:07",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "How Large Language Models Work",
+        "thumbnail": "https://i.ytimg.com/vi/5sLYAQS9sWQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBMIu1HBggVmDsm-RVixJEYct57kQ",
+        "url": "https://youtube.com/watch?v=5sLYAQS9sWQ",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "5:34",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "AGI was achieved... in 1997?",
+        "thumbnail": "https://i.ytimg.com/vi/vmjd_6Qe9dY/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAPJKbOsZgUD5PqcKqvuhD4ym320A",
+        "url": "https://youtube.com/watch?v=vmjd_6Qe9dY",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "32:10",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "AI Ethics: Why It Matters?",
+        "thumbnail": "https://i.ytimg.com/vi/C2MWrCdGG0Q/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAZZSDFPzp02v59GDmRwcZIaJ2TZw",
+        "url": "https://youtube.com/watch?v=C2MWrCdGG0Q",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "2:09",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "What is AI Ethics?",
+        "thumbnail": "https://i.ytimg.com/vi/aGwYtUzMQUk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAd9V61hEKwz_GYi9UkCJJSmhAemg",
+        "url": "https://youtube.com/watch?v=aGwYtUzMQUk",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "6:10",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "OpenAI CEO Sam Altman on AI governance, ethics, and innovation | A conversation with BiGS",
+        "thumbnail": "https://i.ytimg.com/vi/BZbjqiRvJPA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAZcd6xFy-kVTBnVLaW5Ig6sq-Qgg",
+        "url": "https://youtube.com/watch?v=BZbjqiRvJPA",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "15:52",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "AI Scientist: You Have No Idea What's Coming In 24 Months - Roman Yampolski",
+        "thumbnail": "https://i.ytimg.com/vi/HuYmkFSrHIg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBPYZpnd0XTBZJiXYSAcR-lmCV7eA",
+        "url": "https://youtube.com/watch?v=HuYmkFSrHIg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "18:28",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "AI Is Dangerous, but Not for the Reasons You Think | Sasha Luccioni | TED",
+        "thumbnail": "https://i.ytimg.com/vi/eXdVDhOGqoE/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCY_-vQ4_1NWbAbmUmHEMkd2-fxEg",
+        "url": "https://youtube.com/watch?v=eXdVDhOGqoE",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "10:19",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "The Most Advanced Robots I've Ever Seen (Nvidia GTC) | What The Future",
+        "thumbnail": "https://i.ytimg.com/vi/mFr7XfTY5bY/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBFgFlqQh5gwYHhr7VGQ4M0S77azg",
+        "url": "https://youtube.com/watch?v=mFr7XfTY5bY",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "5:50",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "We let AI buy a robot and a car, it does exactly what experts warned.",
+        "thumbnail": "https://i.ytimg.com/vi/IPaMKTb5csQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCv0C9ijQBdBdg9-F8426vA85nz8Q",
+        "url": "https://youtube.com/watch?v=IPaMKTb5csQ",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "15:10",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "AI is shaping war—what about peace? | Branka Panic | TEDxCalle Aldama",
+        "thumbnail": "https://i.ytimg.com/vi/qHVKAt-SVjo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCSaD2tE0AN2gYGjbWnkYYPf4Pz0g",
+        "url": "https://youtube.com/watch?v=qHVKAt-SVjo",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "14:49",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Ex-Google Insider: We Cannot Stop What's Coming In 2027 - Mo Gawdat",
+        "thumbnail": "https://i.ytimg.com/vi/vz8R2PtEB6E/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDZE0bXkHmSUNvEnWag5BwRDBdLdg",
+        "url": "https://youtube.com/watch?v=vz8R2PtEB6E",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "18:07",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "AI2027: Is this how AI might destroy humanity? - BBC World Service",
+        "thumbnail": "https://i.ytimg.com/vi/1UufaK3pQMg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBIsdOxFCG3S_ErlpKByjm4Y5EwMw",
+        "url": "https://youtube.com/watch?v=1UufaK3pQMg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "8:09",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "AI has hacked the code of human civilization | Yuval Noah Harari",
+        "thumbnail": "https://i.ytimg.com/vi/hBtVGwuJzpk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAbd93J5sDMKj_CU8QBJLsJfEAwIA",
+        "url": "https://youtube.com/watch?v=hBtVGwuJzpk",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "46:52",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "AI Whistleblower WARNS: \"You Have No Idea What's Coming In 2027\"",
+        "thumbnail": "https://i.ytimg.com/vi/CCX17EmjSLI/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBbPLvOPBciA0fJV9Gol-5y_Vtm1Q",
+        "url": "https://youtube.com/watch?v=CCX17EmjSLI",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "18:43",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "China unveils humanoid AI 'companion robots' to ease loneliness",
+        "thumbnail": "https://i.ytimg.com/vi/kF0r26HXRS4/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDMKHyBKf0jD-IWquoFdCSolyufhA",
+        "url": "https://youtube.com/watch?v=kF0r26HXRS4",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "2:44",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "1,000,000 Robots: How Tesla Plans to Beat China’s 90% Monopoly",
+        "thumbnail": "https://i.ytimg.com/vi/-9X1Zda3O8M/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAfum2e2g39ntzVqkdKxb_zkYdZvA",
+        "url": "https://youtube.com/watch?v=-9X1Zda3O8M",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "22:51",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "Ex-Google Insider: You're Not Ready For The Next Phase of AI",
+        "thumbnail": "https://i.ytimg.com/vi/CoaWmzkYFak/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCcEgCPuCEd7W7sE9CMDSVgvO0Beg",
+        "url": "https://youtube.com/watch?v=CoaWmzkYFak",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "34:07",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Demis Hassabis on AI's Next Big Breakthrough, 2050 and More!",
+        "thumbnail": "https://i.ytimg.com/vi/z4DdgnnCjUg/hq720_custom_3.jpg?sqp=CNzF2dIG-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBpjUvW898G_6vOzPp_9rSBdImoJQ",
+        "url": "https://youtube.com/watch?v=z4DdgnnCjUg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "22:55",
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "I Tried To Build a Robot Like Boston Dynamics With Isaac Sim",
+        "thumbnail": "https://i.ytimg.com/vi/YDzHL2JSCHc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBBQYpMGY0fY8pM0ujOWX09seq0xg",
+        "url": "https://youtube.com/watch?v=YDzHL2JSCHc",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "18:26",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "I Tested Apple’s Secret macOS AI… The Results Made No Sense",
+        "thumbnail": "https://i.ytimg.com/vi/8vDuIVlfeV0/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBFcyAxOPjSzSLIj5uQaujYGIWBig",
+        "url": "https://youtube.com/watch?v=8vDuIVlfeV0",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "11:21",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "AI is destroying our future \"bUt iT sAVes mE So MuCH tImE!\"",
+        "thumbnail": "https://i.ytimg.com/vi/wGQJz1LmjTA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCsaTK3o-7z5JtE9DZDW0soUd__Mg",
+        "url": "https://youtube.com/watch?v=wGQJz1LmjTA",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "43:30",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Figure Helix 02 Humanoid Robot Cleans Bedroom Like a Human",
+        "thumbnail": "https://i.ytimg.com/vi/xsLOYZxIUqc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAgBchJVCr5WMUKnBzEOUjKjoHX5w",
+        "url": "https://youtube.com/watch?v=xsLOYZxIUqc",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "2:19",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "Building a Robot That Delivers My Storage Bins on Demand",
+        "thumbnail": "https://i.ytimg.com/vi/eyEKcnER-Qk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB29j_tHIQzgT3hWij9tfa-o5Fy9A",
+        "url": "https://youtube.com/watch?v=eyEKcnER-Qk",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "36:41",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "Anthropic's Ethicist on Whether AI Can Become Conscious",
+        "thumbnail": "https://i.ytimg.com/vi/E4Wf4dLkOI0/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB_H1Qngi35l6GxJHZD7P7_skHu-A",
+        "url": "https://youtube.com/watch?v=E4Wf4dLkOI0",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "40:29",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "15 AI Devices You Can Buy Right Now… The Future Is Here",
+        "thumbnail": "https://i.ytimg.com/vi/wGnSLFmgTXU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA2-bU9BKUkQLylKGfkEh7lcbwclQ",
+        "url": "https://youtube.com/watch?v=wGnSLFmgTXU",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "15:50",
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "Learn These 6 AI Skills Now (Before Everyone Else Does)",
+        "thumbnail": "https://i.ytimg.com/vi/3XIGcM7VICc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3KClcyU7oolm1nXJPhS-ASL09XQ",
+        "url": "https://youtube.com/watch?v=3XIGcM7VICc",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "20:15",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "How Will People Generate Wealth If AI Does Everything?",
+        "thumbnail": "https://i.ytimg.com/vi/DFnoQkYUqgU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC26IY4u141z0u2A_ZQ38CAjE0AsA",
+        "url": "https://youtube.com/watch?v=DFnoQkYUqgU",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "5:10",
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "I put ChatGPT on a Robot and let it explore the world",
+        "thumbnail": "https://i.ytimg.com/vi/U3sSp1PQtVQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCmV1gtU0ywxNPo_GgY-N5JxiDDew",
+        "url": "https://youtube.com/watch?v=U3sSp1PQtVQ",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "15:24",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "How To Build Your First AI Agent (automate anything)",
+        "thumbnail": "https://i.ytimg.com/vi/m7oLuUo7DBo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3a1FfSn99pXSFunlFaMilk1K-VA",
+        "url": "https://youtube.com/watch?v=m7oLuUo7DBo",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "13:21",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Every Large Language Model Explained in 17 Minutes!",
+        "thumbnail": "https://i.ytimg.com/vi/9UpLmjlDgPg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDv-VICtR-h7BWEA-RmowzBPRjYPA",
+        "url": "https://youtube.com/watch?v=9UpLmjlDgPg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "17:47",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "The REAL Reason No One Knows What’s Coming With AI",
+        "thumbnail": "https://i.ytimg.com/vi/LYgLTraIe2I/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBGSRflTjzrvKNeWBiYNBJLF4Oo6Q",
+        "url": "https://youtube.com/watch?v=LYgLTraIe2I",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "21:43",
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "A.I. Futurist: What Your Life Looks Like In 2028",
+        "thumbnail": "https://i.ytimg.com/vi/tBiO8A4tj9I/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD6vudK0wyb1zCQT9699QNk3vdZHA",
+        "url": "https://youtube.com/watch?v=tBiO8A4tj9I",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "2:02:32",
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "ML Foundations for AI Engineers (in 34 Minutes)",
+        "thumbnail": "https://i.ytimg.com/vi/BUTjcAjfMgY/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAia2oAPfgFKQNcK6xtunjaITwXYQ",
+        "url": "https://youtube.com/watch?v=BUTjcAjfMgY",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "34:50",
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "Why AI experts say humans have two years left",
+        "thumbnail": "https://i.ytimg.com/vi/ci5rCe9vmxw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLChDjYqnkxgZZwU2ODn70i0wjXTUg",
+        "url": "https://youtube.com/watch?v=ci5rCe9vmxw",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "16:45",
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Near silent LLM Monster... NVIDIA, take notes",
+        "thumbnail": "https://i.ytimg.com/vi/ZmY35-ifJuo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDbTqNRAgDgqvTulVNrHD_LgsVq7g",
+        "url": "https://youtube.com/watch?v=ZmY35-ifJuo",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "24:17",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "You don't understand AI until you watch this",
+        "thumbnail": "https://i.ytimg.com/vi/1aM1KYvl4Dw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLALPCNizaicahyAx7kHb69i-kczJQ",
+        "url": "https://youtube.com/watch?v=1aM1KYvl4Dw",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "37:22",
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "How To Build Your Own Desktop Turret Robot!",
+        "thumbnail": "https://i.ytimg.com/vi/1j1kAuqePJo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDVxp4RXPJaAJ0I1MNkhGwcWuyYKw",
+        "url": "https://youtube.com/watch?v=1j1kAuqePJo",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "22:54",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "The AI Future No One Wants to Talk About",
+        "thumbnail": "https://i.ytimg.com/vi/zWQe2Fn--Eg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB1onImbjwftpslXlZi5ONeN-xjfA",
+        "url": "https://youtube.com/watch?v=zWQe2Fn--Eg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "12:14",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "'We are doomed' | Richard Dawkins on AI",
+        "thumbnail": "https://i.ytimg.com/vi/7Nr9JsQC2u8/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDBimxjsLVWabLTW_9IBIVmPRY4Kg",
+        "url": "https://youtube.com/watch?v=7Nr9JsQC2u8",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "7:23",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "Our BIGGEST project yet! (SPIDER MECH!)",
+        "thumbnail": "https://i.ytimg.com/vi/xd8dKY6Ozrg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA5VldvJ0FBG72_WtKaKjhWFGbWkA",
+        "url": "https://youtube.com/watch?v=xd8dKY6Ozrg",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "29:27",
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "Full AI Prompting Course with Andrew Ng",
+        "thumbnail": "https://i.ytimg.com/vi/8ib4Qnh2HFE/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAEH_eI487C7qVEqo3-M7w4_4QcSw",
+        "url": "https://youtube.com/watch?v=8ib4Qnh2HFE",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "2:28:47",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Microsoft Admits it was Wrong About AI",
+        "thumbnail": "https://i.ytimg.com/vi/towF0_V7oHw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDI0uy2LAoL0fteAGRmw9lFc_c1Cg",
+        "url": "https://youtube.com/watch?v=towF0_V7oHw",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "14:31",
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "How to Use AI in Your Business in 2026",
+        "thumbnail": "https://i.ytimg.com/vi/fr78adfAnuA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBaGg28gM38G7mi4i-B-t40gCVo1Q",
+        "url": "https://youtube.com/watch?v=fr78adfAnuA",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "15:54",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "I Built a Neural Network from Scratch",
+        "thumbnail": "https://i.ytimg.com/vi/cAkMcPfY_Ns/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBKXEn94J7gdhz3mMzg4lzVRDetRQ",
+        "url": "https://youtube.com/watch?v=cAkMcPfY_Ns",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "9:15",
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Private AI on the go… a new trick ",
+        "thumbnail": "https://i.ytimg.com/vi/PqBrnip-ZLw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDIi_6aeh41cSYN6aqL_f5Q6dyXYw",
+        "url": "https://youtube.com/watch?v=PqBrnip-ZLw",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "9:09",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Deep Dive into LLMs like ChatGPT",
+        "thumbnail": "https://i.ytimg.com/vi/7xTGNNLPyMI/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCuxQO4PTqamh4sZhBU4gHXMOOV4w",
+        "url": "https://youtube.com/watch?v=7xTGNNLPyMI",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "3:31:24",
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "AI is an Ethical Nightmare",
+        "thumbnail": "https://i.ytimg.com/vi/AaU6tI2pb3M/hqdefault.jpg?sqp=-oaymwEcCOADEI4CSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBuNcNDxtlUb-8H3sn1ZyJKXDUcVQ",
+        "url": "https://youtube.com/watch?v=AaU6tI2pb3M",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "56:38",
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "How to Win With AI in 2026",
+        "thumbnail": "https://i.ytimg.com/vi/9q5ojtkqsBs/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAmlx_XcaJhQrS-77dSXTBo_1uREQ",
+        "url": "https://youtube.com/watch?v=9q5ojtkqsBs",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "24:19",
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Top Ten Finds At CES 2026",
+        "thumbnail": "https://i.ytimg.com/vi/80NLT9wi_BI/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC3ycWJVXG68MbMIGMqVKzePhYPHA",
+        "url": "https://youtube.com/watch?v=80NLT9wi_BI",
+        "source": "YouTube",
+        "type": "video",
+        "duration": "34:04",
+        "keywords": [
+          "robotics"
+        ]
+      }
+    ],
+    "DuckDuckGo": [
+      {
+        "title": "Ai Ethics Law Artificial Intelligence Governance Stock Photo 2525348631 ...",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.r-n6xlZJjnTkWSYMIdtu0gHaFI&pid=15.1",
+        "url": "https://www.shutterstock.com/shutterstock/photos/2525348631/display_1500/stock-photo-ai-ethics-and-law-in-artificial-intelligence-governance-icons-related-to-ai-ethics-symbols-of-2525348631.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "AI ethics and law in artificial intelligence governance. Icons related ...",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.fReffqylhtqyhcT0f7dQ8wHaE8&pid=15.1",
+        "url": "https://as2.ftcdn.net/jpg/10/77/43/89/1000_F_1077438983_I74GvQGMcpSEngWlYprKid7sAsuBVWmu.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Exploring the Challenges of Large Language Models in Machine Learning ...",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.nb0g2JbUZ8RIj05-BFTmxQHaEK&pid=15.1",
+        "url": "https://www.davidmaiolo.com/wp-content/uploads/2024/03/Large-Language-Model-Training-Interface.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Artificial intelligence concept ai ethics | Premium AI-generated image",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.eIgI9X8mW_AN0bwCMLSjUgHaHa&pid=15.1",
+        "url": "https://img.freepik.com/premium-photo/artificial-intelligence-concept-ai-ethics_1204-719.jpg?w=2000",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Neural Networks And Deep Learning Explained – IQMJII",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.D8lKkNvik4GwEx6iY0VkkQHaE6&pid=15.1",
+        "url": "https://d2mk45aasx86xg.cloudfront.net/Deep_neural_network_25a8b6fa7f.webp",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Deep learning vs neural networks - meryphone",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.bK6HKphd60Vpdw2z3vKS2QHaGw&pid=15.1",
+        "url": "https://quantdare.com/wp-content/uploads/2019/06/deep_learning.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Navigating AI Ethics: Principles and Best Practices for Responsible AI ...",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.pSR6EjNm78zWsfGR54NdDwHaHa&pid=15.1",
+        "url": "https://miro.medium.com/v2/resize:fit:1024/1*tfYV3n_yBdOY6dh0dYAu5A.jpeg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Ai Neural Networks Vector Illustration Labeled: เวกเตอร์สต็อก (ปลอดค่า ...",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.OgnqE73aU4Vy1xwu7cO_PAHaGe&pid=15.1",
+        "url": "https://image.shutterstock.com/z/stock-vector-ai-neural-networks-vector-illustration-labeled-connectionist-system-scheme-computing-mind-signals-1345926827.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Deep Neural Network Discovering GPU Friendly Deep Neural Networks With",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.RSpJ2QHlcOzPGiVjDz_4rQHaDs&pid=15.1",
+        "url": "https://lamarr-institute.org/wp-content/uploads/deepLearn_2_EN.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Top Neural Network Architectures For Machine Learning Researchers ...",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.BX5fFCiMJvVJUM2eWBGDDgHaDm&pid=15.1",
+        "url": "https://www.marktechpost.com/wp-content/uploads/2022/09/Screen-Shot-2022-09-23-at-10.46.58-PM-1024x499.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Large Language Models | What are LLM? | Current Affairs for UPSC",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.xZzyukI_szX-wyAjZkd40AHaEc&pid=15.1",
+        "url": "https://dics.co/uploads/2024/02/17091075101_TozA-274Os-Z5mSLwdYkWw.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "GitHub - huseyincenik/deep_learning: Deep Learning #deeplearning",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.wshB2t5pyUNd6oTa7TWAVAHaFF&pid=15.1",
+        "url": "https://theoreticalecology.github.io/machinelearning/images/AI_ML_DL.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Data Science, AI, ML, Deep Learning, and Data Mining | AltexSoft",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.r4cewjcPHfJBo91Hq62wCQHaFG&pid=15.1",
+        "url": "https://content.altexsoft.com/media/2021/01/illustration-of-deep-learning-neural-networks-with.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "AI Unleashed: The Ethics of Artificial Intelligence – TEACHFLIX",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.ekV3hRz-ThNvIrtzQ1xQxgHaEH&pid=15.1",
+        "url": "https://teachflix.org/wp-content/uploads/2025/04/AI-ethics.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Concise visual summary of deep learning architectures – Artofit",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.JkYQIIREXTpNks4u1DntcQHaFf&pid=15.1",
+        "url": "https://i.pinimg.com/originals/55/9f/f1/559ff127893825ac54a058d5ee6f5d39.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "AI Ethics : Challenges, Importance, and Future - GeeksforGeeks",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.Fq5VrX27TWilA-5IelaT_QHaFS&pid=15.1",
+        "url": "https://media.geeksforgeeks.org/wp-content/uploads/20240508132659/AI-Ethics--Challenges-Importance-and-Future-768.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "AI Ethics : Challenges, Importance, and Future | GeeksforGeeks",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.sGJz3GRzsoU_biJ3qjGPDAHaDe&pid=15.1",
+        "url": "https://media.geeksforgeeks.org/wp-content/uploads/20240318112121/What-are-AI-ethics.webp",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "What is AI Automation? Benefits, Use Cases, and How It Works",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.vk4E3j9h58RyWpJSpNJ_iAHaEO&pid=15.1",
+        "url": "https://automatio.ai/blog/content/images/2024/10/DALL-E-2024-10-30-14.36.30---A-retro-futuristic-cover-image-illustrating-the-concept-of-hyperautomation.-The-scene-shows-a-seamless-blend-of-AI--RPA--robotic-process-automation---.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "8 Deep Learning Architectures Data Scientists Must Master",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.h7ORI-sgRt2aHZr_z3_eMgHaEc&pid=15.1",
+        "url": "https://daxg39y63pxwu.cloudfront.net/images/blog/deep-learning-architectures/Deep_Learning_Architecture_Diagram__by_ProjectPro.webp",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Introduction to Neural Networks AI | Class 9 | Aiforkids",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.2fGAaCppOwW_ngpN7oJiLAHaE9&pid=15.1",
+        "url": "https://aiforkids.in/images/neural+networks.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "What Is Deep Learning and How Does It Work? | Built In",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.zxks_M9Ej_jcNZxnX7H3jgHaD4&pid=15.1",
+        "url": "https://builtin.com/sites/www.builtin.com/files/styles/og/public/2022-04/what-is-deep-learning.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "The Power of AI Automation in Boosting Brand Growth",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.2b8T5KUVOjOXbJpdICT3egHaE9&pid=15.1",
+        "url": "https://media.gettyimages.com/id/1698710873/photo/automation-software-technology-process-system.jpg?b=1&s=2048x2048&w=0&k=20&c=KtfBHu29KL5YEUl8GJ6uew4hmXvzkR9hOxq_mAgo6VI=",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "What Are Large Language Models (LLMs)? | Smith.ai",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.AmdgAH8C0orHQGFqwkoZnwHaGO&pid=15.1",
+        "url": "https://assets-global.website-files.com/5b15d605b7c459fc409872b5/654546b7a91f6aed77c9f85a_6-large-language-model-use-cases.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Introduction to Neural Networks with Scikit-Learn",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.jZNGKLwGonhV_0t6NQ8SKwHaGn&pid=15.1",
+        "url": "https://s3.amazonaws.com/stackabuse/media/intro-to-neural-networks-scikit-learn-3.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Top 11 Most Powerful Large Language Models Today",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.XEBOQeBOhp46sbXDAJQPOgHaFZ&pid=15.1",
+        "url": "https://intelliarts.com/wp-content/uploads/2023/12/best-large-language-models_2-1024x747.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Beginner's Guide to Large Language Models (LLM)",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.V5XlqVOifW9WJFjKEWGh0wHaE8&pid=15.1",
+        "url": "https://dataaspirant.com/wp-content/uploads/2025/04/1-2.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "What is LLM? - Large Language Models Explained",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.ZITKgh-G4FztcL3rAT8xEAHaD4&pid=15.1",
+        "url": "https://www.mygreatlearning.com/blog/wp-content/uploads/2025/02/what-is-llm.webp",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "What is AI automation + how to use it | Zapier",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.ntSzicwoKFbxI_zwB437ZgHaIS&pid=15.1",
+        "url": "https://images.ctfassets.net/lzny33ho1g45/LmozY1MaBpSUpyrMp65Y3/021c0e21579ca502040d47379367bd44/technological-components-of-ia.png?w=1400",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Large Language Models—AI-Powered Creativity",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.yj763JtdaOYHkC7TEphw4AHaEE&pid=15.1",
+        "url": "https://assets-global.website-files.com/65d8ee5f025f02594c614c17/66018d221b73a4678f583607_1.webp",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Ethics Of Artificial Intelligence – ACTNCI",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.m2Shgsynl-vKWW2_BcWy5wHaEK&pid=15.1",
+        "url": "https://infografolio.com/cdn/shop/files/artificial-intelligence-slides-slides-ai-ethics-artificial-intelligence-infographic-template-powerpoint-template-keynote-template-google-slides-template-infographic-template-361997127.jpg?format=pjpg&v=1691337736&width=1960",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "AI Ethics - Ethics Unwrapped",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.M2WkxppD8YpdAtHwiln8HwHaEK&pid=15.1",
+        "url": "https://ethicsunwrapped.utexas.edu/wp-content/uploads/2024/09/AI-Ethics_Thumbnail.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Definition of Deep Learning",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.DAw3S4i9-K6EipgTf1kKYQHaE6&pid=15.1",
+        "url": "https://www.usfhealthonline.com/wp-content/uploads/sites/2/2018/04/Deep-learning.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "AI Automation - TecniForge",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.2Gufactu7uUqz76arbsKJwHaEK&pid=15.1",
+        "url": "https://data.tecniforge.com/2025/06/ai.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Neural networks – TikZ.net",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.zHgaKwFzDUg6dNqV0D37JgHaF0&pid=15.1",
+        "url": "https://tikz.net/wp-content/uploads/2021/12/neural_networks-004.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Artificial Neural Networks",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.JlPRAkR2Si5H5LRTm0s4cAHaE8&pid=15.1",
+        "url": "https://cdn.analyticsvidhya.com/wp-content/uploads/2021/08/66565What-is-an-Artificial-Neural-Networks.jpeg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Deep Learning Models",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.rudtyfQ-75RtBWCnV2f1fQHaEK&pid=15.1",
+        "url": "https://cdn.shopaccino.com/igmguru/articles/what-are-deep-learning-models-72824355298500_l.jpg?v=531",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "AI Ethics",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.WXL2QeYSc6LV4qPZ39Aw9wHaH9&pid=15.1",
+        "url": "https://pwonlyias.com/wp-content/uploads/2024/06/1-67753a4d23f45.webp",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "What is a Large Language Model (LLM)? Examples, Use Cases | Enterprise ...",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.Zzf8i30tzno-_QyeO4MNGwHaEK&pid=15.1",
+        "url": "https://em360tech.com/sites/default/files/inline-images/large-language-models-work.jpeg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Neural network model with real synapses between neurons 7092752 Vector ...",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.-p_Fp5ghcufRvR6MYLs_pQHaE8&pid=15.1",
+        "url": "https://static.vecteezy.com/system/resources/previews/007/092/752/original/neural-network-model-with-real-synapses-between-neurons-vector.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "AI Workflow Automation: Transforming Digital Business Processes - Jasify",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.3JEP9GjXkc2ccc7M1bBKAAHaEI&pid=15.1",
+        "url": "https://fal.media/files/tiger/zkXwxBHSM_vDB0c2FNJvG_a38f373351ce4ac9afc5d2e1109bcca9.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "AI Workflow Automation: Transforming Digital Business Processes - Jasify",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.jl_Kem_JhWFoRUtpYuU61wHaEI&pid=15.1",
+        "url": "https://fal.media/files/panda/7nMQgpLj4bosLhbVej5Dw_0d5356cec5de42a8a8dea007191df504.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Intelligent Automation: When Robotic Process Automation (RPA) Meets ...",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.IR8i4f4zD3f3Zlpg4u6tqgHaEe&pid=15.1",
+        "url": "https://cigen.com.au/wp-content/uploads/2019/06/1123.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Artificial Neural Network | Brilliant Math & Science Wiki",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.3fA77_mLNiJTSgZFhYnU0QHaE2&pid=15.1",
+        "url": "https://www.codespeedy.com/wp-content/uploads/2019/05/ann.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "AI in Business Process Automation: Benefits & Use Cases",
+        "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.sR2dPm4CHXEachNDq8Iy5QHaEH&pid=15.1",
+        "url": "https://www.solulab.com/wp-content/uploads/2024/09/AI-in-Business-Process-Automation-1-1536x853.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Generative AI and Automation: Use Cases & Benefits",
+        "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.gBRHGm3PslfO-uTPwI3r9gHaDt&pid=15.1",
+        "url": "https://www.solulab.com/wp-content/uploads/2024/03/GenAI-Automation-1024x512.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Neural network diagram — Science Learning Hub",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.mVJKkWPT_UF0ywmPgIXdoAHaFH&pid=15.1",
+        "url": "https://static.sciencelearn.org.nz/images/images/000/005/156/full/ART_Artificial_intelligence_Neural_network_explain_(1).png?1678746405",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "What Is a Large Language Model? - Ontotext",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.z2n98byBoqbz7qYZxVnc4gHaHW&pid=15.1",
+        "url": "https://www.ontotext.com/wp-content/uploads/2023/11/What-is-LLM.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "AI-Powered Automation Tools (2024)",
+        "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.le-lCAVzLa_bxM8LuaM1lgHaFE&pid=15.1",
+        "url": "https://blog.iteyes.net/wp-content/uploads/2024/08/2cad70dd-bc58-415e-8af4-23c1e719c9c8.jpg",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI automation"
+        ]
+      },
+      {
+        "title": "Language Models: Size Matters",
+        "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.Uyb54nk7b4l0Dp7C0KYKGwHaEK&pid=15.1",
+        "url": "https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https://substack-post-media.s3.amazonaws.com/public/images/88af510b-f832-4ea1-91e9-4768b9b319e1_1920x1080.png",
+        "source": "DuckDuckGo",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      }
+    ],
+    "Web Screenshot": [
+      {
+        "title": "Artificial intelligence (AI) | Definition, Examples, Types, Applications, Companies, & Facts | Britannica",
+        "thumbnail": "https://cdn.britannica.com/47/246247-050-F1021DE9/AI-text-to-image-photo-robot-with-computer.jpg",
+        "url": "https://www.britannica.com/technology/artificial-intelligence",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "What Is Artificial Intelligence? Definition, Uses, and Types | Coursera",
+        "thumbnail": "https://images.ctfassets.net/wp1lcwdav1p1/WLP03Kh71Uik4M1TNEyis/c85e4cfd5cbabbe5137ed86965d83e04/GettyImages-1199128740.jpg?w=1500&h=680&q=60&fit=fill&f=faces&fm=jpg&fl=progressive",
+        "url": "https://www.coursera.org/articles/what-is-artificial-intelligence",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "Understanding Adjusted Gross Income (AGI) and How It Impacts Your Taxes",
+        "thumbnail": "https://www.investopedia.com/thmb/9VnJqrJMIswnegoL3RMqc500TX8=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/GettyImages-88305470-1--57520b1c5f9b5892e8bfc1a0.jpg",
+        "url": "https://www.investopedia.com/terms/a/agi.asp",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Ethics of Artificial Intelligence - AI | UNESCO",
+        "thumbnail": "/sites/default/files/styles/submenu_mobile/public/2026-06/About%20us.png.webp?itok=YV54kDFy",
+        "url": "https://www.unesco.org/en/artificial-intelligence/recommendation-ethics",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "The Future of Artificial Intelligence | IBM",
+        "thumbnail": "https://www.ibm.com/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/84/e9/2023_03_j015.jpg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg",
+        "url": "https://www.ibm.com/think/insights/artificial-intelligence-future",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "List of large language models - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/en/thumb/9/99/Question_book-new.svg/60px-Question_book-new.svg.png",
+        "url": "https://en.m.wikipedia.org/wiki/List_of_large_language_models",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "What is Machine Learning? | IBM",
+        "thumbnail": "https://www.ibm.com/content/dam/worldwide-content/stock-assets/adb-stk/ul/g/b8/7f/adobestock_783299934.jpeg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg",
+        "url": "https://www.ibm.com/think/topics/machine-learning",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "DeepLearning.AI: Start or Advance Your Career in AI",
+        "thumbnail": "https://home-wordpress.deeplearning.ai/wp-content/uploads/2024/06/homepage-preview.png",
+        "url": "https://www.deeplearning.ai/",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Large language model - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/The_number_of_publications_about_Large_Language_Models_by_year.png/250px-The_number_of_publications_about_Large_Language_Models_by_year.png",
+        "url": "https://en.m.wikipedia.org/wiki/Large_language_model",
+        "source": "Web Screenshot",
+        "type": "page",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      }
+    ],
+    "Web": [
+      {
+        "title": "What is Artificial General Intelligence (AGI)? | Databricks",
+        "thumbnail": "https://www.databricks.com/sites/default/files/2022-12/gpcicon_small.png",
+        "url": "https://www.databricks.com/blog/what-is-artificial-general-intelligence",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "The Future of AI: How AI Is Changing the World | Built In",
+        "thumbnail": "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=cover,w=320,h=200,q=80/sites/www.builtin.com/files/2022-07/future-artificial-intelligence.png",
+        "url": "https://builtin.com/artificial-intelligence/artificial-intelligence-future",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "future of AI"
+        ]
+      },
+      {
+        "title": "Ethics of artificial intelligence - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/en/thumb/9/96/Symbol_category_class.svg/20px-Symbol_category_class.svg.png",
+        "url": "https://en.wikipedia.org/wiki/Ethics_of_artificial_intelligence",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AI ethics"
+        ]
+      },
+      {
+        "title": "Introduction to Deep Learning - GeeksforGeeks",
+        "thumbnail": "https://media.geeksforgeeks.org/auth-dashboard-uploads/gfgFooterLogo.png",
+        "url": "https://www.geeksforgeeks.org/deep-learning/introduction-deep-learning/",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Neural network (machine learning) - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Synapse_deployment.jpg/250px-Synapse_deployment.jpg",
+        "url": "https://en.m.wikipedia.org/wiki/Neural_network_(machine_learning)",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "neural networks"
+        ]
+      },
+      {
+        "title": "Machine Learning Tutorial - GeeksforGeeks",
+        "thumbnail": "https://media.geeksforgeeks.org/auth-dashboard-uploads/gfgFooterLogo.png",
+        "url": "https://www.geeksforgeeks.org/machine-learning/machine-learning/",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "machine learning"
+        ]
+      },
+      {
+        "title": "List of large language models - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/en/thumb/9/99/Question_book-new.svg/60px-Question_book-new.svg.png",
+        "url": "https://en.wikipedia.org/wiki/List_of_large_language_models",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "What is Artificial Intelligence? - NASA",
+        "thumbnail": "https://www.nasa.gov/wp-content/uploads/2024/05/digitaltransformation-ai-whatis-header-03.png?w=1748",
+        "url": "https://www.nasa.gov/what-is-artificial-intelligence/",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "Artificial intelligence - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Kismet-IMG_6007-gradient.jpg/250px-Kismet-IMG_6007-gradient.jpg",
+        "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "artificial intelligence"
+        ]
+      },
+      {
+        "title": "Deep learning - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Deep_Learning.jpg/500px-Deep_Learning.jpg",
+        "url": "https://en.m.wikipedia.org/wiki/Deep_learning",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Deep learning - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Deep_Learning.jpg/500px-Deep_Learning.jpg",
+        "url": "https://en.wikipedia.org/wiki/Deep_learning",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "deep learning"
+        ]
+      },
+      {
+        "title": "Robotics - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Puma_Robotic_Arm_-_GPN-2000-001817.jpg/250px-Puma_Robotic_Arm_-_GPN-2000-001817.jpg",
+        "url": "https://en.wikipedia.org/wiki/Robotics",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "Robotics - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Puma_Robotic_Arm_-_GPN-2000-001817.jpg/250px-Puma_Robotic_Arm_-_GPN-2000-001817.jpg",
+        "url": "https://en.m.wikipedia.org/wiki/Robotics",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "robotics"
+        ]
+      },
+      {
+        "title": "Artificial general intelligence - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Performance_on_benchmarks_compared_to_humans_-_2024_AI_index.jpg/960px-Performance_on_benchmarks_compared_to_humans_-_2024_AI_index.jpg",
+        "url": "https://en.wikipedia.org/wiki/Artificial_general_intelligence",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "AGI"
+        ]
+      },
+      {
+        "title": "Large Language Model (LLM) - GeeksforGeeks",
+        "thumbnail": "https://media.geeksforgeeks.org/auth-dashboard-uploads/gfgFooterLogo.png",
+        "url": "https://www.geeksforgeeks.org/artificial-intelligence/large-language-model-llm/",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Large language model - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Estimated_training_cost_of_some_AI_models_-_2024_AI_index.jpg/500px-Estimated_training_cost_of_some_AI_models_-_2024_AI_index.jpg",
+        "url": "https://en.wikipedia.org/wiki/Large_language_model",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "large language models"
+        ]
+      },
+      {
+        "title": "Robot - Wikipedia",
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/HONDA_ASIMO.jpg/250px-HONDA_ASIMO.jpg",
+        "url": "https://en.m.wikipedia.org/wiki/Robot",
+        "source": "Web",
+        "type": "image",
+        "duration": null,
+        "keywords": [
+          "robotics"
+        ]
+      }
+    ]
+  },
+  "items": [
+    {
+      "title": "Lecture 10 - Introduction to Neural Networks | Stanford CS229: Machine Learning (Autumn 2018)",
+      "thumbnail": "https://i.ytimg.com/vi/MfIjxPh6Pys/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAl3KCkXd_mug7-7koFcF7PbNVGTA",
+      "url": "https://youtube.com/watch?v=MfIjxPh6Pys",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:20:14",
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Ai Ethics Law Artificial Intelligence Governance Stock Photo 2525348631 ...",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.r-n6xlZJjnTkWSYMIdtu0gHaFI&pid=15.1",
+      "url": "https://www.shutterstock.com/shutterstock/photos/2525348631/display_1500/stock-photo-ai-ethics-and-law-in-artificial-intelligence-governance-icons-related-to-ai-ethics-symbols-of-2525348631.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI ethics and law in artificial intelligence governance. Icons related ...",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.fReffqylhtqyhcT0f7dQ8wHaE8&pid=15.1",
+      "url": "https://as2.ftcdn.net/jpg/10/77/43/89/1000_F_1077438983_I74GvQGMcpSEngWlYprKid7sAsuBVWmu.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Stanford CS229 I Machine Learning I Building Large Language Models (LLMs)",
+      "thumbnail": "https://i.ytimg.com/vi/9vM4p9NN0Ts/hq720.jpg?sqp=-oaymwE2COgCEMoBSFXyq4qpAygIARUAAIhCGAFwAcABBvABAfgB_gmAAtAFigIMCAAQARhlIGUoWDAP&rs=AOn4CLAkzupviVlheO8hQYbTm-UNV-Otmg",
+      "url": "https://youtube.com/watch?v=9vM4p9NN0Ts",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:44:31",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "Exploring the Challenges of Large Language Models in Machine Learning ...",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.nb0g2JbUZ8RIj05-BFTmxQHaEK&pid=15.1",
+      "url": "https://www.davidmaiolo.com/wp-content/uploads/2024/03/Large-Language-Model-Training-Interface.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Artificial intelligence concept ai ethics | Premium AI-generated image",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.eIgI9X8mW_AN0bwCMLSjUgHaHa&pid=15.1",
+      "url": "https://img.freepik.com/premium-photo/artificial-intelligence-concept-ai-ethics_1204-719.jpg?w=2000",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI, Machine Learning, Deep Learning and Generative AI Explained",
+      "thumbnail": "https://i.ytimg.com/vi/qYNweeDHiyU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDqKEjbYKsQ5UOPed6OpHoLzjvSqw",
+      "url": "https://youtube.com/watch?v=qYNweeDHiyU",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "10:01",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "Neural Networks And Deep Learning Explained – IQMJII",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.D8lKkNvik4GwEx6iY0VkkQHaE6&pid=15.1",
+      "url": "https://d2mk45aasx86xg.cloudfront.net/Deep_neural_network_25a8b6fa7f.webp",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Deep learning vs neural networks - meryphone",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.bK6HKphd60Vpdw2z3vKS2QHaGw&pid=15.1",
+      "url": "https://quantdare.com/wp-content/uploads/2019/06/deep_learning.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Artificial intelligence (AI) | Definition, Examples, Types, Applications, Companies, & Facts | Britannica",
+      "thumbnail": "https://cdn.britannica.com/47/246247-050-F1021DE9/AI-text-to-image-photo-robot-with-computer.jpg",
+      "url": "https://www.britannica.com/technology/artificial-intelligence",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "Deep Learning | What is Deep Learning? | Deep Learning Tutorial For Beginners | 2026 | Simplilearn",
+      "thumbnail": "https://i.ytimg.com/vi/6M5VXKLf4D4/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDSt2z7TWT-blODow0reyxYEtyRCA",
+      "url": "https://youtube.com/watch?v=6M5VXKLf4D4",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "5:52",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Neural Network In 5 Minutes | What Is A Neural Network? | How Neural Networks Work | Simplilearn",
+      "thumbnail": "https://i.ytimg.com/vi/bfmFfD2RIcg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCw_B5u99yMjrgtZ8UCfzCHpvo2vQ",
+      "url": "https://youtube.com/watch?v=bfmFfD2RIcg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "5:45",
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "How to Start with Robotics? for Absolute Beginners || The Ultimate 3-Step Guide",
+      "thumbnail": "https://i.ytimg.com/vi/J0ssFp7yN8Y/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAlJs8KrlmYTbv47rmiojhwJ8wXGA",
+      "url": "https://youtube.com/watch?v=J0ssFp7yN8Y",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "10:18",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "AGI Experts: We're About To Lose Control of AI Forever.. And We Aren’t Ready",
+      "thumbnail": "https://i.ytimg.com/vi/8JuN6r0u91c/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD2sIlHfRUH7pBJ5gkoviR_08xIwA",
+      "url": "https://youtube.com/watch?v=8JuN6r0u91c",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:27:05",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "Harvard CS50’s Artificial Intelligence with Python – Full University Course",
+      "thumbnail": "https://i.ytimg.com/vi/5NgNicANyqM/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCl3gGucelQ9boWetfPrhRcdm4opA",
+      "url": "https://youtube.com/watch?v=5NgNicANyqM",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "11:51:22",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "Navigating AI Ethics: Principles and Best Practices for Responsible AI ...",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.pSR6EjNm78zWsfGR54NdDwHaHa&pid=15.1",
+      "url": "https://miro.medium.com/v2/resize:fit:1024/1*tfYV3n_yBdOY6dh0dYAu5A.jpeg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Ai Neural Networks Vector Illustration Labeled: เวกเตอร์สต็อก (ปลอดค่า ...",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.OgnqE73aU4Vy1xwu7cO_PAHaGe&pid=15.1",
+      "url": "https://image.shutterstock.com/z/stock-vector-ai-neural-networks-vector-illustration-labeled-connectionist-system-scheme-computing-mind-signals-1345926827.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "What Do Neural Networks Really Learn? Exploring the Brain of an AI Model",
+      "thumbnail": "https://i.ytimg.com/vi/jGCvY4gNnA8/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBjG11l0Va-tIh8ryAIhcxsSKqJ3Q",
+      "url": "https://youtube.com/watch?v=jGCvY4gNnA8",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "17:35",
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Stanford CS230 | Autumn 2025 | Lecture 1: Introduction to Deep Learning",
+      "thumbnail": "https://i.ytimg.com/vi/_NLHFoVNlbg/hq720.jpg?sqp=-oaymwE2COgCEMoBSFXyq4qpAygIARUAAIhCGAFwAcABBvABAfgB_gmAAtAFigIMCAAQARhlIGUoZTAP&rs=AOn4CLBbNwoDclDW6Z3Gu4d4xwUaDGOyTg",
+      "url": "https://youtube.com/watch?v=_NLHFoVNlbg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:00:17",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "What Is Artificial Intelligence? Definition, Uses, and Types | Coursera",
+      "thumbnail": "https://images.ctfassets.net/wp1lcwdav1p1/WLP03Kh71Uik4M1TNEyis/c85e4cfd5cbabbe5137ed86965d83e04/GettyImages-1199128740.jpg?w=1500&h=680&q=60&fit=fill&f=faces&fm=jpg&fl=progressive",
+      "url": "https://www.coursera.org/articles/what-is-artificial-intelligence",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "Understanding Adjusted Gross Income (AGI) and How It Impacts Your Taxes",
+      "thumbnail": "https://www.investopedia.com/thmb/9VnJqrJMIswnegoL3RMqc500TX8=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/GettyImages-88305470-1--57520b1c5f9b5892e8bfc1a0.jpg",
+      "url": "https://www.investopedia.com/terms/a/agi.asp",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "Deep Neural Network Discovering GPU Friendly Deep Neural Networks With",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.RSpJ2QHlcOzPGiVjDz_4rQHaDs&pid=15.1",
+      "url": "https://lamarr-institute.org/wp-content/uploads/deepLearn_2_EN.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Top Neural Network Architectures For Machine Learning Researchers ...",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.BX5fFCiMJvVJUM2eWBGDDgHaDm&pid=15.1",
+      "url": "https://www.marktechpost.com/wp-content/uploads/2022/09/Screen-Shot-2022-09-23-at-10.46.58-PM-1024x499.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Large Language Models | What are LLM? | Current Affairs for UPSC",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.xZzyukI_szX-wyAjZkd40AHaEc&pid=15.1",
+      "url": "https://dics.co/uploads/2024/02/17091075101_TozA-274Os-Z5mSLwdYkWw.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "GitHub - huseyincenik/deep_learning: Deep Learning #deeplearning",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.wshB2t5pyUNd6oTa7TWAVAHaFF&pid=15.1",
+      "url": "https://theoreticalecology.github.io/machinelearning/images/AI_ML_DL.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Data Science, AI, ML, Deep Learning, and Data Mining | AltexSoft",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.r4cewjcPHfJBo91Hq62wCQHaFG&pid=15.1",
+      "url": "https://content.altexsoft.com/media/2021/01/illustration-of-deep-learning-neural-networks-with.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "How I'd Learn Machine Learning in 2026 (If I Was Starting Over)",
+      "thumbnail": "https://i.ytimg.com/vi/UZ_rK9gzVSc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB5v5cjR5fotcnLq7KOZOQCsyV6vA",
+      "url": "https://youtube.com/watch?v=UZ_rK9gzVSc",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "11:09",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "Engineering AI Ethics: What Meta Missed and Anthropic Got Right",
+      "thumbnail": "https://i.ytimg.com/vi/tVTOs24Yb7E/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBr3NFnEb93Cdlq8VZLcT6pSrokaQ",
+      "url": "https://youtube.com/watch?v=tVTOs24Yb7E",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "13:28",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI Unleashed: The Ethics of Artificial Intelligence – TEACHFLIX",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.ekV3hRz-ThNvIrtzQ1xQxgHaEH&pid=15.1",
+      "url": "https://teachflix.org/wp-content/uploads/2025/04/AI-ethics.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Concise visual summary of deep learning architectures – Artofit",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.JkYQIIREXTpNks4u1DntcQHaFf&pid=15.1",
+      "url": "https://i.pinimg.com/originals/55/9f/f1/559ff127893825ac54a058d5ee6f5d39.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "How to learn Machine Learning like a GENIUS and not waste time",
+      "thumbnail": "https://i.ytimg.com/vi/_hdUddANh_o/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCz6Efe_JDeP7u9tcganWSDExBKog",
+      "url": "https://youtube.com/watch?v=_hdUddANh_o",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "15:20",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "Everything You Need To Know About Large Language Models (LLMs)",
+      "thumbnail": "https://i.ytimg.com/vi/osKyvYJ3PRM/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAwx0t4f_CX0xlDCVyKSqxpZ2X1hQ",
+      "url": "https://youtube.com/watch?v=osKyvYJ3PRM",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "25:20",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "These 4 AI Automations Will Make You $1M (With Zero Employees)",
+      "thumbnail": "https://i.ytimg.com/vi/sDZmLFZ8BkM/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCxNwGF-TnSoy_xA29YEYR-GGBiIA",
+      "url": "https://youtube.com/watch?v=sDZmLFZ8BkM",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "17:41",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "AI Ethics : Challenges, Importance, and Future - GeeksforGeeks",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.Fq5VrX27TWilA-5IelaT_QHaFS&pid=15.1",
+      "url": "https://media.geeksforgeeks.org/wp-content/uploads/20240508132659/AI-Ethics--Challenges-Importance-and-Future-768.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI Ethics : Challenges, Importance, and Future | GeeksforGeeks",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.sGJz3GRzsoU_biJ3qjGPDAHaDe&pid=15.1",
+      "url": "https://media.geeksforgeeks.org/wp-content/uploads/20240318112121/What-are-AI-ethics.webp",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "How to Build & Sell AI Automations: Ultimate Beginner’s Guide",
+      "thumbnail": "https://i.ytimg.com/vi/5TxSqvPbnWw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDl32a92SGLfcDPnugtUcvx-VMcwQ",
+      "url": "https://youtube.com/watch?v=5TxSqvPbnWw",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:50:23",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "What is AI Automation? Benefits, Use Cases, and How It Works",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.vk4E3j9h58RyWpJSpNJ_iAHaEO&pid=15.1",
+      "url": "https://automatio.ai/blog/content/images/2024/10/DALL-E-2024-10-30-14.36.30---A-retro-futuristic-cover-image-illustrating-the-concept-of-hyperautomation.-The-scene-shows-a-seamless-blend-of-AI--RPA--robotic-process-automation---.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "What is Artificial General Intelligence (AGI)? | Databricks",
+      "thumbnail": "https://www.databricks.com/sites/default/files/2022-12/gpcicon_small.png",
+      "url": "https://www.databricks.com/blog/what-is-artificial-general-intelligence",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "8 Deep Learning Architectures Data Scientists Must Master",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.h7ORI-sgRt2aHZr_z3_eMgHaEc&pid=15.1",
+      "url": "https://daxg39y63pxwu.cloudfront.net/images/blog/deep-learning-architectures/Deep_Learning_Architecture_Diagram__by_ProjectPro.webp",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "The Future of AI: How AI Is Changing the World | Built In",
+      "thumbnail": "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=cover,w=320,h=200,q=80/sites/www.builtin.com/files/2022-07/future-artificial-intelligence.png",
+      "url": "https://builtin.com/artificial-intelligence/artificial-intelligence-future",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "Introduction to Neural Networks AI | Class 9 | Aiforkids",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.2fGAaCppOwW_ngpN7oJiLAHaE9&pid=15.1",
+      "url": "https://aiforkids.in/images/neural+networks.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "AGI Is Here — And Society Isn’t Ready | Peter Diamandis",
+      "thumbnail": "https://i.ytimg.com/vi/eHqIZInOxeE/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAbivpKLZgpgZy_Cx4qU6JP23TREg",
+      "url": "https://youtube.com/watch?v=eHqIZInOxeE",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:56:25",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "Learn Machine Learning Like a GENIUS and Not Waste Time",
+      "thumbnail": "https://i.ytimg.com/vi/qNxrPri1V0I/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3dMhLvOes3ucKoJpwchWitJTFEQ",
+      "url": "https://youtube.com/watch?v=qNxrPri1V0I",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "15:03",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "But what is a neural network? | Deep learning chapter 1",
+      "thumbnail": "https://i.ytimg.com/vi/aircAruvnKk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDGOJz5xmjyQgBrJNUa1fLox-wUeA",
+      "url": "https://youtube.com/watch?v=aircAruvnKk",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "18:40",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Large Language Models Explained Simply (In 13 Minutes)",
+      "thumbnail": "https://i.ytimg.com/vi/UgvrrHc5BRY/hqdefault.jpg?sqp=-oaymwEcCOADEI4CSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCX1njljm0g0nE6oFy93qEFqovPzg",
+      "url": "https://youtube.com/watch?v=UgvrrHc5BRY",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "12:57",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "How To Start An AI Automation Agency (Beginners Guide)",
+      "thumbnail": "https://i.ytimg.com/vi/Dgs1tQngbec/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAMerD5cre0qQBbZJkn9XF6p5AmcA",
+      "url": "https://youtube.com/watch?v=Dgs1tQngbec",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "13:31",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "What Is Deep Learning and How Does It Work? | Built In",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.zxks_M9Ej_jcNZxnX7H3jgHaD4&pid=15.1",
+      "url": "https://builtin.com/sites/www.builtin.com/files/styles/og/public/2022-04/what-is-deep-learning.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "The TRUTH About Selling AI Automations to Businesses",
+      "thumbnail": "https://i.ytimg.com/vi/XUYvDbAv1IA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBkzD2-gYxCCVTK5ZjSAxph0aAOBA",
+      "url": "https://youtube.com/watch?v=XUYvDbAv1IA",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "4:28",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "All Machine Learning algorithms explained in 17 min",
+      "thumbnail": "https://i.ytimg.com/vi/E0Hmnixke2g/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB5V7AF45PiaffMkHFEAj2ftfAuiw",
+      "url": "https://youtube.com/watch?v=E0Hmnixke2g",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "16:30",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "Neural Networks Explained: Step-by-Step Walkthrough",
+      "thumbnail": "https://i.ytimg.com/vi/N9QY_fKXtFc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA-kaFnsLeqcstwyopLLfKMjXXJ4w",
+      "url": "https://youtube.com/watch?v=N9QY_fKXtFc",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "26:54",
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "The Power of AI Automation in Boosting Brand Growth",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.2b8T5KUVOjOXbJpdICT3egHaE9&pid=15.1",
+      "url": "https://media.gettyimages.com/id/1698710873/photo/automation-software-technology-process-system.jpg?b=1&s=2048x2048&w=0&k=20&c=KtfBHu29KL5YEUl8GJ6uew4hmXvzkR9hOxq_mAgo6VI=",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "Google Just Revealed The Timeline From AGI To ASI",
+      "thumbnail": "https://i.ytimg.com/vi/jXGgNb0DLNg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCxs72V8ZMqiZ7cdO3tVuLosaVQWw",
+      "url": "https://youtube.com/watch?v=jXGgNb0DLNg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "16:51",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "What Are Large Language Models (LLMs)? | Smith.ai",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.AmdgAH8C0orHQGFqwkoZnwHaGO&pid=15.1",
+      "url": "https://assets-global.website-files.com/5b15d605b7c459fc409872b5/654546b7a91f6aed77c9f85a_6-large-language-model-use-cases.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Introduction to Neural Networks with Scikit-Learn",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.jZNGKLwGonhV_0t6NQ8SKwHaGn&pid=15.1",
+      "url": "https://s3.amazonaws.com/stackabuse/media/intro-to-neural-networks-scikit-learn-3.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Top 11 Most Powerful Large Language Models Today",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.XEBOQeBOhp46sbXDAJQPOgHaFZ&pid=15.1",
+      "url": "https://intelliarts.com/wp-content/uploads/2023/12/best-large-language-models_2-1024x747.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Beginner's Guide to Large Language Models (LLM)",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.V5XlqVOifW9WJFjKEWGh0wHaE8&pid=15.1",
+      "url": "https://dataaspirant.com/wp-content/uploads/2025/04/1-2.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Ethics of Artificial Intelligence - AI | UNESCO",
+      "thumbnail": "/sites/default/files/styles/submenu_mobile/public/2026-06/About%20us.png.webp?itok=YV54kDFy",
+      "url": "https://www.unesco.org/en/artificial-intelligence/recommendation-ethics",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Artificial Intelligence: Complete path to 2030",
+      "thumbnail": "https://i.ytimg.com/vi/XXaUd0fGpOs/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3ih7akqBNJb8h4uZVEpnOm3p4ZA",
+      "url": "https://youtube.com/watch?v=XXaUd0fGpOs",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "2:02:04",
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "What is LLM? - Large Language Models Explained",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.ZITKgh-G4FztcL3rAT8xEAHaD4&pid=15.1",
+      "url": "https://www.mygreatlearning.com/blog/wp-content/uploads/2025/02/what-is-llm.webp",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "What is AI automation + how to use it | Zapier",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.ntSzicwoKFbxI_zwB437ZgHaIS&pid=15.1",
+      "url": "https://images.ctfassets.net/lzny33ho1g45/LmozY1MaBpSUpyrMp65Y3/021c0e21579ca502040d47379367bd44/technological-components-of-ia.png?w=1400",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "Ethics of artificial intelligence - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/en/thumb/9/96/Symbol_category_class.svg/20px-Symbol_category_class.svg.png",
+      "url": "https://en.wikipedia.org/wiki/Ethics_of_artificial_intelligence",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Introduction to Deep Learning - GeeksforGeeks",
+      "thumbnail": "https://media.geeksforgeeks.org/auth-dashboard-uploads/gfgFooterLogo.png",
+      "url": "https://www.geeksforgeeks.org/deep-learning/introduction-deep-learning/",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Neural network (machine learning) - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Synapse_deployment.jpg/250px-Synapse_deployment.jpg",
+      "url": "https://en.m.wikipedia.org/wiki/Neural_network_(machine_learning)",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "AI Automation Full Course for Beginners 2026",
+      "thumbnail": "https://i.ytimg.com/vi/uaEXcgBpLbo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCTuOQPXS2p_owrWbf9pDouVfXZjA",
+      "url": "https://youtube.com/watch?v=uaEXcgBpLbo",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "27:28",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "The Essential Main Ideas of Neural Networks",
+      "thumbnail": "https://i.ytimg.com/vi/CqOfi41LfDw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCc08dI1_oEUW9MHbtK0JRptgS9cg",
+      "url": "https://youtube.com/watch?v=CqOfi41LfDw",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "18:54",
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Large Language Models—AI-Powered Creativity",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.yj763JtdaOYHkC7TEphw4AHaEE&pid=15.1",
+      "url": "https://assets-global.website-files.com/65d8ee5f025f02594c614c17/66018d221b73a4678f583607_1.webp",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "The Future of Artificial Intelligence | IBM",
+      "thumbnail": "https://www.ibm.com/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/84/e9/2023_03_j015.jpg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg",
+      "url": "https://www.ibm.com/think/insights/artificial-intelligence-future",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "Ethics Of Artificial Intelligence – ACTNCI",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.m2Shgsynl-vKWW2_BcWy5wHaEK&pid=15.1",
+      "url": "https://infografolio.com/cdn/shop/files/artificial-intelligence-slides-slides-ai-ethics-artificial-intelligence-infographic-template-powerpoint-template-keynote-template-google-slides-template-infographic-template-361997127.jpg?format=pjpg&v=1691337736&width=1960",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Machine Learning Explained in 100 Seconds",
+      "thumbnail": "https://i.ytimg.com/vi/PeMlggyqz0Y/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDvzXWKFvqGE1f7hOd6YGuMxuL0Tw",
+      "url": "https://youtube.com/watch?v=PeMlggyqz0Y",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "2:35",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "[1hr Talk] Intro to Large Language Models",
+      "thumbnail": "https://i.ytimg.com/vi/zjkBMFhNj_g/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAWw2ySedLx-WLIbk-T31w2BNRm_Q",
+      "url": "https://youtube.com/watch?v=zjkBMFhNj_g",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "59:48",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Machine Learning Tutorial - GeeksforGeeks",
+      "thumbnail": "https://media.geeksforgeeks.org/auth-dashboard-uploads/gfgFooterLogo.png",
+      "url": "https://www.geeksforgeeks.org/machine-learning/machine-learning/",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "List of large language models - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/en/thumb/9/99/Question_book-new.svg/60px-Question_book-new.svg.png",
+      "url": "https://en.wikipedia.org/wiki/List_of_large_language_models",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "List of large language models - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/en/thumb/9/99/Question_book-new.svg/60px-Question_book-new.svg.png",
+      "url": "https://en.m.wikipedia.org/wiki/List_of_large_language_models",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Deep Learning Crash Course for Beginners",
+      "thumbnail": "https://i.ytimg.com/vi/VyWAvY2CF9c/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA7YL7sLpc7K69rvACdgu-JZy6VAg",
+      "url": "https://youtube.com/watch?v=VyWAvY2CF9c",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:25:39",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Large Language Models explained briefly",
+      "thumbnail": "https://i.ytimg.com/vi/LPZh9BOjkQs/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLATsTncbvO7P7_ANyrCKHuFAAI6MQ",
+      "url": "https://youtube.com/watch?v=LPZh9BOjkQs",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "7:58",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "AI Automation: Complete Beginners Guide",
+      "thumbnail": "https://i.ytimg.com/vi/KSOxkhWs2Ic/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBRhCEPf1Py8ehOrNQv8g7CygunXQ",
+      "url": "https://youtube.com/watch?v=KSOxkhWs2Ic",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "7:56",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "What is Artificial Intelligence? - NASA",
+      "thumbnail": "https://www.nasa.gov/wp-content/uploads/2024/05/digitaltransformation-ai-whatis-header-03.png?w=1748",
+      "url": "https://www.nasa.gov/what-is-artificial-intelligence/",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "Why Grok 4.5 Just CHANGED the AGI Race",
+      "thumbnail": "https://i.ytimg.com/vi/qawxm01wtWg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDVO8eaXl-AIEGqUR8CRN1gQhUKvw",
+      "url": "https://youtube.com/watch?v=qawxm01wtWg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "10:55",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "Neural Networks Explained in 5 minutes",
+      "thumbnail": "https://i.ytimg.com/vi/jmmW0F0biz0/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBZY9iTa5eDilpg1E2Cq1QwKRHkOQ",
+      "url": "https://youtube.com/watch?v=jmmW0F0biz0",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "4:32",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Explained In A Minute: Neural Networks",
+      "thumbnail": "https://i.ytimg.com/vi/rEDzUT3ymw4/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDGG6KmaRBFLpPlh2EABUpA9nCcBg",
+      "url": "https://youtube.com/watch?v=rEDzUT3ymw4",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:04",
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "The Complete Machine Learning Roadmap",
+      "thumbnail": "https://i.ytimg.com/vi/7IgVGSaQPaw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC3yTBprxUf3gn5I8VSpN3aHpBc1A",
+      "url": "https://youtube.com/watch?v=7IgVGSaQPaw",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "5:25",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "Lec 01. Introduction to Deep Learning",
+      "thumbnail": "https://i.ytimg.com/vi/6FkRvTtUc-o/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCfuoVeHgwRPPkjRyIa0Z_imsVhwA",
+      "url": "https://youtube.com/watch?v=6FkRvTtUc-o",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "1:00:51",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "11. Introduction to Machine Learning",
+      "thumbnail": "https://i.ytimg.com/vi/h0e2HAPTGF4/hq720.jpg?sqp=-oaymwE2COgCEMoBSFXyq4qpAygIARUAAIhCGAFwAcABBvABAfgB_gmAAtAFigIMCAAQARhlIGUoZTAP&rs=AOn4CLBzBlO_7G61g2WdNjPlskJa3K0O0Q",
+      "url": "https://youtube.com/watch?v=h0e2HAPTGF4",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "51:31",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "Artificial intelligence - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Kismet-IMG_6007-gradient.jpg/250px-Kismet-IMG_6007-gradient.jpg",
+      "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "What Is AI Ethics? 4 Approaches",
+      "thumbnail": "https://i.ytimg.com/vi/hgCAmjy-z0U/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCZ031G5_xcclBk5zUtyCOJYUByPA",
+      "url": "https://youtube.com/watch?v=hgCAmjy-z0U",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "6:07",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "What is Machine Learning? | IBM",
+      "thumbnail": "https://www.ibm.com/content/dam/worldwide-content/stock-assets/adb-stk/ul/g/b8/7f/adobestock_783299934.jpeg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg",
+      "url": "https://www.ibm.com/think/topics/machine-learning",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "How Large Language Models Work",
+      "thumbnail": "https://i.ytimg.com/vi/5sLYAQS9sWQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBMIu1HBggVmDsm-RVixJEYct57kQ",
+      "url": "https://youtube.com/watch?v=5sLYAQS9sWQ",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "5:34",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "AGI was achieved... in 1997?",
+      "thumbnail": "https://i.ytimg.com/vi/vmjd_6Qe9dY/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAPJKbOsZgUD5PqcKqvuhD4ym320A",
+      "url": "https://youtube.com/watch?v=vmjd_6Qe9dY",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "32:10",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "AI Ethics - Ethics Unwrapped",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.M2WkxppD8YpdAtHwiln8HwHaEK&pid=15.1",
+      "url": "https://ethicsunwrapped.utexas.edu/wp-content/uploads/2024/09/AI-Ethics_Thumbnail.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Definition of Deep Learning",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.DAw3S4i9-K6EipgTf1kKYQHaE6&pid=15.1",
+      "url": "https://www.usfhealthonline.com/wp-content/uploads/sites/2/2018/04/Deep-learning.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "AI Ethics: Why It Matters?",
+      "thumbnail": "https://i.ytimg.com/vi/C2MWrCdGG0Q/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAZZSDFPzp02v59GDmRwcZIaJ2TZw",
+      "url": "https://youtube.com/watch?v=C2MWrCdGG0Q",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "2:09",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI Automation - TecniForge",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.2Gufactu7uUqz76arbsKJwHaEK&pid=15.1",
+      "url": "https://data.tecniforge.com/2025/06/ai.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "Neural networks – TikZ.net",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.zHgaKwFzDUg6dNqV0D37JgHaF0&pid=15.1",
+      "url": "https://tikz.net/wp-content/uploads/2021/12/neural_networks-004.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Artificial Neural Networks",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.JlPRAkR2Si5H5LRTm0s4cAHaE8&pid=15.1",
+      "url": "https://cdn.analyticsvidhya.com/wp-content/uploads/2021/08/66565What-is-an-Artificial-Neural-Networks.jpeg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Deep learning - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Deep_Learning.jpg/500px-Deep_Learning.jpg",
+      "url": "https://en.m.wikipedia.org/wiki/Deep_learning",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Deep learning - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Deep_Learning.jpg/500px-Deep_Learning.jpg",
+      "url": "https://en.wikipedia.org/wiki/Deep_learning",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Deep Learning Models",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.rudtyfQ-75RtBWCnV2f1fQHaEK&pid=15.1",
+      "url": "https://cdn.shopaccino.com/igmguru/articles/what-are-deep-learning-models-72824355298500_l.jpg?v=531",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Robotics - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Puma_Robotic_Arm_-_GPN-2000-001817.jpg/250px-Puma_Robotic_Arm_-_GPN-2000-001817.jpg",
+      "url": "https://en.wikipedia.org/wiki/Robotics",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "Robotics - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Puma_Robotic_Arm_-_GPN-2000-001817.jpg/250px-Puma_Robotic_Arm_-_GPN-2000-001817.jpg",
+      "url": "https://en.m.wikipedia.org/wiki/Robotics",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "What is AI Ethics?",
+      "thumbnail": "https://i.ytimg.com/vi/aGwYtUzMQUk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAd9V61hEKwz_GYi9UkCJJSmhAemg",
+      "url": "https://youtube.com/watch?v=aGwYtUzMQUk",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "6:10",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI Ethics",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.WXL2QeYSc6LV4qPZ39Aw9wHaH9&pid=15.1",
+      "url": "https://pwonlyias.com/wp-content/uploads/2024/06/1-67753a4d23f45.webp",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "OpenAI CEO Sam Altman on AI governance, ethics, and innovation | A conversation with BiGS",
+      "thumbnail": "https://i.ytimg.com/vi/BZbjqiRvJPA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAZcd6xFy-kVTBnVLaW5Ig6sq-Qgg",
+      "url": "https://youtube.com/watch?v=BZbjqiRvJPA",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "15:52",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI Scientist: You Have No Idea What's Coming In 24 Months - Roman Yampolski",
+      "thumbnail": "https://i.ytimg.com/vi/HuYmkFSrHIg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBPYZpnd0XTBZJiXYSAcR-lmCV7eA",
+      "url": "https://youtube.com/watch?v=HuYmkFSrHIg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "18:28",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "What is a Large Language Model (LLM)? Examples, Use Cases | Enterprise ...",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.Zzf8i30tzno-_QyeO4MNGwHaEK&pid=15.1",
+      "url": "https://em360tech.com/sites/default/files/inline-images/large-language-models-work.jpeg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Neural network model with real synapses between neurons 7092752 Vector ...",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.-p_Fp5ghcufRvR6MYLs_pQHaE8&pid=15.1",
+      "url": "https://static.vecteezy.com/system/resources/previews/007/092/752/original/neural-network-model-with-real-synapses-between-neurons-vector.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "AI Is Dangerous, but Not for the Reasons You Think | Sasha Luccioni | TED",
+      "thumbnail": "https://i.ytimg.com/vi/eXdVDhOGqoE/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCY_-vQ4_1NWbAbmUmHEMkd2-fxEg",
+      "url": "https://youtube.com/watch?v=eXdVDhOGqoE",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "10:19",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "AI Workflow Automation: Transforming Digital Business Processes - Jasify",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.3JEP9GjXkc2ccc7M1bBKAAHaEI&pid=15.1",
+      "url": "https://fal.media/files/tiger/zkXwxBHSM_vDB0c2FNJvG_a38f373351ce4ac9afc5d2e1109bcca9.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "AI Workflow Automation: Transforming Digital Business Processes - Jasify",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.jl_Kem_JhWFoRUtpYuU61wHaEI&pid=15.1",
+      "url": "https://fal.media/files/panda/7nMQgpLj4bosLhbVej5Dw_0d5356cec5de42a8a8dea007191df504.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "Intelligent Automation: When Robotic Process Automation (RPA) Meets ...",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.IR8i4f4zD3f3Zlpg4u6tqgHaEe&pid=15.1",
+      "url": "https://cigen.com.au/wp-content/uploads/2019/06/1123.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "The Most Advanced Robots I've Ever Seen (Nvidia GTC) | What The Future",
+      "thumbnail": "https://i.ytimg.com/vi/mFr7XfTY5bY/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBFgFlqQh5gwYHhr7VGQ4M0S77azg",
+      "url": "https://youtube.com/watch?v=mFr7XfTY5bY",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "5:50",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "We let AI buy a robot and a car, it does exactly what experts warned.",
+      "thumbnail": "https://i.ytimg.com/vi/IPaMKTb5csQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCv0C9ijQBdBdg9-F8426vA85nz8Q",
+      "url": "https://youtube.com/watch?v=IPaMKTb5csQ",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "15:10",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "AI is shaping war—what about peace? | Branka Panic | TEDxCalle Aldama",
+      "thumbnail": "https://i.ytimg.com/vi/qHVKAt-SVjo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCSaD2tE0AN2gYGjbWnkYYPf4Pz0g",
+      "url": "https://youtube.com/watch?v=qHVKAt-SVjo",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "14:49",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Ex-Google Insider: We Cannot Stop What's Coming In 2027 - Mo Gawdat",
+      "thumbnail": "https://i.ytimg.com/vi/vz8R2PtEB6E/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDZE0bXkHmSUNvEnWag5BwRDBdLdg",
+      "url": "https://youtube.com/watch?v=vz8R2PtEB6E",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "18:07",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "AI2027: Is this how AI might destroy humanity? - BBC World Service",
+      "thumbnail": "https://i.ytimg.com/vi/1UufaK3pQMg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBIsdOxFCG3S_ErlpKByjm4Y5EwMw",
+      "url": "https://youtube.com/watch?v=1UufaK3pQMg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "8:09",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "AI has hacked the code of human civilization | Yuval Noah Harari",
+      "thumbnail": "https://i.ytimg.com/vi/hBtVGwuJzpk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAbd93J5sDMKj_CU8QBJLsJfEAwIA",
+      "url": "https://youtube.com/watch?v=hBtVGwuJzpk",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "46:52",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "AI Whistleblower WARNS: \"You Have No Idea What's Coming In 2027\"",
+      "thumbnail": "https://i.ytimg.com/vi/CCX17EmjSLI/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBbPLvOPBciA0fJV9Gol-5y_Vtm1Q",
+      "url": "https://youtube.com/watch?v=CCX17EmjSLI",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "18:43",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "China unveils humanoid AI 'companion robots' to ease loneliness",
+      "thumbnail": "https://i.ytimg.com/vi/kF0r26HXRS4/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDMKHyBKf0jD-IWquoFdCSolyufhA",
+      "url": "https://youtube.com/watch?v=kF0r26HXRS4",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "2:44",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "1,000,000 Robots: How Tesla Plans to Beat China’s 90% Monopoly",
+      "thumbnail": "https://i.ytimg.com/vi/-9X1Zda3O8M/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAfum2e2g39ntzVqkdKxb_zkYdZvA",
+      "url": "https://youtube.com/watch?v=-9X1Zda3O8M",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "22:51",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "Ex-Google Insider: You're Not Ready For The Next Phase of AI",
+      "thumbnail": "https://i.ytimg.com/vi/CoaWmzkYFak/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCcEgCPuCEd7W7sE9CMDSVgvO0Beg",
+      "url": "https://youtube.com/watch?v=CoaWmzkYFak",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "34:07",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "Demis Hassabis on AI's Next Big Breakthrough, 2050 and More!",
+      "thumbnail": "https://i.ytimg.com/vi/z4DdgnnCjUg/hq720_custom_3.jpg?sqp=CNzF2dIG-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBpjUvW898G_6vOzPp_9rSBdImoJQ",
+      "url": "https://youtube.com/watch?v=z4DdgnnCjUg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "22:55",
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "I Tried To Build a Robot Like Boston Dynamics With Isaac Sim",
+      "thumbnail": "https://i.ytimg.com/vi/YDzHL2JSCHc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBBQYpMGY0fY8pM0ujOWX09seq0xg",
+      "url": "https://youtube.com/watch?v=YDzHL2JSCHc",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "18:26",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "I Tested Apple’s Secret macOS AI… The Results Made No Sense",
+      "thumbnail": "https://i.ytimg.com/vi/8vDuIVlfeV0/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBFcyAxOPjSzSLIj5uQaujYGIWBig",
+      "url": "https://youtube.com/watch?v=8vDuIVlfeV0",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "11:21",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "AI is destroying our future \"bUt iT sAVes mE So MuCH tImE!\"",
+      "thumbnail": "https://i.ytimg.com/vi/wGQJz1LmjTA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCsaTK3o-7z5JtE9DZDW0soUd__Mg",
+      "url": "https://youtube.com/watch?v=wGQJz1LmjTA",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "43:30",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "Figure Helix 02 Humanoid Robot Cleans Bedroom Like a Human",
+      "thumbnail": "https://i.ytimg.com/vi/xsLOYZxIUqc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAgBchJVCr5WMUKnBzEOUjKjoHX5w",
+      "url": "https://youtube.com/watch?v=xsLOYZxIUqc",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "2:19",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "Artificial Neural Network | Brilliant Math & Science Wiki",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.3fA77_mLNiJTSgZFhYnU0QHaE2&pid=15.1",
+      "url": "https://www.codespeedy.com/wp-content/uploads/2019/05/ann.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "Building a Robot That Delivers My Storage Bins on Demand",
+      "thumbnail": "https://i.ytimg.com/vi/eyEKcnER-Qk/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB29j_tHIQzgT3hWij9tfa-o5Fy9A",
+      "url": "https://youtube.com/watch?v=eyEKcnER-Qk",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "36:41",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "Anthropic's Ethicist on Whether AI Can Become Conscious",
+      "thumbnail": "https://i.ytimg.com/vi/E4Wf4dLkOI0/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB_H1Qngi35l6GxJHZD7P7_skHu-A",
+      "url": "https://youtube.com/watch?v=E4Wf4dLkOI0",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "40:29",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "15 AI Devices You Can Buy Right Now… The Future Is Here",
+      "thumbnail": "https://i.ytimg.com/vi/wGnSLFmgTXU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA2-bU9BKUkQLylKGfkEh7lcbwclQ",
+      "url": "https://youtube.com/watch?v=wGnSLFmgTXU",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "15:50",
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "Learn These 6 AI Skills Now (Before Everyone Else Does)",
+      "thumbnail": "https://i.ytimg.com/vi/3XIGcM7VICc/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3KClcyU7oolm1nXJPhS-ASL09XQ",
+      "url": "https://youtube.com/watch?v=3XIGcM7VICc",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "20:15",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "AI in Business Process Automation: Benefits & Use Cases",
+      "thumbnail": "https://ts1.mm.bing.net/th?id=OIP.sR2dPm4CHXEachNDq8Iy5QHaEH&pid=15.1",
+      "url": "https://www.solulab.com/wp-content/uploads/2024/09/AI-in-Business-Process-Automation-1-1536x853.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "How Will People Generate Wealth If AI Does Everything?",
+      "thumbnail": "https://i.ytimg.com/vi/DFnoQkYUqgU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC26IY4u141z0u2A_ZQ38CAjE0AsA",
+      "url": "https://youtube.com/watch?v=DFnoQkYUqgU",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "5:10",
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "I put ChatGPT on a Robot and let it explore the world",
+      "thumbnail": "https://i.ytimg.com/vi/U3sSp1PQtVQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCmV1gtU0ywxNPo_GgY-N5JxiDDew",
+      "url": "https://youtube.com/watch?v=U3sSp1PQtVQ",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "15:24",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "How To Build Your First AI Agent (automate anything)",
+      "thumbnail": "https://i.ytimg.com/vi/m7oLuUo7DBo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD3a1FfSn99pXSFunlFaMilk1K-VA",
+      "url": "https://youtube.com/watch?v=m7oLuUo7DBo",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "13:21",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "Every Large Language Model Explained in 17 Minutes!",
+      "thumbnail": "https://i.ytimg.com/vi/9UpLmjlDgPg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDv-VICtR-h7BWEA-RmowzBPRjYPA",
+      "url": "https://youtube.com/watch?v=9UpLmjlDgPg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "17:47",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "DeepLearning.AI: Start or Advance Your Career in AI",
+      "thumbnail": "https://home-wordpress.deeplearning.ai/wp-content/uploads/2024/06/homepage-preview.png",
+      "url": "https://www.deeplearning.ai/",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "The REAL Reason No One Knows What’s Coming With AI",
+      "thumbnail": "https://i.ytimg.com/vi/LYgLTraIe2I/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBGSRflTjzrvKNeWBiYNBJLF4Oo6Q",
+      "url": "https://youtube.com/watch?v=LYgLTraIe2I",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "21:43",
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "Generative AI and Automation: Use Cases & Benefits",
+      "thumbnail": "https://ts4.mm.bing.net/th?id=OIP.gBRHGm3PslfO-uTPwI3r9gHaDt&pid=15.1",
+      "url": "https://www.solulab.com/wp-content/uploads/2024/03/GenAI-Automation-1024x512.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "A.I. Futurist: What Your Life Looks Like In 2028",
+      "thumbnail": "https://i.ytimg.com/vi/tBiO8A4tj9I/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLD6vudK0wyb1zCQT9699QNk3vdZHA",
+      "url": "https://youtube.com/watch?v=tBiO8A4tj9I",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "2:02:32",
+      "keywords": [
+        "future of AI"
+      ]
+    },
+    {
+      "title": "ML Foundations for AI Engineers (in 34 Minutes)",
+      "thumbnail": "https://i.ytimg.com/vi/BUTjcAjfMgY/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAia2oAPfgFKQNcK6xtunjaITwXYQ",
+      "url": "https://youtube.com/watch?v=BUTjcAjfMgY",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "34:50",
+      "keywords": [
+        "machine learning"
+      ]
+    },
+    {
+      "title": "Why AI experts say humans have two years left",
+      "thumbnail": "https://i.ytimg.com/vi/ci5rCe9vmxw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLChDjYqnkxgZZwU2ODn70i0wjXTUg",
+      "url": "https://youtube.com/watch?v=ci5rCe9vmxw",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "16:45",
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "Near silent LLM Monster... NVIDIA, take notes",
+      "thumbnail": "https://i.ytimg.com/vi/ZmY35-ifJuo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDbTqNRAgDgqvTulVNrHD_LgsVq7g",
+      "url": "https://youtube.com/watch?v=ZmY35-ifJuo",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "24:17",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Neural network diagram — Science Learning Hub",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.mVJKkWPT_UF0ywmPgIXdoAHaFH&pid=15.1",
+      "url": "https://static.sciencelearn.org.nz/images/images/000/005/156/full/ART_Artificial_intelligence_Neural_network_explain_(1).png?1678746405",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "You don't understand AI until you watch this",
+      "thumbnail": "https://i.ytimg.com/vi/1aM1KYvl4Dw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLALPCNizaicahyAx7kHb69i-kczJQ",
+      "url": "https://youtube.com/watch?v=1aM1KYvl4Dw",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "37:22",
+      "keywords": [
+        "neural networks"
+      ]
+    },
+    {
+      "title": "How To Build Your Own Desktop Turret Robot!",
+      "thumbnail": "https://i.ytimg.com/vi/1j1kAuqePJo/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDVxp4RXPJaAJ0I1MNkhGwcWuyYKw",
+      "url": "https://youtube.com/watch?v=1j1kAuqePJo",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "22:54",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "Artificial general intelligence - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Performance_on_benchmarks_compared_to_humans_-_2024_AI_index.jpg/960px-Performance_on_benchmarks_compared_to_humans_-_2024_AI_index.jpg",
+      "url": "https://en.wikipedia.org/wiki/Artificial_general_intelligence",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AGI"
+      ]
+    },
+    {
+      "title": "What Is a Large Language Model? - Ontotext",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.z2n98byBoqbz7qYZxVnc4gHaHW&pid=15.1",
+      "url": "https://www.ontotext.com/wp-content/uploads/2023/11/What-is-LLM.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Large Language Model (LLM) - GeeksforGeeks",
+      "thumbnail": "https://media.geeksforgeeks.org/auth-dashboard-uploads/gfgFooterLogo.png",
+      "url": "https://www.geeksforgeeks.org/artificial-intelligence/large-language-model-llm/",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "The AI Future No One Wants to Talk About",
+      "thumbnail": "https://i.ytimg.com/vi/zWQe2Fn--Eg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB1onImbjwftpslXlZi5ONeN-xjfA",
+      "url": "https://youtube.com/watch?v=zWQe2Fn--Eg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "12:14",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "'We are doomed' | Richard Dawkins on AI",
+      "thumbnail": "https://i.ytimg.com/vi/7Nr9JsQC2u8/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDBimxjsLVWabLTW_9IBIVmPRY4Kg",
+      "url": "https://youtube.com/watch?v=7Nr9JsQC2u8",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "7:23",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "Our BIGGEST project yet! (SPIDER MECH!)",
+      "thumbnail": "https://i.ytimg.com/vi/xd8dKY6Ozrg/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA5VldvJ0FBG72_WtKaKjhWFGbWkA",
+      "url": "https://youtube.com/watch?v=xd8dKY6Ozrg",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "29:27",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "Full AI Prompting Course with Andrew Ng",
+      "thumbnail": "https://i.ytimg.com/vi/8ib4Qnh2HFE/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAEH_eI487C7qVEqo3-M7w4_4QcSw",
+      "url": "https://youtube.com/watch?v=8ib4Qnh2HFE",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "2:28:47",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Microsoft Admits it was Wrong About AI",
+      "thumbnail": "https://i.ytimg.com/vi/towF0_V7oHw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDI0uy2LAoL0fteAGRmw9lFc_c1Cg",
+      "url": "https://youtube.com/watch?v=towF0_V7oHw",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "14:31",
+      "keywords": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "title": "How to Use AI in Your Business in 2026",
+      "thumbnail": "https://i.ytimg.com/vi/fr78adfAnuA/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBaGg28gM38G7mi4i-B-t40gCVo1Q",
+      "url": "https://youtube.com/watch?v=fr78adfAnuA",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "15:54",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "I Built a Neural Network from Scratch",
+      "thumbnail": "https://i.ytimg.com/vi/cAkMcPfY_Ns/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBKXEn94J7gdhz3mMzg4lzVRDetRQ",
+      "url": "https://youtube.com/watch?v=cAkMcPfY_Ns",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "9:15",
+      "keywords": [
+        "deep learning"
+      ]
+    },
+    {
+      "title": "Private AI on the go… a new trick ",
+      "thumbnail": "https://i.ytimg.com/vi/PqBrnip-ZLw/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDIi_6aeh41cSYN6aqL_f5Q6dyXYw",
+      "url": "https://youtube.com/watch?v=PqBrnip-ZLw",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "9:09",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "AI-Powered Automation Tools (2024)",
+      "thumbnail": "https://ts3.mm.bing.net/th?id=OIP.le-lCAVzLa_bxM8LuaM1lgHaFE&pid=15.1",
+      "url": "https://blog.iteyes.net/wp-content/uploads/2024/08/2cad70dd-bc58-415e-8af4-23c1e719c9c8.jpg",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "Deep Dive into LLMs like ChatGPT",
+      "thumbnail": "https://i.ytimg.com/vi/7xTGNNLPyMI/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCuxQO4PTqamh4sZhBU4gHXMOOV4w",
+      "url": "https://youtube.com/watch?v=7xTGNNLPyMI",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "3:31:24",
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Large language model - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Estimated_training_cost_of_some_AI_models_-_2024_AI_index.jpg/500px-Estimated_training_cost_of_some_AI_models_-_2024_AI_index.jpg",
+      "url": "https://en.wikipedia.org/wiki/Large_language_model",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Large language model - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/The_number_of_publications_about_Large_Language_Models_by_year.png/250px-The_number_of_publications_about_Large_Language_Models_by_year.png",
+      "url": "https://en.m.wikipedia.org/wiki/Large_language_model",
+      "source": "Web Screenshot",
+      "type": "page",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "Language Models: Size Matters",
+      "thumbnail": "https://ts2.mm.bing.net/th?id=OIP.Uyb54nk7b4l0Dp7C0KYKGwHaEK&pid=15.1",
+      "url": "https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https://substack-post-media.s3.amazonaws.com/public/images/88af510b-f832-4ea1-91e9-4768b9b319e1_1920x1080.png",
+      "source": "DuckDuckGo",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "large language models"
+      ]
+    },
+    {
+      "title": "AI is an Ethical Nightmare",
+      "thumbnail": "https://i.ytimg.com/vi/AaU6tI2pb3M/hqdefault.jpg?sqp=-oaymwEcCOADEI4CSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBuNcNDxtlUb-8H3sn1ZyJKXDUcVQ",
+      "url": "https://youtube.com/watch?v=AaU6tI2pb3M",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "56:38",
+      "keywords": [
+        "AI ethics"
+      ]
+    },
+    {
+      "title": "How to Win With AI in 2026",
+      "thumbnail": "https://i.ytimg.com/vi/9q5ojtkqsBs/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAmlx_XcaJhQrS-77dSXTBo_1uREQ",
+      "url": "https://youtube.com/watch?v=9q5ojtkqsBs",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "24:19",
+      "keywords": [
+        "AI automation"
+      ]
+    },
+    {
+      "title": "Top Ten Finds At CES 2026",
+      "thumbnail": "https://i.ytimg.com/vi/80NLT9wi_BI/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC3ycWJVXG68MbMIGMqVKzePhYPHA",
+      "url": "https://youtube.com/watch?v=80NLT9wi_BI",
+      "source": "YouTube",
+      "type": "video",
+      "duration": "34:04",
+      "keywords": [
+        "robotics"
+      ]
+    },
+    {
+      "title": "Robot - Wikipedia",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/HONDA_ASIMO.jpg/250px-HONDA_ASIMO.jpg",
+      "url": "https://en.m.wikipedia.org/wiki/Robot",
+      "source": "Web",
+      "type": "image",
+      "duration": null,
+      "keywords": [
+        "robotics"
+      ]
+    }
+  ],
+  "index_path": null
+}

@@ -1,0 +1,19 @@
+{
+  "task_id": "A2A-UI-TEST-001",
+  "timestamp": 1785608573,
+  "status": "NEED_HUMAN",
+  "result": {
+    "stdout": "",
+    "exit_code": 1,
+    "cmd": "UI_E2E inspect https://example.com",
+    "product": "fireworkbloom",
+    "screenshots": [],
+    "console_errors": [
+      "NAVIGATION_ERROR: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.com/\nCall log:\n  - navigating to \"https://example.com/\", waiting until \"domcontentloaded\"\n"
+    ],
+    "network_errors": [
+      "FAILED https://example.com/"
+    ]
+  },
+  "log_trace": "NAVIGATION_ERROR: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.com/\nCall log:\n  - navigating to \"https://example.com/\", waiting until \"domcontentloaded\"\n\nFAILED https://example.com/"
+}

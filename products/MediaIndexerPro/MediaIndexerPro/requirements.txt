@@ -1,0 +1,38 @@
+# MediaIndexerPro v4 — Cloud-API First Dependencies
+# Install: pip install -r requirements.txt
+#
+# No torch, transformers, or GPU dependencies required.
+# All heavy vision inference is routed to the configured cloud API endpoint.
+# Local fallbacks use CPU-friendly Pillow statistics only.
+
+# === Cloud API Client ===
+requests>=2.32.0               # HTTP client for cloud vision API
+
+# === Video Source Engine ===
+yt-dlp>=2024.12.0              # YouTube / TikTok / web video metadata extraction
+
+# === Stock Media Engines ===
+pexels-python>=2.0.0           # Pexels API — high-quality image/video metadata
+pixabay-python>=1.0.0          # Pixabay API — supplementary media metadata
+
+# === Image Search Engines ===
+duckduckgo-search>=7.0.0       # DuckDuckGo image search (metadata-only)
+bing-image-downloader>=1.1.0   # Bing image search (metadata-only)
+
+# === Web Image Engines ===
+goose3>=3.1.0                  # Web page content/cover image extraction
+newspaper3k>=0.2.8             # Web article parsing + image extraction
+
+# === HTML Parsing ===
+beautifulsoup4>=4.12.0
+lxml>=5.3.0
+httpx>=0.28.0
+
+# === API Server ===
+fastapi>=0.115.0
+uvicorn>=0.34.0
+pyyaml>=6.0
+
+# === CPU-Friendly Local Utilities ===
+pillow>=10.0.0                 # Image processing (fallback analysis only)
+numpy>=1.24.0                  # Array operations (fallback analysis only)

@@ -1,0 +1,7 @@
+root: C:/Users/aoogoost/Desktop/Projekt/git008/projects/white_dragon_horse
+
+zoo_path: C:/path/to/ZOO
+trae_path: C:/path/to/TRAE
+scripts_path: ${root}/scripts
+logs_path: ${root}/logs
+reports_path: ${root}/reports

@@ -1,0 +1,48 @@
+# RoastBro — AI 自动化跨平台反讽吐槽内容工厂
+
+## 项目概述
+全自动化、可规模化、可商业化、可合规运行的内容生产工厂，
+实现从爬取、分析、槽点识别、脚本生成、剪辑、配音到发布的完整自动化流水线。
+
+## 技术栈
+- Python 3.10+
+- OpenAI Whisper (语音识别)
+- LLaVA / Qwen-VL (视频帧理解)
+- Coqui TTS / Piper TTS (语音合成)
+- MoviePy (视频剪辑)
+- FastAPI / Streamlit (CEO Dashboard)
+- Playwright (TikTok爬取)
+- YouTube Data API v3 (发布)
+
+## 目录结构
+```
+RoastBro/
+├── scrapers/          # 爬虫模块
+├── analyzer/          # 视频理解
+├── roastpoints/       # 槽点识别
+├── scripts/           # 反讽脚本生成
+├── editor/            # 自动剪辑
+├── voice/             # 自动配音
+├── publisher/         # 自动发布
+├── compliance/        # 合规检查
+├── dashboard/         # CEO 后台
+└── data/
+    ├── cache/         # 临时缓存
+    ├── processed/     # 已处理素材
+    └── outputs/       # 成品视频
+```
+
+## 核心模块职责
+1. TikTok Scraper - 抓取热榜、标签、用户、争议视频
+2. Video Analyzer - Whisper语音识别 + LLaVA/Qwen-VL视频理解
+3. RoastPoint Engine - 逻辑/行为/情绪异常检测与评分
+4. RoastScript Engine - 谷阿莫+Captainpig风格蒸馏文案生成
+5. AutoEditor - 视频裁剪、遮挡、字幕、音效合成
+6. AutoVoice - TTS多风格语音生成
+7. AutoPublisher - 多平台自动发布
+8. ComplianceGuard - 版权/名誉/政策合规检测
+9. CEO Dashboard - 内容流水线监控与控制
+
+## 部署阶段
+- 阶段1：本地部署（安全）
+- 阶段2：混合部署（云端渲染+发布）

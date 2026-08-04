@@ -1,0 +1,79 @@
+# frontend/server.py — Arch V3: JSON API Gateway
+import http.server
+import socketserver
+import os
+import subprocess
+import json
+import shutil
+import urllib.parse
+import traceback
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PORT = 8080
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def _set_headers(self, status, content_type):
+        self.send_response(status)
+        self.send_header('Content-type', content_type + '; charset=utf-8')
+        self.end_headers()
+
+    def do_GET(self):
+        if self.path == '/api/list_audio':
+            self._set_headers(200, 'application/json')
+            audio_dir = os.path.join(PROJECT_ROOT, 'output')
+            files = [f for f in os.listdir(audio_dir) if f.endswith('.mp3')] if os.path.exists(audio_dir) else []
+            self.wfile.write(json.dumps(files).encode('utf-8'))
+            return
+        
+        if self.path == '/api/script':
+            script_path = os.path.join(PROJECT_ROOT, 'assets/scripts/script.txt')
+            self._set_headers(200, 'text/plain')
+            with open(script_path, 'r', encoding='utf-8') as f:
+                self.wfile.write(f.read().encode('utf-8'))
+            return
+        
+        if self.path == '/' or self.path == '/index.html':
+            self.path = '/frontend/index.html'
+        return super().do_GET()
+
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        
+        try:
+            if self.path == '/api/generate':
+                # 接收前端发送的JSON配置
+                job_config = json.loads(post_data.decode('utf-8'))
+                
+                # 将配置写入 input.json，作为与 generate.py 的契约
+                input_json_path = os.path.join(PROJECT_ROOT, 'input.json')
+                with open(input_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(job_config, f, ensure_ascii=False, indent=2)
+                
+                # 调用生成引擎
+                cmd = ['python', 'src/generate.py']
+                result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=60)
+                
+                output = result.stdout + result.stderr
+                self._set_headers(200, 'text/plain')
+                self.wfile.write(output.encode('utf-8'))
+                return
+
+            elif self.path == '/api/script':
+                script_path = os.path.join(PROJECT_ROOT, 'assets/scripts/script.txt')
+                with open(script_path, 'w', encoding='utf-8') as f:
+                    f.write(post_data.decode('utf-8'))
+                self._set_headers(200, 'text/plain')
+                self.wfile.write(b'Script saved.')
+                return
+            
+        except Exception as e:
+            self._set_headers(500, 'text/plain')
+            error_msg = f"Internal Server Error:\n{traceback.format_exc()}"
+            print(error_msg)
+            self.wfile.write(error_msg.encode('utf-8'))
+
+if __name__ == '__main__':
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print(f"VOICE22 Arch V3 API serving at http://localhost:{PORT}")
+        httpd.serve_forever()

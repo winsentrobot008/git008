@@ -1,3 +1,0 @@
-Delivery for logo_task_2
-Files: ['logo.png', 'logo.svg']
-Mode: mock

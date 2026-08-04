@@ -1,0 +1,174 @@
+﻿# git008 全局治理规则书（.clinerules）
+
+> 本文件为操作级治理规则，与 CONSTITUTION.md（原则级）配套使用。
+> 原则性问题请参见宪法，操作性问题在此查找。
+
+Read constitution from Cline-anti-freeze/CONSTITUTION.md
+
+# ============================================
+# 1. 工作空间规则
+# ============================================
+- 所有业务项目通过 governance_linker.py 自动链接全局宪法。
+- 治理文件统一由 Cline-anti-freeze/ 管理，勿在项目内重复创建。
+
+# ============================================
+# 2. 环境治理操作细则
+# ============================================
+- 【依赖重构】禁止修复损坏的 node_modules 软链接。检测到模块缺失时，须执行"删除 node_modules & lockfile → 重装"的原子化操作。
+- 【编码统一】所有源代码须使用 UTF-8（无 BOM）编码。自动清除 U+FEFF 字符。
+
+# ============================================
+# 3. 历史故障防御操作细则
+# ============================================
+- 【权限防火墙】严禁扫描 C:\Windows、System32、C:\Program Files 等系统关键目录。返回 PermissionDenied 时须检查路径属性。批量扫描须限定在工作空间内。
+- 【Git 安全门禁】执行 git push/fetch/pull 前须先通过 do_git.py 检查远程仓库配置。未配置远程仓库时严禁执行 git push。本地操作不受限。
+- 【阻塞探测器】Get-ChildItem 或大批量目录遍历须注入进度提示或设置超时。使用 -ErrorAction SilentlyContinue 并限制深度（-Depth 2），总耗时不得超过 60 秒。
+- 【防刷屏】涉及路径检索、日志读取的操作须强制追加限制参数（-Depth 2 或 Select-Object -First 20），防止过长的文本刷屏击穿上下文。
+- 【服务依赖】启动前端项目前须优先检查并启动对应的后端服务，严禁在后端断线时单端空转前端。
+- 【报错熔断】连续相同异常超过 3 次（如 ECONNREFUSED），须立即 Kill 终端进程，禁止任由报错刷屏。
+- 【后台挂起】严禁在主终端中直接运行阻塞命令（uvicorn、npm run dev、nodemon 等）。须在后台新窗口启动，终端输出出现就绪关键字时须在 5 秒内释放当前步骤。
+
+### §3.4 — 防爆熔断与资源耗尽保护 (Explosion Prevention: Circuit Breaker & Resource Exhaustion Guard)
+- 【级联熔断】单一模块连续触发 3 次 CRITICAL 级错误时，须立即触发级联熔断：停止该模块所有子任务、释放其占用的全部句柄与端口、写入 fault_blackbox.json 并广播告警至所有在线 Instance。熔断后 120 秒内禁止自动重试，防止错误级联扩散。
+- 【资源耗尽闸门】所有 Instance 在执行 IO 密集型或内存密集型操作前，须先检查系统可用资源（磁盘剩余 < 10%、内存可用 < 512MB、句柄数 > 80% 阈值时），任一指标触发则拒绝执行并上报 Governance Instance，严禁在资源枯竭状态下强行操作。
+- 【句柄泄漏防护】任何涉及文件描述符、网络连接、数据库游标的操作必须使用 with / using 上下文管理器确保及时释放。单 Instance 句柄数超过 5000 时，Watchdog 须强制回收该进程并记录泄漏追踪快照。
+- 【递归深度锁死防护】禁止无限制递归调用。所有递归函数须设置最大深度参数（默认 ≤ 64），超出深度时须立即返回错误而非静默溢出。批量重试逻辑须在循环体内注入 escape hatch（最大迭代次数 + 冷却时间），严禁死循环。
+- 【端口冲突检测】启动任何监听服务前，须先使用 netstat / ss 检测目标端口是否已被占用。若端口占用且 PID 不属于当前 Instance，须使用备用端口并上报端口冲突事件，严禁强行绑定导致服务静默失效。
+- 【爆炸半径最小化】任何批量操作（批量文件读写、批量 API 调用、批量数据库操作）须分片执行，单次操作上限为 50 条记录或 10MB 数据。超出上限须自动拆分并注入间隔冷却（≥ 500ms），防止单次操作击穿系统。
+
+### §3.5 — 高可用性自愈与故障转移 (High Availability: Self-Healing & Failover)
+- 【健康检查义务】所有常驻服务（API 服务器、WebSocket 守护进程、推理引擎）必须在启动时注册健康检查端点，并每 30 秒向 governance_linker.py 上报存活状态。连续 2 次健康检查失败（≥ 60 秒无响应）须触发自动重启流程。
+- 【自动重启协议】检测到服务异常退出时，须自动执行「状态快照 → 资源清理 → 重启计数 → 延迟重试」四步协议。首次崩溃立即重启，第二次起每次翻倍延迟（2s → 4s → 8s → 16s），连续 5 次重启失败则升级为 CRITICAL 事件并冻结该服务，不再自动重试。
+- 【优雅降级】服务依赖链中任意一环失效时，下游服务不得直接崩溃。须实现降级逻辑：返回缓存数据、关闭非核心功能、或返回用户友好的错误提示。降级后的服务须在日志头部标注 `[DEGRADED]` 标记。
+- 【状态持久化契约】所有对系统运行至关重要的中间状态（任务队列、处理进度、会话上下文）必须在每步操作完成后同步落盘或写入内存数据库。严禁将关键状态仅保留在进程内存中。崩溃恢复后须首先加载持久化状态重建现场。
+- 【心跳冗余通道】除主心跳通道外，各 Instance 须在 `.heartbeat` 文件中维持一份本地心跳副本（文件锁保护）。governance_linker.py 在检测到主通道失活时，须读取本地.heartbeat 文件作为辅助判断，防止单通道故障导致误判 Instance 失活。
+- 【故障恢复演练】治理工位每 7 天须自动触发一次故障恢复演练：随机停止一个非治理核心服务的健康检查、验证自动重启与降级链路是否正确响应。演练结果写入 governance_logs/drills/ 目录。
+
+### §3.6 — 可观测性与黄金信号监控 (Observability: Golden Signals & Monitoring)
+- 【黄金信号采集】所有长期运行的 Instance 必须持续采集以下四项黄金信号并上报 governance_linker.py：
+  1. **延迟 (Latency)**：每次外部 API 调用或文件 IO 的耗时，P50/P95/P99 百分位统计
+  2. **流量 (Traffic)**：每秒请求数/操作数（RPS/OPS），按操作类型分标签统计
+  3. **错误 (Errors)**：按错误级别（INFO/WARNING/ERROR/CRITICAL）分类计数，CRITICAL 级须附带完整堆栈
+  4. **饱和度 (Saturation)**：CPU 使用率、内存占用率、句柄数使用率、磁盘 IO 等待时间
+- 【结构化日志强制】所有 Instance 的日志输出必须采用结构化格式（JSON lines），包含：timestamp（ISO 8601）、level、instance_id、module、message、context（关键上下文摘要）。严禁使用纯文本字符串拼接日志。
+- 【日志归档与保留】系统日志自动归档至 governance_logs/，按日期分目录。日志保留期为 30 天，超期由 governance_linker.py --archive-logs 自动压缩归档。单个日志文件超过 50MB 时须自动轮转（rotate）。
+- 【可观测性看板】governance_linker.py --boot-check 启动自检时须输出可观测性摘要看板，包含：当前活跃 Instance 数及心跳状态、各模块错误率统计（最近 24h / 1h / 5min）、资源饱和度仪表盘（CPU/内存/磁盘/句柄）、最近 5 条 CRITICAL 级错误摘要。
+- 【告警阈值与通知】预设告警阈值如下，任一指标触发须立即在终端输出 `⚠️ ALERT: [指标名] = [当前值] (threshold: [阈值])` 并以 WS 广播至所有在线 Instance：
+  - 错误率（ERROR+CRITICAL）> 5% 且持续 ≥ 5 分钟
+  - P95 延迟 > 10s 且持续 ≥ 3 分钟
+  - 磁盘剩余空间 < 5%
+  - 连续心跳丢失 ≥ 3 次（≥ 90 秒无心跳）
+- 【根因分析快照】每次 CRITICAL 级故障触发时，governance_linker.py 须在 30 秒内自动生成根因分析快照（RCA Snapshot）写入 governance_logs/rca/，包含：故障时间线（精确到秒）、故障前 30 秒内的黄金信号变化曲线、关联的最近 10 条 ERROR 级以上日志、当前活跃 Instance 列表及状态。
+
+# ============================================
+# 4. 防御性编程操作细则
+# ============================================
+- 【路径零歧义】所有路径字符串强制包裹在双引号内。禁止直接拼接路径，须使用 os.path.join() 或 path.join()。
+- 【禁止 cd】严禁使用 cd/Set-Location/Push-Location。须使用绝对路径直接执行。Git 操作使用 git -C "绝对路径"。
+- 【静默重试】失败时自动检测错误码，路径解析错误执行引号封装修复重试（至多 2 次）。记录到 error.log 并一次性总结，严禁死循环。
+
+# ============================================
+# 5. 多实例协作操作细则
+# ============================================
+- 【工位隔离】Development Instance 严禁修改 Cline-anti-freeze/ 下的治理核心文件。治理工位拥有编辑权与执法权。启动时通过 governance_linker.py --boot-check 验证角色。
+- 【写入互斥】并行实例向 error_log.md 写入日志时须遵循格式：[时间戳 | 实例ID | 模块/错误内容]。须通过 FileLock 互斥机制规避冲突。
+- 【心跳同步】开发工位执行长任务（>30秒）时须向 error_log.md 发送心跳。治理工位每 60 秒扫描心跳，超过 90 秒无心跳判定为"失活"。
+- 【Master 推送加锁】推送 master 分支前须执行 do_git.py --push --verify-lock，防止多实例并发推送冲突。
+
+# ============================================
+# 6. 自主扫描与登记操作细则
+# ============================================
+- 任何 VSC 实例启动时，扫描 git008 根目录下的所有顶级文件夹。
+- 将扫描结果与 Cline-anti-freeze/project_registry.md 比对。
+- 发现未登记文件夹时，在 registry.md 中追加登记记录，验证项目结构，运行治理链接脚本。
+- 发现新项目后，在首次对话中向 CEO 汇报："发现新项目 [项目名]，已将其纳入治理体系。"
+- 实现：由 onboard_scanner.py 负责扫描逻辑，governance_linker.py 在 boot_check() 中自动调用。
+
+# ============================================
+# 7. 加载声明
+# ============================================
+# 本文件已加载 — 全局治理规则已挂载。
+# ============================================
+# 8. 记忆更新刚性规则（宮法第3章落地）
+# ============================================
+- 【启动加载】任何 Instance 启动时，必须读取 memory-bank/global/ 和自身 branch/。
+- 【强制固化】任务结束前、上下文 > 70%、架构变更时，必须执行 update_memory_bank。
+- 【零静默】记忆更新失败必须立即停止任务并上报 Governance Instance。
+- 【权限隔离】Dev 仅写 branch/dev/，Gov 仅写 branch/gov/，严禁写入 global/。
+
+# ============================================
+# 9. 规划执行刚性规则（宮法第4章落地）
+# ============================================
+# No Plan, No Code：
+- < 1 天任务：可直接执行，记录意图。
+- 1～3 天任务：必须生成 implementation_plan.md，经 Gov 确认。
+- ≥ 3 天任务：必须由 Gov 拆解 Task Tree，Dev 仅执行 next_task。
+- 【拦截机制】检测到 > 3 天任务且无 Plan/Tree，Dev 必须拒绝执行并上报。
+- 【权限隔离】Task Master 权限仅 Gov 拥有，Dev 仅可读任务状态。
+
+
+# ============================================
+# 10. 哨兵钩子操作细则（宮法第5章 Article 5.6 落地）
+# ============================================
+- 【边界看护】实时检测业务文件是否违规写入 Cline-anti-freeze/。发现回流时须立即拦截并上报 Governance Instance。
+- 【合规前置拦截】在执行任何工具调用前，验证当前任务是否已有 Plan/Tree。无 Plan 直接编码时须拒绝执行并上报。
+- 【记忆同步】任务结束前、上下文 > 70%、架构变更时，必须触发 update_memory_bank。
+- 【异常上报】哨兵检测到违宪、卡死或幻觉时，必须立即通过 WS 广播告警并写入 fault_blackbox.json。
+- 【禁止绕过】Development Instance 不得干扰、禁用或绕过哨兵钩子。违者视为严重违宪，剥夺执行资格。
+- 【新项目入列】任何新项目被 onboard_scanner.py 发现时，必须自动部署 .governance_entry.py 和 .heartbeat。
+- 【哨兵失联】heartbeat_monitor.py 检测到 120s 无心跳时，必须触发 Watchdog 熔断并写入 fault_blackbox.json。
+
+# ============================================
+# 11. 模型通道操作细则（宮法第5章 Article 5.7 落地）
+# ============================================
+- 【默认模型锁定】所有 Instance 默认推理模型统一锁定 DeepSeek V4 官方通道 (api.deepseek.com)。禁止私自切换至第三方反代层。
+- 【反代层禁令】严禁引入任何未经 Governance Instance 审计的模型反向代理。package.json/requirements.txt 中禁止出现指向模型中转的黑盒依赖。
+- 【npm install 黑名单】安装 npm 包前须检查 global_controls.json 黑名单，匹配 typo-squatting 变体时立即拒绝安装并上报。
+- 【供应链审计】pip install / npm install 前须执行三查：包名黑名单匹配、下载量/维护频率审查、审计日志记录。
+- 【熔断触发】检测到 API 重定向至非官方端点、postinstall 脚本修改网络配置、连续 3 次 403 或 SSL 错误时，立即停止推理并上报。
+- 【白名单豁免】非 DeepSeek V4 通道的使用须向 Governance Instance 提交书面申请，有效期最长 30 天。
+- 【黑名单同步】global_controls.json 中的恶意包黑名单在所有 Instance 启动时自动同步检查。
+
+# ============================================
+# 12. 外部数据获取操作细则（宮法第5章 Article 5.9 落地）
+# ============================================
+- 【浏览器引擎锁定】所有网页数据获取 Instance 必须使用 Playwright 官方原生包（PyPI/npm 官方源），严禁使用 Selenium/Puppeteer 二次开发分支或非官方浏览器二进制。
+- 【Stealth 插件白名单】反检测隐身行为仅允许使用经 Gov 审计的白名单插件（当前仅 `playwright-stealth` @AtuboEnc/playwright-stealth），版本锁定，禁止自动升级。任何非白名单的 stealth/undetected/anti-detect/ghost/cloak 类包视为未审计违禁资产。
+- 【一键隐身包禁入清单】非自建、非 Gov 批准的「一键隐身」npm/PyPI 包为绝对违禁资产。安装前必须检查 global_controls.json 黑名单，匹配 typo-squatting 变体时立即拒绝安装并上报。
+- 【Scraper 输出隔离】所有 Scraper 引擎的默认 output_dir 须指向 memory-bank/crawl_cache/，命名格式 {platform}_{timestamp}_{session_id}.json。该目录须列入 .gitignore，保留期 7 天，超期由 governance_linker.py --clean-crawl-cache 清理。
+- 【数据纯净度闭环】外部数据进入 crawl_cache 后须经：格式校验 → PII 脱敏 → SHA256 去重 → 来源标记(platform/version/timestamp) → .audit.json 审计追踪，方可被下游引用。
+- 【熔断触发】检测到违禁包、引擎版本不符、连续 3 次结构异常、Captcha/IP 封禁、磁盘 >90% 时，立即停止所有抓取操作并上报 Governance Instance。
+- 【审计豁免】新 Stealth 插件/数据源须向 Gov 提交书面申请（名称/版本/来源/安全审计报告），有效期最长 30 天，到期自动失效。绕过审计视为严重违宪。
+
+# ============================================
+# 13. 技能协议操作细则（宮法第5章 Article 5.8 落地）
+# ============================================
+- 【四大协议强制服从】所有 Instance 必须无条件服从 protocols/ 下四大纪律协议：task_tree_mapping.md（任务拆解范式表）、prd_pre_audit.md（PRD 预审）、spec_driven_plan.md（规范驱动计划）、step_verifier.md（每步自检）。
+- 【Gov 拆解强制参照】Gov 工位在拆解 Task Tree 时，必须严格参照 protocols/task_tree_mapping.md 识别任务类型并选定拆解范式，同时参照 protocols/spec_driven_plan.md 注入验证关卡。不规划验证不准进 Build。
+- 【PRD 预审前置】任何需求在进入 Task Tree 拆解前，必须先经 protocols/prd_pre_audit.md 五步预审流程。哨兵检测到无预审报告直接拆解的行为须拦截上报。
+- 【Dev 自检义务】Dev 工位每进行下一项 next_task 或完成当前子任务前，必须调用 protocols/step_verifier.md 进行双重自检，拒绝盲目跳跃。自检记录须写入 memory-bank/branch/dev/activeContext.md。
+- 【私有流转禁令】Dev 工位严禁在 Build 阶段自创未经验证的私有流转流程。所有任务必须按标准流转：CEO签发 → Gov PRD预审 → Gov Task Tree拆解 → Gov Plan细化 → Dev执行(经自检) → Gov验收 → CEO确认。
+- 【反趋于合理化强制自检】Gov 工位在每次提交 Task Tree 或 Plan 给 CEO 审批前，必须执行反趋于合理化表（Anti-Rationalization Table）自检，自检记录须附加在提交文档末尾。哨兵有权在审批前自动扫描。
+- 【协议版本联动】四大协议版本以 CONSTITUTION.md 版本为准。每次宪法变更后所有 Instance 须重新加载协议。Dev 工位无权编辑 protocols/ 下的任何文件。
+- 【哨兵监督熔断】哨兵实时检测：Gov 拆解前是否有预审记录、Plan 中 Work Item 是否有 GATE_* 验证关卡、Dev 跨任务跳跃前是否有自检记录。累计 3 次违规则触发 Instance 级熔断。
+
+# ============================================
+# 14. TestSprite 测试基建与自愈闭环（Spec-Driven Plan §2.3 落地）
+# ============================================
+- 【强制验证手段】GATE_UI_E2E 和 GATE_REGRESSION 两个验证关卡的执行手段强制锁定为 testsprite CLI（@testsprite/testsprite-cli）。Dev 工位在执行涉及前端界面的 Work Item 时，必须调用 testsprite run 和 testsprite run --ci 完成验证。
+- 【Plan 注入义务】Gov 工位在拆解涉及前端界面（Gradio、WebOperator 看板、Confession HF Space、AI-WORKFLOW 控制面板等）的 Plan 时，必须为相关 Work Item 注入 GATE_UI_E2E 或 GATE_REGRESSION 验证关卡。缺失则 Plan 审核不通过。
+- 【测试失败自愈闭环】如果 testsprite 回归测试失败，Dev 工位必须将 testsprite 生成的报告包（截图路径、DOM 快照、根因分析）完整解析，沉淀为 memory-bank/testsprite_fail_report.md。该报告作为下一次 Dev 动工修复的最高前置上下文——在开始修复前必须重新加载此报告。
+- 【自愈报告结构】memory-bank/testsprite_fail_report.md 必须包含：失败时间戳、testsprite 版本、失败用例名称、截图路径列表、DOM 快照摘要、根因分析、修复优先级、关联的 Work Item ID。
+- 【哨兵监督】哨兵钩子检测到 testsprite 回归失败但无对应的 memory-bank/testsprite_fail_report.md 时，须拦截后续操作并上报 Gov 工位。
+
+# ============================================
+# 15. 进程卫生與僵尸裁剪操作细则（Article 1.5 落地）
+# ============================================
+- 【零孤儿原则】所有 ZOOCODE 实例、自动化脚本或后台看门狗拉起的物理终端进程，其生命周期必须与当前激活的任务严格绑定。任务结束时未自动退出的终端进程，Watchdog 须在 5 秒内强制回收。
+- 【熔断挥刀】触发 Article 1.2 反卡死熔断或异常退出时，watchdog.py 必须调用 guillotine_kill_all() 向该会话所有底层 PID 发送 taskkill /F /T（Win32）或 SIGKILL（Unix），不得留存任何 Warning 标记的挂起僵尸终端。
+- 【熔断前快照】在执行熔断挥刀前，watchdog.py 必须调用 dump_state() 保留上下文崩溃恢复快照至 governance_logs/crash_dumps/。
+- 【开机洗消】governance_linker.py --boot-check 启动自检时，必须自动调用 zombie_prune() 全盘终端洗消：检测并释放所有未列入 .instance_registry.json 的 Cline/ZOOCODE 残留进程。
+- 【5 秒豁免响应】开发者在遭遇卡顿时拥有无条件执行"Terminal: Kill All Terminals"的最高豁免权。系统必须在 5 秒内无条件响应并保留崩溃恢复快照。
+- 【注册表活性验证】governance_linker.py 在启动自检时必须验证 .instance_registry.json 中所有实例的 PID 是否真实存活，移除已失效的僵尸注册项。
+- 【禁止逃逸】编写任何涉及后台服务（如 Python 推理服务器、Gradio 前端、ClawAI 后端）的命令时，必须通过 json 配置或 CLI 参数显式声明生命周期。若在 Windows 环境下运行，退出时必须执行：`Stop-Process -Name "python" -Force -ErrorAction SilentlyContinue`。
+- 【自愈洗消】在每次执行长期重构或测试任务前，智能体必须主动检查右侧终端负载。若发现非当前任务拉起的冗余终端，必须引导或提示用户通过 `Ctrl+Shift+P` 执行 `Terminal: Kill All Terminals` 进行大扫除，确保工作区干净。

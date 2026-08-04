@@ -1,0 +1,59 @@
+import http.server
+import socketserver
+import os
+import subprocess
+import urllib.parse
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PORT = 8080
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/api/script':
+            try:
+                with open(os.path.join(PROJECT_ROOT, 'assets/scripts/script.txt'), 'r', encoding='utf-8') as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header('Content-type', 'text/plain; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(content.encode('utf-8'))
+            except FileNotFoundError:
+                self.send_error(404, "Script not found")
+        elif self.path == '/' or self.path == '/index.html':
+            self.path = '/frontend/index.html'
+            return http.server.SimpleHTTPRequestHandler.do_GET(self)
+        else:
+            self.send_error(404, "Not found")
+
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length).decode('utf-8')
+        
+        if self.path == '/api/script':
+            with open(os.path.join(PROJECT_ROOT, 'assets/scripts/script.txt'), 'w', encoding='utf-8') as f:
+                f.write(post_data)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'Script saved successfully.')
+        
+        elif self.path == '/api/run':
+            cmd = post_data
+            try:
+                # 安全限制：仅允许 python 和 ffmpeg 命令
+                if cmd.startswith('python') or cmd.startswith('ffmpeg'):
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=PROJECT_ROOT, timeout=30)
+                    output = result.stdout + result.stderr
+                else:
+                    output = "Forbidden command."
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(output.encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(str(e).encode('utf-8'))
+
+if __name__ == '__main__':
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print(f"VOICE22 Frontend serving at http://localhost:{PORT}")
+        httpd.serve_forever()

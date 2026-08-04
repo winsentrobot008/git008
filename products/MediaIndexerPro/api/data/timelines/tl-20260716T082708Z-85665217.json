@@ -1,0 +1,40 @@
+{
+  "timeline_id": "tl-20260716T082708Z-85665217",
+  "ratio": "1:1",
+  "total_duration": 5,
+  "scenes": [
+    {
+      "id": 1,
+      "emotion": "孤独",
+      "duration": 5,
+      "style": {
+        "tone": "cold"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "video",
+      "clips": [
+        {
+          "scene_id": 1,
+          "asset": "",
+          "asset_type": "image",
+          "duration": 5,
+          "filters": {
+            "color": "colorbalance=rs=.1:gs=.1:bs=.2"
+          },
+          "emotion": "孤独"
+        }
+      ]
+    },
+    {
+      "type": "audio",
+      "clips": [
+        {
+          "source": "1:1"
+        }
+      ]
+    }
+  ]
+}

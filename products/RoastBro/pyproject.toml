@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "roastbro"
+version = "0.1.0"
+description = "AI 自动化跨平台反讽吐槽内容工厂"
+readme = "README.md"
+requires-python = ">=3.10"
+
+authors = [
+    { name = "ZOO / CEO", email = "ceo@git008.io" },
+]
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "openai-whisper>=20231117",
+    "moviepy>=1.0.3",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "streamlit>=1.28.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    "Pillow>=10.2.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "pyyaml>=6.0",
+    "playwright>=1.40.0",
+    "aiofiles>=23.2.1",
+    "rich>=13.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "pre-commit>=3.5.0",
+]
+voice = [
+    "TTS>=0.20.0",  # Coqui TTS
+]
+vision = [
+    "torch>=2.1.0",
+    "transformers>=4.36.0",
+    "accelerate>=0.25.0",
+]
+editor = [
+    "opencv-python>=4.8.0",
+    "pillow>=10.2.0",
+    "pysrt>=1.1.2",
+]
+publisher = [
+    "google-api-python-client>=2.108.0",
+    "google-auth-oauthlib>=1.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["roastbro*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

@@ -1,0 +1,328 @@
+{
+  "scan_time": "2026-07-13T18:01:51.205186+00:00",
+  "total_protected": 5,
+  "total_unprotected": 17,
+  "total_bypass": 1,
+  "protected_modules": [
+    {
+      "file": "_governance_audit.py",
+      "category": "other",
+      "refs": [
+        {
+          "line": 18,
+          "keyword": "constitution",
+          "text": "'constitution', 'constitution.rules', 'constitution.guard', 'constitution.validators',"
+        },
+        {
+          "line": 19,
+          "keyword": "constitution",
+          "text": "'KARPATHY_CONSTITUTION', 'anti_freeze_check', 'constitution_check', 'governance_check',"
+        },
+        {
+          "line": 68,
+          "keyword": "constitution",
+          "text": "if '/constitution/' in p: return 'constitution'"
+        },
+        {
+          "line": 99,
+          "keyword": "constitution",
+          "text": "constitution_refs = []"
+        },
+        {
+          "line": 114,
+          "keyword": "constitution",
+          "text": "constitution_refs.append({'line': i, 'keyword': kw, 'text': s[:120]})"
+        },
+        {
+          "line": 123,
+          "keyword": "constitution",
+          "text": "return imports, from_imports, constitution_refs, sentinel_refs"
+        },
+        {
+          "line": 146,
+          "keyword": "constitution",
+          "text": "'constitution_refs': const_refs,"
+        },
+        {
+          "line": 170,
+          "keyword": "constitution",
+          "text": "def step2_constitution(scan):"
+        },
+        {
+          "line": 175,
+          "keyword": "constitution",
+          "text": "protected = []  # modules that reference constitution"
+        },
+        {
+          "line": 176,
+          "keyword": "constitution",
+          "text": "unprotected = []  # executor/sandbox modules that DON'T reference constitution"
+        },
+        {
+          "line": 177,
+          "keyword": "constitution",
+          "text": "bypass = []  # modules that bypass constitution"
+        },
+        {
+          "line": 180,
+          "keyword": "constitution",
+          "text": "has_const = len(data['constitution_refs']) > 0"
+        },
+        {
+          "line": 186,
+          "keyword": "constitution",
+          "text": "'refs': data['constitution_refs'],"
+        },
+        {
+          "line": 190,
+          "keyword": "constitution",
+          "text": "# Check if it's an executor module without constitution ref"
+        },
+        {
+          "line": 198,
+          "keyword": "constitution",
+          "text": "# Bypass: modules that directly call anti_freeze without importing constitution"
+        },
+        {
+          "line": 216,
+          "keyword": "constitution",
+          "text": "out = os.path.join(DATA, 'constitution_reference_report.json')"
+        },
+        {
+          "line": 302,
+          "keyword": "constitution",
+          "text": "for ref in ['Cline-anti-freeze', 'constitution', 'executor', 'sandbox',"
+        },
+        {
+          "line": 349,
+          "keyword": "constitution",
+          "text": "md_lines.append('  ├── constitution/     ← Governance rules')"
+        },
+        {
+          "line": 383,
+          "keyword": "constitution",
+          "text": "# Protected by constitution"
+        },
+        {
+          "line": 403,
+          "keyword": "constitution",
+          "text": "'constitution_coverage': {"
+        },
+        {
+          "line": 417,
+          "keyword": "constitution",
+          "text": "'constitution_protected': biz_protected,"
+        },
+        {
+          "line": 485,
+          "keyword": "constitution",
+          "text": "cov_pct = coverage['constitution_coverage']['coverage_pct']"
+        },
+        {
+          "line": 602,
+          "keyword": "constitution",
+          "text": "if data['constitution_refs']:"
+        },
+        {
+          "line": 634,
+          "keyword": "constitution",
+          "text": "recs.append(f'- Add constitution import to {const_report[\"total_unprotected\"]} unprotected executor modules')"
+        },
+        {
+          "line": 661,
+          "keyword": "constitution",
+          "text": "s2 = step2_constitution(s1)"
+        },
+        {
+          "line": 672,
+          "keyword": "constitution",
+          "text": "print(f'  Constitution coverage: {s5[\"constitution_coverage\"][\"coverage_pct\"]}%')"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/governance_linker.py",
+      "category": "governance_core",
+      "refs": [
+        {
+          "line": 172,
+          "keyword": "constitution",
+          "text": "def is_constitution_file(filepath: Path) -> bool:"
+        },
+        {
+          "line": 188,
+          "keyword": "constitution",
+          "text": "if is_constitution_file(filepath):"
+        },
+        {
+          "line": 664,
+          "keyword": "constitution",
+          "text": "\"is_constitution\": is_constitution_file(target),"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/monitor.py",
+      "category": "governance_core",
+      "refs": [
+        {
+          "line": 95,
+          "keyword": "constitution",
+          "text": "constitution_hash: str = \"\""
+        },
+        {
+          "line": 111,
+          "keyword": "constitution",
+          "text": "def compute_constitution_hash() -> str:"
+        },
+        {
+          "line": 462,
+          "keyword": "constitution",
+          "text": "constitution_hash=compute_constitution_hash(),"
+        },
+        {
+          "line": 629,
+          "keyword": "constitution",
+          "text": "\"constitution_hash\": report.constitution_hash,"
+        },
+        {
+          "line": 686,
+          "keyword": "constitution",
+          "text": "\"constitution_hash\": report.constitution_hash,"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/constitution/rules.py",
+      "category": "constitution",
+      "refs": [
+        {
+          "line": 1,
+          "keyword": "KARPATHY_CONSTITUTION",
+          "text": "KARPATHY_CONSTITUTION = \"\"\""
+        },
+        {
+          "line": 8,
+          "keyword": "anti_freeze_check",
+          "text": "def anti_freeze_check(plan_steps):"
+        }
+      ]
+    },
+    {
+      "file": "Cline-anti-freeze/executor/init_new_project.py",
+      "category": "executor",
+      "refs": [
+        {
+          "line": 15,
+          "keyword": "constitution",
+          "text": "src_constitution = os.path.join(root_dir, \"core\", \"constitution\")"
+        },
+        {
+          "line": 16,
+          "keyword": "constitution",
+          "text": "dst_constitution = os.path.join(target_dir, \"core\", \"constitution\")"
+        },
+        {
+          "line": 17,
+          "keyword": "constitution",
+          "text": "if os.path.exists(src_constitution):"
+        },
+        {
+          "line": 18,
+          "keyword": "constitution",
+          "text": "shutil.copytree(src_constitution, dst_constitution, dirs_exist_ok=True)"
+        },
+        {
+          "line": 22,
+          "keyword": "constitution",
+          "text": "app_template = \"\"\"from core.constitution.rules import KARPATHY_CONSTITUTION, anti_freeze_check"
+        },
+        {
+          "line": 27,
+          "keyword": "anti_freeze_check",
+          "text": "# anti_freeze_check(plan_steps)"
+        }
+      ]
+    }
+  ],
+  "unprotected_modules": [
+    {
+      "file": "Cline-anti-freeze/executor/analyze_fork.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/analyze_server.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/fork_main.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/fork_scheduler_init.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/fork_server.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_app.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_code_exec_sandbox.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_live_agent.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_main.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_server.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/hf_task_scheduler.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/online_agent.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/online_sandbox.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/online_wrapup.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/server.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/executor/_extract_pr.py",
+      "category": "executor"
+    },
+    {
+      "file": "Cline-anti-freeze/sandbox/code_execution_sandbox.py",
+      "category": "sandbox"
+    }
+  ],
+  "bypass_modules": [
+    {
+      "file": "Cline-anti-freeze/do_git.py",
+      "ref": {
+        "line": 49,
+        "keyword": "anti_freeze",
+        "text": "\"cline_anti_freeze\": PROJECT_ROOT / \"Cline-anti-freeze\","
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "CALORIEAI-E2E-006",
+  "timestamp": 1785872443,
+  "status": "SUCCESS",
+  "result": {
+    "stdout": "[0] SKIP :: TimeoutError\n[1] SKIP :: TimeoutError\n[2] SKIP :: TimeoutError\n[3] SKIP :: TimeoutError\n[4] <button> clicked :: \n[5] <button> clicked :: 记录饮食\n[6] <button> clicked :: 数据看板\n[7] <button> clicked :: 个人设置\n[8] <button> clicked :: TTS 测试\n[9] SKIP :: Error\n[10] SKIP :: Error\n[11] SKIP :: Error\n[12] SKIP :: Error\n[13] SKIP :: Error\n[14] SKIP :: Error\nTOTAL_CLICKED=5\nCLICK_RATE=5/15 (33.3%)",
+    "exit_code": 0,
+    "cmd": "UI_E2E inspect https://calorie-ai-seven.vercel.app/",
+    "product": "calorieai",
+    "screenshots": [
+      "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\qa_delivery\\reports\\screenshots\\ui_1785872440.png"
+    ],
+    "console_errors": [],
+    "network_errors": []
+  },
+  "log_trace": ""
+}

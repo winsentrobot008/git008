@@ -1,0 +1,7 @@
+{
+  "task_id": "A2A-UI-TEST-001",
+  "test_type": "ui_e2e",
+  "target_product": "fireworkbloom",
+  "url": "https://example.com",
+  "command": "UI_E2E_INSPECT"
+}

@@ -1,0 +1,9 @@
+{
+  "task_id": "SMOKE-001",
+  "timestamp": 1785604501,
+  "status": "SUCCESS",
+  "result": {
+    "stdout": "HELLO_FROM_DRAGON\n"
+  },
+  "log_trace": ""
+}

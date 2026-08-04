@@ -1,0 +1,17 @@
+{
+  "task_id": "A2A-LOOP-TEST-001",
+  "timestamp": 1785651320,
+  "status": "SUCCESS",
+  "result": {
+    "stdout": "[0] SKIP :: TimeoutError\n[1] SKIP :: TimeoutError\n[2] SKIP :: TimeoutError\n[3] SKIP :: TimeoutError\n[4] SKIP :: TimeoutError\n[5] SKIP :: TimeoutError\n[6] SKIP :: TimeoutError\n[7] SKIP :: TimeoutError\n[8] SKIP :: TimeoutError\n[9] SKIP :: TimeoutError\n[10] <button> clicked :: 午餐\n[11] <button> clicked :: 晚餐\n[12] <button> clicked :: 加餐\n[13] <button> clicked :: 拍照/上传\n[14] <button> clicked :: 文字输入\nTOTAL_CLICKED=5\nCLICK_RATE=5/15 (33.3%)",
+    "exit_code": 0,
+    "cmd": "UI_E2E inspect https://calorie-ai-seven.vercel.app/",
+    "product": "calorieai",
+    "screenshots": [
+      "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\qa_delivery\\reports\\screenshots\\ui_1785651272.png"
+    ],
+    "console_errors": [],
+    "network_errors": []
+  },
+  "log_trace": ""
+}

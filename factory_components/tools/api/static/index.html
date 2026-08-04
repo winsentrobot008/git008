@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZOO · MediaIndexerPro Console</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d0d;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+a{color:#6af}
+
+/* ═══ Top Bar ═══ */
+.topbar{background:#1a1a2e;border-bottom:1px solid #2a2a4a;padding:.6rem 1.2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar h1{font-size:1.1rem;color:#7ecfff}
+.topbar .sub{color:#666;font-size:.7rem;margin-left:.5rem}
+.health-badge{font-size:.7rem;padding:.2rem .5rem;border-radius:4px}
+.health-ok{background:#1a3a1a;color:#5f5}
+.health-err{background:#3a1a1a;color:#f55}
+.health-warn{background:#3a3a1a;color:#ff5}
+
+/* ═══ Nav Tabs ═══ */
+nav.tabs{display:flex;background:#14142a;border-bottom:1px solid #2a2a4a;overflow-x:auto;position:sticky;top:47px;z-index:49}
+nav.tabs button{padding:.6rem 1.1rem;border:none;background:transparent;color:#777;font-size:.82rem;cursor:pointer;border-bottom:2px solid transparent;transition:.15s;white-space:nowrap;font-family:inherit}
+nav.tabs button:hover{color:#bbb;background:rgba(255,255,255,.03)}
+nav.tabs button.active{color:#7ecfff;border-bottom-color:#7ecfff;background:rgba(126,207,255,.06)}
+
+/* ═══ Panels ═══ */
+.panel{display:none;padding:1.2rem;max-width:1200px;margin:0 auto;width:100%;flex:1}
+.panel.active{display:block}
+
+/* ═══ Card ═══ */
+.card{background:#1a1a2e;border-radius:10px;padding:1.2rem;margin-bottom:1rem;border:1px solid #2a2a4a}
+.card h2{font-size:1rem;color:#7ecfff;margin-bottom:.8rem}
+.card h3{font-size:.9rem;color:#c99eff;margin:.8rem 0 .4rem}
+
+/* ═══ Form ═══ */
+label{display:block;font-size:.78rem;color:#aaa;margin-bottom:.25rem;margin-top:.6rem}
+label:first-of-type{margin-top:0}
+input,select,textarea{width:100%;padding:.5rem .7rem;border-radius:6px;border:1px solid #333;background:#12121e;color:#eee;font-size:.85rem;margin-bottom:.4rem;transition:border .2s;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#3a9eff}
+textarea{min-height:70px;resize:vertical}
+.form-row{display:flex;gap:.6rem;flex-wrap:wrap}
+.form-row>*{flex:1;min-width:100px}
+
+/* ═══ Buttons ═══ */
+button{padding:.5rem 1rem;border:none;border-radius:6px;font-weight:600;font-size:.82rem;cursor:pointer;transition:.15s;font-family:inherit}
+button.primary{background:linear-gradient(135deg,#3a9eff,#5b4fff);color:#fff}
+button.primary:hover{opacity:.9}
+button.sec{background:#2a2a4a;color:#ccc}
+button.sec:hover{background:#3a3a5a}
+button.green{background:linear-gradient(135deg,#2a9d3a,#3abf5f);color:#fff}
+button.sm{padding:.35rem .7rem;font-size:.75rem}
+button:disabled{opacity:.4;cursor:not-allowed}
+.btn-row{display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap}
+
+/* ═══ Result Box ═══ */
+.result{background:#12121e;border-radius:6px;padding:.7rem;font-family:'Cascadia Code','JetBrains Mono',monospace;font-size:.75rem;white-space:pre-wrap;word-break:break-all;max-height:260px;overflow-y:auto;border:1px solid #222;margin-top:.6rem;display:none}
+.result.show{display:block}
+.result.ok{border-color:#2a9d3a}
+.result.err{border-color:#c0392b}
+
+/* ═══ Table ═══ */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{text-align:left;padding:.4rem .5rem;background:#12121e;color:#888;font-weight:500;border-bottom:1px solid #2a2a4a;position:sticky;top:0}
+td{padding:.35rem .5rem;border-bottom:1px solid #1e1e3a}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:.1rem .4rem;border-radius:3px;font-size:.68rem}
+.badge-blue{background:#1a2a4a;color:#6af}
+.badge-pink{background:#3a1a2a;color:#f6a}
+.badge-green{background:#1a3a2a;color:#5f5}
+.badge-gray{background:#2a2a2a;color:#999}
+
+/* ═══ Search ═══ */
+.search-row{display:flex;gap:.4rem;margin-bottom:.6rem}
+.search-row input{flex:1;margin-bottom:0}
+.search-row select{width:auto;margin-bottom:0}
+
+/* ═══ Agent Grid ═══ */
+.agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.5rem}
+.agent-item{background:#12121e;border-radius:6px;padding:.7rem;text-align:center;border:1px solid #2a2a4a}
+.agent-item .name{font-size:.82rem;color:#ccc}
+.agent-item .st{font-size:.72rem;margin-top:.2rem}
+.st-ok{color:#5f5}
+.st-warn{color:#fa0}
+.st-err{color:#f55}
+
+/* ═══ Log view ═══ */
+.log-line{padding:.15rem 0;font-family:monospace;font-size:.72rem;border-bottom:1px solid #1a1a2a;color:#aaa;white-space:pre-wrap;word-break:break-all}
+.log-line:nth-child(odd){background:rgba(255,255,255,.01)}
+.log-info{color:#6af}
+.log-warn{color:#fa0}
+.log-err{color:#f55}
+
+/* ═══ Status Bar ═══ */
+.statusbar{background:#14142a;border-top:1px solid #2a2a4a;padding:.35rem 1rem;font-size:.72rem;color:#666;display:flex;justify-content:space-between;align-items:center;position:sticky;bottom:0}
+.statusbar .right{display:flex;gap:1rem}
+
+/* ═══ Misc ═══ */
+.loading{text-align:center;padding:2rem;color:#666}
+.empty{text-align:center;padding:2rem;color:#555;font-size:.85rem}
+.clickable{cursor:pointer}
+.clickable:hover{color:#7ecfff}
+.hidden{display:none!important}
+code{background:#12121e;padding:.1rem .3rem;border-radius:3px;font-size:.78rem}
+</style>
+</head>
+<body>
+
+<!-- ═══════ TOPBAR ═══════ -->
+<header class="topbar">
+  <div><span style="font-weight:700">ZOO</span><span class="sub">MediaIndexerPro · Console</span></div>
+  <div style="display:flex;align-items:center;gap:.6rem">
+    <span id="healthBadge" class="health-badge health-warn">● checking…</span>
+  </div>
+</header>
+
+<!-- ═══════ TABS ═══════ -->
+<nav class="tabs" role="tablist">
+  <button data-tab="generate" class="active" onclick="switchTab('generate')">🎬 Generate</button>
+  <button data-tab="timeline" onclick="switchTab('timeline')">⏱ Timeline</button>
+  <button data-tab="media" onclick="switchTab('media')">📂 Media</button>
+  <button data-tab="factory" onclick="switchTab('factory')">🏭 Factory</button>
+  <button data-tab="logs" onclick="switchTab('logs')">📋 Logs</button>
+  <button data-tab="settings" onclick="switchTab('settings')">⚙ Settings</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 1: GENERATE                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="panel-generate" class="panel active">
+  <div class="card">
+    <h2>🎬 Video Generation</h2>
+    <label>Script</label>
+    <textarea id="genScript" placeholder="Enter your video script…">Life is like a box of chocolates.</textarea>
+    <div class="form-row">
+      <div><label>Ratio</label><select id="genRatio"><option value="1:1">1:1</option><option value="16:9" selected>16:9</option><option value="9:16">9:16</option></select></div>
+      <div><label>Voice</label><select id="genVoice"><option value="default">Default</option><option value="cosy:zh_female_warm">Cosy ZH Warm</option><option value="edge:en_female_jenny">Edge EN Jenny</option></select></div>
+      <div><label>Speed</label><input id="genSpeed" type="number" step="0.1" min="0.5" max="2" value="1.0"></div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" onclick="generateVideo()">▶ Generate</button>
+      <button class="sec" onclick="clearResult('genResult')">Clear</button>
+    </div>
+    <div id="genResult" class="result"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 2: TIMELINE                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="panel-timeline" class="panel">
+  <div class="card">
+    <h2>⏱ Timeline Editor</h2>
+    <div class="form-row">
+      <div style="flex:3"><label>Timeline ID</label><input id="tlId" placeholder="tl-20260715T185037Z-..."></div>
+      <div style="flex:1;display:flex;align-items:end;gap:.4rem">
+        <button class="primary sm" onclick="loadTimeline()">Load</button>
+        <button class="green sm" onclick="createTimeline()">+ New</button>
+      </div>
+    </div>
+    <div id="tlMeta" style="margin-top:.4rem;font-size:.78rem;color:#888"></div>
+  </div>
+
+  <div class="card" id="tlScenesCard" style="display:none">
+    <h2>Scenes</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:30px">#</th><th>Asset</th><th style="width:60px">Dur(s)</th><th>Subtitle</th><th style="width:60px"></th></tr></thead>
+        <tbody id="tlScenesBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row">
+      <button class="primary sm" onclick="saveTimeline()">💾 Save</button>
+      <button class="green sm" onclick="renderTimeline()">🎬 Render</button>
+      <button class="sec sm" onclick="clearTimelineSelection()">Close</button>
+    </div>
+    <div id="tlResult" class="result"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 3: MEDIA                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="panel-media" class="panel">
+  <div class="card">
+    <h2>📂 Media Library</h2>
+    <div class="search-row">
+      <input id="mediaSearch" type="text" placeholder="🔍 Search files…" oninput="filterMedia()">
+      <select id="mediaType" onchange="filterMedia()">
+        <option value="all">All</option>
+        <option value="image">🖼 Image</option>
+        <option value="video">🎬 Video</option>
+        <option value="audio">🎵 Audio</option>
+        <option value="document">📄 Document</option>
+      </select>
+      <button class="sec sm" onclick="loadMedia()">⟳</button>
+    </div>
+    <div id="mediaStats" class="form-row" style="margin-bottom:.6rem"></div>
+    <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Modified</th></tr></thead>
+        <tbody id="mediaBody"></tbody>
+      </table>
+    </div>
+    <div id="mediaEmpty" class="empty hidden">No files found.</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 4: FACTORY                                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="panel-factory" class="panel">
+  <div class="card">
+    <h2>🏭 Agent Status</h2>
+    <div id="factoryAgents"><div class="loading">Loading…</div></div>
+    <div style="margin-top:.6rem;display:flex;gap:.4rem;align-items:center">
+      <button class="sec sm" onclick="loadFactory()">⟳ Refresh</button>
+      <span id="factoryUpdated" style="font-size:.72rem;color:#666"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>📨 Send Event</h2>
+    <div class="form-row">
+      <div><label>Agent</label><input id="evAgent" value="planner"></div>
+      <div><label>Status</label><select id="evStatus"><option value="running">running</option><option value="completed">completed</option><option value="failed">failed</option></select></div>
+    </div>
+    <label>Payload (JSON)</label>
+    <textarea id="evPayload">{"task":"generate_script","progress":75}</textarea>
+    <div class="btn-row">
+      <button class="primary sm" onclick="postEvent()">Send</button>
+    </div>
+    <div id="evResult" class="result"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 5: LOGS                                                           -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="panel-logs" class="panel">
+  <div class="card">
+    <h2>📋 Events Log</h2>
+    <div class="btn-row">
+      <button class="sec sm" onclick="loadLogs('events')">⟳ Refresh</button>
+      <span id="logEventsInfo" style="font-size:.72rem;color:#666;margin-left:.4rem"></span>
+    </div>
+    <div id="logEventsContent" style="max-height:200px;overflow-y:auto;background:#12121e;border-radius:4px;padding:.4rem;margin-top:.4rem;font-family:monospace;font-size:.72rem"></div>
+  </div>
+  <div class="card">
+    <h2>📋 Timeline Logs</h2>
+    <div class="btn-row">
+      <button class="sec sm" onclick="loadLogs('timeline')">⟳ Refresh</button>
+    </div>
+    <div id="logTimelineContent" style="max-height:200px;overflow-y:auto"></div>
+  </div>
+  <div class="card">
+    <h2>📋 Render Logs</h2>
+    <div class="btn-row">
+      <button class="sec sm" onclick="loadLogs('render')">⟳ Refresh</button>
+    </div>
+    <div id="logRenderContent" style="max-height:200px;overflow-y:auto"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 6: SETTINGS                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="panel-settings" class="panel">
+  <div class="card">
+    <h2>⚙ Configuration</h2>
+    <div class="form-row">
+      <div><label>Render Mode</label><select id="setRenderMode"><option value="placeholder">Placeholder</option><option value="ffmpeg">FFmpeg</option></select></div>
+      <div><label>Voice Engine</label><select id="setVoiceEngine"><option value="default">Default</option><option value="cosy">CosyVoice</option><option value="edge">Edge TTS</option></select></div>
+    </div>
+    <label><input type="checkbox" id="setMaintenance"> Maintenance Mode</label>
+    <div class="btn-row">
+      <button class="primary sm" onclick="saveSettings()">💾 Save</button>
+      <button class="sec sm" onclick="loadSettings()">⟳ Reload</button>
+    </div>
+    <div id="setResult" class="result"></div>
+  </div>
+  <div class="card">
+    <h2>💻 System</h2>
+    <div id="sysInfo" class="loading">Loading system info…</div>
+  </div>
+</section>
+
+<!-- ═══════ STATUSBAR ═══════ -->
+<footer class="statusbar">
+  <div id="statusMsg">Ready</div>
+  <div class="right">
+    <span id="statusApi">API: —</span>
+    <span id="statusMem">MEM: —</span>
+    <span id="statusTime">—</span>
+  </div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
+const API_BASE = '';
+
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(API_BASE + path, opts);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+  return data;
+}
+
+function showResult(id, data, ok) {
+  const el = document.getElementById(id);
+  el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  el.className = 'result show ' + (ok ? 'ok' : 'err');
+}
+
+function clearResult(id) {
+  const el = document.getElementById(id);
+  el.className = 'result';
+  el.textContent = '';
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`nav.tabs button[data-tab="${name}"]`).classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+
+  // Lazy load
+  if (name === 'media') loadMedia();
+  if (name === 'factory') loadFactory();
+  if (name === 'logs') { loadLogs('events'); loadLogs('timeline'); loadLogs('render'); }
+  if (name === 'settings') loadSettings();
+  setStatus('Tab: ' + name);
+}
+
+function setStatus(msg) {
+  document.getElementById('statusMsg').textContent = msg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HEALTH CHECK
+// ═══════════════════════════════════════════════════════════════════════════
+async function checkHealth() {
+  try {
+    const d = await api('GET', '/api/health');
+    const badge = document.getElementById('healthBadge');
+    badge.textContent = `● ${d.status} · ${d.version}`;
+    badge.className = 'health-badge health-ok';
+    document.getElementById('statusApi').textContent = `API: ${d.status}`;
+    setStatus('All systems operational');
+    return d;
+  } catch (e) {
+    const badge = document.getElementById('healthBadge');
+    badge.textContent = '● offline';
+    badge.className = 'health-badge health-err';
+    document.getElementById('statusApi').textContent = 'API: ERR';
+    setStatus('API unreachable — ' + e.message);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 1: GENERATE
+// ═══════════════════════════════════════════════════════════════════════════
+async function generateVideo() {
+  const btn = document.querySelector('#panel-generate .primary');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating…';
+  try {
+    const d = await api('POST', '/api/generate_video', {
+      script: document.getElementById('genScript').value,
+      ratio: document.getElementById('genRatio').value,
+      voice: document.getElementById('genVoice').value,
+      speed: parseFloat(document.getElementById('genSpeed').value) || 1,
+    });
+    showResult('genResult', d, d.status === 'ok');
+    // If timeline_id returned, show link
+    if (d.timeline && d.timeline.timeline_id) {
+      document.getElementById('genResult').textContent +=
+        '\n\n→ Click "Timeline" tab and paste: ' + d.timeline.timeline_id;
+    }
+    setStatus('Video generation ' + d.status);
+  } catch (e) {
+    showResult('genResult', { error: e.message }, false);
+    setStatus('Generation failed: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = '▶ Generate';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 2: TIMELINE
+// ═══════════════════════════════════════════════════════════════════════════
+let _currentTimeline = null;
+
+async function createTimeline() {
+  try {
+    const d = await api('POST', '/api/timeline/new', { name: 'Timeline ' + new Date().toLocaleTimeString() });
+    document.getElementById('tlId').value = d.timeline_id;
+    setStatus('Timeline created: ' + d.timeline_id);
+    await loadTimeline();
+  } catch (e) {
+    showResult('tlResult', { error: e.message }, false);
+  }
+}
+
+async function loadTimeline() {
+  const id = document.getElementById('tlId').value.trim();
+  if (!id) { alert('Enter a Timeline ID'); return; }
+  try {
+    const d = await api('GET', '/api/timeline/' + id);
+    _currentTimeline = d;
+    document.getElementById('tlMeta').textContent =
+      `ID: ${d.timeline_id}  |  Scenes: ${(d.scenes || []).length}  |  Duration: ${d.total_duration || '—'}s`;
+    renderScenes(d);
+    document.getElementById('tlScenesCard').style.display = 'block';
+    document.getElementById('tlResult').className = 'result';
+    setStatus('Timeline loaded: ' + id);
+  } catch (e) {
+    showResult('tlResult', { error: e.message }, false);
+  }
+}
+
+function renderScenes(tl) {
+  const scenes = tl.scenes || [];
+  const tbody = document.getElementById('tlScenesBody');
+  if (scenes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#666">No scenes</td></tr>';
+    return;
+  }
+  tbody.innerHTML = scenes.map((s, i) => {
+    const asset = s.asset || s.video || s.image || '';
+    const dur = s.duration || s.dur || 5;
+    const sub = s.subtitle || s.text || '';
+    return `<tr>
+      <td style="color:#888">${i+1}</td>
+      <td><input type="text" value="${escapeHtml(asset)}" class="scene-asset" data-idx="${i}" style="width:100%;margin:0;padding:.2rem .4rem;font-size:.75rem"></td>
+      <td><input type="number" value="${dur}" class="scene-dur" data-idx="${i}" style="width:60px;margin:0;padding:.2rem .4rem;font-size:.75rem" min="1" max="30"></td>
+      <td><input type="text" value="${escapeHtml(sub)}" class="scene-sub" data-idx="${i}" style="width:100%;margin:0;padding:.2rem .4rem;font-size:.75rem"></td>
+      <td><button class="sec sm" onclick="removeScene(${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function removeScene(idx) {
+  if (!_currentTimeline || !_currentTimeline.scenes) return;
+  _currentTimeline.scenes.splice(idx, 1);
+  renderScenes(_currentTimeline);
+}
+
+async function saveTimeline() {
+  if (!_currentTimeline) return;
+  // Read scene edits from inputs
+  const inputs = document.querySelectorAll('.scene-asset');
+  const durs = document.querySelectorAll('.scene-dur');
+  const subs = document.querySelectorAll('.scene-sub');
+  const scenes = _currentTimeline.scenes || [];
+  inputs.forEach((inp, i) => {
+    if (scenes[i]) {
+      scenes[i].asset = inp.value;
+      scenes[i].duration = parseFloat(durs[i].value) || 5;
+      scenes[i].subtitle = subs[i].value;
+    }
+  });
+
+  try {
+    const d = await api('POST', `/api/timeline/${_currentTimeline.timeline_id}/update`, {
+      video: _currentTimeline.scenes.map(s => ({
+        asset: s.asset || s.video || '',
+        duration: s.duration || 5,
+      })),
+      subtitles: _currentTimeline.scenes.map(s => ({
+        text: s.subtitle || '',
+        start: 0, end: s.duration || 5,
+      })),
+    });
+    showResult('tlResult', d, true);
+    setStatus('Timeline saved');
+  } catch (e) {
+    showResult('tlResult', { error: e.message }, false);
+  }
+}
+
+async function renderTimeline() {
+  if (!_currentTimeline) return;
+  try {
+    const d = await api('POST', `/api/timeline/${_currentTimeline.timeline_id}/render`);
+    showResult('tlResult', d, d.status === 'ok');
+    setStatus('Render ' + (d.status || 'triggered'));
+  } catch (e) {
+    showResult('tlResult', { error: e.message }, false);
+  }
+}
+
+function clearTimelineSelection() {
+  _currentTimeline = null;
+  document.getElementById('tlScenesCard').style.display = 'none';
+  document.getElementById('tlMeta').textContent = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 3: MEDIA
+// ═══════════════════════════════════════════════════════════════════════════
+let _mediaData = null;
+
+async function loadMedia() {
+  try {
+    _mediaData = await api('GET', '/api/index');
+    renderMediaStats();
+    filterMedia();
+    setStatus('Media library loaded: ' + (_mediaData.total_files || 0) + ' files');
+  } catch (e) {
+    document.getElementById('mediaBody').innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:#f55">Error: ' + escapeHtml(e.message) + '</td></tr>';
+  }
+}
+
+function renderMediaStats() {
+  if (!_mediaData) return;
+  const s = _mediaData;
+  const tc = s.type_counts || {};
+  let html = '';
+  const items = [
+    { label: 'Total', value: s.total_files || 0 },
+    { label: 'Size', value: s.total_size_human || '0 B' },
+  ];
+  for (const [k, v] of Object.entries(tc)) {
+    items.push({ label: k, value: v });
+  }
+  html = items.map(it =>
+    `<div class="stat-box" style="background:#12121e;border-radius:6px;padding:.5rem .8rem;flex:1;min-width:80px;text-align:center">
+      <div style="font-size:1.2rem;font-weight:700;color:#7ecfff">${it.value}</div>
+      <div style="font-size:.65rem;color:#888;margin-top:.1rem">${it.label}</div>
+    </div>`
+  ).join('');
+  document.getElementById('mediaStats').innerHTML = html;
+}
+
+function filterMedia() {
+  if (!_mediaData || !_mediaData.files) {
+    document.getElementById('mediaBody').innerHTML = '';
+    document.getElementById('mediaEmpty').classList.remove('hidden');
+    return;
+  }
+  const q = document.getElementById('mediaSearch').value.toLowerCase();
+  const typeFilter = document.getElementById('mediaType').value;
+  const icons = { image: '🖼', video: '🎬', audio: '🎵', document: '📄' };
+  const badges = { image: 'badge-blue', video: 'badge-pink', audio: 'badge-green' };
+
+  const filtered = _mediaData.files.filter(f =>
+    (typeFilter === 'all' || f.type === typeFilter) &&
+    (!q || f.name.toLowerCase().includes(q) || (f.path || '').toLowerCase().includes(q))
+  );
+
+  const tbody = document.getElementById('mediaBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    document.getElementById('mediaEmpty').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('mediaEmpty').classList.add('hidden');
+  tbody.innerHTML = filtered.map(f =>
+    `<tr class="clickable" onclick="fillTimelineAsset('${escapeHtml(f.name)}')">
+      <td><span style="margin-right:.3rem">${icons[f.type] || '📄'}</span>${escapeHtml(f.name)}</td>
+      <td><span class="badge ${badges[f.type] || 'badge-gray'}">${f.type}</span></td>
+      <td>${f.size_human || f.size || '—'}</td>
+      <td>${f.modified ? new Date(f.modified).toLocaleString() : '—'}</td>
+    </tr>`
+  ).join('');
+}
+
+function fillTimelineAsset(name) {
+  // Switch to timeline tab and fill the first scene asset
+  switchTab('timeline');
+  const firstAsset = document.querySelector('.scene-asset');
+  if (firstAsset) {
+    firstAsset.value = name;
+    setStatus('Asset set: ' + name);
+  } else {
+    document.getElementById('tlId').focus();
+    setStatus('Load a timeline first, then click media files to set assets');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 4: FACTORY
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadFactory() {
+  const el = document.getElementById('factoryAgents');
+  el.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const d = await api('GET', '/api/dashboard');
+    if (d.updated_at) {
+      document.getElementById('factoryUpdated').textContent = 'Updated: ' + d.updated_at;
+    }
+    const agents = d.agents || {};
+    const entries = Object.entries(agents);
+    if (entries.length === 0) {
+      el.innerHTML = '<div class="empty">No agents registered. Send an event to create one.</div>';
+      return;
+    }
+    const stCls = s => {
+      if (s === 'running' || s === 'ok' || s === 'healthy' || s === 'completed') return 'st-ok';
+      if (s === 'unknown' || s === 'idle' || s === 'pending') return 'st-warn';
+      return 'st-err';
+    };
+    el.innerHTML = '<div class="agent-grid">' + entries.map(([name, info]) =>
+      `<div class="agent-item">
+        <div class="name">${escapeHtml(name)}</div>
+        <div class="st ${stCls(info.status)}">● ${escapeHtml(info.status || 'unknown')}</div>
+        ${info.task ? '<div style="font-size:.68rem;color:#888;margin-top:.2rem">' + escapeHtml(info.task) + '</div>' : ''}
+        ${info.progress != null ? '<div style="font-size:.68rem;color:#6af">' + info.progress + '%</div>' : ''}
+      </div>`
+    ).join('') + '</div>';
+    setStatus('Factory: ' + entries.length + ' agents');
+  } catch (e) {
+    el.innerHTML = '<div class="empty" style="color:#f55">Error: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+async function postEvent() {
+  let payload;
+  try { payload = JSON.parse(document.getElementById('evPayload').value); }
+  catch { showResult('evResult', { error: 'Invalid JSON' }, false); return; }
+
+  try {
+    const d = await api('POST', '/api/events', {
+      project: 'MediaIndexerPro',
+      agent: document.getElementById('evAgent').value,
+      payload: { ...payload, status: document.getElementById('evStatus').value },
+    });
+    showResult('evResult', d, true);
+    setStatus('Event sent');
+  } catch (e) {
+    showResult('evResult', { error: e.message }, false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 5: LOGS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadLogs(type) {
+  const map = {
+    events: { endpoint: '/api/logs/events', el: 'logEventsContent', info: 'logEventsInfo' },
+    timeline: { endpoint: '/api/logs/timeline', el: 'logTimelineContent', info: null },
+    render: { endpoint: '/api/logs/render', el: 'logRenderContent', info: null },
+  };
+  const cfg = map[type];
+  if (!cfg) return;
+
+  const el = document.getElementById(cfg.el);
+  el.innerHTML = '<div class="loading">Loading…</div>';
+
+  try {
+    const d = await api('GET', cfg.endpoint);
+
+    if (type === 'events') {
+      const lines = (d.log || '').split('\n').filter(Boolean);
+      if (lines.length === 0) {
+        el.innerHTML = '<div class="empty">No events logged yet.</div>';
+      } else {
+        el.innerHTML = lines.reverse().slice(0, 100).map(line => {
+          let cls = 'log-line';
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.payload && parsed.payload.status === 'failed') cls += ' log-err';
+            else if (parsed.payload && parsed.payload.status === 'completed') cls += ' log-info';
+          } catch {}
+          return '<div class="' + cls + '">' + escapeHtml(line) + '</div>';
+        }).join('');
+      }
+      if (cfg.info) {
+        document.getElementById(cfg.info).textContent = lines.length + ' events';
+      }
+    } else if (type === 'timeline') {
+      const files = d.files || [];
+      if (files.length === 0) {
+        el.innerHTML = '<div class="empty">No timeline files.</div>';
+      } else {
+        el.innerHTML = '<div style="font-size:.72rem">' + files.map(f =>
+          `<div class="log-line">${escapeHtml(f.name)}  —  ${f.size} B  —  ${f.modified}</div>`
+        ).join('') + '</div>';
+      }
+    } else if (type === 'render') {
+      const files = d.files || [];
+      if (files.length === 0) {
+        el.innerHTML = '<div class="empty">No rendered videos.</div>';
+      } else {
+        el.innerHTML = '<div style="font-size:.72rem">' + files.map(f =>
+          `<div class="log-line">${escapeHtml(f.name)}  —  ${f.size_human}  —  ${f.modified}</div>`
+        ).join('') + '</div>';
+      }
+    }
+  } catch (e) {
+    el.innerHTML = '<div class="empty" style="color:#f55">Error: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 6: SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadSettings() {
+  try {
+    const d = await api('GET', '/api/settings');
+    document.getElementById('setRenderMode').value = d.render_mode || 'placeholder';
+    document.getElementById('setVoiceEngine').value = d.voice_engine || 'default';
+    document.getElementById('setMaintenance').checked = d.maintenance_mode || false;
+    if (d.system_memory) {
+      document.getElementById('sysInfo').innerHTML =
+        `<div class="form-row">
+          <div class="stat-box" style="background:#12121e;border-radius:6px;padding:.6rem;flex:1;text-align:center">
+            <div style="font-size:1.1rem;font-weight:700;color:#7ecfff">${d.system_memory.total}</div>
+            <div style="font-size:.68rem;color:#888">Total</div>
+          </div>
+          <div class="stat-box" style="background:#12121e;border-radius:6px;padding:.6rem;flex:1;text-align:center">
+            <div style="font-size:1.1rem;font-weight:700;color:#5f5">${d.system_memory.available}</div>
+            <div style="font-size:.68rem;color:#888">Available</div>
+          </div>
+          <div class="stat-box" style="background:#12121e;border-radius:6px;padding:.6rem;flex:1;text-align:center">
+            <div style="font-size:1.1rem;font-weight:700;color:#fa0">${d.system_memory.percent}%</div>
+            <div style="font-size:.68rem;color:#888">Used</div>
+          </div>
+        </div>`;
+      document.getElementById('statusMem').textContent = 'MEM: ' + d.system_memory.percent + '%';
+    }
+    setStatus('Settings loaded');
+  } catch (e) {
+    document.getElementById('sysInfo').innerHTML =
+      '<div class="empty" style="color:#f55">Error: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+async function saveSettings() {
+  try {
+    const d = await api('POST', '/api/settings', {
+      render_mode: document.getElementById('setRenderMode').value,
+      voice_engine: document.getElementById('setVoiceEngine').value,
+      maintenance_mode: document.getElementById('setMaintenance').checked,
+    });
+    showResult('setResult', d, true);
+    setStatus('Settings saved');
+  } catch (e) {
+    showResult('setResult', { error: e.message }, false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════════════════════════════════════
+function updateClock() {
+  document.getElementById('statusTime').textContent = new Date().toLocaleTimeString();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+checkHealth();
+setInterval(checkHealth, 15000);
+updateClock();
+setInterval(updateClock, 1000);
+</script>
+</body>
+</html>

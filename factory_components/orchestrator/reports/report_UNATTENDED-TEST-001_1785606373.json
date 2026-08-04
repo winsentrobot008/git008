@@ -1,0 +1,12 @@
+{
+  "task_id": "UNATTENDED-TEST-001",
+  "timestamp": 1785606373,
+  "status": "NEED_HUMAN",
+  "result": {
+    "stdout": "",
+    "exit_code": 4294963238,
+    "cmd": "npm run build",
+    "product": "fireworkbloom"
+  },
+  "log_trace": "npm error code ENOENT\nnpm error syscall open\nnpm error path C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\products\\fireworkbloom\\package.json\nnpm error errno -4058\nnpm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\products\\fireworkbloom\\package.json'\nnpm error enoent This is related to npm not being able to find a file.\nnpm error enoent\nnpm error A complete log of this run can be found in: C:\\Users\\aoogoost\\AppData\\Local\\npm-cache\\_logs\\2026-08-01T17_46_13_274Z-debug-0.log\n"
+}

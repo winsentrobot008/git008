@@ -1,0 +1,21 @@
+{
+  "cn_script_weight": 0.5,
+  "en_script_weight": 0.5,
+  "creator_structure_weight": 0.33,
+  "creator_emotion_weight": 0.33,
+  "creator_pacing_weight": 0.33,
+  "editing_pacing": "medium",
+  "voice_speed": 1.0,
+  "subtitle_density": 0.5,
+  "seo_intensity": 0.7,
+  "compliance_strictness": "standard",
+  "auto_fetch_interval": 60,
+  "auto_fetch_source": "both",
+  "daily_production_limit": 10,
+  "content_priority": [
+    "reaction",
+    "meme",
+    "commentary",
+    "challenge"
+  ]
+}

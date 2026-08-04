@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZOO · MediaIndexerPro Console</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d0d;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:#1a1a2e;border-bottom:1px solid #2a2a4a;padding:.6rem 1.2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar h1{font-size:1.1rem;color:#7ecfff}
+.topbar .sub{color:#666;font-size:.7rem;margin-left:.5rem}
+.hlth{font-size:.7rem;padding:.2rem .5rem;border-radius:4px;background:#1a3a1a;color:#5f5}
+nav{display:flex;background:#14142a;border-bottom:1px solid #2a2a4a;overflow-x:auto;position:sticky;top:47px;z-index:49}
+nav button{padding:.6rem 1.1rem;border:none;background:transparent;color:#777;font-size:.82rem;cursor:pointer;border-bottom:2px solid transparent;transition:.15s;white-space:nowrap;font-family:inherit}
+nav button:hover{color:#bbb;background:rgba(255,255,255,.03)}
+nav button.on{color:#7ecfff;border-bottom-color:#7ecfff;background:rgba(126,207,255,.06)}
+.panel{display:none;padding:1.2rem;max-width:1200px;margin:0 auto;width:100%;flex:1}
+.panel.on{display:block}
+.card{background:#1a1a2e;border-radius:10px;padding:1.2rem;margin-bottom:1rem;border:1px solid #2a2a4a}
+.card h2{font-size:1rem;color:#7ecfff;margin-bottom:.8rem}
+label{display:block;font-size:.78rem;color:#aaa;margin-bottom:.25rem;margin-top:.6rem}
+label:first-of-type{margin-top:0}
+input,select,textarea{width:100%;padding:.5rem .7rem;border-radius:6px;border:1px solid #333;background:#12121e;color:#eee;font-size:.85rem;margin-bottom:.4rem;transition:border .2s;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#3a9eff}
+textarea{min-height:70px;resize:vertical}
+.flex{display:flex;gap:.6rem;flex-wrap:wrap}
+.flex>*{flex:1;min-width:100px}
+button{padding:.5rem 1rem;border:none;border-radius:6px;font-weight:600;font-size:.82rem;cursor:pointer;transition:.15s;font-family:inherit}
+button.blue{background:linear-gradient(135deg,#3a9eff,#5b4fff);color:#fff}
+button.blue:hover{opacity:.9}
+button.gray{background:#2a2a4a;color:#ccc}
+button.gray:hover{background:#3a3a5a}
+button.green{background:linear-gradient(135deg,#2a9d3a,#3abf5f);color:#fff}
+button.sm{padding:.35rem .7rem;font-size:.75rem}
+.btn-row{display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap}
+.out{background:#12121e;border-radius:6px;padding:.7rem;font-family:monospace;font-size:.75rem;white-space:pre-wrap;word-break:break-all;max-height:260px;overflow-y:auto;border:1px solid #222;margin-top:.6rem;display:none}
+.out.show{display:block}
+.out.good{border-color:#2a9d3a}
+.out.bad{border-color:#c0392b}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{text-align:left;padding:.4rem .5rem;background:#12121e;color:#888;font-weight:500;border-bottom:1px solid #2a2a4a;position:sticky;top:0}
+td{padding:.35rem .5rem;border-bottom:1px solid #1e1e3a}
+tr:hover td{background:rgba(255,255,255,.02)}
+.tag{display:inline-block;padding:.1rem .4rem;border-radius:3px;font-size:.68rem}
+.tag-b{background:#1a2a4a;color:#6af}
+.tag-p{background:#3a1a2a;color:#f6a}
+.tag-g{background:#1a3a2a;color:#5f5}
+.search{display:flex;gap:.4rem;margin-bottom:.6rem}
+.search input{flex:1;margin-bottom:0}
+.search select{width:auto;margin-bottom:0}
+.ag{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.5rem}
+.ag>div{background:#12121e;border-radius:6px;padding:.7rem;text-align:center;border:1px solid #2a2a4a}
+.ag .nm{font-size:.82rem;color:#ccc}
+.ag .st{font-size:.72rem;margin-top:.2rem}
+.st-ok{color:#5f5}
+.st-wa{color:#fa0}
+.st-er{color:#f55}
+.stbar{background:#14142a;border-top:1px solid #2a2a4a;padding:.35rem 1rem;font-size:.72rem;color:#666;display:flex;justify-content:space-between;align-items:center;position:sticky;bottom:0}
+.stbar .r{display:flex;gap:1rem}
+.tac{text-align:center;padding:2rem;color:#666}
+.cp{cursor:pointer}
+.cp:hover{color:#7ecfff}
+.hid{display:none!important}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div><b>ZOO</b><span class="sub">MediaIndexerPro Console</span></div>
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <a href="/media_library.html" style="font-size:.75rem;color:#6af;text-decoration:none;padding:.25rem .5rem;border-radius:4px;background:#1a2a4a">🏛 Library Pro</a>
+    <span id="healthTag" class="hlth">● ok</span>
+  </div>
+</header>
+
+<nav>
+  <button class="on" data-tab="gen" onclick="sw('gen')">🎬 Generate</button>
+  <button data-tab="tl" onclick="sw('tl')">⏱ Timeline</button>
+  <button data-tab="media" onclick="sw('media')">📂 Media</button>
+  <button data-tab="library" onclick="sw('library')">🏛 Library</button>
+  <button data-tab="fac" onclick="sw('fac')">🏭 Factory</button>
+  <button data-tab="logs" onclick="sw('logs')">📋 Logs</button>
+  <button data-tab="set" onclick="sw('set')">⚙ Settings</button>
+</nav>
+
+<!-- GENERATE -->
+<section id="p-gen" class="panel on">
+  <div class="card">
+    <h2>🎬 Generate Video</h2>
+    <label>Script</label><textarea id="scr">Life is like a box of chocolates.</textarea>
+    <div class="flex">
+      <div><label>Ratio</label><select id="rat"><option>1:1</option><option selected>16:9</option><option>9:16</option></select></div>
+      <div><label>Voice</label><select id="voc"><option>default</option><option>cosy:zh_female_warm</option><option>edge:en_female_jenny</option></select></div>
+      <div><label>Speed</label><input id="spd" type="number" step="0.1" min="0.5" max="2" value="1.0"></div>
+    </div>
+    <div class="btn-row"><button class="blue" onclick="gen()">▶ Generate</button><button class="gray" onclick="clr('gOut')">Clear</button></div>
+    <div id="gOut" class="out"></div>
+  </div>
+</section>
+
+<!-- TIMELINE -->
+<section id="p-tl" class="panel">
+  <div class="card">
+    <h2>⏱ Timeline Editor</h2>
+    <div class="flex">
+      <div style="flex:3"><label>Timeline ID</label><input id="tlId" placeholder="tl-..."></div>
+      <div style="flex:1;display:flex;align-items:end;gap:.4rem">
+        <button class="blue sm" onclick="loadTl()">Load</button>
+        <button class="green sm" onclick="newTl()">+ New</button>
+      </div>
+    </div>
+    <div id="tlMeta" style="margin-top:.4rem;font-size:.78rem;color:#888"></div>
+  </div>
+  <div class="card" id="tlCard" style="display:none">
+    <h2>Scenes</h2>
+    <div class="wrap">
+      <table><thead><tr><th>#</th><th>Asset</th><th>Dur</th><th>Subtitle</th></tr></thead><tbody id="tlB"></tbody></table>
+    </div>
+    <div class="btn-row">
+      <button class="blue sm" onclick="saveTl()">💾 Save</button>
+      <button class="green sm" onclick="renderTl()">🎬 Render</button>
+      <button class="gray sm" onclick="closeTl()">Close</button>
+    </div>
+    <div id="tlOut" class="out"></div>
+  </div>
+</section>
+
+<!-- MEDIA -->
+<section id="p-media" class="panel">
+  <div class="card">
+    <h2>📂 Media Library</h2>
+    <div id="medSt" class="flex" style="margin-bottom:.6rem"></div>
+    <div class="search">
+      <input id="medQ" type="text" placeholder="Search name/tags..." oninput="filMed()">
+      <select id="medEmF" onchange="filMed()"><option value="">All emotions</option></select>
+      <button class="gray sm" onclick="loadMed()">⟳</button>
+    </div>
+    <div class="wrap" style="max-height:450px;overflow-y:auto">
+      <table><thead><tr><th>Name</th><th>Type</th><th>Emotion</th><th>Tags</th><th>Size</th></tr></thead><tbody id="medB"></tbody></table>
+    </div>
+    <div id="medEmpty" class="tac hid">No media found.</div>
+  </div>
+  <div class="card" id="medDetail" style="display:none">
+    <h2 id="medDetailTitle">Detail</h2>
+    <div id="medDetailContent" class="out show"></div>
+  </div>
+</section>
+
+<!-- FACTORY -->
+<section id="p-fac" class="panel">
+  <div class="card">
+    <h2>🏭 Agent Status</h2>
+    <div id="facAg"><div class="tac">Loading...</div></div>
+    <div style="margin-top:.6rem;display:flex;gap:.4rem;align-items:center">
+      <button class="gray sm" onclick="loadFac()">⟳ Refresh</button>
+      <span id="facUpd" style="font-size:.72rem;color:#666"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>📨 Send Event</h2>
+    <div class="flex">
+      <div><label>Agent</label><input id="evAg" value="planner"></div>
+      <div><label>Status</label><select id="evSt"><option>running</option><option>completed</option><option>failed</option></select></div>
+    </div>
+    <label>Payload</label><textarea id="evPay">{"task":"generate_script","progress":75}</textarea>
+    <div class="btn-row"><button class="blue sm" onclick="postEv()">Send</button></div>
+    <div id="evOut" class="out"></div>
+  </div>
+</section>
+
+<!-- LOGS -->
+<section id="p-logs" class="panel">
+  <div class="card">
+    <h2>📋 Events Log</h2>
+    <div class="btn-row"><button class="gray sm" onclick="loadLog('events')">⟳ Refresh</button></div>
+    <div id="logEv" style="max-height:200px;overflow-y:auto;background:#12121e;border-radius:4px;padding:.4rem;margin-top:.4rem;font-family:monospace;font-size:.72rem"></div>
+  </div>
+  <div class="card">
+    <h2>📋 Timeline Files</h2>
+    <div class="btn-row"><button class="gray sm" onclick="loadLog('tl')">⟳ Refresh</button></div>
+    <div id="logTl" style="max-height:200px;overflow-y:auto"></div>
+  </div>
+  <div class="card">
+    <h2>📋 Render Outputs</h2>
+    <div class="btn-row"><button class="gray sm" onclick="loadLog('render')">⟳ Refresh</button></div>
+    <div id="logRen" style="max-height:200px;overflow-y:auto"></div>
+  </div>
+</section>
+
+<!-- LIBRARY PRO -->
+<section id="p-library" class="panel">
+  <!-- Stats -->
+  <div class="card">
+    <h2>🏛 Media Library Pro</h2>
+    <div id="libStats" class="flex" style="margin-bottom:.6rem"></div>
+  </div>
+
+  <!-- Smart Search -->
+  <div class="card">
+    <h2>🔍 Smart Search</h2>
+    <div class="search">
+      <input id="libQ" type="text" placeholder="Search name/tags/emotion..." oninput="filLib()">
+      <select id="libType" onchange="filLib()"><option value="">All types</option><option value="video">🎬 Video</option><option value="image">🖼 Image</option><option value="audio">🎵 Audio</option></select>
+      <select id="libEm" onchange="filLib()"><option value="">All emotions</option></select>
+      <select id="libSize" onchange="filLib()"><option value="">Any size</option><option value="small">< 1 MB</option><option value="medium">1-50 MB</option><option value="large">> 50 MB</option></select>
+      <button class="gray sm" onclick="loadLib()">⟳</button>
+      <button class="blue sm" onclick="showIngest()">+ Ingest</button>
+    </div>
+    <div class="wrap" style="max-height:350px;overflow-y:auto">
+      <table><thead><tr><th>Preview</th><th>Name</th><th>Type</th><th>Emotion</th><th>Tags</th><th>Size</th><th>Actions</th></tr></thead><tbody id="libB"></tbody></table>
+    </div>
+    <div id="libEmpty" class="tac hid">No media.</div>
+  </div>
+
+  <!-- Ingest Panel -->
+  <div class="card" id="libIngest" style="display:none">
+    <h2>📥 Ingest Media</h2>
+    <label>File Path</label><input id="ingestPath" placeholder="C:\path\to\file.mp4">
+    <div class="btn-row">
+      <button class="blue sm" onclick="doIngest()">📥 Ingest</button>
+      <button class="gray sm" onclick="document.getElementById('libIngest').style.display='none'">Close</button>
+    </div>
+    <div id="ingestResult" class="out"></div>
+  </div>
+
+  <!-- Preview Panel -->
+  <div class="card" id="libPreview" style="display:none">
+    <h2 id="libPreviewTitle">Preview</h2>
+    <video id="libVideo" controls style="width:100%;max-height:360px;border-radius:8px;background:#000"></video>
+    <div id="libMeta" style="font-size:.78rem;color:#888;margin-top:.4rem"></div>
+    <div class="btn-row">
+      <a id="libDlBtn" href="#" download style="text-decoration:none"><button class="blue sm">⬇ Download</button></a>
+      <button class="green sm" onclick="aiAnnotate()">🤖 AI Tag</button>
+      <button class="gray sm" onclick="imgToVideo()">🎬 Img→Video</button>
+      <button class="gray sm" onclick="showEdit()">✂ Edit</button>
+      <button class="gray sm" onclick="showVersions()">📚 Versions</button>
+      <button class="gray sm" onclick="closeLibPreview()">Close</button>
+    </div>
+    <div id="libAnnotateResult" class="out"></div>
+    <div id="libImg2vidResult" class="out"></div>
+  </div>
+
+  <!-- Edit Panel -->
+  <div class="card" id="libEdit" style="display:none">
+    <h2>✂ Video Editor</h2>
+    <div class="flex">
+      <div><label>Operation</label><select id="editOp"><option value="trim">Trim</option><option value="compress">Compress</option><option value="transcode">Transcode</option><option value="filter">Color Filter</option><option value="subtitle">Add Subtitle</option></select></div>
+      <div id="editTrimFields" style="display:flex;gap:.4rem;flex:2">
+        <div style="flex:1"><label>Start (s)</label><input id="editStart" type="number" value="0" min="0" step="0.5"></div>
+        <div style="flex:1"><label>Duration (s)</label><input id="editDur" type="number" value="5" min="1" step="0.5"></div>
+      </div>
+      <div id="editFilterFields" style="display:none;flex:1">
+        <label>Filter</label><select id="editFilter"><option value="warm">Warm</option><option value="cold">Cold</option><option value="vintage">Vintage</option><option value="bw">B&W</option><option value="sepia">Sepia</option></select>
+      </div>
+    </div>
+    <div id="editSubFields" style="display:none">
+      <label>Subtitle Text</label><input id="editSub" placeholder="Enter subtitle text...">
+    </div>
+    <div class="btn-row">
+      <button class="blue sm" onclick="doEdit()">▶ Apply</button>
+      <button class="gray sm" onclick="document.getElementById('libEdit').style.display='none'">Close</button>
+    </div>
+    <div id="editResult" class="out"></div>
+  </div>
+
+  <!-- Versions Panel -->
+  <div class="card" id="libVersions" style="display:none">
+    <h2>📚 Version History</h2>
+    <div id="versionList" style="font-size:.8rem"></div>
+    <div class="btn-row">
+      <button class="gray sm" onclick="closeVersions()">Close</button>
+    </div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="p-set" class="panel">
+  <div class="card">
+    <h2>⚙ Configuration</h2>
+    <div class="flex">
+      <div><label>Render Mode</label><select id="sRm"><option>placeholder</option><option>ffmpeg</option></select></div>
+      <div><label>Voice Engine</label><select id="sVe"><option>default</option><option>cosy</option><option>edge</option></select></div>
+    </div>
+    <label><input type="checkbox" id="sMm"> Maintenance Mode</label>
+    <div class="btn-row"><button class="blue sm" onclick="saveSet()">💾 Save</button><button class="gray sm" onclick="loadSet()">⟳ Reload</button></div>
+    <div id="sOut" class="out"></div>
+  </div>
+  <div class="card">
+    <h2>💻 System</h2>
+    <div id="sysInfo" class="tac">Loading...</div>
+  </div>
+</section>
+
+<footer class="stbar">
+  <div id="stMsg">Ready</div>
+  <div class="r"><span id="stApi">API: —</span><span id="stMem">MEM: —</span><span id="stTime">—</span></div>
+</footer>
+
+<script>
+const API='';
+
+async function api(m,p,b){
+  const o={method:m,headers:{}};
+  if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b)}
+  const r=await fetch(API+p,o);const d=await r.json();
+  if(!r.ok) throw new Error(typeof d.detail==='string'?d.detail:`HTTP ${r.status}`);
+  return d;
+}
+function show(id,d,ok){
+  const e=document.getElementById(id);
+  e.textContent=typeof d==='string'?d:JSON.stringify(d,null,2);
+  e.className='out show'+(ok?' good':' bad');
+}
+function clr(id){const e=document.getElementById(id);e.className='out';e.textContent=''}
+function qs(s){return document.querySelector(s)}
+function msg(s){document.getElementById('stMsg').textContent=s}
+
+function sw(name){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  qs(`nav button[data-tab="${name}"]`).classList.add('on');
+  document.getElementById('p-'+name).classList.add('on');
+  if(name==='media') loadMed();
+  if(name==='library') loadLib();
+  if(name==='fac') loadFac();
+  if(name==='logs'){loadLog('events');loadLog('tl');loadLog('render')}
+  if(name==='set') loadSet();
+  msg('Tab: '+name);
+}
+
+async function checkHealth(){
+  try{
+    const d=await api('GET','/api/health');
+    document.getElementById('healthTag').textContent='● '+d.status;
+    document.getElementById('stApi').textContent='API: '+d.status;
+    msg('All systems operational');
+  }catch(e){
+    document.getElementById('healthTag').textContent='● err';
+    document.getElementById('stApi').textContent='API: ERR';
+    msg('API error: '+e.message);
+  }
+}
+
+// GENERATE
+async function gen(){
+  const btn=qs('#p-gen .blue');btn.disabled=true;btn.textContent='⏳...';
+  try{
+    const d=await api('POST','/api/generate_video',{
+      script:document.getElementById('scr').value,
+      ratio:document.getElementById('rat').value,
+      voice:document.getElementById('voc').value,
+      speed:parseFloat(document.getElementById('spd').value)||1,
+    });
+    show('gOut',d,d.status==='ok');
+    msg('Generation: '+d.status);
+  }catch(e){show('gOut',{error:e.message},false);msg('Error: '+e.message)}
+  btn.disabled=false;btn.textContent='▶ Generate';
+}
+
+// TIMELINE
+let _tl=null;
+async function newTl(){
+  try{
+    const d=await api('POST','/api/timeline/new',{name:'Tl '+new Date().toLocaleTimeString()});
+    document.getElementById('tlId').value=d.timeline_id;
+    msg('Created: '+d.timeline_id);
+    await loadTl();
+  }catch(e){show('tlOut',{error:e.message},false)}
+}
+async function loadTl(){
+  const id=document.getElementById('tlId').value.trim();
+  if(!id) return alert('Enter Timeline ID');
+  try{
+    const d=await api('GET','/api/timeline/'+id);
+    _tl=d;
+    document.getElementById('tlMeta').textContent=`ID: ${d.timeline_id} | Scenes: ${(d.scenes||[]).length}`;
+    const sc=d.scenes||[];
+    document.getElementById('tlB').innerHTML=sc.length===0?'<tr><td colspan="4" class="tac">No scenes</td></tr>'
+      :sc.map((s,i)=>`<tr><td>${i+1}</td><td>${s.asset||s.video||''}</td><td>${s.duration||5}s</td><td>${s.subtitle||s.text||''}</td></tr>`).join('');
+    document.getElementById('tlCard').style.display='block';
+    document.getElementById('tlOut').className='out';
+    msg('Loaded: '+id);
+  }catch(e){show('tlOut',{error:e.message},false)}
+}
+async function saveTl(){
+  if(!_tl) return;
+  try{
+    const sc=_tl.scenes||[];
+    const d=await api('POST',`/api/timeline/${_tl.timeline_id}/update`,{
+      video:sc.map(s=>({asset:s.asset||s.video||'',duration:s.duration||5})),
+      subtitles:sc.map(s=>({text:s.subtitle||'',start:0,end:s.duration||5})),
+    });
+    show('tlOut',d,true);msg('Saved');
+  }catch(e){show('tlOut',{error:e.message},false)}
+}
+async function renderTl(){
+  if(!_tl) return;
+  try{
+    const d=await api('POST',`/api/timeline/${_tl.timeline_id}/render`);
+    show('tlOut',d,d.status==='ok');
+    msg('Render: '+(d.status||'triggered'));
+  }catch(e){show('tlOut',{error:e.message},false)}
+}
+function closeTl(){_tl=null;document.getElementById('tlCard').style.display='none';document.getElementById('tlMeta').textContent=''}
+
+// MEDIA
+let _med=null;
+async function loadMed(){
+  try{
+    _med=await api('GET','/api/index');
+    const s=_med||{},tc=s.type_counts||{};
+    const items=[{l:'Total',v:s.total_files||0},{l:'Size',v:s.total_size_human||'0 B'}];
+    for(const[k,v]of Object.entries(tc)) items.push({l:k,v});
+    document.getElementById('medSt').innerHTML=items.map(i=>`<div style="background:#12121e;border-radius:6px;padding:.5rem .8rem;flex:1;min-width:80px;text-align:center"><div style="font-size:1.2rem;font-weight:700;color:#7ecfff">${i.v}</div><div style="font-size:.65rem;color:#888">${i.l}</div></div>`).join('');
+    filMed();msg('Media: '+(s.total_files||0)+' files');
+  }catch(e){document.getElementById('medB').innerHTML='<tr><td colspan="5" style="color:#f55;text-align:center">Error: '+e.message+'</td></tr>'}
+}
+function filMed(){
+  if(!_med||!_med.files){document.getElementById('medB').innerHTML='';document.getElementById('medEmpty').classList.remove('hid');return}
+  const q=document.getElementById('medQ').value.toLowerCase();
+  const empty=document.getElementById('medEmpty');
+  const ic={image:'🖼',video:'🎬',audio:'🎵'};
+  const bg={image:'tag-b',video:'tag-p',audio:'tag-g'};
+  const f=(_med.files||[]).filter(x=>(!q||x.name.toLowerCase().includes(q)||(x.path||'').toLowerCase().includes(q)));
+  const tb=document.getElementById('medB');
+  if(!f.length){tb.innerHTML='';empty.classList.remove('hid');return}
+  empty.classList.add('hid');
+  tb.innerHTML=f.map(x=>`<tr class="cp" onclick="fillTl('${x.name}')"><td>${ic[x.type]||'📄'} ${x.name}</td><td><span class="tag ${bg[x.type]||'tag-b'}">${x.type}</span></td><td>${x.emotion||'—'}</td><td>${(x.tags||[]).slice(0,3).map(t=>'<span class="tag tag-b" style="margin-right:2px">'+t+'</span>').join('')}</td><td>${x.size_mb?x.size_mb+' MB':x.size_human||'—'}</td></tr>`).join('');
+}
+function fillTl(n){sw('tl');const e=document.querySelector('#tlB input');if(e){e.value=n;msg('Asset: '+n)}else{document.getElementById('tlId').focus();msg('Load a timeline first')}}
+
+// FACTORY
+async function loadFac(){
+  const el=document.getElementById('facAg');el.innerHTML='<div class="tac">Loading...</div>';
+  try{
+    const d=await api('GET','/api/dashboard');
+    if(d.updated_at) document.getElementById('facUpd').textContent='Updated: '+d.updated_at;
+    const ag=d.agents||{};const en=Object.entries(ag);
+    if(!en.length){el.innerHTML='<div class="tac">No agents.</div>';return}
+    const sc=s=>{if(s==='running'||s==='ok'||s==='completed')return'st-ok';if(s==='unknown'||s==='idle')return'st-wa';return'st-er'};
+    el.innerHTML='<div class="ag">'+en.map(([n,i])=>`<div><div class="nm">${n}</div><div class="st ${sc(i.status)}">● ${i.status||'unknown'}</div>${i.task?'<div style="font-size:.68rem;color:#888;margin-top:.2rem">'+i.task+'</div>':''}${i.progress!=null?'<div style="font-size:.68rem;color:#6af">'+i.progress+'%</div>':''}</div>`).join('')+'</div>';
+    msg('Factory: '+en.length+' agents');
+  }catch(e){el.innerHTML='<div class="tac" style="color:#f55">'+e.message+'</div>'}
+}
+async function postEv(){
+  let p;try{p=JSON.parse(document.getElementById('evPay').value)}catch{show('evOut',{error:'Invalid JSON'},false);return}
+  try{
+    const d=await api('POST','/api/events',{project:'MediaIndexerPro',agent:document.getElementById('evAg').value,payload:{...p,status:document.getElementById('evSt').value}});
+    show('evOut',d,true);msg('Event sent');
+  }catch(e){show('evOut',{error:e.message},false)}
+}
+
+// LOGS
+async function loadLog(t){
+  const m={events:{ep:'/api/logs/events',el:'logEv'},tl:{ep:'/api/logs/timeline',el:'logTl'},render:{ep:'/api/logs/render',el:'logRen'}};
+  const c=m[t];if(!c)return;
+  const el=document.getElementById(c.el);el.innerHTML='<div class="tac">Loading...</div>';
+  try{
+    const d=await api('GET',c.ep);
+    if(t==='events'){
+      const ls=(d.log||'').split('\n').filter(Boolean);
+      el.innerHTML=ls.length?ls.reverse().slice(0,100).map(l=>'<div style="padding:.15rem 0;font-family:monospace;font-size:.72rem;border-bottom:1px solid #1a1a2a">'+l.replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>')+'</div>').join(''):'<div class="tac">Empty.</div>';
+    }else{
+      const fs=d.files||[];
+      el.innerHTML=fs.length?fs.map(f=>'<div style="padding:.15rem 0;font-family:monospace;font-size:.72rem;border-bottom:1px solid #1a1a2a">'+(f.name||'')+'  —  '+(f.size_human||f.size+' B'||'')+'  —  '+(f.modified||'')+'</div>').join(''):'<div class="tac">Empty.</div>';
+    }
+  }catch(e){el.innerHTML='<div class="tac" style="color:#f55">'+e.message+'</div>'}
+}
+
+// SETTINGS
+async function loadSet(){
+  try{
+    const d=await api('GET','/api/settings');
+    document.getElementById('sRm').value=d.render_mode||'placeholder';
+    document.getElementById('sVe').value=d.voice_engine||'default';
+    document.getElementById('sMm').checked=d.maintenance_mode||false;
+    if(d.system_memory){
+      const m=d.system_memory;
+      document.getElementById('sysInfo').innerHTML=`<div class="flex"><div style="background:#12121e;border-radius:6px;padding:.6rem;flex:1;text-align:center"><div style="font-size:1.1rem;font-weight:700;color:#7ecfff">${m.total}</div><div style="font-size:.68rem;color:#888">Total</div></div><div style="background:#12121e;border-radius:6px;padding:.6rem;flex:1;text-align:center"><div style="font-size:1.1rem;font-weight:700;color:#5f5">${m.available}</div><div style="font-size:.68rem;color:#888">Available</div></div><div style="background:#12121e;border-radius:6px;padding:.6rem;flex:1;text-align:center"><div style="font-size:1.1rem;font-weight:700;color:#fa0">${m.percent}%</div><div style="font-size:.68rem;color:#888">Used</div></div></div>`;
+      document.getElementById('stMem').textContent='MEM: '+m.percent+'%';
+    }
+    msg('Settings loaded');
+  }catch(e){document.getElementById('sysInfo').innerHTML='<div style="color:#f55">'+e.message+'</div>'}
+}
+async function saveSet(){
+  try{
+    const d=await api('POST','/api/settings',{render_mode:document.getElementById('sRm').value,voice_engine:document.getElementById('sVe').value,maintenance_mode:document.getElementById('sMm').checked});
+    show('sOut',d,true);msg('Settings saved');
+  }catch(e){show('sOut',{error:e.message},false)}
+}
+
+// ── LIBRARY ──────────────────────────────────────────────────────────
+let _libData=null;
+let _libSelected=null;
+async function loadLib(){
+  const el=document.getElementById('libB');el.innerHTML='<div class="tac">Loading...</div>';
+  try{
+    const d=await api('GET','/api/media/list');
+    _libData=d;
+    const st=d.stats||{};const em=st.by_emotion||{};
+    document.getElementById('libStats').innerHTML=
+      `<div style="background:#12121e;border-radius:6px;padding:.5rem .8rem;flex:1;min-width:80px;text-align:center"><div style="font-size:1.2rem;font-weight:700;color:#7ecfff">${st.total||0}</div><div style="font-size:.65rem;color:#888">Total</div></div>`+
+      Object.entries(em).slice(0,6).map(([k,v])=>`<div style="background:#12121e;border-radius:6px;padding:.5rem .8rem;flex:1;min-width:60px;text-align:center"><div style="font-size:1rem;font-weight:700;color:#c99eff">${v}</div><div style="font-size:.65rem;color:#888">${k}</div></div>`).join('');
+    const sel=document.getElementById('libEm');const cur=sel.value;
+    sel.innerHTML='<option value="">All emotions</option>'+Object.keys(em).sort().map(k=>`<option value="${k}">${k} (${em[k]})</option>`).join('');
+    if(cur)sel.value=cur;
+    filLib();msg('Library: '+st.total+' items');
+  }catch(e){el.innerHTML='<tr><td colspan="6" style="color:#f55;text-align:center">'+e.message+'</td></tr>'}
+}
+function filLib(){
+  if(!_libData||!_libData.items){document.getElementById('libB').innerHTML='';document.getElementById('libEmpty').classList.remove('hid');return}
+  const q=document.getElementById('libQ').value.toLowerCase();
+  const ef=document.getElementById('libEm').value;const tf=document.getElementById('libType').value;
+  const sf=document.getElementById('libSize').value;
+  const emojis={video:'🎬',image:'🖼',audio:'🎵',document:'📄'};
+  const bg={video:'tag-p',image:'tag-b',audio:'tag-g'};
+  const items=_libData.items.filter(x=>{
+    if(ef&&x.emotion!==ef)return false;if(tf&&x.type!==tf)return false;
+    if(sf){const s=x.size_mb||0;if(sf==='small'&&s>=1)return false;if(sf==='medium'&&(s<1||s>50))return false;if(sf==='large'&&s<=50)return false}
+    if(q&&!x.filename.toLowerCase().includes(q)&&!(x.tags||[]).some(t=>t.toLowerCase().includes(q)))return false;
+    return true;
+  });
+  const tb=document.getElementById('libB');
+  if(!items.length){tb.innerHTML='';document.getElementById('libEmpty').classList.remove('hid');return}
+  document.getElementById('libEmpty').classList.add('hid');
+  tb.innerHTML=items.map(x=>`<tr class="cp" onclick="showLibPreview('${x.id}')"><td>${emojis[x.type]||'📄'}</td><td>${x.filename}</td><td><span class="tag ${bg[x.type]||'tag-b'}">${x.type}</span></td><td>${x.emotion||'—'}</td><td>${(x.tags||[]).slice(0,3).map(t=>'<span class="tag tag-b" style="margin-right:2px">'+t+'</span>').join('')}</td><td>${x.size_mb?x.size_mb+' MB':'—'}</td><td><button class="gray sm" onclick="event.stopPropagation();showLibPreview('${x.id}')">👁</button></td></tr>`).join('');
+}
+function showLibPreview(id){
+  if(!_libData||!_libData.items)return;
+  _libSelected=_libData.items.find(x=>x.id===id);if(!_libSelected)return;
+  document.getElementById('libPreview').style.display='block';
+  document.getElementById('libPreviewTitle').textContent='👁 '+_libSelected.filename;
+  const v=document.getElementById('libVideo');
+  const p=_libSelected.path||'';
+  v.src=p.endsWith('.mp4')?'/api/data/'+p.split('\\').pop():'';
+  v.style.display=v.src?'block':'none';
+  document.getElementById('libDlBtn').href=p||'#';document.getElementById('libDlBtn').style.display=p?'inline-block':'none';
+  document.getElementById('libMeta').textContent='Type: '+(_libSelected.type||'?')+' | Emotion: '+(_libSelected.emotion||'—')+' | Tags: '+(_libSelected.tags||[]).join(', ')+' | Size: '+(_libSelected.size_mb||'?')+' MB';
+  document.getElementById('libAnnotateResult').className='out';document.getElementById('libImg2vidResult').className='out';
+  msg('Preview: '+_libSelected.filename);
+}
+function closeLibPreview(){
+  document.getElementById('libPreview').style.display='none';const v=document.getElementById('libVideo');v.pause();v.src='';
+}
+function showIngest(){document.getElementById('libIngest').style.display='block';document.getElementById('ingestResult').className='out';}
+async function doIngest(){
+  const p=document.getElementById('ingestPath').value.trim();if(!p){alert('Enter file path');return}
+  const box=document.getElementById('ingestResult');box.textContent='⏳ Ingesting...';box.className='out show';
+  try{const d=await api('POST','/api/media/ingest',{path:p});box.textContent=JSON.stringify(d,null,2);box.className='out show ok';msg('Ingested: '+d.media?.filename);loadLib()}catch(e){box.textContent='Error: '+e.message;box.className='out show bad'}
+}
+async function aiAnnotate(){
+  if(!_libSelected)return;const box=document.getElementById('libAnnotateResult');
+  box.textContent='🤖 Analyzing...';box.className='out show';
+  try{const d=await api('POST','/api/media/annotate',{filename:_libSelected.filename});box.textContent=JSON.stringify(d,null,2);box.className='out show ok';msg('AI: '+d.emotion+' | '+(d.tags||[]).join(', '))}catch(e){box.textContent='Error: '+e.message;box.className='out show bad'}
+}
+async function imgToVideo(){
+  if(!_libSelected)return;const p=_libSelected.path||'';if(!p.endsWith('.jpg')&&!p.endsWith('.png')){alert('Select an image file first');return}
+  const box=document.getElementById('libImg2vidResult');box.textContent='⏳ Converting...';box.className='out show';
+  try{const d=await api('POST','/api/media/image_to_video',{path:p,duration:3,effect:'ken_burns'});box.textContent=JSON.stringify(d,null,2);box.className='out show ok';msg('Video created: '+d.output)}catch(e){box.textContent='Error: '+e.message;box.className='out show bad'}
+}
+function showEdit(){
+  const p=_libSelected?.path||'';if(!p.endsWith('.mp4')){alert('Select a video file first');return}
+  document.getElementById('libEdit').style.display='block';document.getElementById('editResult').className='out';toggleEditFields();
+}
+function toggleEditFields(){
+  const op=document.getElementById('editOp').value;
+  document.getElementById('editTrimFields').style.display=(op==='trim')?'flex':'none';
+  document.getElementById('editFilterFields').style.display=(op==='filter')?'block':'none';
+  document.getElementById('editSubFields').style.display=(op==='subtitle')?'block':'none';
+}
+document.getElementById('editOp')?.addEventListener('change',toggleEditFields);
+async function doEdit(){
+  if(!_libSelected)return;const box=document.getElementById('editResult');box.textContent='⏳ Editing...';box.className='out show';
+  try{
+    const body={path:_libSelected.path,operation:document.getElementById('editOp').value,start:parseFloat(document.getElementById('editStart').value)||0,duration:parseFloat(document.getElementById('editDur').value)||5};
+    if(body.operation==='filter')body.filter=document.getElementById('editFilter').value;
+    if(body.operation==='subtitle')body.subtitle=document.getElementById('editSub').value;
+    const d=await api('POST','/api/media/edit',body);box.textContent=JSON.stringify(d,null,2);box.className='out show ok';msg('Edit done: '+d.output);loadLib()
+  }catch(e){box.textContent='Error: '+e.message;box.className='out show bad'}
+}
+function closeVersions(){document.getElementById('libVersions').style.display='none'}
+async function showVersions(){
+  if(!_libSelected)return;document.getElementById('libVersions').style.display='block';
+  const el=document.getElementById('versionList');el.innerHTML='<div class="tac">Loading...</div>';
+  try{
+    const d=await api('GET','/api/media/versions/'+_libSelected.id);
+    el.innerHTML=(d.versions||[]).length?d.versions.map((v,i)=>`<div style="padding:.3rem 0;border-bottom:1px solid #2a2a4a">V${v.version||i+1}: ${v.filename} (${v.emotion||'—'}) ${v.size_human||'?'}</div>`).join(''):'<div class="tac">No versions</div>';
+  }catch(e){el.innerHTML='<div style="color:#f55">'+e.message+'</div>'}
+}
+
+// ── System Monitor ───────────────────────────────────────────────────
+async function updateMonitor(){
+  try{
+    const st=await api('GET','/api/stats');
+    const mem=st.memory_mb||0;
+    const cpu=st.cpu_percent||0;
+    const el1=document.getElementById('mem-report');
+    el1.textContent='MEM: '+mem+' MB';
+    el1.style.color=mem>1500?'#f55':'#5f5';
+    document.getElementById('cpu-report').textContent='CPU: '+cpu+'%';
+    const logs=await api('GET','/api/logs/events');
+    const ls=(logs.log||'').split('\n').filter(Boolean);
+    const last=ls.length?ls[ls.length-1]:'(empty)';
+    document.getElementById('log-report').textContent=last.length>80?last.slice(0,80)+'...':last;
+  }catch(e){
+    document.getElementById('log-report').textContent='Monitor offline';
+  }
+}
+
+function tick(){document.getElementById('stTime').textContent=new Date().toLocaleTimeString()}
+
+checkHealth();setInterval(checkHealth,15000);tick();setInterval(tick,1000);
+updateMonitor();setInterval(updateMonitor,5000);
+</script>
+
+<!-- System Monitor Bar -->
+<div id="sys-mon" style="position:fixed;bottom:0;left:0;width:100%;background:#111;color:#ccc;padding:6px 12px;font-size:11px;border-top:1px solid #333;font-family:Consolas,monospace;display:flex;gap:1.5rem;z-index:999">
+  <span><span id="mem-report" style="color:#5f5">MEM: -- MB</span></span>
+  <span><span id="cpu-report">CPU: -- %</span></span>
+  <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="log-report">Log: (loading...)</span>
+</div>
+
+</body>
+</html>

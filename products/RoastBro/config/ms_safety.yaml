@@ -1,0 +1,17 @@
+﻿# Safety Configuration (committed to Git)
+rate_limit:
+  min_interval_seconds: 10
+  max_requests_per_domain: 5
+  max_per_hour: 30
+
+fetcher:
+  youtube_transcript: true
+  youtube_api: true
+  bilibili: true
+  jina: true
+  yt_dlp: false
+
+security:
+  allow_login: false
+  cookie_isolation: true
+  max_concurrent: 1

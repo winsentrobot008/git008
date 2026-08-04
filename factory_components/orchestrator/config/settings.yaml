@@ -1,0 +1,24 @@
+project_name: white_dragon_horse
+version: 0.2.0
+
+auto_mode: false
+log_level: INFO
+
+# ============================================================
+# 治理宪法挂载（Constitution Mount）
+# ============================================================
+constitution:
+  enabled: true
+  file: CONSTITUTION.md                 # 白龙马质检宪法（只检不改）
+  principle: inspect_only               # 恪守"只检不改"，严禁修改应用源码
+
+# ============================================================
+# Sentinel 哨兵挂载（Sentinel Mount）
+# ============================================================
+sentinel:
+  enabled: true
+  config: config/sentinel.yaml          # 哨兵详细参数见 sentinel.yaml
+  cdp_port: 9222                        # 9222 CDP 监听（纯被动附加）
+  slow_mo: 500                          # Headful E2E 操作延迟 500ms
+  safe_pause: true                      # 物理打字 Safe Pause 熔断（焦点丢失/按键异常即暂停）
+  command_timeout_seconds: 30           # 命令单次执行超时 30s

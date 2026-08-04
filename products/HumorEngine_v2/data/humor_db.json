@@ -1,0 +1,19 @@
+{
+  "seed_mappings": [
+    {
+      "high_context": "Top fashion models / Luxury commercials (巴黎名模走秀/奢侈品广告)",
+      "low_context": "Construction site concrete casting / Exhaust hood cleaning (工地钢筋浇筑规范/油烟机清洗指南)",
+      "tone_style": "Scientific, cold academic parameters"
+    },
+    {
+      "high_context": "Dignified state leaders shaking hands (严肃政治新闻/外交元首握手)",
+      "low_context": "Stray dogs fighting over trash bins (流浪狗在垃圾桶旁谈判地盘)",
+      "tone_style": "High-political sarcasm & cold war terminology"
+    },
+    {
+      "high_context": "Host questions guest about handcuffs / Adult awkward silence (戴手铐经历/成人尴尬沉默)",
+      "low_context": "Implicit adult consensus / Silent rendering (成年人默契/未过审马赛克脑补)",
+      "tone_style": "Deadpan ellipsis & non-disclosure"
+    }
+  ]
+}

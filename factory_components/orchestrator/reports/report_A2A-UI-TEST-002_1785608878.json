@@ -1,0 +1,17 @@
+{
+  "task_id": "A2A-UI-TEST-002",
+  "timestamp": 1785608878,
+  "status": "SUCCESS",
+  "result": {
+    "stdout": "[0] <button> clicked :: 按钮 A\n[1] <a> clicked :: 链接 B\n[2] <button> clicked :: 按钮 C\nTOTAL_CLICKED=3",
+    "exit_code": 0,
+    "cmd": "UI_E2E inspect file:///C:/Users/aoogoost/Desktop/Projekt/git008/runtime_data/_ui_test.html",
+    "product": "fireworkbloom",
+    "screenshots": [
+      "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\qa_delivery\\reports\\screenshots\\ui_1785608872.png"
+    ],
+    "console_errors": [],
+    "network_errors": []
+  },
+  "log_trace": ""
+}

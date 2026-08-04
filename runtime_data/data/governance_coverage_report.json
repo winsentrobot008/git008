@@ -1,0 +1,41 @@
+{
+    "scan_time": "2026-07-13T18:01:51.205186+00:00",
+    "total_modules": 870,
+    "module_categories": {
+        "other": 1,
+        "governance_core": 12,
+        "constitution": 1,
+        "executor": 17,
+        "sandbox": 1,
+        "business": 825,
+        "scripts": 3,
+        "protected_asset": 10
+    },
+    "constitution_coverage": {
+        "total": 870,
+        "protected": 5,
+        "unprotected": 865,
+        "coverage_pct": 0.6,
+        "executor_unprotected": 17
+    },
+    "sentinel_coverage": {
+        "total": 870,
+        "protected": 30,
+        "missing_entries": 7
+    },
+    "business_coverage": {
+        "total": 825,
+        "constitution_protected": 0,
+        "unprotected": 825
+    },
+    "risk_score": 99.4,
+    "subprojects": {
+        "FireworkBloom": {
+            "status": "active",
+            "path": "projects/fireworkbloom",
+            "governance_score": 100,
+            "sentinel_hook": "verified",
+            "pipeline": "FastAPI + ComfyUI + FFmpeg"
+        }
+    }
+}

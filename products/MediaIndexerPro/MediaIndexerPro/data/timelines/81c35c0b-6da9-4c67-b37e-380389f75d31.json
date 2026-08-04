@@ -1,0 +1,47 @@
+{
+  "timeline_id": "81c35c0b-6da9-4c67-b37e-380389f75d31",
+  "name": "Demo Timeline — Morning to City",
+  "created_at": "2026-07-15T19:31:15",
+  "video": [
+    {
+      "id": "v1",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\assets\\sample_clip.mp4",
+      "start": 0.0,
+      "end": 8.0,
+      "caption": "早安世界",
+      "replaced": true
+    },
+    {
+      "id": "v2",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\assets\\sample_clip.mp4",
+      "start": 0.0,
+      "end": 6.0,
+      "caption": "忙碌但美好"
+    }
+  ],
+  "audio": [
+    {
+      "id": "a1",
+      "type": "voice",
+      "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\assets\\sample_clip.mp4",
+      "start": 0.0,
+      "end": 14.0
+    }
+  ],
+  "subtitles": [
+    {
+      "id": "s1",
+      "text": "早安世界",
+      "start": 0.0,
+      "end": 8.0
+    },
+    {
+      "id": "s2",
+      "text": "忙碌但美好",
+      "start": 8.0,
+      "end": 14.0
+    }
+  ],
+  "overlays": [],
+  "ratio": "16:9"
+}

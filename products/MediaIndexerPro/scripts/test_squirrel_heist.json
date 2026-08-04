@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "title": "Squirrel Commits Nut Heist — Bird Feeder Bandit",
+    "version": "1.0",
+    "genre": "urban_wildlife_heist_comedy",
+    "target_duration_s": 25,
+    "humor_type": "acrobatic_thievery_wildlife"
+  },
+  "scenes": [
+    {"id": 1, "narration_en": "A sneaky squirrel eyes the bird feeder from across the yard.", "visual_keywords": ["squirrel", "bird feeder", "sneaky", "yard", "acorn"], "duration_s": 5},
+    {"id": 2, "narration_en": "He performs an acrobatic leap onto the feeder, hanging upside down.", "visual_keywords": ["squirrel", "acrobatic", "leap", "feeder", "upside down"], "duration_s": 5},
+    {"id": 3, "narration_en": "The birds watch in annoyance as he stuffs his cheeks full of seeds.", "visual_keywords": ["birds", "annoyed", "squirrel", "cheeks", "seeds", "stuffed"], "duration_s": 5},
+    {"id": 4, "narration_en": "He makes a getaway across the fence, seed thief of the year.", "visual_keywords": ["getaway", "fence", "squirrel", "escape", "thief"], "duration_s": 5},
+    {"id": 5, "narration_en": "The birds hold a committee meeting to discuss feeder security.", "visual_keywords": ["birds", "committee", "feeder", "security", "meeting", "funny"], "duration_s": 5}
+  ]
+}

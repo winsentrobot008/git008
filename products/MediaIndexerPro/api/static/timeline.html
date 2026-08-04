@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ZOO · Timeline Editor v4</title>
+<style>
+:root{--bg:#0d0d0d;--surface:#1a1a2e;--surface2:#14142a;--border:#2a2a4a;--text:#e0e0e0;--text2:#888;--accent:#7ecfff;--accent2:#3a9eff;--green:#2a9d3a;--pink:#c99eff;--orange:#e8903a;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:.5rem 1.2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{font-size:1rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar .nav-links{display:flex;gap:.5rem}
+.topbar a{color:var(--text2);text-decoration:none;font-size:.8rem;padding:.25rem .6rem;border-radius:6px;transition:.2s}
+.topbar a:hover{color:var(--accent);background:rgba(58,158,255,.1)}
+.topbar a.active{color:var(--accent);background:rgba(58,158,255,.15)}
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:300px;background:var(--surface2);border-right:1px solid var(--border);padding:.8rem;overflow-y:auto;flex-shrink:0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:1rem}
+/* Timeline tracks */
+.track{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:.5rem;overflow:hidden}
+.track-header{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:var(--surface2);border-bottom:1px solid var(--border);font-size:.72rem;font-weight:600;color:var(--text2);text-transform:uppercase}
+.track-header .color-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.track-body{display:flex;gap:4px;padding:.4rem;overflow-x:auto;min-height:80px}
+/* Clip */
+.clip{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:.35rem;min-width:100px;max-width:160px;cursor:pointer;transition:.2s;position:relative;flex-shrink:0}
+.clip:hover{border-color:var(--accent2);transform:translateY(-2px)}
+.clip .thumb{height:50px;background:#12121e;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;overflow:hidden}
+.clip .thumb img{width:100%;height:100%;object-fit:cover}
+.clip .name{font-size:.65rem;margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clip .dur{font-size:.6rem;color:var(--text2)}
+.clip.selected{border-color:var(--accent);box-shadow:0 0 15px rgba(126,207,255,.2)}
+/* Timeline controls */
+.toolbar{display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap;align-items:center}
+.toolbar button{padding:.35rem .7rem;border:none;border-radius:6px;font-size:.72rem;cursor:pointer;font-weight:600;transition:.15s}
+.btn-p{background:linear-gradient(135deg,var(--accent2),#5b4fff);color:#fff}
+.btn-s{background:var(--surface);color:var(--text2);border:1px solid var(--border)}
+.btn-s:hover{background:#2a2a4a}
+.btn-g{background:linear-gradient(135deg,var(--green),#3abf5f);color:#fff}
+.btn-sm{padding:.25rem .5rem;font-size:.65rem}
+/* Detail panel */
+.detail{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:.8rem;margin-top:.5rem;display:none}
+.detail.show{display:block}
+.detail h3{font-size:.8rem;color:var(--accent);margin-bottom:.3rem}
+.detail .row{display:flex;gap:.4rem;margin:.3rem 0;flex-wrap:wrap;font-size:.72rem}
+.detail .row .lbl{color:var(--text2);min-width:70px}
+.detail .row .val{color:var(--text)}
+.detail .reason{background:rgba(201,158,255,.1);border-left:3px solid var(--pink);padding:.3rem .5rem;font-size:.72rem;margin-top:.3rem;border-radius:0 4px 4px 0}
+.detail .btn-row{display:flex;gap:.3rem;margin-top:.5rem}
+/* Score badge */
+.score-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-size:.7rem;font-weight:700;flex-shrink:0}
+.score-badge.match{background:rgba(42,157,58,.2);color:var(--green);border:2px solid var(--green)}
+.score-badge.none{background:rgba(192,57,59,.1);color:var(--red);border:2px solid var(--red)}
+/* Shadow index */
+.shadow-list{font-size:.7rem}
+.shadow-list .item{padding:.3rem 0;border-bottom:1px solid var(--border);cursor:pointer;transition:.15s}
+.shadow-list .item:hover{color:var(--accent)}
+.shadow-list .item:last-child{border:none}
+.shadow-list .item .humor{color:var(--pink);font-style:italic;font-size:.65rem}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@media(max-width:768px){.layout{flex-direction:column}.sidebar{width:100%;max-height:200px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>⏱ Timeline Editor v4 — Silhouette Replace API</h1>
+  <div class="nav-links">
+    <a href="index.html">🏠 Home</a>
+    <a href="generate.html">🎬 Generate</a>
+    <a href="timeline.html" class="active">⏱ Timeline</a>
+    <a href="media_library.html">📦 Library</a>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar: Shadow Index Browser -->
+  <div class="sidebar">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <h3 style="font-size:.8rem;color:var(--accent)">📖 Shadow Index</h3>
+      <button class="btn-s btn-sm" onclick="loadShadowIndex()">🔄 Refresh</button>
+    </div>
+    <div class="shadow-list" id="shadowList">
+      <div style="color:var(--text2);font-size:.7rem">Loading...</div>
+    </div>
+    <div style="margin-top:.8rem;padding-top:.5rem;border-top:1px solid var(--border)">
+      <label style="font-size:.7rem;color:var(--text2);display:block;margin-bottom:.2rem">Filter by emotion</label>
+      <select id="emotionFilter" onchange="filterShadowIndex()" style="width:100%;padding:.3rem;border-radius:6px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.72rem">
+        <option value="all">All</option>
+        <option value="amused">😄 Amused</option>
+        <option value="curious">🤔 Curious</option>
+        <option value="absurd">🌀 Absurd</option>
+        <option value="serious">😐 Serious</option>
+        <option value="proud">🦚 Proud</option>
+        <option value="awkward">😅 Awkward</option>
+        <option value="cute">🥰 Cute</option>
+        <option value="judgmental">🤨 Judgmental</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Main: Timeline -->
+  <div class="main">
+    <div class="toolbar">
+      <button class="btn-p" onclick="loadTimeline()">📂 Load Timeline</button>
+      <button class="btn-g" onclick="saveTimeline()">💾 Save</button>
+      <span style="font-size:.72rem;color:var(--text2);margin-left:auto" id="timelineId"></span>
+    </div>
+
+    <!-- Tracks -->
+    <div id="trackContainer">
+      <div style="color:var(--text2);font-size:.8rem;padding:2rem;text-align:center">
+        Load a timeline to see scene tracks. Click "Replace" to swap assets via the silhouette API.<br>
+        <span style="font-size:.7rem;color:var(--text2)">The shadow index on the left shows why each asset was chosen.</span>
+      </div>
+    </div>
+
+    <!-- Detail Panel -->
+    <div class="detail" id="detailPanel">
+      <h3 id="detailTitle">Clip Details</h3>
+      <div class="row"><span class="lbl">Asset</span><span class="val" id="detailAsset">—</span></div>
+      <div class="row"><span class="lbl">Source</span><span class="val" id="detailSource">—</span></div>
+      <div class="row"><span class="lbl">Duration</span><span class="val" id="detailDur">—</span></div>
+      <div class="row"><span class="lbl">Score</span><span class="val" id="detailScore">—</span></div>
+      <div class="reason" id="detailReason">Why this clip was chosen: humor analysis from cloud API</div>
+      <div class="btn-row">
+        <button class="btn-p btn-sm" onclick="replaceClip()">🔄 Replace via API</button>
+        <button class="btn-s btn-sm" onclick="closeDetail()">✕ Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────
+const SHADOW_URL = '/storage/humor_shadow_index.json';
+const API_BASE = '/api';
+
+let shadowIndex = [];
+let currentTimeline = { id: null, scenes: [] };
+let selectedClip = null;
+let emotionMap = {};
+
+// ─── Load shadow index ──────────────────────────────────────────────────
+async function loadShadowIndex() {
+  try {
+    const r = await fetch(SHADOW_URL + '?_=' + Date.now());
+    const data = await r.json();
+    shadowIndex = data.videos || [];
+    
+    // Build emotion map
+    emotionMap = {};
+    shadowIndex.forEach((entry, idx) => {
+      (entry.emotions || []).forEach(em => {
+        const key = em.toLowerCase();
+        if (!emotionMap[key]) emotionMap[key] = [];
+        emotionMap[key].push(idx);
+      });
+    });
+    
+    renderShadowIndex();
+  } catch(e) {
+    document.getElementById('shadowList').innerHTML = 
+      '<div style="color:var(--text2);font-size:.7rem">No shadow index — run the humor pipeline first</div>';
+  }
+}
+
+function renderShadowIndex() {
+  const container = document.getElementById('shadowList');
+  if (shadowIndex.length === 0) {
+    container.innerHTML = '<div style="color:var(--text2);font-size:.7rem">No entries</div>';
+    return;
+  }
+  
+  const filter = document.getElementById('emotionFilter').value;
+  let filtered = shadowIndex;
+  if (filter !== 'all') {
+    const indices = emotionMap[filter] || [];
+    filtered = indices.map(i => shadowIndex[i]).filter(Boolean);
+  }
+  
+  container.innerHTML = filtered.slice(0, 12).map((entry, i) => `
+    <div class="item" onclick="selectShadowEntry(${i})" title="Click to copy reason">
+      <div>[${entry.source}] ${entry.title.slice(0,35)}</div>
+      <div class="humor">"${(entry.humor||'').slice(0,70)}..."</div>
+      <div style="font-size:.6rem;color:var(--text2);margin-top:1px">
+        ${(entry.emotions||[]).map(e => `<span style="margin-right:4px">🎭 ${e}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterShadowIndex() {
+  renderShadowIndex();
+}
+
+function selectShadowEntry(idx) {
+  const entry = shadowIndex[idx];
+  if (!entry) return;
+  // Fill detail panel with shadow entry info for replace guidance
+  showDetail({
+    asset: entry.title,
+    source: entry.source,
+    humor: entry.humor,
+    emotions: entry.emotions,
+    objects: entry.objects,
+    url: entry.url
+  });
+}
+
+// ─── Load timeline ──────────────────────────────────────────────────────
+async function loadTimeline() {
+  try {
+    // Try loading a recent timeline
+    const r = await fetch(`${API_BASE}/timeline`);
+    const data = await r.json();
+    
+    if (data.id || data.timeline_id) {
+      currentTimeline.id = data.id || data.timeline_id;
+      currentTimeline.scenes = data.scenes || data.clips || [];
+      renderTimeline();
+    } else {
+      // Create a default timeline from the humor script
+      createDefaultTimeline();
+    }
+  } catch(e) {
+    // Create default
+    createDefaultTimeline();
+  }
+}
+
+async function createDefaultTimeline() {
+  try {
+    const scriptR = await fetch('/tests/test_humor_script.json');
+    const script = await scriptR.json();
+    
+    currentTimeline.id = 'auto-' + Date.now().toString(36);
+    currentTimeline.scenes = script.scenes.map((s, i) => ({
+      id: s.id,
+      name: `Scene ${s.id}`,
+      narration: s.narration_en,
+      keywords: s.visual_keywords,
+      duration: s.duration_s,
+      asset: null,
+      humor: ''
+    }));
+    renderTimeline();
+  } catch(e) {
+    console.warn('Could not create default timeline:', e);
+  }
+}
+
+// ─── Save timeline ──────────────────────────────────────────────────────
+async function saveTimeline() {
+  try {
+    const r = await fetch(`${API_BASE}/timeline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: currentTimeline.id,
+        scenes: currentTimeline.scenes
+      })
+    });
+    const data = await r.json();
+    document.getElementById('timelineId').textContent = `💾 Saved: ${data.id || currentTimeline.id}`;
+  } catch(e) {
+    document.getElementById('timelineId').textContent = `❌ Save failed: ${e.message}`;
+  }
+}
+
+// ─── Render timeline tracks ─────────────────────────────────────────────
+function renderTimeline() {
+  const container = document.getElementById('trackContainer');
+  if (!currentTimeline.scenes || currentTimeline.scenes.length === 0) {
+    container.innerHTML = '<div style="color:var(--text2);padding:1rem;text-align:center">No scenes</div>';
+    return;
+  }
+  
+  document.getElementById('timelineId').textContent = `📂 ${currentTimeline.id}`;
+  
+  let html = '';
+  
+  // Video track
+  html += `<div class="track">
+    <div class="track-header"><span class="color-dot" style="background:var(--accent2)"></span> Video Track</div>
+    <div class="track-body">`;
+  currentTimeline.scenes.forEach((scene, i) => {
+    const match = shadowIndex.find(e => 
+      scene.keywords?.some(kw => (e.humor + ' ' + e.title).toLowerCase().includes(kw.toLowerCase()))
+    );
+    const score = match ? scene.keywords.filter(kw => 
+      (match.humor + ' ' + match.title).toLowerCase().includes(kw.toLowerCase())
+    ).length : 0;
+    
+    html += `<div class="clip ${scene.asset ? 'selected' : ''}" onclick="selectClip(${i})" id="clip-${i}">
+      <div class="thumb">${scene.asset ? '🎬' : '➕'}</div>
+      <div class="name">Scene ${scene.id}: ${scene.narration.slice(0,20)}...</div>
+      <div class="dur">${scene.duration}s</div>
+      <div style="display:flex;gap:2px;margin-top:2px">
+        <span class="score-badge ${score >= 2 ? 'match' : 'none'}">${score}</span>
+        <button class="btn-s btn-sm" onclick="event.stopPropagation();replaceClipPrompt(${i})" style="font-size:.6rem;padding:.1rem .3rem">🔄</button>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  // Audio track (placeholder)
+  html += `<div class="track">
+    <div class="track-header"><span class="color-dot" style="background:var(--green)"></span> Audio Track</div>
+    <div class="track-body">
+      <div class="clip" style="min-width:200px;opacity:.7">
+        <div class="thumb">🎵</div>
+        <div class="name">Voiceover (TTS)</div>
+        <div class="dur">30s · placeholder</div>
+      </div>
+    </div>
+  </div>`;
+  
+  container.innerHTML = html;
+}
+
+// ─── Clip selection ─────────────────────────────────────────────────────
+function selectClip(index) {
+  selectedClip = index;
+  const scene = currentTimeline.scenes[index];
+  if (!scene) return;
+  
+  const match = shadowIndex.find(e =>
+    scene.keywords?.some(kw => (e.humor + ' ' + e.title).toLowerCase().includes(kw.toLowerCase()))
+  );
+  
+  showDetail({
+    asset: scene.name,
+    source: match?.source || 'Not matched',
+    humor: match?.humor || 'No humor analysis',
+    emotions: match?.emotions || [],
+    objects: match?.objects || [],
+    url: match?.url || '',
+    score: scene.keywords?.filter(kw => 
+      match && (match.humor + ' ' + match.title).toLowerCase().includes(kw.toLowerCase())
+    ).length || 0
+  });
+}
+
+function showDetail(data) {
+  const panel = document.getElementById('detailPanel');
+  panel.classList.add('show');
+  document.getElementById('detailTitle').textContent = data.asset || 'Clip Details';
+  document.getElementById('detailAsset').textContent = data.asset || '—';
+  document.getElementById('detailSource').textContent = data.source || '—';
+  document.getElementById('detailDur').textContent = '5s';
+  document.getElementById('detailScore').textContent = data.score || '—';
+  document.getElementById('detailReason').innerHTML = 
+    `🎭 <strong>Humor:</strong> "${(data.humor||'').slice(0,120)}..."<br>
+     📋 <strong>Emotions:</strong> ${(data.emotions||[]).join(', ') || '—'}<br>
+     📦 <strong>Objects:</strong> ${(data.objects||[]).slice(0,5).join(', ') || '—'}`;
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('show');
+  selectedClip = null;
+}
+
+// ─── Replace clip via API ───────────────────────────────────────────────
+async function replaceClip() {
+  if (selectedClip === null) return;
+  const scene = currentTimeline.scenes[selectedClip];
+  if (!scene) return;
+  
+  // Find best match from shadow index
+  const match = shadowIndex.find(e =>
+    scene.keywords?.some(kw => (e.humor + ' ' + e.title).toLowerCase().includes(kw.toLowerCase()))
+  );
+  
+  if (!match) {
+    alert('No matching asset in shadow index. Run the humor pipeline first.');
+    return;
+  }
+  
+  try {
+    // POST /api/timeline/{id}/replace_clip
+    const r = await fetch(`${API_BASE}/timeline/${currentTimeline.id}/replace_clip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scene_id: scene.id,
+        asset_url: match.url,
+        asset_title: match.title,
+        humor: match.humor,
+        source: match.source
+      })
+    });
+    const data = await r.json();
+    
+    scene.asset = match.url;
+    renderTimeline();
+    
+    document.getElementById('timelineId').textContent = `🔄 Replaced: ${match.title.slice(0,30)}...`;
+  } catch(e) {
+    alert('Replace failed: ' + e.message);
+  }
+}
+
+function replaceClipPrompt(index) {
+  selectClip(index);
+  replaceClip();
+}
+
+// ─── Init ───────────────────────────────────────────────────────────────
+loadShadowIndex();
+</script>
+</body>
+</html>

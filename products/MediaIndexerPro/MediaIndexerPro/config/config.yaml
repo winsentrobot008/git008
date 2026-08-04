@@ -1,0 +1,20 @@
+# MediaIndexerPro v4 — Configuration
+# 🔒 ALL API keys loaded from .env or environment variables ONLY.
+# See .env.template for the full key schema.
+
+api_keys:
+  youtube: ""
+  tiktok: ""
+  instagram: ""
+  pexels: ""
+  pixabay: ""
+  mixkit: ""
+  bing: ""
+
+# Index output path (relative to project root)
+index_output_path: "assets/index/"
+
+# Server
+server:
+  host: "0.0.0.0"
+  port: 8000

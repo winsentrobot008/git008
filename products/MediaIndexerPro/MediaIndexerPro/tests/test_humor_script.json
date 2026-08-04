@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "title": "喜当爹母鸡 — The Cuckolded Hen",
+    "version": "1.0",
+    "genre": "rural_absurd_comedy",
+    "emotion_arc": ["surprise", "absurdity", "resignation"],
+    "target_duration_s": 30,
+    "humor_type": "situational_irony_misplaced_identity"
+  },
+  "scenes": [
+    {
+      "id": 1,
+      "title": "母鸡打工归来",
+      "narration_cn": "有一只勤快的母鸡，每天天没亮就出去打工。",
+      "narration_en": "A hardworking hen goes out to work before dawn every day.",
+      "visual_keywords": ["hen", "chicken", "farm", "sunrise", "leaving nest"],
+      "expected_humor_tags": ["animal:hen", "scene:farm", "emotion:earnest"],
+      "duration_s": 5
+    },
+    {
+      "id": 2,
+      "title": "推开家门的瞬间",
+      "narration_cn": "这天她提前收工回家，推开窝门一看——愣住了。",
+      "narration_en": "One day she comes home early, pushes open the nest door — and freezes.",
+      "visual_keywords": ["hen", "nest", "eggs", "surprise", "cat", "kittens"],
+      "expected_humor_tags": ["animal:cat", "animal:kitten", "scene:nest", "emotion:shock", "contrast:expectation_vs_reality"],
+      "duration_s": 5
+    },
+    {
+      "id": 3,
+      "title": "窝里全是猫崽子",
+      "narration_cn": "窝里没有鸡蛋，只有一窝猫崽子！",
+      "narration_en": "There are no eggs in the nest — only a litter of kittens!",
+      "visual_keywords": ["kittens", "nest", "confusion", "cat", "babies"],
+      "expected_humor_tags": ["animal:kitten", "scene:nest", "emotion:confusion", "absurd:species_mismatch"],
+      "duration_s": 5
+    },
+    {
+      "id": 4,
+      "title": "隔壁老王的凝视",
+      "narration_cn": "隔壁老王猫探过头来，眼神里三分心虚、七分得意。",
+      "narration_en": "Old Wang the tomcat peers over — three parts guilt, seven parts smug.",
+      "visual_keywords": ["cat", "tomcat", "neighbor", "guilty", "smug", "eye_contact"],
+      "expected_humor_tags": ["animal:cat", "expression:smug", "emotion:guilt", "contrast:neighbor_drama"],
+      "duration_s": 5
+    },
+    {
+      "id": 5,
+      "title": "母鸡的崩溃",
+      "narration_cn": "母鸡沉默了整整三秒，然后开始满院子追着猫跑。",
+      "narration_en": "The hen is silent for three whole seconds, then chases the cat across the yard.",
+      "visual_keywords": ["hen", "chase", "cat", "yard", "chaos", "anger"],
+      "expected_humor_tags": ["action:chase", "animal:hen", "animal:cat", "emotion:fury", "absurd:cross_species_drama"],
+      "duration_s": 5
+    },
+    {
+      "id": 6,
+      "title": "市井家庭伦理",
+      "narration_cn": "村里的狗看了都摇头：这家庭伦理关系，太乱了。",
+      "narration_en": "Even the village dog shakes its head: this family drama is too messy.",
+      "visual_keywords": ["dog", "reaction", "farm", "neighbors", "chaos"],
+      "expected_humor_tags": ["animal:dog", "expression:judgment", "humor:fourth_wall", "scene:village"],
+      "duration_s": 5
+    }
+  ]
+}

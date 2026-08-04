@@ -1,0 +1,158 @@
+{
+  "timeline_id": "tl-20260716T082341Z-34c51d9a",
+  "ratio": "1:1",
+  "total_duration": 71,
+  "scenes": [
+    {
+      "id": 1,
+      "emotion": "平静",
+      "duration": 11,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 2,
+      "emotion": "平静",
+      "duration": 5,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 3,
+      "emotion": "平静",
+      "duration": 16,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 4,
+      "emotion": "平静",
+      "duration": 8,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 5,
+      "emotion": "平静",
+      "duration": 7,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 6,
+      "emotion": "平静",
+      "duration": 5,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 7,
+      "emotion": "平静",
+      "duration": 5,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 8,
+      "emotion": "平静",
+      "duration": 14,
+      "style": {
+        "tone": "neutral"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "video",
+      "clips": [
+        {
+          "scene_id": 1,
+          "asset": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\local_assets\\motivation\\How Will People Generate Wealth If AI Does Everything？_DFnoQkYUqgU.mp4",
+          "asset_type": "video",
+          "duration": 11,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 2,
+          "asset": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\data\\media\\notes.txt",
+          "asset_type": "document",
+          "duration": 5,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 3,
+          "asset": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\local_assets\\motivation\\The REAL Reason No One Knows What’s Coming With AI_LYgLTraIe2I.mp4",
+          "asset_type": "video",
+          "duration": 16,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 4,
+          "asset": "",
+          "asset_type": "image",
+          "duration": 8,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 5,
+          "asset": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\local_assets\\motivation\\The AI Future No One Wants to Talk About_zWQe2Fn--Eg.mp4",
+          "asset_type": "video",
+          "duration": 7,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 6,
+          "asset": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\local_assets\\motivation\\Are humans useless in the AI workspace？ ｜ BBC News_6zAgTga9kZw.mp4",
+          "asset_type": "video",
+          "duration": 5,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 7,
+          "asset": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\local_assets\\motivation\\AI2027： Is this how AI might destroy humanity？ - BBC World Service_1UufaK3pQMg.mp4",
+          "asset_type": "video",
+          "duration": 5,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 8,
+          "asset": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\projects\\MediaIndexerPro\\local_assets\\motivation\\How Will People Generate Wealth If AI Does Everything？_DFnoQkYUqgU.mp4",
+          "asset_type": "video",
+          "duration": 14,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        }
+      ]
+    }
+  ]
+}

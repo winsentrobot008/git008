@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "title": "Goat Yoga Gone Wrong — Farm Animal Fitness Fails",
+    "version": "1.0",
+    "genre": "farm_absurd_sports_comedy",
+    "target_duration_s": 25,
+    "humor_type": "animal_sports_fail_mismatched_athletes"
+  },
+  "scenes": [
+    {"id": 1, "narration_en": "A goat attempts downward dog at the farm yoga class.", "visual_keywords": ["goat", "downward dog", "yoga", "farm", "funny"], "duration_s": 5},
+    {"id": 2, "narration_en": "A chicken tries to join but keeps pecking the yoga mat.", "visual_keywords": ["chicken", "yoga", "mat", "pecking", "join", "farm"], "duration_s": 5},
+    {"id": 3, "narration_en": "The cow watches judgmentally from the fence, unimpressed.", "visual_keywords": ["cow", "judging", "fence", "unimpressed", "farm"], "duration_s": 5},
+    {"id": 4, "narration_en": "The goat falls over mid-pose, sending everyone into chaos.", "visual_keywords": ["goat", "fall", "chaos", "yoga", "pose", "fail"], "duration_s": 5},
+    {"id": 5, "narration_en": "The farm dog tries to herd the yoga class back into order.", "visual_keywords": ["dog", "herd", "yoga", "order", "farm", "control"], "duration_s": 5}
+  ]
+}

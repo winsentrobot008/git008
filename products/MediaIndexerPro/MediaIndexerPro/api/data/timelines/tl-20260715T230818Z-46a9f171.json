@@ -1,0 +1,50 @@
+{
+  "timeline_id": "tl-20260715T230818Z-46a9f171",
+  "ratio": "1:1",
+  "total_duration": 10,
+  "scenes": [
+    {
+      "id": 1,
+      "emotion": "平静",
+      "duration": 5,
+      "style": {
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": 2,
+      "emotion": "温暖",
+      "duration": 5,
+      "style": {
+        "tone": "warm"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "video",
+      "clips": [
+        {
+          "scene_id": 1,
+          "asset": "",
+          "asset_type": "image",
+          "duration": 5,
+          "filters": {
+            "color": ""
+          },
+          "emotion": "平静"
+        },
+        {
+          "scene_id": 2,
+          "asset": "",
+          "asset_type": "image",
+          "duration": 5,
+          "filters": {
+            "color": "colorbalance=rs=.15:gs=.05:bs=-.1"
+          },
+          "emotion": "温暖"
+        }
+      ]
+    }
+  ]
+}

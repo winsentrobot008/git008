@@ -1,0 +1,36 @@
+{
+    "whisper_model": "medium",
+    "device": "cpu",
+    "script_style": "hybrid",
+    "output_format": "multi",
+    "auto_publish": false,
+    "max_videos_per_run": 5,
+    "tts_engine": "coqui",
+    "tts_model": "tts_models/zh-CN/baker/tacotron2-DDC-GST",
+    "vlm_model": "llava-v1.6",
+    "cache_ttl_hours": 72,
+    "compliance": {
+        "block_on_high_risk": true,
+        "block_on_critical": true,
+        "log_all_checks": true
+    },
+    "publishing": {
+        "youtube": {
+            "enabled": false,
+            "schedule_hours": 0
+        },
+        "bilibili": {
+            "enabled": false,
+            "schedule_hours": 0
+        }
+    },
+    "scoring_weights": {
+        "logical_anomaly": 1.0,
+        "behavioral_anomaly": 1.2,
+        "emotional_anomaly": 0.8,
+        "exaggeration": 0.9,
+        "cringe": 1.1,
+        "anti_common_sense": 1.0
+    }
+}
+

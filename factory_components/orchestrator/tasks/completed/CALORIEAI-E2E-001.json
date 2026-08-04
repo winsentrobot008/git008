@@ -1,0 +1,7 @@
+{
+  "task_id": "CALORIEAI-E2E-001",
+  "test_type": "ui_e2e",
+  "target_product": "calorieai",
+  "url": "https://calorie-ai-seven.vercel.app/",
+  "command": "UI_E2E_INSPECT"
+}

@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════════════════
+#  HumorEngine_v2 — .gitignore
+# ═══════════════════════════════════════════════════════════════
+
+# Local API key storage (obfuscated, but still should NOT be committed)
+config/api_keys.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE / editor metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.log

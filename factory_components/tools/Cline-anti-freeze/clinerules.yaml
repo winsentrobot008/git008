@@ -1,0 +1,90 @@
+# git008 治理规则 YAML 配置
+# 版本: 2.0 — 多实例并行协作协议
+version: "2.0"
+governance:
+  center: "Cline-anti-freeze"
+  single_source_of_truth: true
+
+  anti_freeze:
+    timeout: 120
+    max_retries: 3
+    context_warning: 80
+    heartbeat_interval: 5
+    deadlock_timeout: 60
+
+  # 多实例并行协作协议 (Multi-Instance Protocol v1.0)
+  multi_instance:
+    enabled: true
+    instance_registry: ".instance_registry.json"
+    file_lock_dir: ".locks"
+    heartbeat_grace_period: 90      # 开发工位心跳宽限期（秒）
+    heartbeat_scan_interval: 60     # 心跳扫描间隔（秒）
+    max_stale_before_self_heal: 5   # 连续失活触发自愈阈值
+
+    roles:
+      governance:
+        description: "治理工位 — 拥有宪法编辑权与执法权"
+        capabilities:
+          - 修改宪法核心文件
+          - 运行 monitor.py --daemon
+          - 归档 error_log.md
+          - 触发 kill_all_agents() 自愈
+        constitution_files:
+          - .clinerules
+          - clinerules.yaml
+          - protocols
+          - governance_evolution.md
+          - monitor.py
+          - governance_linker.py
+
+      development:
+        description: "开发工位 — 仅业务逻辑编码"
+        capabilities:
+          - 修改 Maneki-AI/ 业务代码
+          - 修改 ClawAI/ 业务代码
+          - 发送心跳信号到 error_log.md
+        restrictions:
+          - 严禁修改任何宪法核心文件
+          - 长任务（>30秒）须发送心跳
+
+  # ============================================================
+  # API 降本治理 (API Cost Governance) — CEO 指令 2026-08-04
+  # ============================================================
+  api_cost_governance:
+    # 1) 上下文截断：历史上下文窗口上限 = 最近 8 轮对话
+    context_rounds_limit: 8
+    # 禁止默认全量读取整个 repo；必须先用轻量命令获取概览，再定点读取
+    full_repo_read_default: false
+    full_repo_read_exempt: false       # 仅架构/审计等经审批任务可豁免
+
+    # 2) 模型分级（L0 本地零成本 → L2 全量主模型）
+    model_tiers:
+      L0_local_script:
+        tasks: ["command_exec", "qa_report_summary", "static_parse", "file_ops"]
+        mode: local_script             # 本地静默脚本 / CLI，零 API 成本
+        example: ["scripts/qa_inspect.py", "scripts/api_budget_guard.py"]
+      L1_light_model:
+        tasks: ["refactor", "bugfix", "snippet", "quick_qa"]
+        model: "deepseek-v4-flash"     # 轻量模型
+      L2_full_model:
+        tasks: ["architecture", "planning", "complex_debug", "governance"]
+        model: "deepseek-v4"           # 昂贵主模型，仅必须时使用
+
+    # 3) 单次 Task 保护锁：防止死循环调用 / 成本失控
+    task_budget:
+      max_api_calls_per_task: 50       # 单次任务 API 调用次数上限
+      max_tokens_per_task: 300000      # 单次任务 Token 消耗上限
+      max_usd_per_task: 1.0            # 单次任务成本上限（USD）
+      exceed_action: "circuit_break"   # 超限动作：熔断当前任务并上报
+
+  # 日志格式规范
+  error_log_format:
+    delimiter: " | "
+    fields: [timestamp, instance_id, module]
+    example: "[2026-06-05 09:00:00 | host-pid-uuid | MODULE]"
+
+  rules:
+    - 所有业务项目通过 governance_linker.py 自动链接全局宪法
+    - 治理文件统一由 Cline-anti-freeze/ 管理
+    - 多实例并行须遵循工位职能隔离、写入互斥、宪法唯一源、心跳同步四大协议
+    - 实例启动时必须执行 governance_linker.py --boot-check

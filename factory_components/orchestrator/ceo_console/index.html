@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>White Dragon Horse · CEO Console</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🐎</span>
+      <div>
+        <h1>White Dragon Horse</h1>
+        <p class="sub">Local AGI Orchestrator · CEO Console</p>
+      </div>
+    </div>
+    <div class="conn" id="conn"><span class="dot"></span> connecting…</div>
+  </header>
+
+  <main>
+    <section class="cards" id="cards">
+      <div class="card" data-key="pipeline"><h3>Pipeline</h3><p class="val">--</p></div>
+      <div class="card" data-key="zoo"><h3>ZOO</h3><p class="val">--</p></div>
+      <div class="card" data-key="trae"><h3>TRAE</h3><p class="val">--</p></div>
+      <div class="card" data-key="huginn"><h3>Huginn</h3><p class="val">--</p></div>
+    </section>
+
+    <section class="pipeline">
+      <h2>Pipeline Graph</h2>
+      <svg class="pipe" viewBox="0 0 900 120" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="neon" x1="0" x2="1">
+            <stop offset="0" stop-color="#00e5ff"/>
+            <stop offset=".5" stop-color="#7c4dff"/>
+            <stop offset="1" stop-color="#ff2d95"/>
+          </linearGradient>
+        </defs>
+        <path class="pline" d="M20,60 H240 S280,20 330,60 H540 S580,100 640,60 H880"/>
+        <circle cx="20" cy="60" r="8" class="pnode" data-i="0"/>
+        <circle cx="280" cy="60" r="8" class="pnode" data-i="1"/>
+        <circle cx="540" cy="60" r="8" class="pnode" data-i="2"/>
+        <circle cx="880" cy="60" r="8" class="pnode" data-i="3"/>
+      </svg>
+      <div class="psteps">
+        <span>AGI</span><span>ZOO</span><span>TRAE</span><span>Huginn</span>
+      </div>
+    </section>
+
+    <section class="actions">
+      <h2>Task Buttons</h2>
+      <div class="btns" id="btns">
+        <button class="btn neon" data-action="full">▶ Run Full Pipeline</button>
+        <button class="btn" data-action="zoo">⚙ ZOO Generate</button>
+        <button class="btn" data-action="trae">🔧 TRAE Execute</button>
+        <button class="btn" data-action="browser">🌐 TagUI Browser</button>
+        <button class="btn" data-action="daily">📅 Daily Tasks</button>
+        <button class="btn neon" data-action="test_online">🌐 测试线上版本</button>
+      </div>
+    </section>
+
+    <section class="terminal">
+      <h2>Log Terminal</h2>
+      <div class="logs" id="logs"><div class="log-line muted">[WhiteDragonHorse] waiting for connection…</div></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

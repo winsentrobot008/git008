@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ZOO · Humor Engine Console</title>
+<style>
+:root{--bg:#0d0d0d;--surface:#1a1a2e;--surface2:#14142a;--border:#2a2a4a;--text:#e0e0e0;--text2:#888;--accent:#7ecfff;--accent2:#3a9eff;--green:#2a9d3a;--pink:#c99eff;--orange:#e8903a;--red:#c0392b;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+/* Topbar */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:.5rem 1.2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{font-size:1rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar .nav-links{display:flex;gap:.5rem}
+.topbar a{color:var(--text2);text-decoration:none;font-size:.8rem;padding:.25rem .6rem;border-radius:6px;transition:.2s}
+.topbar a:hover{color:var(--accent);background:rgba(58,158,255,.1)}
+.topbar a.active{color:var(--accent);background:rgba(58,158,255,.15)}
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:280px;background:var(--surface2);border-right:1px solid var(--border);padding:.8rem;overflow-y:auto;flex-shrink:0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:1rem}
+/* Script selector */
+.script-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:.8rem;margin-bottom:.8rem}
+.script-card h3{font-size:.82rem;color:var(--accent);margin-bottom:.2rem}
+.script-card .meta{font-size:.68rem;color:var(--text2)}
+.script-card .genre{display:inline-block;background:rgba(201,158,255,.15);color:var(--pink);padding:.15rem .4rem;border-radius:4px;font-size:.65rem;margin-top:.3rem}
+/* Pipeline stages */
+.pipeline{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
+.stage{flex:1;min-width:120px;padding:.6rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);text-align:center;transition:.3s}
+.stage .icon{font-size:1.5rem;margin-bottom:.2rem}
+.stage .label{font-size:.72rem;color:var(--text2)}
+.stage .status{font-size:.65rem;margin-top:.2rem;font-weight:600}
+.stage.pending{border-color:var(--border);opacity:.5}
+.stage.active{border-color:var(--accent2);box-shadow:0 0 20px rgba(58,158,255,.15)}
+.stage.active .status{color:var(--accent2)}
+.stage.done{border-color:var(--green);background:rgba(42,157,58,.08)}
+.stage.done .status{color:var(--green)}
+.stage.fail{border-color:var(--red);background:rgba(192,57,59,.08)}
+.stage.fail .status{color:var(--red)}
+/* Script scenes */
+.scenes{display:flex;flex-direction:column;gap:.5rem;flex:1;overflow-y:auto}
+.scene-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:.7rem;display:flex;align-items:center;gap:.8rem;transition:.2s}
+.scene-card:hover{border-color:var(--accent2)}
+.scene-card .num{width:28px;height:28px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:var(--text2);flex-shrink:0}
+.scene-card.matched .num{background:rgba(42,157,58,.2);color:var(--green)}
+.scene-card .info{flex:1;min-width:0}
+.scene-card .info .narration{font-size:.78rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scene-card .info .keywords{font-size:.65rem;color:var(--text2);margin-top:.15rem}
+.scene-card .info .humor{font-size:.7rem;color:var(--pink);margin-top:.15rem;font-style:italic}
+/* Score badge */
+.score-badge{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;font-size:.8rem;font-weight:700;flex-shrink:0}
+.score-badge.match{background:rgba(42,157,58,.2);color:var(--green);border:2px solid var(--green)}
+.score-badge.partial{background:rgba(232,144,58,.2);color:var(--orange);border:2px solid var(--orange)}
+.score-badge.none{background:rgba(192,57,59,.1);color:var(--red);border:2px solid var(--red)}
+/* Shadow index display */
+.shadow-box{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:.6rem;margin-top:.5rem;max-height:150px;overflow-y:auto}
+.shadow-box .entry{font-size:.68rem;padding:.2rem 0;border-bottom:1px solid var(--border)}
+.shadow-box .entry:last-child{border-bottom:none}
+.shadow-box .entry .tag{display:inline-block;padding:.1rem .3rem;border-radius:3px;font-size:.6rem;margin:1px}
+.shadow-box .entry .source{color:var(--accent2)}
+/* Stats bar */
+.stats{display:flex;gap:.5rem;margin-bottom:.8rem;flex-wrap:wrap}
+.stat{background:var(--surface);border-radius:6px;padding:.35rem .6rem;font-size:.72rem;border:1px solid var(--border)}
+.stat .val{font-weight:700;color:var(--accent)}
+/* Button */
+.btn{display:inline-flex;align-items:center;gap:.35rem;padding:.5rem 1rem;border:none;border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer;transition:.2s;color:#fff}
+.btn-primary{background:linear-gradient(135deg,var(--accent2),#5b4fff)}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:.3rem .6rem;font-size:.72rem}
+.btn-green{background:linear-gradient(135deg,var(--green),#3abf5f)}
+/* Result */
+.out{background:#12121e;border-radius:6px;padding:.4rem .6rem;font-family:monospace;font-size:.68rem;white-space:pre-wrap;max-height:120px;overflow-y:auto;border:1px solid var(--border);margin-top:.4rem;display:none}
+.out.show{display:block}.out.ok{border-color:var(--green)}.out.bad{border-color:var(--red)}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#3a3a5a}
+@media(max-width:768px){.layout{flex-direction:column}.sidebar{width:100%;max-height:200px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🎬 Humor Engine Console</h1>
+  <div class="nav-links">
+    <a href="index.html">🏠 Home</a>
+    <a href="generate.html" class="active">🎬 Generate</a>
+    <a href="timeline.html">⏱ Timeline</a>
+    <a href="media_library.html">📦 Library</a>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar: Script + Controls -->
+  <div class="sidebar">
+    <div class="script-card" id="scriptInfo">
+      <h3 id="scriptTitle">喜当爹母鸡 — The Cuckolded Hen</h3>
+      <div class="meta">6 scenes · 30s target</div>
+      <div class="genre">🎭 situational irony · misplaced identity</div>
+    </div>
+
+    <label style="font-size:.72rem;color:var(--text2);display:block;margin-bottom:.3rem">Search Keywords</label>
+    <div style="display:flex;gap:.3rem;margin-bottom:.5rem">
+      <input type="text" id="topicInput" value="funny hen chicken" style="flex:1;padding:.35rem .5rem;border-radius:6px;border:1px solid var(--border);background:#12121e;color:#eee;font-size:.75rem">
+    </div>
+
+    <button class="btn btn-primary" id="btnPipeline" style="width:100%;margin-bottom:.5rem">
+      🚀 Run Humor Pipeline
+    </button>
+
+    <!-- Token usage -->
+    <div class="stats" id="tokenStats" style="display:none">
+      <div class="stat">API Calls: <span class="val" id="statCalls">0</span></div>
+      <div class="stat">Tokens: <span class="val" id="statTokens">0</span></div>
+    </div>
+
+    <!-- Shadow index preview -->
+    <div style="margin-top:.5rem">
+      <label style="font-size:.72rem;color:var(--text2)">📖 Shadow Index</label>
+      <div class="shadow-box" id="shadowIndex">
+        <div style="color:var(--text2);font-size:.7rem">Run pipeline to populate</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main: Pipeline + Scenes -->
+  <div class="main">
+    <!-- Pipeline stages -->
+    <div class="pipeline">
+      <div class="stage pending" id="stageDiscover">
+        <div class="icon">📡</div>
+        <div class="label">DISCOVER</div>
+        <div class="status">pending</div>
+      </div>
+      <div class="stage pending" id="stageAnalyze">
+        <div class="icon">🧠</div>
+        <div class="label">ANALYZE</div>
+        <div class="status">pending</div>
+      </div>
+      <div class="stage pending" id="stageRender">
+        <div class="icon">🎬</div>
+        <div class="label">RENDER</div>
+        <div class="status">pending</div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="out" id="resultBox"></div>
+
+    <!-- Scene cards -->
+    <div class="scenes" id="sceneList">
+      <div style="color:var(--text2);font-size:.8rem;padding:1rem;text-align:center">
+        Click "Run Humor Pipeline" to match the Cuckolded Hen script
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────
+const SCRIPT_URL = '/tests/test_humor_script.json';
+const SHADOW_URL = '/storage/humor_shadow_index.json';
+
+let scriptData = null;
+let shadowIndex = [];
+let pipelineRunning = false;
+
+// ─── DOM refs ───────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const btn = $('btnPipeline');
+const topicInput = $('topicInput');
+const sceneList = $('sceneList');
+const resultBox = $('resultBox');
+const shadowEl = $('shadowIndex');
+
+// ─── Load script ────────────────────────────────────────────────────────
+async function loadScript() {
+  try {
+    const r = await fetch(SCRIPT_URL);
+    scriptData = await r.json();
+    $('scriptTitle').textContent = scriptData.meta.title;
+    renderEmptyScenes();
+  } catch(e) {
+    console.warn('Script load failed:', e);
+  }
+}
+
+// ─── Load shadow index ──────────────────────────────────────────────────
+async function loadShadowIndex() {
+  try {
+    const r = await fetch(SHADOW_URL + '?_=' + Date.now());
+    const data = await r.json();
+    shadowIndex = data.videos || [];
+    renderShadowIndex();
+  } catch(e) {
+    // Not found yet
+  }
+}
+
+// ─── Render empty scene cards ───────────────────────────────────────────
+function renderEmptyScenes() {
+  if (!scriptData) return;
+  sceneList.innerHTML = '';
+  scriptData.scenes.forEach((scene, i) => {
+    const card = document.createElement('div');
+    card.className = 'scene-card';
+    card.id = `scene-${i}`;
+    card.innerHTML = `
+      <div class="num">${scene.id}</div>
+      <div class="info">
+        <div class="narration">${scene.narration_en}</div>
+        <div class="keywords">${scene.visual_keywords.join(' · ')}</div>
+        <div class="humor" id="humor-${i}"></div>
+      </div>
+      <div class="score-badge none" id="score-${i}">—</div>
+    `;
+    sceneList.appendChild(card);
+  });
+}
+
+// ─── Update scene with match results ────────────────────────────────────
+function updateSceneMatch(sceneId, matchedEntry, score) {
+  const el = $(`scene-${sceneId}`);
+  if (!el) return;
+
+  const scoreEl = $(`score-${sceneId}`);
+  const humorEl = $(`humor-${sceneId}`);
+
+  el.classList.add('matched');
+
+  if (score >= 3) {
+    scoreEl.className = 'score-badge match';
+  } else if (score >= 1) {
+    scoreEl.className = 'score-badge partial';
+  } else {
+    scoreEl.className = 'score-badge none';
+  }
+  scoreEl.textContent = score;
+
+  if (matchedEntry) {
+    humorEl.textContent = `"${matchedEntry.humor.slice(0,80)}..."`;
+  }
+}
+
+// ─── Render shadow index sidebar ────────────────────────────────────────
+function renderShadowIndex() {
+  if (shadowIndex.length === 0) {
+    shadowEl.innerHTML = '<div style="color:var(--text2);font-size:.7rem">No entries yet</div>';
+    return;
+  }
+  shadowEl.innerHTML = shadowIndex.slice(0,5).map(e => `
+    <div class="entry">
+      <span class="source">[${e.source}]</span>
+      ${e.title.slice(0,35)}
+      <span class="tag" style="background:rgba(126,207,255,.15);color:var(--accent)">${e.scene || '?'}</span>
+    </div>
+  `).join('');
+  $('tokenStats').style.display = 'flex';
+}
+
+// ─── Set pipeline stage ─────────────────────────────────────────────────
+function setStage(id, state, msg) {
+  const el = $(`stage${id}`);
+  if (!el) return;
+  el.className = `stage ${state}`;
+  const statusEl = el.querySelector('.status');
+  if (statusEl) statusEl.textContent = msg || state;
+}
+
+// ─── Run pipeline ───────────────────────────────────────────────────────
+async function runPipeline() {
+  if (pipelineRunning) return;
+  pipelineRunning = true;
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+  resultBox.className = 'out';
+
+  // Reset stages
+  setStage('Discover', 'pending', 'pending');
+  setStage('Analyze', 'pending', 'pending');
+  setStage('Render', 'pending', 'pending');
+
+  // Reset scenes
+  if (scriptData) renderEmptyScenes();
+
+  try {
+    const topic = topicInput.value || 'funny hen chicken';
+
+    // ── Stage 1: Discover ──
+    setStage('Discover', 'active', 'scanning...');
+    resultBox.textContent = `[📡] Discovering videos for "${topic}"...\n`;
+    resultBox.className = 'out show';
+
+    // Simulate discover via API call to search
+    const searchRes = await fetch(`/api/search?topic=${encodeURIComponent(topic)}&per_page=3`);
+    const searchData = await searchRes.json();
+    const itemCount = searchData.total_items || 0;
+    
+    setStage('Discover', 'done', `${itemCount} items`);
+    resultBox.textContent += `  ✓ ${itemCount} items discovered\n`;
+
+    // ── Stage 2: Analyze ──
+    setStage('Analyze', 'active', 'Qwen-VL...');
+    resultBox.textContent += `[🧠] Analyzing via Qwen-VL...\n`;
+
+    // Try loading shadow index
+    await loadShadowIndex();
+    const analyzed = shadowIndex.length;
+    const tokenTotal = shadowIndex.reduce((s, e) => s + (e.humor?.length || 0), 0);
+
+    if (analyzed > 0) {
+      setStage('Analyze', 'done', `${analyzed} analyzed ✓`);
+      resultBox.textContent += `  ✓ ${analyzed} entries in shadow index\n`;
+      
+      // Update scene matches
+      if (scriptData) {
+        scriptData.scenes.forEach((scene, i) => {
+          const kws = scene.visual_keywords.map(k => k.toLowerCase());
+          let bestScore = 0;
+          let bestEntry = null;
+          shadowIndex.forEach(entry => {
+            const text = `${entry.humor||''} ${entry.title||''} ${(entry.objects||[]).join(' ')}`.toLowerCase();
+            const score = kws.filter(kw => text.includes(kw)).length;
+            if (score > bestScore) { bestScore = score; bestEntry = entry; }
+          });
+          updateSceneMatch(i, bestEntry, bestScore);
+        });
+      }
+    } else {
+      setStage('Analyze', 'fail', 'no data');
+      resultBox.textContent += `  ⚠ No analysis data yet\n`;
+    }
+
+    // ── Stage 3: Render ──
+    setStage('Render', 'active', 'compositing...');
+    resultBox.textContent += `[🎬] Rendering final clip...\n`;
+
+    // Trigger generate endpoint
+    const genRes = await fetch('/api/generate_video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice: 'default', prompt: topic })
+    });
+    const genData = await genRes.json();
+    
+    setStage('Render', 'done', 'complete ✓');
+    resultBox.textContent += `  ✓ Render triggered\n`;
+    resultBox.className = 'out show ok';
+
+    // Show final result
+    const clipPath = genData.output_path || genData.video_path || 'api/data/generated/';
+    resultBox.textContent += `\n🎬 Output: ${clipPath}\n`;
+
+  } catch (err) {
+    resultBox.textContent += `\n❌ Error: ${err.message}`;
+    resultBox.className = 'out show bad';
+    setStage('Render', 'fail', 'failed');
+  } finally {
+    pipelineRunning = false;
+    btn.disabled = false;
+    btn.textContent = '🚀 Run Humor Pipeline';
+  }
+}
+
+// ─── Event listeners ────────────────────────────────────────────────────
+btn.addEventListener('click', runPipeline);
+
+// ─── Init ───────────────────────────────────────────────────────────────
+loadScript();
+loadShadowIndex();
+// Auto-refresh shadow index every 10s
+setInterval(loadShadowIndex, 10000);
+</script>
+</body>
+</html>

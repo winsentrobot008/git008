@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Black background circle -->
+  <circle cx="128" cy="128" r="120" fill="#1a1a2e" stroke="#ff6b35" stroke-width="4"/>
+  
+  <!-- Outer ring: CN + EN indicators -->
+  <circle cx="128" cy="128" r="100" fill="none" stroke="#e94560" stroke-width="1" stroke-dasharray="10 5" opacity="0.5"/>
+  <circle cx="128" cy="128" r="90" fill="none" stroke="#4ecdc4" stroke-width="1" stroke-dasharray="10 5" opacity="0.5"/>
+  
+  <!-- CN label -->
+  <text x="72" y="170" font-family="Arial" font-size="14" fill="#e94560" text-anchor="middle" opacity="0.7">CN</text>
+  <!-- EN label -->
+  <text x="184" y="170" font-family="Arial" font-size="14" fill="#4ecdc4" text-anchor="middle" opacity="0.7">EN</text>
+
+  <!-- Flame icon (simplified) -->
+  <path d="M128 60 C128 60 110 90 110 110 C110 125 118 135 128 135 C138 135 146 125 146 110 C146 90 128 60 128 60Z" fill="#ff6b35"/>
+  <path d="M128 75 C128 75 118 95 118 108 C118 118 123 125 128 125 C133 125 138 118 138 108 C138 95 128 75 128 75Z" fill="#ffd700"/>
+  
+  <!-- Center "R" letter -->
+  <text x="128" y="120" font-family="Arial" font-size="48" font-weight="bold" fill="#ffd700" text-anchor="middle" dominant-baseline="central">R</text>
+  
+  <!-- Bottom text -->
+  <text x="128" y="215" font-family="Arial" font-size="11" fill="#888" text-anchor="middle">RoastBro</text>
+  <text x="128" y="230" font-family="Arial" font-size="9" fill="#666" text-anchor="middle">Global Bilingual Factory</text>
+</svg>

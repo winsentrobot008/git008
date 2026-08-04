@@ -1,0 +1,17 @@
+{
+  "task_id": "UI-E2E-001",
+  "timestamp": 1785607581,
+  "status": "SUCCESS",
+  "result": {
+    "stdout": "[0] <button> clicked :: 点击按钮 1\n[1] <a> clicked :: 链接 2\n[2] <button> clicked :: 点击按钮 3\nTOTAL_CLICKED=3",
+    "exit_code": 0,
+    "cmd": "UI_E2E inspect file:///C:/Users/aoogoost/Desktop/Projekt/git008/runtime_data/_ui_test.html",
+    "product": "orchestrator",
+    "screenshots": [
+      "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\qa_delivery\\reports\\screenshots\\ui_1785607578.png"
+    ],
+    "console_errors": [],
+    "network_errors": []
+  },
+  "log_trace": ""
+}
