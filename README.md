@@ -84,6 +84,13 @@ GATEWAY_APP_TOKEN=tok_calorieai_xxx
 
 网关不可用时自动回退子应用直连，**旧业务零影响**。SDK 示例：`products/calorieai/src/lib/gateway-client.ts`。
 
+**10 秒挂载全套积分与收银台**：
+
+1. 网关颁发 `GATEWAY_APP_TOKEN`（`GATEWAY_APP_TOKENS={"petai":"tok_petai_xxx",...}` 一行注册）；
+2. 子应用配置 `GATEWAY_BASE_URL + GATEWAY_APP_TOKEN` 两项环境变量；
+3. SDK 自动挂载统一 `credits`（跨端积分）、`billing/checkout`（统一收银台）、`ai/vision`（统一识图），
+   计费与计价全部由网关统一下发 —— **改网关一处配置，全网 50+ 套娃应用秒级同步**。
+
 ---
 
 ## 🧬 4. 套娃应用矩阵与接入状态
@@ -108,6 +115,31 @@ GATEWAY_APP_TOKEN=tok_calorieai_xxx
 | `GET/POST /api/v1/credits` | 跨端积分 / Pro 权威判定 |
 
 安全：App-Token / Bearer 鉴权（`GATEWAY_APP_TOKENS` 注册表）、动态 CORS 白名单（精确 + `*.` 通配）、滑动窗口限频。上游密钥（OpenAI/OpenRouter、Stripe、KV/Postgres）只存在于网关环境变量。
+
+### 5.1 商业模式核心（矩阵变现模型 · 2026.08 定稿）
+
+**彻底弃用“强按月订阅（Subscription Traps）”**，全矩阵统一以下三种变现方式（均为一次性 / 非自动续费）：
+
+| 变现支柱 | 说明 | 网关/应用落点 |
+|----------|------|--------------|
+| 💰 **一次性积分充值（Credits Top-up）** | 按次付费主模型：用户购买积分包（如 10/50/120 积分），识图等 AI 能力按次扣积分，无月租 | 网关 `billing/checkout` 统一收银 + `credits` 跨端记账；CalorieAI 参考实现已上线 |
+| 🎬 **看广告领积分（Free Tier）** | 免费用户通过观看激励广告赚取积分，形成免费漏斗 + 广告收益 | 各套娃 `ad-reward` 端点（服务端权威 +N 积分） |
+| 🃏 **终身买断卡（Lifetime Access）** | 可选的一次性买断 SKU：一次性付款解锁终身权限，**无续费、无订阅** | 网关/套娃以 One-Time Checkout 下发一次性会话 |
+
+> 原则：**任何情况下不向用户强推按月/按年自动续费**。订阅类事件（`customer.subscription.*` / `invoice.*`）在网关与套娃侧一律视为遗留并忽略。
+
+### 5.2 中央网关控制一切（Central Gateway Centralized Control）
+
+- **计费与计价由网关统一下发**：积分包目录、价格、终身买断 SKU、支付渠道（Stripe/PayPal）全部收敛在网关配置（`GATEWAY_APP_TOKENS` 注册表 + `billing/checkout` 统一计价）；
+- **改一处，全网生效**：调整网关计价/积分包配置后，50+ 套娃应用无需逐个改代码或重新发版，下一次请求即按新配置收银；
+- **零 Key 客户端**：套娃前端不持有任何上游密钥，只持 `APP_ID + GATEWAY_APP_TOKEN`；
+- **自动回退**：网关不可用时子应用回退直连（演示/降级模式），旧业务零影响。
+
+### 5.3 管理后台安全隐身（Admin Security Isolation）
+
+- **前端 DOM 隐身**：底栏【管理后台】按钮（及 Logo 双击入口）仅在登录身份含 `admin`（`role: "admin" / "superadmin"`）或等于 `NEXT_PUBLIC_ADMIN_USER_ID` 时才渲染；普通用户（即使 Pro）**DOM 中完全不存在**该按钮；
+- **后端强制拦截**：`/api/admin/*`（含 `/api/v1/admin/*`）全部强制鉴权，无令牌/伪造令牌一律 **401**，非法身份访问业务数据一律 **403**；
+- **令牌机制**：管理登录签发 24h 随机 `x-admin-token`（服务端持久化），所有管理数据请求必须携带，防止绕过前端直接调用。
 
 ---
 
@@ -213,6 +245,7 @@ python scripts/qa_inspect.py --url https://calorie-ai-seven.vercel.app
 
 | 日期 | 版本 | 变更内容 |
 |------|---------|---------|
+| 2026.08 | **v3.2** | 商业模式重构：弃用按月订阅（Subscription Traps），统一【一次性积分充值 + 看广告领积分 + 终身买断卡】三支柱；写入“中央网关控制一切”集中计价原则与“管理后台安全隐身”规范；网关/CalorieAI 说明书同步 One-Time Checkout 与 1-Step Clone SOP |
 | 2026.08 | **v3.1** | 交付前 ZOO/CODEX 交叉对抗 QA：修复 Stripe Checkout 支付方式降级、清理 TTS 调试 UI 后的回归验证、网关安全对抗 25 项全过 |
 | 2026.08 | **v3.0** | 新增 SaaS 矩阵架构：Central Gateway（中央大脑/收银中枢）+ 套娃应用矩阵（CalorieAI 参考实现）；1-Step Clone 与 GATEWAY_APP_TOKEN 10 秒接入规范；根 README 重构 |
 | 2026.07 | v2.0 | 治理审计与修复：+17 宪法导入、+7 哨兵钩子、目录重组、README 升级 |

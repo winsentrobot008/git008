@@ -37,7 +37,7 @@
 | 角色 | 说明 |
 |------|------|
 | **中央大脑** | 统一 AI 识图（按 `app_id` 切换 Prompt 与业务逻辑）、跨端积分/Pro 权威判定 |
-| **收银中枢** | 统一 Stripe / PayPal 支付发起（Checkout Session / Order · **Credits Top-up 一次性付款，无订阅**），透传 `app_id` 记账 |
+| **收银中枢** | 统一计价 + 收银：Stripe One-Time Checkout / PayPal Order（**Credits Top-up 一次性付款 + 终身买断卡，无订阅、无自动续费**），计价由网关统一下发，透传 `app_id` 记账 |
 | **密钥保险箱** | OpenAI/OpenRouter/Gemini/DeepSeek、Stripe Secret、KV/Postgres 连接全部只存在于网关环境变量 |
 | **安全闸门** | App-Token 鉴权 + 动态 CORS 白名单 + 滑动窗口限频 |
 
@@ -110,7 +110,7 @@ x-app-key:   <GATEWAY_APP_TOKEN>   # 兼容旧命名
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | 推荐 | AI A 提供商（Vision） |
 | `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | 可选 | AI B 提供商（OpenAI 兼容） |
 | `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` | 可选 | AI C 提供商 |
-| `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | 可选 | Stripe Checkout 收银 |
+| `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | 可选 | Stripe **One-Time Checkout** 收银（积分包 / 终身买断卡，无订阅配置项） |
 | `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` / `PAYPAL_API_URL` | 可选 | PayPal 收银兜底 |
 | `POSTGRES_URL` / `DATABASE_URL` | 可选 | 跨端积分持久化（Postgres） |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN`（含 `VERCEL_KV_*` / `UPSTASH_REDIS_*` 别名） | 可选 | 跨端积分持久化（KV） |
@@ -138,11 +138,19 @@ x-app-key:   <GATEWAY_APP_TOKEN>   # 兼容旧命名
 
 ### 5.2 `POST /api/v1/billing/checkout` — 统一收银发起
 
+**商业模式（2026.08 定稿）**：彻底弃用按月/按年订阅（Subscription Traps），仅支持一次性付款：
+
+- 💰 **Credits Top-up 积分包**：`pack_id`（如 `pack_starter` 10 积分 / `pack_booster` 50 积分 / `pack_power` 120 积分），AI 能力按次扣积分；
+- 🎬 **看广告领积分（Free Tier）**：各套娃 `ad-reward` 端点服务端权威发放（免费漏斗 + 广告收益）；
+- 🃏 **终身买断卡（Lifetime Access）**：`plan: "permanent"` 走一次性 `mode=payment` 会话，解锁终身权限，无续费。
+
+示例（Stripe One-Time Checkout，积分包）：
+
 ```json
-{ "plan": "monthly", "provider": "stripe", "payment_method": "card", "user_id": "u_001", "email": "a@b.com" }
+{ "pack_id": "pack_booster", "provider": "stripe", "payment_method": "card", "user_id": "u_001", "email": "a@b.com", "credits": 50 }
 ```
 
-统一测试价 `$1.00`；**一次性付款（Credits Top-up），无订阅、无自动续费**。Stripe 返回 `{ sessionId, url }`，PayPal 返回 `{ orderId }`，均透传 `app_id`、`plan` 与可选 `credits`（用于按积分包入账）。
+统一测试价 `$1.00`（体验包）；Stripe 返回 `{ sessionId, url }`，PayPal 返回 `{ orderId }`，均透传 `app_id`、`pack_id` 与可选 `credits`（用于按积分包入账）。**会话恒为 `mode=payment`（一次性）**，无 recurring 配置项。
 
 ### 5.3 `GET/POST /api/v1/credits` — 跨端积分
 
@@ -199,3 +207,16 @@ GATEWAY_APP_TOKEN=tok_calorieai_xxx
 ```
 
 接入后：识图与积分请求**优先经中央网关**（App-Token 鉴权、零上游密钥），网关不可用时自动回退直连——旧业务零影响。SDK 示例见 `products/calorieai/src/lib/gateway-client.ts`。
+
+### 8.1 1-Step App Clone 标准 SOP（10 秒挂载全套积分与收银台）
+
+| # | 步骤 | 说明 |
+|---|------|------|
+| 1 | 克隆模版 | `cp -r products/calorieai products/petai`（或直接复用 SDK 文件） |
+| 2 | 全局重命名 | `calorieai → petai`、`CalorieAI → PetAI`、`app_id → petai` |
+| 3 | 网关注册 | 网关 `GATEWAY_APP_TOKENS` 追加一行：`"petai":"tok_petai_xxx"`（10 秒完成） |
+| 4 | 客户端配置 | 子应用 `.env.local` 写入 `GATEWAY_BASE_URL + GATEWAY_APP_TOKEN` 两项 |
+| 5 | 自动挂载 | SDK 即获得跨端积分（`credits`）、统一收银台（`billing/checkout` 一次性付款）、统一识图（`ai/vision`） |
+| 6 | 集中改价 | 后续计价/积分包调整只在网关改一处，50+ 套娃应用秒级同步，无需逐仓发版 |
+
+> 全程不配置任何订阅（无月付/年付/自动续费），收银恒为 One-Time Checkout。
