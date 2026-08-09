@@ -188,10 +188,32 @@ python scripts/qa_inspect.py --url https://calorie-ai-seven.vercel.app
 
 ---
 
+## 🧪 10.5 最近一次交付前 QA（ZOO ⚔️ CODEX 交叉对抗）
+
+> 日期：2026-08-09 · 对象：CalorieAI（本地生产构建）+ Central Gateway（本地 :8787）
+
+| 测试项 | 结果 |
+|--------|------|
+| `scripts/qa_inspect.py` 全量 UI E2E | ✅ PASS（0 Console / 0 网络错误） |
+| TTS 调试组件/残留 Tab 扫描 | ✅ PASS（Tab 仅剩 记录饮食/数据看板/个人设置） |
+| 多语言 × 明暗模式 DOM 盲测 | ✅ PASS（0 报错 / 0 错位） |
+| CalorieAI API 全路由冒烟（30 路由） | ✅ PASS（0 404） |
+| Central Gateway smoke（10 项） | ✅ PASS |
+| 网关对抗测试（伪造 Token / 非法 Origin / app_id 错配 / 预检 / 限频，25 项） | ✅ PASS |
+| Stripe Checkout 链接生成（6 支付用例） | ✅ PASS（未开通支付方式自动降级信用卡） |
+| PayPal 沙箱订单 / 积分 DAL 读写 | ✅ PASS |
+
+发现并修复：**Stripe Checkout 对未开通支付宝/微信的账户返回 500**（已加自动降级重试 + 前端友好提示）；清理 `test:e2e` 指向已裁撤 `qa-inspector` 的残留脚本；同步 PROJECT_SPEC 中 TTS 描述。
+
+📄 缺陷清单：[`qa_delivery/reports/DEFECTS_LIST_2026-08-09.md`](qa_delivery/reports/DEFECTS_LIST_2026-08-09.md) ｜ 最新 E2E 报告：[`qa_delivery/reports/latest.md`](qa_delivery/reports/latest.md)
+
+---
+
 ## 🗓️ 11. 版本历史
 
 | 日期 | 版本 | 变更内容 |
 |------|---------|---------|
+| 2026.08 | **v3.1** | 交付前 ZOO/CODEX 交叉对抗 QA：修复 Stripe Checkout 支付方式降级、清理 TTS 调试 UI 后的回归验证、网关安全对抗 25 项全过 |
 | 2026.08 | **v3.0** | 新增 SaaS 矩阵架构：Central Gateway（中央大脑/收银中枢）+ 套娃应用矩阵（CalorieAI 参考实现）；1-Step Clone 与 GATEWAY_APP_TOKEN 10 秒接入规范；根 README 重构 |
 | 2026.07 | v2.0 | 治理审计与修复：+17 宪法导入、+7 哨兵钩子、目录重组、README 升级 |
 | 2026.06 | v1.0 | 初始系统结构（core/ + Cline-anti-freeze/） |
