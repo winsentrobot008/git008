@@ -37,7 +37,7 @@
 | 角色 | 说明 |
 |------|------|
 | **中央大脑** | 统一 AI 识图（按 `app_id` 切换 Prompt 与业务逻辑）、跨端积分/Pro 权威判定 |
-| **收银中枢** | 统一 Stripe / PayPal 支付发起（Checkout Session / Order），透传 `app_id` 记账 |
+| **收银中枢** | 统一 Stripe / PayPal 支付发起（Checkout Session / Order · **Credits Top-up 一次性付款，无订阅**），透传 `app_id` 记账 |
 | **密钥保险箱** | OpenAI/OpenRouter/Gemini/DeepSeek、Stripe Secret、KV/Postgres 连接全部只存在于网关环境变量 |
 | **安全闸门** | App-Token 鉴权 + 动态 CORS 白名单 + 滑动窗口限频 |
 
@@ -142,7 +142,7 @@ x-app-key:   <GATEWAY_APP_TOKEN>   # 兼容旧命名
 { "plan": "monthly", "provider": "stripe", "payment_method": "card", "user_id": "u_001", "email": "a@b.com" }
 ```
 
-统一测试价 `$1.00`；Stripe 返回 `{ sessionId, url }`，PayPal 返回 `{ orderId }`，均透传 `app_id` 与 `plan`。
+统一测试价 `$1.00`；**一次性付款（Credits Top-up），无订阅、无自动续费**。Stripe 返回 `{ sessionId, url }`，PayPal 返回 `{ orderId }`，均透传 `app_id`、`plan` 与可选 `credits`（用于按积分包入账）。
 
 ### 5.3 `GET/POST /api/v1/credits` — 跨端积分
 

@@ -8,8 +8,9 @@ import { env } from "../env.js";
  * POST /api/v1/billing/checkout
  *
  * 统一支付发起端点：Stripe Checkout Session 或 PayPal Order，并透传 app_id。
+ * 商业化模式：Credits Top-up（积分充值/按次付费）一次性付款，无订阅、无自动续费。
  * Body: { plan: "monthly" | "yearly" | "permanent", provider: "stripe" | "paypal",
- *         payment_method?, user_id?, email?, success_url?, cancel_url? }
+ *         payment_method?, user_id?, email?, credits?, success_url?, cancel_url? }
  * 统一测试价 $1.00。
  */
 const billing = new Hono<{ Variables: Variables }>();
@@ -22,6 +23,7 @@ async function createStripeSession(input: {
   paymentMethod?: string;
   userId?: string;
   email?: string;
+  credits?: number;
   successUrl?: string;
   cancelUrl?: string;
 }): Promise<{ sessionId: string; url: string }> {
@@ -29,20 +31,17 @@ async function createStripeSession(input: {
     throw new Error("STRIPE_NOT_CONFIGURED");
   }
 
-  const isPermanent = input.plan === "permanent";
   const params = new URLSearchParams();
-  params.set("mode", isPermanent ? "payment" : "subscription");
+  params.set("mode", "payment"); // Credits Top-up 一次性付款（无订阅）
   params.set("success_url", input.successUrl || "https://calorie-ai-seven.vercel.app/billing/success?session_id={CHECKOUT_SESSION_ID}");
   params.set("cancel_url", input.cancelUrl || "https://calorie-ai-seven.vercel.app/billing/cancel");
   params.set("line_items[0][quantity]", "1");
   params.set("line_items[0][price_data][currency]", "usd");
   params.set("line_items[0][price_data][unit_amount]", "100");
-  params.set("line_items[0][price_data][product_data][name]", `CalorieAI ${input.plan} ($1 测试价)`);
-  if (!isPermanent) {
-    params.set("line_items[0][price_data][recurring][interval]", input.plan === "yearly" ? "year" : "month");
-  }
+  params.set("line_items[0][price_data][product_data][name]", `CalorieAI ${input.plan} 积分包 ($1 测试价 · 一次性付款)`);
   params.set("metadata[app_id]", input.appId);
   params.set("metadata[plan]", input.plan);
+  if (input.credits) params.set("metadata[credits]", String(input.credits));
   if (input.userId) params.set("metadata[user_id]", input.userId);
   if (input.email) {
     params.set("customer_email", input.email);
@@ -126,6 +125,7 @@ billing.post("/checkout", rateLimit(20), async (c: Context<{ Variables: Variable
       paymentMethod: body.payment_method,
       userId: body.user_id,
       email: body.email,
+      credits: body.credits,
       successUrl: body.success_url,
       cancelUrl: body.cancel_url,
     });
