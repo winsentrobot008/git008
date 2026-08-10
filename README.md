@@ -57,7 +57,7 @@
 | **子仓库（products/*）** | 每个套娃应用独立 Git 仓库（如 `calorieai` → GitHub `winsentrobot008/calorieAI`），独立部署 Vercel | 子仓库 push main；主仓库提交 `chore(git008): bump <app> submodule pointer` |
 | **Central Gateway** | 独立可部署模块（自托管 Node / Vercel Serverless） | 随主仓库提交；部署平台配置密钥 |
 
-**质量门禁**：子仓库 pre-commit / pre-push 内置路由检查（`check-routes.mjs`）；线上回归由 `scripts/qa_inspect.py` 做 **0-Token E2E 巡检**（0 Console / 0 网络错误）。
+**质量门禁**：子仓库 pre-commit / pre-push 内置路由检查（`check-routes.mjs`）；`npm run test:api` 与 `npm run qa:ui` 内置**语义级 QA 反 Mock 门禁**（AI 路由随机输入 + Provider 标记 + 硬编码 Mock 签名 FAIL 阻断）；线上回归由 `scripts/qa_inspect.py` 做 **0-Token E2E 巡检**（0 Console / 0 网络错误）。
 
 ---
 
@@ -91,6 +91,8 @@ GATEWAY_APP_TOKEN=tok_calorieai_xxx
 2. 子应用配置 `GATEWAY_BASE_URL + GATEWAY_APP_TOKEN` 两项环境变量；
 3. SDK 自动挂载统一 `credits`（跨端积分）、`billing/checkout`（统一收银台）、`ai/vision`（统一识图），
    计费与计价全部由网关统一下发 —— **改网关一处配置，全网 50+ 套娃应用秒级同步**。
+
+**10 分钟一键克隆引擎（v3.4）**：`node scripts/clone_app.mjs petai` 自动复制标准模版（`products/calorieai`）并全局重命名；克隆后只需改 `src/lib/app-config.ts`（App-ID/Prompt/配色）+ i18n 文案即可上线，详见 [`TEMPLATE_APP.md`](TEMPLATE_APP.md)。
 
 ---
 
@@ -281,6 +283,7 @@ python scripts/qa_inspect.py --url https://calorie-ai-seven.vercel.app
 
 | 日期 | 版本 | 变更内容 |
 |------|---------|---------|
+| 2026.08 | **v3.4** | 引入【语义级 QA 反 Mock 门禁】（smoke-api/qa_ui 动态语义探针：随机输入 + Provider 标记 + Mock 签名 FAIL 阻断）与【10 分钟套娃克隆引擎】（clone_app.mjs + TEMPLATE_APP.md + app-config.ts 集中控制 App-ID/Prompt/配色），实现套娃矩阵标准化 |
 | 2026.08 | **v3.3** | 新增 §11 矩阵商业运营与流量变现 SOP：借鉴 Yapi 短内容引流（矩阵 Hub + TikTok/YT Shorts 15s Demo），透明变现（Credits 充值 + 看广告领积分，弃订阅套路），架构差异化（Central Gateway 一处改价全网同步） |
 | 2026.08 | **v3.2** | 商业模式重构：弃用按月订阅（Subscription Traps），统一【一次性积分充值 + 看广告领积分 + 终身买断卡】三支柱；写入“中央网关控制一切”集中计价原则与“管理后台安全隐身”规范；网关/CalorieAI 说明书同步 One-Time Checkout 与 1-Step Clone SOP |
 | 2026.08 | **v3.1** | 交付前 ZOO/CODEX 交叉对抗 QA：修复 Stripe Checkout 支付方式降级、清理 TTS 调试 UI 后的回归验证、网关安全对抗 25 项全过 |
