@@ -213,3 +213,111 @@ export async function runVisionProviders(
   }
   throw new Error("NO_VISION_KEY: 未配置任何 AI 视觉密钥");
 }
+
+// ─── 文字食物分析（用户描述 → 营养估算，A→B→C 回退） ──────────────────
+
+async function analyzeTextWithGemini(prompt: string, apiKey: string): Promise<FoodRecord[]> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${env.geminiModel}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Gemini API ${response.status}: ${(await response.text()).slice(0, 200)}`);
+  }
+  const data = (await response.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  return parseRecords(data?.candidates?.[0]?.content?.parts?.[0]?.text || "[]");
+}
+
+async function analyzeTextWithOpenAICompatible(
+  prompt: string,
+  apiKey: string,
+  options: { provider: string; endpoint: string; model: string }
+): Promise<FoodRecord[]> {
+  const response = await fetch(options.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: options.model,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 1024,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`${options.provider} API ${response.status}: ${(await response.text()).slice(0, 200)}`);
+  }
+  const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+  return parseRecords(data?.choices?.[0]?.message?.content || "[]");
+}
+
+/** 文字分析 A→B→C 回退链：Gemini → OpenRouter → DeepSeek */
+export async function runTextProviders(prompt: string): Promise<ProviderResult> {
+  const chain: { provider: string; key: string; run: () => Promise<FoodRecord[]> }[] = [
+    { provider: "gemini", key: env.geminiKey, run: () => analyzeTextWithGemini(prompt, env.geminiKey) },
+    {
+      provider: "openrouter",
+      key: env.openrouterKey,
+      run: () =>
+        analyzeTextWithOpenAICompatible(prompt, env.openrouterKey, {
+          provider: "openrouter",
+          endpoint: "https://openrouter.ai/api/v1/chat/completions",
+          model: env.openrouterModel,
+        }),
+    },
+    {
+      provider: "deepseek",
+      key: env.deepseekKey,
+      run: () =>
+        analyzeTextWithOpenAICompatible(prompt, env.deepseekKey, {
+          provider: "deepseek",
+          endpoint: "https://api.deepseek.com/chat/completions",
+          model: env.deepseekModel,
+        }),
+    },
+  ];
+
+  let lastError: Error | null = null;
+  let attempted = 0;
+  for (const item of chain) {
+    if (!item.key) continue;
+    attempted += 1;
+    try {
+      const records = await item.run();
+      const model =
+        item.provider === "gemini"
+          ? env.geminiModel
+          : item.provider === "openrouter"
+            ? env.openrouterModel
+            : env.deepseekModel;
+      return {
+        count: records.length,
+        records,
+        model: {
+          provider: item.provider,
+          model,
+          label: buildLabel(item.provider, model),
+          switched: attempted > 1,
+          attempts: attempted,
+        },
+      };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.error(`[Gateway Text] ${item.provider} failed:`, lastError.message);
+    }
+  }
+
+  if (lastError) {
+    throw new Error(`TEXT_PROVIDER_ERROR: ${lastError.message.slice(0, 200)}`);
+  }
+  throw new Error("NO_TEXT_KEY: 未配置任何 AI 文本密钥");
+}
