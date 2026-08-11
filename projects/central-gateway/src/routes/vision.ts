@@ -15,8 +15,15 @@ const vision = new Hono<{ Variables: Variables }>();
 
 const PROMPTS: Record<string, (mealType: string) => string> = {
   calorieai: (mealType) =>
-    `你是一位专业的营养师。请分析这张食物照片，返回 JSON 数组格式的食物列表。
-每个对象必须包含: food(中文名), food_en(英文名), grams(估算重量克数), calories(卡路里), protein_g(蛋白质克数), fat_g(脂肪克数), carbs_g(碳水克数), confidence(0-1的置信度).
+    `你是一位专业的营养师。请对这张食物照片执行【全量清点与全量热量计算】。
+
+规则（必须严格遵守）：
+1. 全量识别 Count：逐项清点画面中每种食物的具体数量/份数（例：整笼小笼包 9 颗、盘里鸡翅 6 块、米饭 1 碗、鸡蛋 2 个、包子 4 个）。画面模糊无法确定时给出合理估计，并在 confidence(0-1) 中体现置信度。
+2. 强制算总数 Total：每项营养 = 单品重量/热量 × 画面中的总数量，直接输出整盘/整笼的【实际总热量与总营养素】；禁止只按 1 颗/1 个/1 碗 或 100g 基础单位返回。
+3. 命名规范：food 名称必须带上清点出的数量，如「小笼包 (9颗)」「鸡翅 (6块)」「米饭 (1碗)」「鸡蛋 (2个)」，让用户一眼看懂整盘份量。
+
+输出 JSON 数组，每个对象必须包含：
+food(带数量的中文名), food_en(英文名), grams(该食物整盘估算总重量克数), calories(该食物整盘总卡路里), protein_g(整盘蛋白质克数), fat_g(整盘脂肪克数), carbs_g(整盘碳水克数), confidence(0-1的置信度).
 餐次类型: ${mealType}
 只返回 JSON 数组，不要其他文字。`,
   petai: () =>

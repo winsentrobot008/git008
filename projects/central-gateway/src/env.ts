@@ -77,7 +77,7 @@ export const env = {
   geminiKey: process.env.GEMINI_API_KEY || "",
   openrouterKey: process.env.OPENROUTER_API_KEY || "",
   deepseekKey: process.env.DEEPSEEK_API_KEY || "",
-  geminiModel: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
   openrouterModel: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
   deepseekModel: process.env.DEEPSEEK_MODEL || "deepseek-chat",
 
