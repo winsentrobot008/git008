@@ -1,6 +1,6 @@
 # GIT008 AI 工厂 SOP 说明书（AI_FACTORY_SPEC.md）
 
-**版本**: v1.1（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
+**版本**: v1.2（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
 
 > 本文件沉淀三类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
 > **SOP-01** CEO 拟人化慢速轨迹光标巡检（slowMo=1200ms）｜
@@ -33,6 +33,7 @@
 # 在套娃应用根目录（如 products/calorieai）执行
 npm run demo:visual                          # 桌面端（默认线上生产 URL）
 python scripts/ceo_visual_demo.py --mode mobile   # iPhone 14 移动端模拟
+python scripts/ceo_visual_demo.py --fast     # 快节奏短视频模式：slowMo=150ms + 自动录屏导出 MP4
 python scripts/ceo_visual_demo.py --url http://127.0.0.1:3100   # 本地联调
 ```
 
@@ -49,6 +50,19 @@ python scripts/ceo_visual_demo.py --url http://127.0.0.1:3100   # 本地联调
 5. **human_click 拟人化点击**：先沿 25 步轨迹滑到目标中心，再执行 `page.click`；
    监听 `window.mousedown`，每次点击在落点生成 **40px 红色扩散波纹**（300ms 渐隐动画，触屏兜底同样触发）。
 6. **slowMo=1200ms**：`chromium.launch(slow_mo=1200)` 全链路放缓，所有动作均以 1.2s/步的人眼可读节奏执行。
+
+### 1.6.1 快节奏短视频模式（--fast）
+
+面向“爆款短视频”出片：`slowMo=150ms`、`human_move` 步进压缩至 8 步（快速平滑）、装饰性等待统一 ÷6（下限 60ms）、
+小笼包高光停顿 1s；`analyze-text / analyze-image` 使用内置演示应答保证快节奏出片（实测动作序列 ~18s，加载头自动裁剪；
+真实 AI 仅在默认深度巡检模式执行，该模式全程 ~5 分钟）。
+通过 `record_video_dir` 录制 Chrome 窗口，脚本结束后自动 ffmpeg 转码（webm → H.264 MP4，裁掉页面加载头）并落盘：
+
+```text
+C:\Users\aoogoost\Desktop\Projekt\git008\TEMP\calorieai_demo_fast.mp4
+```
+
+Canvas 红点轨迹 / 蓝色光环 / 点击波纹与小笼包 scale(1.08) 高光在 fast 模式完整保留。
 
 ### 1.4 全 UI / 逻辑深度巡检分支（对齐 PROJECT_SPEC）
 
@@ -172,5 +186,6 @@ python scripts/ceo_visual_demo.py --mode mobile   # 移动端全绿验证
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026.08 | v1.2 | 新增 SOP-01.6.1 快节奏短视频模式（--fast）：slowMo=150ms / human_move 8 步 / 内置演示应答 / 小笼包高光 1s；record_video_dir 录屏 + ffmpeg 转码导出 TEMP/calorieai_demo_fast.mp4 |
 | 2026.08 | v1.1 | 视觉特效强制渲染：`add_init_script` 注入 `#ceo-pointer-canvas`（z-index !important + MutationObserver 持久化）、window mousemove/mousedown 监听、8px 红点 + 20px 蓝圈 + 15 点尾迹 + 40px/300ms 波纹；human_move 25 步；小笼包卡片 2s 放大高亮 |
 | 2026.08 | v1.0 | 首次沉淀：SOP-01 光标轨迹巡检 / SOP-02 Vision 数量清点总账 / SOP-03 Canvas 500KB 压缩防爆 |
