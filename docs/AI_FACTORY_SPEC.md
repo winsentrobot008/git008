@@ -1,6 +1,6 @@
 # GIT008 AI 工厂 SOP 说明书（AI_FACTORY_SPEC.md）
 
-**版本**: v1.2（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
+**版本**: v1.3（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
 
 > 本文件沉淀三类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
 > **SOP-01** CEO 拟人化慢速轨迹光标巡检（slowMo=1200ms）｜
@@ -56,7 +56,9 @@ python scripts/ceo_visual_demo.py --url http://127.0.0.1:3100   # 本地联调
 面向“爆款短视频”出片：`slowMo=150ms`、`human_move` 步进压缩至 8 步（快速平滑）、装饰性等待统一 ÷6（下限 60ms）、
 小笼包高光停顿 1s；`analyze-text / analyze-image` 使用内置演示应答保证快节奏出片（实测动作序列 ~18s，加载头自动裁剪；
 真实 AI 仅在默认深度巡检模式执行，该模式全程 ~5 分钟）。
-通过 `record_video_dir` 录制 Chrome 窗口，脚本结束后自动 ffmpeg 转码（webm → H.264 MP4，裁掉页面加载头）并落盘：
+通过 `record_video_dir` 录制 Chrome 窗口，脚本结束后自动 ffmpeg 转码（webm → H.264 MP4，裁掉页面加载头）并落盘。
+转码采用**恒定码率高兼容参数**：`-preset slow -b:v 3M -minrate 3M -maxrate 3M -bufsize 6M -x264-params nal-hrd=cbr
+-pix_fmt yuv420p -movflags +faststart`，保证 3~10MB 体积、Windows 媒体播放器原生播放（yuv420p + moov 前置秒开、非黑屏）：
 
 ```text
 C:\Users\aoogoost\Desktop\Projekt\git008\TEMP\calorieai_demo_fast.mp4
@@ -186,6 +188,7 @@ python scripts/ceo_visual_demo.py --mode mobile   # 移动端全绿验证
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026.08 | v1.3 | MP4 导出修复：恒定码率 3Mbps（nal-hrd=cbr）替代 CRF（静态 UI 内容 CRF/ABR 欠码至 0.6~2.3MB），`-preset slow -pix_fmt yuv420p -movflags +faststart`，产物稳定 3~10MB 且 WMP 原生播放 |
 | 2026.08 | v1.2 | 新增 SOP-01.6.1 快节奏短视频模式（--fast）：slowMo=150ms / human_move 8 步 / 内置演示应答 / 小笼包高光 1s；record_video_dir 录屏 + ffmpeg 转码导出 TEMP/calorieai_demo_fast.mp4 |
 | 2026.08 | v1.1 | 视觉特效强制渲染：`add_init_script` 注入 `#ceo-pointer-canvas`（z-index !important + MutationObserver 持久化）、window mousemove/mousedown 监听、8px 红点 + 20px 蓝圈 + 15 点尾迹 + 40px/300ms 波纹；human_move 25 步；小笼包卡片 2s 放大高亮 |
 | 2026.08 | v1.0 | 首次沉淀：SOP-01 光标轨迹巡检 / SOP-02 Vision 数量清点总账 / SOP-03 Canvas 500KB 压缩防爆 |
