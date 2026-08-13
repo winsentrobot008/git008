@@ -18,6 +18,7 @@
 - [8. 系统脚本](#-8-系统脚本)
 - [9. 数据与报告](#-9-数据与报告)
 - [10. 开发者指南](#-10-开发者指南)
+- [10.6 AI 工厂 SOP 说明书（docs/AI_FACTORY_SPEC.md）](#-106-ai-工厂-sop-说明书docsai_factory_specmd)
 - [11. 矩阵商业运营与流量变现 SOP](#-11-矩阵商业运营与流量变现-sop)
 - [12. 版本历史](#-12-版本历史)
 
@@ -244,6 +245,18 @@ python scripts/qa_inspect.py --url https://calorie-ai-seven.vercel.app
 
 ---
 
+## 🧪 10.6 AI 工厂 SOP 说明书（docs/AI_FACTORY_SPEC.md）
+
+> 工厂级可复制规范已沉淀至 [`docs/AI_FACTORY_SPEC.md`](docs/AI_FACTORY_SPEC.md)，套娃克隆后必须对齐：
+
+| SOP | 规范内容 | 参考实现 |
+|-----|---------|---------|
+| **SOP-01** | CEO 拟人化 slowMo=1200ms 轨迹光标巡检：Canvas Custom Pointer（红点 + 蓝色光圈 + 淡出轨迹 + 40px 点击波纹）+ 全 UI 深度巡检（语言/导航/餐次/文字识图/商业化 A-D 分支） | `products/calorieai/scripts/ceo_visual_demo.py`（`npm run demo:visual` / `--mode mobile`） |
+| **SOP-02** | 傻瓜式 Vision AI 数量清点与总账：强制 Count、名称带数量+约重（`小笼包 (9 颗 / 约 270g)`）、整盘总热量 Total 契约 | `products/calorieai/src/lib/app-config.ts` Prompt 工厂 + Central Gateway PROMPTS 表 |
+| **SOP-03** | 移动端 Canvas 500KB 压缩防爆：最长边 1024px / JPEG 0.8 / ≤500KB 硬约束 / HEIC 兜底 / 「图片已优化 (XXKB)」Toast | `products/calorieai/src/lib/image-utils.ts` |
+
+---
+
 ## 📈 11. 矩阵商业运营与流量变现 SOP（Yapi 模式参考与差异化超越）
 
 > **定位**：**借鉴 Yapi 的商业流量策略，绝不照抄其单体架构**。git008 用「流量打法 + 透明变现 + 中央网关架构」的组合拳，实现矩阵级获客与变现：流量端吸收短内容引流精髓，商业端以透明一次性付费建立信任，架构端以 Central Gateway 实现单体 SaaS 做不到的「一处改价、全网同步」。
@@ -283,6 +296,7 @@ python scripts/qa_inspect.py --url https://calorie-ai-seven.vercel.app
 
 | 日期 | 版本 | 变更内容 |
 |------|---------|---------|
+| 2026.08 | **v3.5** | 新增【AI 工厂 SOP 说明书】（`docs/AI_FACTORY_SPEC.md`）：SOP-01 CEO slowMo=1200ms 轨迹光标巡检（TEMP 真实图片集绑定 + Custom Pointer/Ripple + 全 UI 深度巡检 A-D）、SOP-02 Vision 数量清点与整盘总账、SOP-03 移动端 Canvas 500KB 压缩防爆；calorieai `demo:visual` 桌面/移动双端全绿 |
 | 2026.08 | **v3.4** | 引入【语义级 QA 反 Mock 门禁】（smoke-api/qa_ui 动态语义探针：随机输入 + Provider 标记 + Mock 签名 FAIL 阻断）与【10 分钟套娃克隆引擎】（clone_app.mjs + TEMPLATE_APP.md + app-config.ts 集中控制 App-ID/Prompt/配色），实现套娃矩阵标准化 |
 | 2026.08 | **v3.3** | 新增 §11 矩阵商业运营与流量变现 SOP：借鉴 Yapi 短内容引流（矩阵 Hub + TikTok/YT Shorts 15s Demo），透明变现（Credits 充值 + 看广告领积分，弃订阅套路），架构差异化（Central Gateway 一处改价全网同步） |
 | 2026.08 | **v3.2** | 商业模式重构：弃用按月订阅（Subscription Traps），统一【一次性积分充值 + 看广告领积分 + 终身买断卡】三支柱；写入“中央网关控制一切”集中计价原则与“管理后台安全隐身”规范；网关/CalorieAI 说明书同步 One-Time Checkout 与 1-Step Clone SOP |
