@@ -1,6 +1,6 @@
 # GIT008 AI 工厂 SOP 说明书（AI_FACTORY_SPEC.md）
 
-**版本**: v1.3（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
+**版本**: v1.4（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
 
 > 本文件沉淀三类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
 > **SOP-01** CEO 拟人化慢速轨迹光标巡检（slowMo=1200ms）｜
@@ -34,6 +34,7 @@
 npm run demo:visual                          # 桌面端（默认线上生产 URL）
 python scripts/ceo_visual_demo.py --mode mobile   # iPhone 14 移动端模拟
 python scripts/ceo_visual_demo.py --fast     # 快节奏短视频模式：slowMo=150ms + 自动录屏导出 MP4
+python scripts/ceo_visual_demo.py --promo-en # YouTube Shorts 英文宣推：全英文 UI + Edge-TTS 美音解说 + 高码率 MP4
 python scripts/ceo_visual_demo.py --url http://127.0.0.1:3100   # 本地联调
 ```
 
@@ -65,6 +66,19 @@ C:\Users\aoogoost\Desktop\Projekt\git008\TEMP\calorieai_demo_fast.mp4
 ```
 
 Canvas 红点轨迹 / 蓝色光环 / 点击波纹与小笼包 scale(1.08) 高光在 fast 模式完整保留。
+
+### 1.6.2 YouTube Shorts 英文宣推模式（--promo-en）
+
+一键生成可直接上传 YouTube 的英文宣推视频：
+
+| 能力 | 规范 |
+|------|------|
+| **全英文环境** | Playwright context `locale="en-US"` + `timezone America/New_York` + localStorage `calorieai_locale=en`，UI 自动切英文；断言锚点 `Log Meal / Dashboard / Profile / Breakfast / Text Input / Photo / Upload / Image optimized (XXKB) / Total` |
+| **英文演示应答** | `Steamed Buns (9 pcs / approx. 270g) - 540 kcal`、`Soy Milk`、`Total: 400 kcal`；识别断言用 `EN_QTY_G_RE`（pcs/pieces/bowls/cups + approx. + g） |
+| **Edge-TTS 解说** | 4 段：Intro（ChristopherNeural）、Scan（JennyNeural）、Pro（JennyNeural）、CTA（ChristopherNeural）；脚本启动时在 Playwright 上下文**之外**生成 mp3（sync API 内部已有事件循环，`asyncio.run` 会失败），演练中经 winsound 逐段实时播放 |
+| **音轨混音** | ffmpeg `adelay + amix` 按 UI 步骤时间轴放置 4 段解说（intro@0.2s / scan@识图 / pro@收银台 / cta@结尾），AAC 192k 合入 |
+| **高码率高清** | `-c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -b:v 6M -movflags +faststart -c:a aac -b:a 192k` |
+| **产物** | `C:\Users\aoogoost\Desktop\Projekt\git008\TEMP\calorieai_yt_promo_en.mp4`（实测 41.9s / 1.7MB / h264+aac / yuv420p / faststart / 4 段解说音量 -22~-27dB） |
 
 ### 1.4 全 UI / 逻辑深度巡检分支（对齐 PROJECT_SPEC）
 
@@ -188,6 +202,7 @@ python scripts/ceo_visual_demo.py --mode mobile   # 移动端全绿验证
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026.08 | v1.4 | 新增 SOP-01.6.2 YouTube Shorts 英文宣推模式（--promo-en）：locale en-US 全英文 UI、Edge-TTS 4 段美音解说（含演练实时播放 + adelay/amix 时间轴混音）、`-preset slow -crf 18 -b:v 6M -movflags +faststart` 高码率高清导出 |
 | 2026.08 | v1.3 | MP4 导出修复：恒定码率 3Mbps（nal-hrd=cbr）替代 CRF（静态 UI 内容 CRF/ABR 欠码至 0.6~2.3MB），`-preset slow -pix_fmt yuv420p -movflags +faststart`，产物稳定 3~10MB 且 WMP 原生播放 |
 | 2026.08 | v1.2 | 新增 SOP-01.6.1 快节奏短视频模式（--fast）：slowMo=150ms / human_move 8 步 / 内置演示应答 / 小笼包高光 1s；record_video_dir 录屏 + ffmpeg 转码导出 TEMP/calorieai_demo_fast.mp4 |
 | 2026.08 | v1.1 | 视觉特效强制渲染：`add_init_script` 注入 `#ceo-pointer-canvas`（z-index !important + MutationObserver 持久化）、window mousemove/mousedown 监听、8px 红点 + 20px 蓝圈 + 15 点尾迹 + 40px/300ms 波纹；human_move 25 步；小笼包卡片 2s 放大高亮 |
