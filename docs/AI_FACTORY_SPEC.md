@@ -1,6 +1,6 @@
 # GIT008 AI 工厂 SOP 说明书（AI_FACTORY_SPEC.md）
 
-**版本**: v1.0（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
+**版本**: v1.1（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
 
 > 本文件沉淀三类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
 > **SOP-01** CEO 拟人化慢速轨迹光标巡检（slowMo=1200ms）｜
@@ -38,15 +38,16 @@ python scripts/ceo_visual_demo.py --url http://127.0.0.1:3100   # 本地联调
 
 ### 1.3 视觉特效硬规范（Custom Pointer & Ripple）
 
-1. **全局注入**：打开页面后通过 `page.add_script_tag` 注入 Canvas 特效脚本，最外层 `z-index:999999` +
-   `pointer-events:none` 覆盖全视口；同时注入 `cursor: none !important` 隐藏原生光标，保证只显示自定义 Pointer。
-2. **高亮红点 Pointer**：实时跟随鼠标/触摸，红色实心点（半径 6px）+ 红色描边（10px，45% 透明度）。
-3. **蓝色半透明追随光圈**：以 `lerp 0.18` 平滑滞后跟随红点（半径 18px、蓝色 95% 描边），
+1. **全局注入（强制渲染）**：通过 `page.add_init_script` 在页面任何脚本运行前向根节点注入
+   `<canvas id="ceo-pointer-canvas">`，`z-index:999999!important` + `pointer-events:none` 覆盖全视口；
+   同时注入 `cursor: none !important` 隐藏原生光标；MutationObserver 兜底，框架重绘也无法移除画布。
+2. **高亮红点 Pointer**：监听 `window.mousemove`，绘制 8px 红色实心圆点 + 白色描边（高对比高亮）。
+3. **蓝色半透明追随光圈**：以 `lerp 0.2` 平滑滞后跟随红点（20px 蓝色光圈，双层描边），
    滞后产生的拖影让移动路线即使静止后仍可见。
-4. **smooth_move 轨迹滑动**：每次关键操作前调用 `page.mouse.move(x, y, steps=N)` 分段插值落点，
-   配合 slowMo=1200ms 逐段留痕；Canvas 记录最近 24 个轨迹点连线，1.4 秒淡出，人眼可清晰捕获移动路线。
-5. **human_click 拟人化点击**：先沿 smooth 轨迹滑到目标中心，再执行 `page.click`；
-   每次点击在落点生成 **40px 红色扩散波纹**（550ms 生命周期，pointer/touch/mouse 均触发）。
+4. **human_move 轨迹滑动**：每次关键操作前调用 `page.mouse.move(x, y, steps=25)` 分段插值，
+   模拟平滑曲线滑行；Canvas 保留**近 15 个历史坐标点**连线尾迹，700ms 淡出，人眼可极其清晰地看到红点划过屏幕。
+5. **human_click 拟人化点击**：先沿 25 步轨迹滑到目标中心，再执行 `page.click`；
+   监听 `window.mousedown`，每次点击在落点生成 **40px 红色扩散波纹**（300ms 渐隐动画，触屏兜底同样触发）。
 6. **slowMo=1200ms**：`chromium.launch(slow_mo=1200)` 全链路放缓，所有动作均以 1.2s/步的人眼可读节奏执行。
 
 ### 1.4 全 UI / 逻辑深度巡检分支（对齐 PROJECT_SPEC）
@@ -56,7 +57,7 @@ python scripts/ceo_visual_demo.py --url http://127.0.0.1:3100   # 本地联调
 | **A 语言与导航** | 中文 → 记录饮食/数据看板/个人设置 → EN 切换 → 回中文 | 3 Tab 文案断言（`记录饮食` / `Log Meal`）；页面渲染锚点 `.meal-type-row` / `.cal-ring-container` / 表单输入 |
 | **B 餐次** | 早餐 → 午餐 → 晚餐 → 加餐 | `.meal-type-btn.active` 逐次等于当前餐次 |
 | **C 文字输入** | 逐字输入「吃了2个包子和1杯豆浆」（`delay=140`）→ AI 分析 | `.food-item` 出现、总计行含 kcal；积分角标差额记录（本地 -1 校验） |
-| **C 识图（TEMP 图片集）** | 扫描 `git008/TEMP` 真实图片（jpg/jpeg/png ≤3MB，取前 3 + `demo-food.jpg` 锚点）逐张上传 | 「图片已优化 (XXKB)」Toast；数量名称（含单位）；「数量 + 约重」格式（如 `小笼包 (9 颗 / 约 270g)`）；整盘总热量总计行含 kcal |
+| **C 识图（TEMP 图片集）** | 扫描 `git008/TEMP` 真实图片（jpg/jpeg/png ≤3MB，取前 3 + `demo-food.jpg` 锚点）逐张上传；命中数量卡片后**显式停顿 2 秒**并放大高亮「小笼包 (X 颗)」结果卡片 | 「图片已优化 (XXKB)」Toast；数量名称（含单位）；「数量 + 约重」格式（如 `小笼包 (9 颗 / 约 270g)`）；整盘总热量总计行含 kcal；高亮卡片截图 |
 | **D 商业化** | 看广告领积分 (+10) → 充值/Pro → Stripe 3 套定价卡片 → 信用卡 → Checkout | 广告发奖后积分差额 +10；`.billing-modal .plan-card` 数量 = 3；URL 命中 `checkout.stripe.com` |
 
 ### 1.5 巡检断言锚点（代码级）
@@ -171,4 +172,5 @@ python scripts/ceo_visual_demo.py --mode mobile   # 移动端全绿验证
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026.08 | v1.1 | 视觉特效强制渲染：`add_init_script` 注入 `#ceo-pointer-canvas`（z-index !important + MutationObserver 持久化）、window mousemove/mousedown 监听、8px 红点 + 20px 蓝圈 + 15 点尾迹 + 40px/300ms 波纹；human_move 25 步；小笼包卡片 2s 放大高亮 |
 | 2026.08 | v1.0 | 首次沉淀：SOP-01 光标轨迹巡检 / SOP-02 Vision 数量清点总账 / SOP-03 Canvas 500KB 压缩防爆 |
