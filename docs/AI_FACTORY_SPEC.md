@@ -1,12 +1,13 @@
 # GIT008 AI 工厂 SOP 说明书（AI_FACTORY_SPEC.md）
 
-**版本**: v1.5（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
+**版本**: v1.6（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
 
-> 本文件沉淀四类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
+> 本文件沉淀五类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
 > **SOP-01** CEO 拟人化慢速轨迹光标巡检（slowMo=1200ms）｜
 > **SOP-02** 傻瓜式 Vision AI 数量清点与总账（Count & Total）｜
 > **SOP-03** 移动端 Canvas 500KB 压缩防爆（Compress & Anti-Burst）｜
-> **SOP-04** 008 工厂极速 MVP 交付规范：双 Agent 互测闭环（Cal AI Ground Truth 对标 + 红线禁令）。
+> **SOP-04** 008 工厂极速 MVP 交付规范：双 Agent 互测闭环（Cal AI Ground Truth 对标 + 红线禁令）｜
+> **SOP-05** 质量闸门（Quality Gate）：i18n 支付数据一致性 + 全外语环境零汉字盲点断言。
 
 ---
 
@@ -15,7 +16,8 @@
 - [SOP-01 拟人化 slowMo=1200ms 轨迹光标巡检](#sop-01-拟人化-slowmo1200ms-轨迹光标巡检ceo-可视化深度巡检)
 - [SOP-02 傻瓜式 Vision AI 数量清点与总账](#sop-02-傻瓜式-vision-ai-数量清点与总账count--total)
 - [SOP-03 移动端 Canvas 500KB 压缩防爆](#sop-03-移动端-canvas-500kb-压缩防爆compress--anti-burst)
-- [SOP-04 极速 MVP 交付规范：双 Agent 互测闭环](#sop-04-008-工厂极速-mvp-交付规范双-agent-互测闭环v15)
+- [SOP-04 极速 MVP 交付规范：双 Agent 互测闭环](#sop-04-008-工厂极速-mvp-交付规范双-agent-互测闭环v16)
+- [SOP-05 质量闸门：i18n 支付数据一致性 + 全外语环境零汉字盲点断言](#sop-05-质量闸门-quality-gatei18n-支付数据一致性--全外语环境零汉字盲点断言)
 - [附录 A 一键执行与产物清单](#附录-a-一键执行与产物清单)
 - [附录 B 版本记录](#附录-b-版本记录)
 
@@ -233,6 +235,12 @@ Agent B（对标巡检）以移动端 Playwright 巡检脚本独立回测，只�
   凡不属于 §4.2 主路线四步主干的功能（额外仪表盘、自定义主题、复杂报表、多余设置项、非核心
   营销页等）一律禁止加入 MVP。需求外溢须先经架构师总监 / CEO 书面审批并记录，否则一律回退。
   新增功能必须显式回答「它服务于 Cal AI 主路线四步的哪一步？」。
+- **禁令三 · i18n 支付数据一致性（严禁中英混杂商品名）**：
+  所有传入 Stripe 的 `name` / `description` 必须经 `src/lib/stripe-i18n.ts` 的
+  `getLocalizedPaymentItem(planId, lang)` 统一产出；**严禁在 `api/stripe/*` 路由内硬编码任何
+  中文商品名或描述**。当 `lang === 'en'`（或任何非中文环境）时，商品名与描述必须 100% 为标准
+  英文（零汉字）。订阅 Paywall（`stripe/subscribe`）与积分包一致按应用语言联动
+  （EN 恒英文，zh 可中文；支付页本身始终 `locale=en` 全英文收银台）。质量闸门详见 §5。
 
 ### 4.5 移动端对标巡检脚本（Mobile Playwright）
 
@@ -245,6 +253,25 @@ Agent B（对标巡检）以移动端 Playwright 巡检脚本独立回测，只�
     断言跳转 `checkout.stripe.com` + 应用 `<html lang="en">`。
   - `[M3] Cal AI 核心链路`：极简 Onboarding → 拍照 AI 拆解 → Save to Log → 今日进度条数值增加。
 
+#### 4.5.1 E2E 深度断言规则（Stripe 商品名/描述全英文）
+
+- **触发点**：`[M2]` 跳转 `checkout.stripe.com` 之后，除 `<html lang="en">` 外必须继续断言左侧商品摘要。
+- **硬规则（违者巡检 FAIL）**：
+  1. 商品标题可见且匹配英文锚点 —— 积分包必须含 `Credits`，订阅必须含 `Pro`
+     （如 `CalorieAI 50 Credits Pack` / `CalorieAI Pro`）；
+  2. 商品标题与描述**绝不包含任何中文字符**（正则 `[\u4e00-\u9fa5]` 命中即 FAIL）；
+  3. 描述必须为地道英文（如 `One-time payment - 50 Credits added instantly (No subscription)`、
+     `Unlimited AI meal scans - $9.99/month (cancel anytime)`）；
+  4. 同时断言前端发给 `stripe/subscribe` / `stripe/checkout` 的请求负载携带 `locale: "en"`
+     （验证 EN 模式与商品名联动，杜绝中英混杂）。
+- **实现位置**：`products/<app>/e2e/mobile-calai-benchmark.spec.ts` → `[M2]`（TEST-STUB
+  返回确定性英文商品摘要页 `STRIPE_CHECKOUT_PAGE`，`data-testid="product-name"` /
+  `data-testid="product-description"` 为断言锚点）。
+- **后端契约**：商品名/描述统一由 `src/lib/stripe-i18n.ts` 的 `getLocalizedPaymentItem(planId, lang)`
+  产出（008 工厂统一函数）；`/api/stripe/checkout` 按请求体 `locale` / `current_lang` 联动
+  （`'zh'` 输出中文商品名/描述，其余含 `'en'` 一律 100% 英文）；`/api/stripe/subscribe`（Pro 订阅
+  Paywall）同样按 `locale` / `current_lang` 联动（EN 恒英文，zh 可中文）。严禁在路由内硬编码。
+
 ### 4.6 运行与全绿判定
 
 ```bash
@@ -254,6 +281,50 @@ npx playwright test e2e/mobile-calai-benchmark.spec.ts   # iPhone 390x844 移动
 
 - 全绿：全部用例 `ok` → 终端 `PERFECT PLAY ✅`，退出码 0；否则 `HAS ISSUES ❌` 退出码 1。
 - 产物：Playwright HTML 报告 + 失败 trace / video（`test-results/`）。
+
+---
+
+## 🛡️ SOP-05 质量闸门（Quality Gate）：i18n 支付数据一致性 + 全外语环境零汉字盲点断言
+
+### 5.1 定位
+
+将【Stripe 中英文混杂】与【Agent 视觉断言盲点】固化为**底层防 Bug 机制**：
+支付数据（商品名/描述）语言必须与应用 UI 语言严格一致，并由程序化正则断言兜底，
+杜绝依赖人眼/截图目测（视觉巡检会漏看细小中文字符）。
+
+### 5.2 i18n 支付数据一致性规程（Payment Data i18n Consistency）
+
+- **统一函数**：所有 Stripe 商品名/描述统一经 `products/<app>/src/lib/stripe-i18n.ts` 的
+  `getLocalizedPaymentItem(planId, lang)` 产出，套娃克隆只同步该文件；
+  - `lang === 'en'`（或非中文环境）→ `name` / `description` 100% 标准英文（零汉字）；
+  - `lang === 'zh'` → 允许中文商品文案（仅当应用 UI 为中文时）。
+- **禁止硬编码**：`api/stripe/*` 路由内**严禁**出现任何中文商品名/描述硬编码（违者违反禁令三）。
+- **订阅 Paywall 语言联动**：`/api/stripe/subscribe` 与积分包一致，按请求体 `locale` /
+  `current_lang` 联动商品名/描述（EN 恒英文、zh 可中文）；支付页本身始终 `locale=en`
+  （全英文收银台），杜绝「英文支付页 + 中文商品名」的中英混杂。
+- **前端联动**：支付请求（`stripe/checkout` / `stripe/subscribe`）必须携带当前语言 `locale`
+  （由 `getLocale()` 注入），供服务端联动商品名语言。
+
+### 5.3 全外语环境零汉字盲点断言（Zero-Chinese Gate）
+
+- **CJK 正则**：`/[\u4e00-\u9fa5]/`（`src/lib/stripe-i18n.ts` 的 `CJK_CHARS_REGEX` /
+  `hasChineseChars()`）。
+- **E2E 硬断言**：所有全英文用例对以下文本执行 `expect(text).not.toMatch(CJK)`，命中即 FAIL：
+  1. **Stripe 页面**（TEST-STUB 镜像 `checkout.stripe.com`）：`data-testid="product-name"` /
+     `data-testid="product-description"` 商品名与描述（如 `CalorieAI 50 Credits Pack`）；
+  2. **应用主界面**（en locale）：Billing Modal、Header、Tab 等关键区域 `innerText`；
+  3. **支付请求负载**：`locale === "en"`（验证 EN 模式与商品名联动）。
+- **实现位置**：`products/<app>/e2e/mobile-calai-benchmark.spec.ts` → `expectNoChinese()` +
+  `[M2]`（Pro 订阅）/ `[M4]`（50 积分包）。
+
+### 5.4 套娃自动继承
+
+- 克隆套娃模板后，以下质量检查链随模板自动生效，无需人工配置：
+  1. `src/lib/stripe-i18n.ts`（统一商品名函数 + CJK 正则）；
+  2. `e2e/mobile-calai-benchmark.spec.ts`（零汉字断言用例 M2 / M4）；
+  3. `playwright.config.ts`（iPhone 390x844 移动端 + 生产构建 webServer）。
+- 新增支付类功能时，必须同步补充对应 `getLocalizedPaymentItem` 条目与 E2E 零汉字断言，
+  否则视同违反禁令三。
 
 ---
 
@@ -272,6 +343,7 @@ python scripts/ceo_visual_demo.py --mode mobile   # 移动端全绿验证
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026.08 | v1.6 | 新增 SOP-05 质量闸门（Quality Gate）：i18n 支付数据一致性规程（统一 `getLocalizedPaymentItem(planId, lang)`，严禁 api/stripe/* 硬编码中文商品名/描述）+ 全外语环境零汉字盲点断言（`expect(text).not.toMatch(/[\u4e00-\u9fa5]/)`）；新增红线禁令三；E2E 升级（M4：50 积分包 `CalorieAI 50 Credits Pack` 零汉字） |
 | 2026.08 | v1.5 | 新增 SOP-04《008 工厂极速 MVP 交付规范：双 Agent 互测闭环》：以 Cal AI 为 Ground Truth（极简 Onboarding → 拍照 AI 拆解 → 今日进度条 → 免费 2 次后 Stripe 订阅）；双 Agent 互测闭环交付；红线禁令（严禁过度 Dummy Mock 欺骗 / 严格收缩 MVP 边界）；移动端 Playwright 对标用例（按钮触达 ≥48px / 全英文 Stripe 路由 / Cal AI 核心链路） |
 | 2026.08 | v1.4 | 新增 SOP-01.6.2 YouTube Shorts 英文宣推模式（--promo-en）：locale en-US 全英文 UI、Edge-TTS 4 段美音解说（含演练实时播放 + adelay/amix 时间轴混音）、`-preset slow -crf 18 -b:v 6M -movflags +faststart` 高码率高清导出 |
 | 2026.08 | v1.3 | MP4 导出修复：恒定码率 3Mbps（nal-hrd=cbr）替代 CRF（静态 UI 内容 CRF/ABR 欠码至 0.6~2.3MB），`-preset slow -pix_fmt yuv420p -movflags +faststart`，产物稳定 3~10MB 且 WMP 原生播放 |
