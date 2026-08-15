@@ -1,11 +1,12 @@
 # GIT008 AI 工厂 SOP 说明书（AI_FACTORY_SPEC.md）
 
-**版本**: v1.4（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
+**版本**: v1.5（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
 
-> 本文件沉淀三类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
+> 本文件沉淀四类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
 > **SOP-01** CEO 拟人化慢速轨迹光标巡检（slowMo=1200ms）｜
 > **SOP-02** 傻瓜式 Vision AI 数量清点与总账（Count & Total）｜
-> **SOP-03** 移动端 Canvas 500KB 压缩防爆（Compress & Anti-Burst）。
+> **SOP-03** 移动端 Canvas 500KB 压缩防爆（Compress & Anti-Burst）｜
+> **SOP-04** 008 工厂极速 MVP 交付规范：双 Agent 互测闭环（Cal AI Ground Truth 对标 + 红线禁令）。
 
 ---
 
@@ -14,6 +15,7 @@
 - [SOP-01 拟人化 slowMo=1200ms 轨迹光标巡检](#sop-01-拟人化-slowmo1200ms-轨迹光标巡检ceo-可视化深度巡检)
 - [SOP-02 傻瓜式 Vision AI 数量清点与总账](#sop-02-傻瓜式-vision-ai-数量清点与总账count--total)
 - [SOP-03 移动端 Canvas 500KB 压缩防爆](#sop-03-移动端-canvas-500kb-压缩防爆compress--anti-burst)
+- [SOP-04 极速 MVP 交付规范：双 Agent 互测闭环](#sop-04-008-工厂极速-mvp-交付规范双-agent-互测闭环v15)
 - [附录 A 一键执行与产物清单](#附录-a-一键执行与产物清单)
 - [附录 B 版本记录](#附录-b-版本记录)
 
@@ -187,6 +189,74 @@ Central Gateway `/api/v1/ai/vision` 的 Prompt 表必须与此保持一致（按
 
 ---
 
+## 🚀 SOP-04 008 工厂极速 MVP 交付规范：双 Agent 互测闭环（v1.5）
+
+### 4.1 定位
+
+以 **Cal AI 为 Ground Truth（对标基准）**，任何套娃产品（CalorieAI / PetAI / PlantAI…）的 MVP
+必须对齐其唯一主路线。全链路由**双 Agent 互测闭环**交付：Agent A（实现）产码 →
+Agent B（对标巡检）以移动端 Playwright 巡检脚本独立回测，只有全绿才算 MVP 达标。
+任何偏离该主路线或触碰红线禁令的改动一律打回。
+
+### 4.2 对标 Ground Truth：Cal AI 主路线（不可裁剪的主干）
+
+> 主路线：**极简 Onboarding → 拍照 AI 拆解 → 今日进度条 → 免费 2 次后 Stripe 订阅**
+
+| # | 主干步骤 | 验收锚点（Cal AI 标准） | 巡检用例（`e2e/mobile-calai-benchmark.spec.ts`） |
+|---|---------|------------------------|------------------------------------------------|
+| 1 | **极简 Onboarding** | 3 步设置（性别 → 体重/目标/身高/年龄 → 每日卡路里目标，可推荐微调）；登录后未设置自动弹出 | Onboarding 用例 |
+| 2 | **拍照 AI 拆解** | 上传/拍照 → AI 返回结构化拆解卡（名称/克数/卡路里/PFC），可微调克数 | 拍照拆解用例 |
+| 3 | **今日进度条** | Save to Log → Dashboard 环形进度实时 +kcal（今日总热量） | 今日进度条用例 |
+| 4 | **免费 2 次后 Stripe 订阅** | 前 2 次拍照免费；第 3 次拍照触发 **$9.99/月** 全英文 Stripe Checkout（`locale=en`） | 全英文 Stripe 路由用例 |
+
+### 4.3 双 Agent 互测闭环（交付流程）
+
+1. **Agent A（实现 Agent）交付**：完成主路线代码 + 本地自测（`test:routes` / `build` / `test:api`）。
+2. **Agent B（对标巡检 Agent）独立互测**：以 Cal AI 为 Ground Truth，运行移动端 Playwright
+   巡检脚本（iPhone 390x844），逐用例断言：
+   - 按钮触达 ≥48px、全英文 Stripe 路由、Cal AI 核心链路（Onboarding → 识图 → 进度 → 订阅）。
+   - 读取 `qa_delivery/reports/` 质检报告 Fail 项交叉核验，防止实现 Agent 自说自话。
+3. **任一 Fail → 打回定向修复**：Agent A 仅针对 Fail 项修复（严禁发散式改动），修复后重新进入互测。
+4. **全绿 → 交付收口**：子仓库 commit + push → 主仓库 bump submodule 指针，见附录 A。
+
+### 4.4 红线禁令（硬约束，违者视为违约）
+
+- **禁令一 · 严禁过度的 Dummy Mock 欺骗**：
+  禁止以本地假数据（硬编码 Dummy/Demo 应答、全 mock 回退、伪造识别结果或支付成功）
+  冒充真实 AI / 支付链路向 CEO、投资人或质检交付演示。
+  - 生产链路必须走真实 **A→B→C 视觉回退链**（Gemini → OpenRouter → DeepSeek），**绝不回退 Mock**（见 `products/calorieai/MEMORY.md` 决策 7）；
+  - Stripe / PayPal 未配密钥时仅允许明确的「演示模式」降级提示（`mock:true` + 可读 message），
+    禁止静默伪造成真实扣款；
+  - **测试桩唯一合法位置**：E2E 巡检脚本内的显式拦截（标注 `TEST-STUB`，如拦截
+    `analyze-image` / `stripe/subscribe` 返回确定性数据以支撑断言），禁止外泄到生产代码。
+- **禁令二 · 严格收缩 MVP 边界，禁止非主线功能扩增**：
+  凡不属于 §4.2 主路线四步主干的功能（额外仪表盘、自定义主题、复杂报表、多余设置项、非核心
+  营销页等）一律禁止加入 MVP。需求外溢须先经架构师总监 / CEO 书面审批并记录，否则一律回退。
+  新增功能必须显式回答「它服务于 Cal AI 主路线四步的哪一步？」。
+
+### 4.5 移动端对标巡检脚本（Mobile Playwright）
+
+- **位置**：`products/<app>/e2e/mobile-calai-benchmark.spec.ts`
+- **Viewport**：iPhone 390x844（`devices["iPhone 13"]`，touch + isMobile + deviceScaleFactor 3）
+- **用例矩阵**（与 §4.2 一一对应）：
+  - `[M1] 按钮触达 ≥48px`：核心交互按钮（升级 / 登录 / 看广告 / 餐次 / 上传 / 导航 Tab /
+    Onboarding 选项）`boundingBox().height ≥ 48`。
+  - `[M2] 全英文 Stripe 路由`：免费 2 次后第 3 次拍照 → 拦截 `stripe/subscribe`（TEST-STUB）→
+    断言跳转 `checkout.stripe.com` + 应用 `<html lang="en">`。
+  - `[M3] Cal AI 核心链路`：极简 Onboarding → 拍照 AI 拆解 → Save to Log → 今日进度条数值增加。
+
+### 4.6 运行与全绿判定
+
+```bash
+cd products/calorieai
+npx playwright test e2e/mobile-calai-benchmark.spec.ts   # iPhone 390x844 移动端对标巡检
+```
+
+- 全绿：全部用例 `ok` → 终端 `PERFECT PLAY ✅`，退出码 0；否则 `HAS ISSUES ❌` 退出码 1。
+- 产物：Playwright HTML 报告 + 失败 trace / video（`test-results/`）。
+
+---
+
 ## 附录 A 一键执行与产物清单
 
 ```bash
@@ -202,6 +272,7 @@ python scripts/ceo_visual_demo.py --mode mobile   # 移动端全绿验证
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026.08 | v1.5 | 新增 SOP-04《008 工厂极速 MVP 交付规范：双 Agent 互测闭环》：以 Cal AI 为 Ground Truth（极简 Onboarding → 拍照 AI 拆解 → 今日进度条 → 免费 2 次后 Stripe 订阅）；双 Agent 互测闭环交付；红线禁令（严禁过度 Dummy Mock 欺骗 / 严格收缩 MVP 边界）；移动端 Playwright 对标用例（按钮触达 ≥48px / 全英文 Stripe 路由 / Cal AI 核心链路） |
 | 2026.08 | v1.4 | 新增 SOP-01.6.2 YouTube Shorts 英文宣推模式（--promo-en）：locale en-US 全英文 UI、Edge-TTS 4 段美音解说（含演练实时播放 + adelay/amix 时间轴混音）、`-preset slow -crf 18 -b:v 6M -movflags +faststart` 高码率高清导出 |
 | 2026.08 | v1.3 | MP4 导出修复：恒定码率 3Mbps（nal-hrd=cbr）替代 CRF（静态 UI 内容 CRF/ABR 欠码至 0.6~2.3MB），`-preset slow -pix_fmt yuv420p -movflags +faststart`，产物稳定 3~10MB 且 WMP 原生播放 |
 | 2026.08 | v1.2 | 新增 SOP-01.6.1 快节奏短视频模式（--fast）：slowMo=150ms / human_move 8 步 / 内置演示应答 / 小笼包高光 1s；record_video_dir 录屏 + ffmpeg 转码导出 TEMP/calorieai_demo_fast.mp4 |
