@@ -58,7 +58,7 @@ export default function PayPalCheckout({
               body: JSON.stringify({ amount, description }),
             });
             const data = await res.json();
-            if (!res.ok || !data.id) throw new Error(data.error || "订单创建失败");
+            if (!res.ok || !data.id) throw new Error(data.error || "Failed to create order");
             return data.id;
           },
           onApprove: async (data: { orderID: string }) => {
@@ -68,14 +68,14 @@ export default function PayPalCheckout({
               body: JSON.stringify({ orderId: data.orderID }),
             });
             const cap = await res.json();
-            if (!res.ok) throw new Error(cap.error || "支付捕获失败");
-            if (cap.status !== "COMPLETED") throw new Error(`支付状态异常: ${cap.status}`);
+            if (!res.ok) throw new Error(cap.error || "Payment capture failed");
+            if (cap.status !== "COMPLETED") throw new Error(`Unexpected payment status: ${cap.status}`);
             setStatus("success");
             setMessage("Payment successful — welcome to 008AI! 🎉");
           },
           onError: (err: any) => {
             setStatus("error");
-            setMessage(err?.message || "支付失败，请稍后重试");
+            setMessage(err?.message || "Payment failed, please try again.");
           },
         })
         .render(containerRef.current);
@@ -90,9 +90,11 @@ export default function PayPalCheckout({
 
     const script = document.createElement("script");
     script.id = scriptId;
+    // 显式 locale=en_US：英文站点下 PayPal 按钮文案 100% 英文，
+    // 避免浏览器语言导致“用 PayPal 付款”等本地化默认字样。
     script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
       CLIENT_ID
-    )}&currency=USD&intent=capture&components=buttons`;
+    )}&currency=USD&intent=capture&components=buttons&locale=en_US`;
     script.async = true;
     script.onload = renderButton;
     document.body.appendChild(script);
@@ -128,8 +130,8 @@ export default function PayPalCheckout({
           </button>
           {demoOpen && (
             <p className="rounded-xl bg-ink-soft/10 px-4 py-3 text-xs leading-relaxed text-ink-soft">
-              Demo mode: 配置 <code className="font-mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID</code>{" "}
-              后启用真实 PayPal 收款。Early Bird 预购通道将在正式上线时开启。
+              Demo mode: connect <code className="font-mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID</code>{" "}
+              to enable live PayPal checkout. Early Bird pre-orders open soon.
             </p>
           )}
         </div>

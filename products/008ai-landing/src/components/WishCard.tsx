@@ -26,10 +26,10 @@ export default function WishCard() {
         body: JSON.stringify({ wish: text }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "提交失败，请稍后重试");
+      if (!res.ok) throw new Error(data.error || "Failed to submit, please try again.");
       setDone(true);
     } catch (err: any) {
-      setError(err?.message || "提交失败，请稍后重试");
+      setError(err?.message || "Failed to submit, please try again.");
     }
     setSubmitting(false);
   };

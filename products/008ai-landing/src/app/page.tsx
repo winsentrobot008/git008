@@ -18,6 +18,8 @@ import StripeCheckout from "@/components/StripeCheckout";
 import WishCard from "@/components/WishCard";
 
 const DEMO_VIDEO_URL = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL || "";
+// 每次构建生成唯一时间戳版本号（渲染进 HTML → ETag 变化 → 击穿边缘缓存）
+const BUILD_STAMP = new Date().toISOString().slice(0, 16).replace(/\D/g, "");
 
 const FEATURES = [
   {
@@ -110,7 +112,7 @@ export default function Home() {
             </span>
           </a>
           <a
-            href="#demo"
+            href="#apps"
             className="inline-flex h-10 items-center gap-2 rounded-full border border-pink-200/80 px-5 text-sm font-semibold text-ink transition hover:border-pink-400 hover:bg-pink-50"
           >
             Launch Demo
@@ -145,7 +147,7 @@ export default function Home() {
               Get Started
             </a>
             <a
-              href="#demo"
+              href="#apps"
               className="inline-flex h-12 w-full items-center justify-center rounded-full border border-pink-200/80 bg-white/70 px-8 text-sm font-bold text-ink backdrop-blur transition hover:border-pink-400 hover:bg-pink-50 sm:w-auto"
             >
               ▶ Launch Demo
@@ -258,7 +260,7 @@ export default function Home() {
       </section>
 
       {/* ── 3.5 Product Matrix（多应用生态）─────────────── */}
-      <section className="px-5 py-20 sm:px-8">
+      <section id="apps" className="scroll-mt-20 px-5 py-20 sm:px-8">
         <div className="mx-auto max-w-6xl">
           <p className="text-center text-xs font-bold uppercase tracking-widest text-pink-500">
             008ai.online Pass
@@ -397,7 +399,8 @@ export default function Home() {
             </span>
           </div>
           <p className="text-center text-xs text-ink-faint">
-            © {new Date().getFullYear()} 008AI · 008ai.online · All rights reserved.
+            © {new Date().getFullYear()} 008AI · 008ai.online · All rights reserved. · Build{" "}
+            {BUILD_STAMP}
           </p>
           <div className="flex items-center gap-5 text-sm text-ink-soft">
             <Link href="mailto:hello@008ai.online" className="transition hover:text-pink-500">

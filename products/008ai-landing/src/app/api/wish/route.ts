@@ -36,10 +36,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const wish = (body.wish || "").toString().trim();
   if (!wish) {
-    return NextResponse.json({ error: "请输入你想看到的 AI 工具" }, { status: 400 });
+    return NextResponse.json({ error: "Please enter the AI tool you'd like to see" }, { status: 400 });
   }
   if (wish.length > 500) {
-    return NextResponse.json({ error: "愿望描述请控制在 500 字以内" }, { status: 400 });
+    return NextResponse.json({ error: "Keep your wish under 500 characters" }, { status: 400 });
   }
 
   appendWish(wish);

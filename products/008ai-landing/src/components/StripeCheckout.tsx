@@ -33,15 +33,15 @@ export default function StripeCheckout({
         body: JSON.stringify({ amount, email }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "支付会话创建失败");
+      if (!res.ok) throw new Error(data.error || "Failed to create checkout session");
       if (data.mock) {
-        setMessage(data.message || "演示模式：未配置 Stripe 密钥");
+        setMessage(data.message || "Demo mode: Stripe keys not configured");
         setLoading(false);
         return;
       }
       window.location.href = data.url;
     } catch (err: any) {
-      setMessage(err?.message || "支付失败，请稍后重试");
+      setMessage(err?.message || "Payment failed, please try again.");
       setLoading(false);
     }
   };

@@ -90,11 +90,11 @@ export default function AdminPage() {
         body: JSON.stringify({ key }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "登录失败");
+      if (!res.ok) throw new Error(data.error || "Login failed");
       sessionStorage.setItem("008ai_admin_token", data.token);
       setToken(data.token);
     } catch (err: any) {
-      setAuthError(err?.message || "登录失败");
+      setAuthError(err?.message || "Login failed");
     }
     setLoading(false);
   };

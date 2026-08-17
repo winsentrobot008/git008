@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         url: "/billing/cancel",
         mock: true,
         amount: PASS_PRICE_USD,
-        message: "演示模式：未配置 Stripe 密钥，已跳过真实收款",
+        message: "Demo mode: Stripe keys not configured, payment skipped",
       });
     }
 
@@ -78,6 +78,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ sessionId: session.id, url: session.url, amount: PASS_PRICE_USD });
   } catch (error: any) {
     console.error("[008AI Stripe Checkout]", error?.message);
-    return NextResponse.json({ error: error?.message || "创建支付会话失败" }, { status: 500 });
+    return NextResponse.json({ error: error?.message || "Failed to create checkout session" }, { status: 500 });
   }
 }
