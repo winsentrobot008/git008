@@ -8,12 +8,10 @@ import {
   Sparkles,
   ScanLine,
   Route,
-  LayoutGrid,
   ShieldCheck,
   CreditCard,
   Lock,
   BadgeCheck,
-  Star,
 } from "lucide-react";
 import PayPalCheckout from "@/components/PayPalCheckout";
 import StripeCheckout from "@/components/StripeCheckout";
@@ -46,24 +44,22 @@ const APPS = [
     icon: ScanLine,
     title: "CalorieAI",
     tagline: "AI Food Scanner & Macro Tracker",
-    price: "$19.99 Lifetime Access",
-    description:
-      "Snap a meal and get an instant calorie & macro breakdown. Your nutrition copilot, included in the 008AI Pass.",
+    price: "$19.99 Lifetime",
     flagship: true,
+    href: "https://calorie-ai-seven.vercel.app",
+    cta: "Launch App",
   },
   {
     icon: Route,
     title: "Runify",
     tagline: "Smart Route & Map Generator",
-    description:
-      "Bespoke signal-free loop routes, custom waypoints, POI & voice navigation — tailored to your target distance.",
+    status: "soon",
   },
   {
-    icon: LayoutGrid,
-    title: "008AI Suite",
-    tagline: "Upcoming AI Utilities",
-    description:
-      "A growing family of AI tools unlocked by your lifetime pass. Early adopters keep every future release free.",
+    icon: Mic,
+    title: "VOICE22 / RoastBro",
+    tagline: "AI Voice & Roast Suite",
+    status: "soon",
   },
 ];
 
@@ -275,34 +271,68 @@ export default function Home() {
           <h2 className="mt-3 text-center text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
             One lifetime pass. A whole AI ecosystem.
           </h2>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {APPS.map((app) => (
-              <div
-                key={app.title}
-                className={`relative rounded-3xl border bg-white/70 p-7 shadow-pink-100/50 backdrop-blur-xl transition hover:-translate-y-1 ${
-                  app.flagship
-                    ? "border-pink-300 shadow-pink-100"
-                    : "border-pink-200/50 shadow-pink-100/50"
-                }`}
-              >
-                {app.flagship && (
-                  <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white shadow-md">
-                    <Star className="h-3 w-3 fill-current" /> Flagship
+          <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3">
+            {APPS.map((app) => {
+              const card = (
+                <>
+                  {app.flagship && (
+                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-md">
+                      <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
+                    </span>
+                  )}
+                  {app.status === "soon" && (
+                    <span className="absolute right-3 top-3 rounded-full border border-pink-200/70 bg-white/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ink-faint backdrop-blur">
+                      Coming Soon
+                    </span>
+                  )}
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-100 text-pink-600 sm:h-12 sm:w-12 sm:rounded-2xl">
+                    <app.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                   </span>
-                )}
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pink-100 text-pink-600">
-                  <app.icon className="h-6 w-6" />
-                </span>
-                <h3 className="mt-5 text-lg font-bold text-ink">{app.title}</h3>
-                <p className="text-sm font-semibold text-pink-500">{app.tagline}</p>
-                {app.price && (
-                  <p className="mt-1 text-xs font-bold uppercase tracking-wide text-ink-faint">
-                    {app.price}
+                  <h3 className="mt-3 text-base font-bold text-ink sm:text-lg">{app.title}</h3>
+                  <p className="mt-0.5 text-xs font-semibold text-pink-500 sm:text-sm">
+                    {app.tagline}
                   </p>
-                )}
-                <p className="mt-3 text-sm leading-relaxed text-ink-soft">{app.description}</p>
-              </div>
-            ))}
+                  {app.price && (
+                    <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-ink-faint">
+                      {app.price}
+                    </p>
+                  )}
+                  <div className="mt-auto pt-4">
+                    {app.href ? (
+                      <span className="inline-flex h-10 w-full items-center justify-center rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-3 text-xs font-bold text-white transition hover:brightness-105 sm:text-sm">
+                        {app.cta} →
+                      </span>
+                    ) : (
+                      <span className="inline-flex h-10 w-full items-center justify-center rounded-full border border-pink-200/70 bg-white/70 px-3 text-xs font-bold text-ink-soft backdrop-blur sm:text-sm">
+                        Join Waitlist
+                      </span>
+                    )}
+                  </div>
+                </>
+              );
+
+              const cls = `relative flex flex-col rounded-3xl border bg-white/70 p-4 shadow-pink-100/50 backdrop-blur-xl transition hover:-translate-y-1 sm:p-6 ${
+                app.flagship
+                  ? "border-pink-300 shadow-pink-100"
+                  : "border-pink-200/50 shadow-pink-100/50"
+              }`;
+
+              return app.href ? (
+                <a
+                  key={app.title}
+                  href={app.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cls}
+                >
+                  {card}
+                </a>
+              ) : (
+                <div key={app.title} className={cls}>
+                  {card}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
