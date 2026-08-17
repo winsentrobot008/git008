@@ -25,11 +25,7 @@ const PROJECT = "008ai-landing";
 const OLD_PROJECT_CANDIDATES = ["calorie-ai", "calorieai"];
 const ROOT = path.resolve(process.cwd());
 const SKIP_DIRS = new Set(["node_modules", ".git", ".next", ".vercel", "test-results", ".codex"]);
-// 直传部署场景下 Vercel 对 vercel.json 的解析偶发报 invalid_vercel_json；
-// 等价配置（framework/buildCommand/installCommand）已由 projectSettings 注入，
-// 因此上传时排除 vercel.json（GitHub 关联部署时仍会使用仓库内的 vercel.json）。
-const SKIP_FILES = (name) =>
-  (name.startsWith(".env") && name !== ".env.example") || name === "vercel.json";
+const SKIP_FILES = (name) => name.startsWith(".env") && name !== ".env.example";
 
 const api = "https://api.vercel.com";
 
@@ -145,20 +141,38 @@ async function setProjectSettings() {
   }
 }
 
+async function uploadFilesToStore(files) {
+  let ok = 0;
+  for (const f of files) {
+    // 上传内容必须与 f.sha 一致（vercel.json 已剔除 rootDirectory）
+    const buf = Buffer.from(f.text, "utf8");
+    const res = await fetch(`${api}/v2/files?teamId=${TEAM_ID}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/octet-stream",
+        "Content-Length": String(buf.length),
+        "x-now-digest": f.sha,
+        "x-now-size": String(buf.length),
+      },
+      body: buf,
+    });
+    if (res.status === 200) ok += 1;
+    else console.warn(`  ⚠️ 文件上传失败 ${f.rel} (${res.status})`);
+  }
+  console.log(`  ☁️ 已上传到文件存储 ${ok}/${files.length}`);
+}
+
 async function createDeployment(files) {
   const body = {
     name: PROJECT,
     project: PROJECT,
     target: "production",
-    files: files.map((f) => ({ file: f.rel, data: f.data })),
-    projectSettings: {
-      framework: "nextjs",
-      buildCommand: "npm run build",
-      installCommand: "npm install",
-      outputDirectory: "",
-    },
+    files: files.map((f) => ({ file: f.rel, sha: f.sha })),
   };
-  const r = await vcall("POST", `/v13/deployments?teamId=${TEAM_ID}`, { body });
+  // skipAutoDetectionConfirmation=1：让 Vercel 依据 package.json 自动识别 Next.js
+  // 并执行真实构建（手动传入 projectSettings 反而被当作静态输出处理）。
+  const r = await vcall("POST", `/v13/deployments?teamId=${TEAM_ID}&skipAutoDetectionConfirmation=1`, { body });
   if (r.status !== 200 && r.status !== 201) {
     throw new Error(`创建部署失败 (${r.status}): ${JSON.stringify(r.data).slice(0, 300)}`);
   }
@@ -195,13 +209,27 @@ async function main() {
   await setProjectSettings();
 
   console.log("▶ 阶段 4/4：上传源码并触发生产构建");
-  // 注意：Create Deployment 的 files[].data 为原始文件文本（UTF-8），
-  // 不是 base64 —— 传 base64 会被当作字面内容存储导致 JSON 解析失败。
+  // 与 Vercel CLI 等价流程：
+  // 1) 文件内容先上传到 POST /v2/files（全局文件存储，按 sha1 去重）；
+  // 2) 创建部署时 files 仅引用 { file, sha }，Vercel 从存储取文件并执行 Next.js 构建。
   const files = walk(ROOT).map((f) => {
-    const text = fs.readFileSync(f.abs, "utf8");
-    return { ...f, sha: sha1(Buffer.from(text, "utf8")), data: text };
+    let text = fs.readFileSync(f.abs, "utf8");
+    // 直传部署的文件根即项目根：vercel.json 中的 rootDirectory 指向仓库子目录，
+    // 会与上传根冲突导致构建容器按错误路径查找文件，故上传前剔除该字段
+    // （GitHub 导入部署仍使用仓库内 vercel.json 的 rootDirectory）。
+    if (f.rel === "vercel.json") {
+      try {
+        const cfg = JSON.parse(text);
+        delete cfg.rootDirectory;
+        text = JSON.stringify(cfg, null, 2);
+      } catch {
+        /* 保留原样 */
+      }
+    }
+    return { ...f, sha: sha1(Buffer.from(text, "utf8")), text };
   });
   console.log(`  源码文件: ${files.length}`);
+  await uploadFilesToStore(files);
   const deployment = await createDeployment(files);
   console.log(`  部署 ID: ${deployment.id}`);
 
