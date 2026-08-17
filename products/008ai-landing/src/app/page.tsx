@@ -16,6 +16,7 @@ import {
   Star,
 } from "lucide-react";
 import PayPalCheckout from "@/components/PayPalCheckout";
+import StripeCheckout from "@/components/StripeCheckout";
 
 const DEMO_VIDEO_URL = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL || "";
 
@@ -144,6 +145,22 @@ export default function Home() {
             your target distance — plus your AI nutrition & utility suite.
           </p>
 
+          {/* 转化 CTA：Get Started / Launch Demo */}
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <a
+              href="#pricing"
+              className="inline-flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-8 text-sm font-bold text-white shadow-lg shadow-pink-200/60 transition hover:brightness-105 sm:w-auto"
+            >
+              Get Started
+            </a>
+            <a
+              href="#demo"
+              className="inline-flex h-12 w-full items-center justify-center rounded-full border border-pink-200/80 bg-white/70 px-8 text-sm font-bold text-ink backdrop-blur transition hover:border-pink-400 hover:bg-pink-50 sm:w-auto"
+            >
+              ▶ Launch Demo
+            </a>
+          </div>
+
           {/* Demo 占位（15s MP4/GIF） */}
           <div id="demo" className="mx-auto mt-12 max-w-3xl scroll-mt-24">
             {DEMO_VIDEO_URL ? (
@@ -196,13 +213,14 @@ export default function Home() {
                 <div className="h-full w-[74%] rounded-full bg-gradient-to-r from-pink-500 to-rose-500" />
               </div>
               <p className="mt-2 text-xs text-white/50">67 / 90 slots claimed</p>
-              <div className="mt-6">
+              <p className="mt-4 flex items-center gap-2 text-xs text-white/50">
+                <Check className="h-4 w-4 text-pink-400" /> Secure checkout powered by Stripe &
+                PayPal · Instant lifetime activation
+              </p>
+              <div className="mt-4 space-y-3">
+                <StripeCheckout />
                 <PayPalCheckout amount={19.99} description="008AI Early Bird Lifetime Pass" />
               </div>
-              <p className="mt-4 flex items-center gap-2 text-xs text-white/50">
-                <Check className="h-4 w-4 text-pink-400" /> Secure checkout powered by PayPal ·
-                Instant lifetime activation
-              </p>
               <div className="mt-2">
                 <div className="flex flex-wrap gap-2">
                   {["PayPal", "Visa", "Mastercard", "256-bit SSL", "14-Day Money-Back"].map((b) => (
@@ -325,11 +343,14 @@ export default function Home() {
                   ))}
                 </ul>
                 <div className="mt-8">
-                  <PayPalCheckout
-                    amount={19.99}
-                    description="008AI Early Bird Lifetime Pass"
-                    compact
-                  />
+                  <div className="space-y-3">
+                    <StripeCheckout />
+                    <PayPalCheckout
+                      amount={19.99}
+                      description="008AI Early Bird Lifetime Pass"
+                      compact
+                    />
+                  </div>
                 </div>
                 <TrustBadges />
               </div>

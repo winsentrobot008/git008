@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     "Stop running the same route every day. 008AI instantly generates bespoke, signal-free loop routes tailored to your target distance.",
   metadataBase: new URL("https://008ai.online"),
   keywords: ["008AI", "loop routes", "running", "GPX", "voice navigation"],
+  icons: {
+    icon: "/favicon.ico",
+  },
   openGraph: {
     title: "008AI — Bespoke Loop Route Generator",
     description:
