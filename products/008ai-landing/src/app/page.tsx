@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import PayPalCheckout from "@/components/PayPalCheckout";
 import StripeCheckout from "@/components/StripeCheckout";
+import WishCard from "@/components/WishCard";
 
 const DEMO_VIDEO_URL = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL || "";
 
@@ -53,12 +54,6 @@ const APPS = [
     icon: Route,
     title: "Runify",
     tagline: "Smart Route & Map Generator",
-    status: "soon",
-  },
-  {
-    icon: Mic,
-    title: "VOICE22 / RoastBro",
-    tagline: "AI Voice & Roast Suite",
     status: "soon",
   },
 ];
@@ -333,6 +328,7 @@ export default function Home() {
                 </div>
               );
             })}
+            <WishCard />
           </div>
         </div>
       </section>
