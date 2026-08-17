@@ -1,13 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  /* 008AI 品牌色板：Vibrant Green + Slate Gray */
-  --color-brand: #4ade80;
-  --color-brand-deep: #16a34a;
-  --color-brand-soft: #dcfce7;
-  --color-ink: #334155;
-  --color-ink-soft: #64748b;
-  --color-ink-faint: #94a3b8;
+  /* 008AI Crystal Pink（水晶粉）设计令牌 */
+  --color-brand: #ec4899; /* pink-500 */
+  --color-brand-deep: #f43f5e; /* rose-500 */
+  --color-brand-soft: #fff5f7; /* Crystal Blush Tint */
+  --color-blush: #fff5f7; /* 背景水晶粉晕 */
+  --color-velvet: #0f0c10; /* Dark Velvet Glow（深色强调） */
+  --color-ink: #1f1b21; /* 主文本（深藕紫） */
+  --color-ink-soft: #6e6477; /* 次文本 */
+  --color-ink-faint: #a79fb1; /* 弱化文本 */
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
