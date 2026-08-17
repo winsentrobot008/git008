@@ -76,7 +76,22 @@ NEXT_PUBLIC_DEMO_VIDEO_URL=/demo.mp4
   - `GET /api/admin/entitlements` → 活跃 Early Bird Pass 列表
   - `PATCH /api/admin/entitlements` → 手动切换 `has_lifetime_access` on/off
 
-## 部署
+## 部署（Vercel 子目录）
 
-Vercel Import 本目录（`vercel.json` 已内置 Next.js framework/build），
-绑定域名 `008ai.online` 并配置上述环境变量即可。
+1. **Import 项目**：`git008` 仓库 → 项目设置 **Root Directory = `products/008ai-landing`**
+   （[`vercel.json`](vercel.json) 已内置 `rootDirectory` / `framework: nextjs` /
+   `buildCommand: npm run build`）。
+2. **Framework Preset**：Next.js（自动识别）；Build 命令 `npm run build`。
+3. **环境变量**：在 Vercel → Settings → Environment Variables 逐一添加下表变量，
+   并勾选 **Apply to: Production / Preview / Development**：
+
+   | 变量 | 必需 | 说明 |
+   |---|---|-----|
+   | `ADMIN_KEY` | 必需 | `/admin` 登录密钥（未配置回退 `008ai-admin`） |
+   | `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | 必需 | PayPal 前端 SDK Client ID（服务端 create/capture 回退读取） |
+   | `PAYPAL_CLIENT_SECRET` | 必需 | PayPal 服务端密钥（仅服务端） |
+   | `PAYPAL_WEBHOOK_ID` | 必需 | PayPal Webhook ID（签名校验预留；Endpoint: `https://008ai.online/api/paypal/webhook`） |
+   | `NEXT_PUBLIC_DEMO_VIDEO_URL` | 必需 | Hero 演示视频 URL（如 `/demo.mp4`） |
+   | `PAYPAL_API_URL` | 可选 | PayPal API 地址（默认 Sandbox；Live 改 `https://api-m.paypal.com`） |
+
+4. 绑定域名 `008ai.online` 并部署即可。

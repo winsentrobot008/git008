@@ -5,7 +5,10 @@
  * 前端展示演示按钮，不静默伪造真实支付。
  */
 
-const CLIENT_ID = process.env.PAYPAL_CLIENT_ID || "";
+// 服务端优先读 PAYPAL_CLIENT_ID，回退 NEXT_PUBLIC_PAYPAL_CLIENT_ID：
+// 使 Vercel 单一变量（NEXT_PUBLIC_PAYPAL_CLIENT_ID）同时服务前端 SDK 与服务端 create/capture。
+const CLIENT_ID =
+  process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 const CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || "";
 const PAYPAL_API = process.env.PAYPAL_API_URL || "https://api-m.sandbox.paypal.com";
 
