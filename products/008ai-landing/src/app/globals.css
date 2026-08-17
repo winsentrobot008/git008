@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  /* 008AI 品牌色板：Vibrant Green + Slate Gray */
+  --color-brand: #4ade80;
+  --color-brand-deep: #16a34a;
+  --color-brand-soft: #dcfce7;
+  --color-ink: #334155;
+  --color-ink-soft: #64748b;
+  --color-ink-faint: #94a3b8;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-brand/30;
+  }
+}
