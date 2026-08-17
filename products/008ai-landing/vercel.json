@@ -1,6 +1,5 @@
 {
   "framework": "nextjs",
-  "rootDirectory": "products/008ai-landing",
   "buildCommand": "npm run build",
   "installCommand": "npm install"
 }

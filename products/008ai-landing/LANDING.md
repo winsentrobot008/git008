@@ -79,8 +79,8 @@ NEXT_PUBLIC_DEMO_VIDEO_URL=/demo.mp4
 ## 部署（Vercel 子目录）
 
 1. **Import 项目**：`git008` 仓库 → 项目设置 **Root Directory = `products/008ai-landing`**
-   （[`vercel.json`](vercel.json) 已内置 `rootDirectory` / `framework: nextjs` /
-   `buildCommand: npm run build`）。
+   （Root Directory 只配置在项目设置层；`vercel.json` 仅含 `framework` /
+   `buildCommand` / `installCommand`，新版 schema 不再接受 `rootDirectory` 字段）。
 2. **Framework Preset**：Next.js（自动识别）；Build 命令 `npm run build`。
 3. **环境变量**：在 Vercel → Settings → Environment Variables 逐一添加下表变量，
    并勾选 **Apply to: Production / Preview / Development**：
