@@ -106,7 +106,8 @@ node scripts/vercel-api-deploy.mjs
 ```
 
 脚本自动完成：从 `calorie-ai` 拉取 production 环境变量导入 `008ai-landing` →
-补全 `ADMIN_KEY` → 设置 Next.js 构建参数 → 上传源码并触发生产构建（轮询至 READY）。
-注意：直传部署会排除仓库内 `vercel.json`（避免 rootDirectory 指向仓库子目录与上传根冲突）；
-GitHub 导入部署时仍使用仓库内 `vercel.json`。若团队开启 SSO 部署保护，
-`*.vercel.app` 地址需登录访问，绑定自定义域名后即公开。
+补全 `ADMIN_KEY` → 设置 Next.js 构建参数 → 文件内容上传到 `/v2/files` 全局存储 →
+以 `builds: [{src:"package.json", use:"@vercel/next"}]` 触发真实构建（轮询至 READY）。
+注意：直传部署要求项目级 Root Directory 为空（文件根即项目根），上传的
+`vercel.json` 会剔除 `rootDirectory` 字段；GitHub 导入部署仍使用仓库内
+`vercel.json`。SSO 部署保护建议设为 `preview`（生产 `.vercel.app` 公开访问）。

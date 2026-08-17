@@ -168,11 +168,18 @@ async function createDeployment(files) {
     name: PROJECT,
     project: PROJECT,
     target: "production",
+    // 经典 API 部署 + 构建：显式声明 Next.js builder，平台会执行
+    // npm install + next build 并产出 /vercel/output（而非当作静态输出）。
+    version: 2,
+    builds: [{ src: "package.json", use: "@vercel/next" }],
     files: files.map((f) => ({ file: f.rel, sha: f.sha })),
+    projectSettings: {
+      framework: "nextjs",
+      buildCommand: "npm run build",
+      installCommand: "npm install",
+    },
   };
-  // skipAutoDetectionConfirmation=1：让 Vercel 依据 package.json 自动识别 Next.js
-  // 并执行真实构建（手动传入 projectSettings 反而被当作静态输出处理）。
-  const r = await vcall("POST", `/v13/deployments?teamId=${TEAM_ID}&skipAutoDetectionConfirmation=1`, { body });
+  const r = await vcall("POST", `/v13/deployments?teamId=${TEAM_ID}`, { body });
   if (r.status !== 200 && r.status !== 201) {
     throw new Error(`创建部署失败 (${r.status}): ${JSON.stringify(r.data).slice(0, 300)}`);
   }
