@@ -219,12 +219,15 @@ async function main() {
   // 与 Vercel CLI 等价流程：
   // 1) 文件内容先上传到 POST /v2/files（全局文件存储，按 sha1 去重）；
   // 2) 创建部署时 files 仅引用 { file, sha }，Vercel 从存储取文件并执行 Next.js 构建。
+  // 与 git 部署统一：项目级 Root Directory = products/008ai-landing，
+  // 因此直传文件也带上该前缀，保证两种部署方式在构建容器内的路径一致。
+  const PREFIX = "products/008ai-landing";
   const files = walk(ROOT).map((f) => {
     let text = fs.readFileSync(f.abs, "utf8");
     // 直传部署的文件根即项目根：vercel.json 中的 rootDirectory 指向仓库子目录，
     // 会与上传根冲突导致构建容器按错误路径查找文件，故上传前剔除该字段
     // （GitHub 导入部署仍使用仓库内 vercel.json 的 rootDirectory）。
-    if (f.rel === "vercel.json") {
+    if (path.basename(f.rel) === "vercel.json") {
       try {
         const cfg = JSON.parse(text);
         delete cfg.rootDirectory;
@@ -233,7 +236,8 @@ async function main() {
         /* 保留原样 */
       }
     }
-    return { ...f, sha: sha1(Buffer.from(text, "utf8")), text };
+    const rel = `${PREFIX}/${f.rel}`;
+    return { ...f, rel, sha: sha1(Buffer.from(text, "utf8")), text };
   });
   console.log(`  源码文件: ${files.length}`);
   await uploadFilesToStore(files);
