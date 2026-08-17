@@ -95,3 +95,18 @@ NEXT_PUBLIC_DEMO_VIDEO_URL=/demo.mp4
    | `PAYPAL_API_URL` | 可选 | PayPal API 地址（默认 Sandbox；Live 改 `https://api-m.paypal.com`） |
 
 4. 绑定域名 `008ai.online` 并部署即可。
+
+### 无 CLI 备用部署（REST API）
+
+本机 Vercel CLI 偶发静默挂起时，可用 `scripts/vercel-api-deploy.mjs` 走 REST API：
+
+```powershell
+$env:VERCEL_TOKEN = "<token>"
+node scripts/vercel-api-deploy.mjs
+```
+
+脚本自动完成：从 `calorie-ai` 拉取 production 环境变量导入 `008ai-landing` →
+补全 `ADMIN_KEY` → 设置 Next.js 构建参数 → 上传源码并触发生产构建（轮询至 READY）。
+注意：直传部署会排除仓库内 `vercel.json`（避免 rootDirectory 指向仓库子目录与上传根冲突）；
+GitHub 导入部署时仍使用仓库内 `vercel.json`。若团队开启 SSO 部署保护，
+`*.vercel.app` 地址需登录访问，绑定自定义域名后即公开。
