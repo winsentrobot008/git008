@@ -111,3 +111,22 @@ node scripts/vercel-api-deploy.mjs
 注意：直传部署要求项目级 Root Directory 为空（文件根即项目根），上传的
 `vercel.json` 会剔除 `rootDirectory` 字段；GitHub 导入部署仍使用仓库内
 `vercel.json`。SSO 部署保护建议设为 `preview`（生产 `.vercel.app` 公开访问）。
+
+### 生产域名别名与 Webhook 控制（重要）
+
+为杜绝 GitHub push 触发 Webhook 自动构建对生产域名 `008ai.online` 造成抖动/被旧构建覆盖，
+生产部署采用「**关闭 Git 自动部署 + 别名仅由 API 脚本显式更新**」策略：
+
+1. **断开 GitHub 自动部署（二选一）**
+   - Vercel UI：项目 `008ai-landing` → Settings → Git → **移除 GitHub 连接**
+     （或关闭 `Production Branch` 的自动部署），此后 push 不再触发构建；
+   - 或提供有效 `VERCEL_TOKEN` 后用 API 断开。
+2. **别名只由脚本更新**：`scripts/vercel-api-deploy.mjs` 已在部署 READY 后自动把
+   `008ai.online` / `www.008ai.online` 别名显式绑定到该生产部署，并校验
+   `https://008ai.online` 恢复 **HTTP 200**（`assignAliases()` + `verifyDomain()`）。
+3. **手动触发生产更新**：需要发版时执行
+   ```powershell
+   $env:VERCEL_TOKEN = "<有效 token>"
+   node scripts/vercel-api-deploy.mjs
+   ```
+   脚本完成：拉 env → 构建 → 轮询 READY → 绑定别名 → 校验 200。

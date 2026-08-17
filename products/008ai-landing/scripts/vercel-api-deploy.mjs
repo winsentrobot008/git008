@@ -199,6 +199,42 @@ async function pollDeployment(deploymentId, timeoutMs = 360_000) {
   return { ok: false, state: "TIMEOUT" };
 }
 
+/**
+ * 生产域名别名显式绑定（唯一授权入口）：
+ * 在 Vercel 断开 GitHub 自动部署后，008ai.online 别名只由本脚本显式更新，
+ * 避免 Git push 引发的 Webhook 自动构建覆盖 / 抖动生产域名。
+ */
+async function assignAliases(deployment) {
+  const aliases = ["008ai.online", "www.008ai.online"];
+  const assigned = [];
+  for (const alias of aliases) {
+    const r = await vcall(
+      "POST",
+      `/v2/deployments/${deployment.id}/aliases?teamId=${TEAM_ID}`,
+      { body: { alias } }
+    );
+    if (r.status === 200 || r.status === 201) {
+      assigned.push(alias);
+      console.log(`  🔗 别名 ${alias} → https://${deployment.url}`);
+    } else {
+      console.warn(`  ⚠️ 别名 ${alias} 绑定失败 (${r.status}): ${JSON.stringify(r.data).slice(0, 200)}`);
+    }
+  }
+  return assigned;
+}
+
+/** 校验生产域名 HTTPS 恢复 200（部署后自检） */
+async function verifyDomain() {
+  try {
+    const res = await fetch("https://008ai.online", { method: "HEAD", redirect: "manual" });
+    console.log(`  ✅ https://008ai.online → HTTP ${res.status}`);
+    return res.status === 200;
+  } catch (e) {
+    console.warn(`  ⚠️ 域名校验失败: ${e?.message}`);
+    return false;
+  }
+}
+
 async function main() {
   if (!TOKEN) throw new Error("缺少 VERCEL_TOKEN");
   console.log("▶ 阶段 1/4：创建 / 关联项目");
@@ -247,6 +283,15 @@ async function main() {
   const result = await pollDeployment(deployment.id);
   if (result.ok) {
     console.log(`✅ 生产部署完成: https://${result.url}`);
+    // 别名显式绑定：008ai.online / www 仅由本脚本更新（Git Webhook 自动部署断开后）
+    const assigned = await assignAliases(deployment);
+    if (assigned.length) console.log(`  生产域名别名已由脚本显式更新: ${assigned.join(", ")}`);
+    // 部署后自检：确认 https://008ai.online 恢复 200
+    const healthy = await verifyDomain();
+    if (!healthy) {
+      console.error("❌ 生产域名未恢复 200，请检查别名绑定与部署状态");
+      process.exitCode = 1;
+    }
   } else {
     console.error(`❌ 部署未成功: ${result.state}`);
     if (result.data?.error) console.error(JSON.stringify(result.data.error).slice(0, 500));
