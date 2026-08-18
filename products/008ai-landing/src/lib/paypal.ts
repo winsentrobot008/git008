@@ -49,6 +49,12 @@ export async function createPayPalOrder(amount: number, description: string): Pr
     },
     body: JSON.stringify({
       intent: "CAPTURE",
+      application_context: {
+        locale: "en-US",
+        brand_name: "008AI",
+        landing_page: "NO_PREFERENCE",
+        user_action: "PAY_NOW",
+      },
       purchase_units: [
         {
           description,

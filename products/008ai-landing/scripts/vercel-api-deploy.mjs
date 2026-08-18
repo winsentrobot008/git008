@@ -31,7 +31,9 @@ const REQUIRED_ENV_KEYS = [
 ];
 const ROOT = path.resolve(process.cwd());
 const SKIP_DIRS = new Set(["node_modules", ".git", ".next", ".vercel", "test-results", ".codex"]);
-const SKIP_FILES = (name) => name.startsWith(".env") && name !== ".env.example";
+// 跳过本地备份副本（如 "page - 副本.tsx"），避免无意义文件进入部署包
+const SKIP_FILES = (name) =>
+  (name.startsWith(".env") && name !== ".env.example") || name.includes("副本");
 
 const api = "https://api.vercel.com";
 

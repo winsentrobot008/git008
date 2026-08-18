@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
+const PAYPAL_LOCALE = "en_US";
 const IS_DEMO =
   !CLIENT_ID || CLIENT_ID === "YOUR_PAYPAL_CLIENT_ID_HERE" || CLIENT_ID === "demo";
 
@@ -81,20 +82,25 @@ export default function PayPalCheckout({
         .render(containerRef.current);
     };
 
-    if (document.getElementById(scriptId)) {
-      renderButton();
-      return () => {
-        cancelled = true;
-      };
+    const existingScript = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (existingScript) {
+      const hasLocale = existingScript.src.includes(`locale=${PAYPAL_LOCALE}`);
+      if (hasLocale) {
+        renderButton();
+        return () => {
+          cancelled = true;
+        };
+      }
+      existingScript.remove();
     }
 
     const script = document.createElement("script");
     script.id = scriptId;
-    // 显式 locale=en_US：英文站点下 PayPal 按钮文案 100% 英文，
-    // 避免浏览器语言导致“用 PayPal 付款”等本地化默认字样。
+    script.setAttribute("data-locale", PAYPAL_LOCALE);
+    // Explicit locale=en_US: keep PayPal button copy 100% English on this site.
     script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
       CLIENT_ID
-    )}&currency=USD&intent=capture&components=buttons&locale=en_US`;
+    )}&currency=USD&intent=capture&components=buttons&locale=${PAYPAL_LOCALE}`;
     script.async = true;
     script.onload = renderButton;
     document.body.appendChild(script);
