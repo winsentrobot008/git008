@@ -3,8 +3,8 @@
  * vercel-api-deploy — 008AI Landing 无 CLI 一键部署脚本（Vercel REST API）
  *
  * 用途：本机 Vercel CLI 在部分 Windows 环境会静默挂起，此脚本用 REST API 完成：
- *   1. 从老项目拉取生产环境变量（calorie-ai）→ 打印键名（绝不打印值）；
- *   2. 创建 / 关联新项目 008ai-landing 并逐个导入 production 变量；
+ *   1. 创建 / 关联项目 008ai-landing 并核对生产环境变量（不再依赖老项目 calorie-ai）；
+ *   2. 缺失关键变量时提示补全（用 vercel-fix-env.mjs 或 Dashboard）；
  *   3. 设置框架（Next.js）与构建命令；
  *   4. 上传源码文件 → 触发生产构建并轮询到 READY / ERROR。
  *
@@ -22,7 +22,13 @@ import crypto from "node:crypto";
 const TOKEN = process.env.VERCEL_TOKEN || "";
 const TEAM_ID = process.env.VERCEL_TEAM_ID || "team_yziFzTtkDBBAkujUR0JQOpRk";
 const PROJECT = "008ai-landing";
-const OLD_PROJECT_CANDIDATES = ["calorie-ai", "calorieai"];
+const REQUIRED_ENV_KEYS = [
+  "STRIPE_SECRET_KEY",
+  "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_PAYPAL_CLIENT_ID",
+  "PAYPAL_CLIENT_SECRET",
+  "ADMIN_KEY",
+];
 const ROOT = path.resolve(process.cwd());
 const SKIP_DIRS = new Set(["node_modules", ".git", ".next", ".vercel", "test-results", ".codex"]);
 const SKIP_FILES = (name) => name.startsWith(".env") && name !== ".env.example";
@@ -66,12 +72,15 @@ function sha1(buf) {
   return crypto.createHash("sha1").update(buf).digest("hex");
 }
 
-async function findOldProject() {
-  for (const name of OLD_PROJECT_CANDIDATES) {
-    const { status, data } = await vcall("GET", `/v9/projects/${name}?teamId=${TEAM_ID}`);
-    if (status === 200) return data;
-  }
-  throw new Error("未找到老项目（calorie-ai / calorieai）");
+async function verifyEnv() {
+  const { status, data } = await vcall(
+    "GET",
+    `/v9/projects/${PROJECT}/env?teamId=${TEAM_ID}&limit=200`
+  );
+  if (status !== 200) throw new Error(`读取 ${PROJECT} 环境变量失败 (${status})`);
+  const keys = (data.envs || []).map((e) => e.key);
+  const missing = REQUIRED_ENV_KEYS.filter((k) => !keys.includes(k));
+  return { keys, missing };
 }
 
 async function ensureProject() {
@@ -84,33 +93,6 @@ async function ensureProject() {
     throw new Error(`创建项目失败 (${createStatus}): ${JSON.stringify(data).slice(0, 200)}`);
   }
   return { created: true };
-}
-
-async function importEnv(oldProject) {
-  const { status, data } = await vcall(
-    "GET",
-    `/v9/projects/${oldProject.id}/env?teamId=${TEAM_ID}&limit=200`
-  );
-  if (status !== 200) throw new Error(`读取老项目环境变量失败 (${status})`);
-  const envs = (data.envs || []).filter((e) => e.type !== "system");
-  const imported = [];
-  for (const e of envs) {
-    const body = {
-      key: e.key,
-      value: String(e.value ?? ""),
-      type: "encrypted",
-      target: ["production"],
-    };
-    const r = await vcall("POST", `/v10/projects/${PROJECT}/env?teamId=${TEAM_ID}`, { body });
-    if (r.status === 200 || r.status === 201) {
-      imported.push(e.key);
-    } else if (r.status === 400 && JSON.stringify(r.data).includes("already exists")) {
-      imported.push(`${e.key} (已存在)`);
-    } else {
-      console.warn(`  ⚠️ ${e.key} 导入失败 (${r.status})`);
-    }
-  }
-  return { envs, imported };
 }
 
 async function ensureAdminKey() {
@@ -238,14 +220,17 @@ async function verifyDomain() {
 async function main() {
   if (!TOKEN) throw new Error("缺少 VERCEL_TOKEN");
   console.log("▶ 阶段 1/4：创建 / 关联项目");
-  const oldProject = await findOldProject();
   const { created } = await ensureProject();
-  console.log(`  项目 ${PROJECT} ${created ? "已创建" : "已存在"} · 老项目: ${oldProject.name}`);
+  console.log(`  项目 ${PROJECT} ${created ? "已创建" : "已存在"}`);
 
-  console.log("▶ 阶段 2/4：拉取并导入环境变量");
-  const { envs, imported } = await importEnv(oldProject);
-  console.log(`  老项目: ${oldProject.name} · 共 ${envs.length} 个 production 变量`);
-  console.log(`  已导入: ${imported.join(", ")}`);
+  console.log("▶ 阶段 2/4：核对生产环境变量");
+  const { keys, missing } = await verifyEnv();
+  console.log(`  008ai-landing 当前变量: ${keys.length} 个`);
+  if (missing.length) {
+    console.warn(`  ⚠️ 缺少关键变量: ${missing.join(", ")}（请用 vercel-fix-env.mjs 或 Dashboard 补齐）`);
+  } else {
+    console.log("  ✅ 支付/管理关键变量齐全（STRIPE · PAYPAL · ADMIN_KEY）");
+  }
   await ensureAdminKey();
 
   console.log("▶ 阶段 3/4：设置构建参数");
