@@ -144,7 +144,7 @@ Prompt 由 `src/lib/app-config.ts` 的 `prompts.image(mealType)` 集中维护（
 ```
 
 前端将第一项作为「数量名称卡」，并渲染「总计」行（整盘总卡路里 + 三大营养素）。
-服务端 `analyze-image` 强制解析 JSON 并记录 `count`，Provider（gemini/openrouter/deepseek）A→B→C 回退；
+服务端 `analyze-image` 强制解析 JSON 并记录 `count`，Provider（gemini/openrouter）A→B 回退；
 Central Gateway `/api/v1/ai/vision` 的 Prompt 表必须与此保持一致（按 `app_id` 切换）。
 
 ### 2.4 数量单位白名单
@@ -226,7 +226,7 @@ Agent B（对标巡检）以移动端 Playwright 巡检脚本独立回测，只�
 - **禁令一 · 严禁过度的 Dummy Mock 欺骗**：
   禁止以本地假数据（硬编码 Dummy/Demo 应答、全 mock 回退、伪造识别结果或支付成功）
   冒充真实 AI / 支付链路向 CEO、投资人或质检交付演示。
-  - 生产链路必须走真实 **A→B→C 视觉回退链**（Gemini → OpenRouter → DeepSeek），**绝不回退 Mock**（见 `products/calorieai/MEMORY.md` 决策 7）；
+  - 生产链路必须走真实 **A→B 视觉回退链**（Gemini → OpenRouter），**绝不回退 Mock**（见 `products/calorieai/MEMORY.md` 决策 7）；
   - Stripe / PayPal 未配密钥时仅允许明确的「演示模式」降级提示（`mock:true` + 可读 message），
     禁止静默伪造成真实扣款；
   - **测试桩唯一合法位置**：E2E 巡检脚本内的显式拦截（标注 `TEST-STUB`，如拦截

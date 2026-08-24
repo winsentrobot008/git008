@@ -35,8 +35,8 @@ export function normalizeRecords(items: unknown[]): FoodRecord[] {
       return {
         food: String(item.food ?? item.name ?? item.food_name ?? item.food_en ?? "未知"),
         food_en: String(item.food_en ?? item.name_en ?? ""),
-        grams: toNumber(item.grams ?? item.weight_g ?? item.weight ?? item.estimated_weight_g),
-        calories: toNumber(item.calories ?? item.kcal ?? item.calorie),
+        grams: toNumber(item.grams ?? item.gram ?? item.weight_g ?? item.weight ?? item.estimated_weight_g),
+        calories: toNumber(item.calories ?? item.cal ?? item.kcal ?? item.calorie),
         protein_g: toNumber(item.protein_g ?? item.protein),
         fat_g: toNumber(item.fat_g ?? item.fat),
         carbs_g: toNumber(item.carbs_g ?? item.carbs ?? item.carbohydrates_g ?? item.carbohydrates),
@@ -102,6 +102,11 @@ async function analyzeWithGemini(
             parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
           },
         ],
+        generationConfig: {
+          maxOutputTokens: 200,
+          responseMimeType: "application/json",
+          temperature: 0.2,
+        },
       }),
     }
   );
@@ -134,11 +139,12 @@ async function analyzeWithOpenAICompatible(
           role: "user",
           content: [
             { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" } },
           ],
         },
       ],
-      max_tokens: 1024,
+      max_tokens: 200,
+      response_format: { type: "json_object" },
     }),
   });
   if (!response.ok) {
@@ -224,6 +230,11 @@ async function analyzeTextWithGemini(prompt: string, apiKey: string): Promise<Fo
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: 200,
+          responseMimeType: "application/json",
+          temperature: 0.2,
+        },
       }),
     }
   );
@@ -250,7 +261,8 @@ async function analyzeTextWithOpenAICompatible(
     body: JSON.stringify({
       model: options.model,
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 1024,
+      max_tokens: 200,
+      response_format: { type: "json_object" },
     }),
   });
   if (!response.ok) {

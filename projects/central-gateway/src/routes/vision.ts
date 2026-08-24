@@ -15,37 +15,57 @@ const vision = new Hono<{ Variables: Variables }>();
 
 const PROMPTS: Record<string, (mealType: string) => string> = {
   calorieai: (mealType) =>
-    `你是一位专业的营养师。请对这张食物照片执行【自动数数 + 数量明确展示 + 整盘总热量计算】。
-
-规则（必须严格遵守）：
-1. 强制清点数量 Count：必须清点画面中所有可见食物的具体数量/份数（如「9 颗小笼包」「3 块炸鸡」「1 碗米饭」「2 个鸡蛋」）。画面模糊无法确定时给出合理估计，并在 confidence(0-1) 中体现置信度。
-2. 食物名称带数量与预估总重：food 名称必须同时包含数量与整盘预估总重，如「小笼包 (9 颗 / 约 270g)」「炸鸡 (3 块 / 约 240g)」「米饭 (1 碗 / 约 300g)」，让用户一眼看懂整盘份量。
-3. 计算总账 Total：每项 kcal / P(蛋白质) / F(脂肪) / C(碳水) 必须是画面中【所有数量的总和】（单品 × 总数量），直接输出整盘/整笼的【实际总热量与总营养素】；绝不能只给单颗/单份或 100g 基础单位的数据。
-
-输出 JSON 数组，每个对象必须包含：
-food(带数量与总重的中文名，如「小笼包 (9 颗 / 约 270g)」), food_en(英文名), grams(该食物整盘估算总重量克数), calories(该食物整盘总卡路里=单品×数量), protein_g(整盘蛋白质克数), fat_g(整盘脂肪克数), carbs_g(整盘碳水克数), confidence(0-1的置信度).
-餐次类型: ${mealType}
-只返回 JSON 数组，不要其他文字。`,
+    `分析食物照片，清点食物并估算整盘营养。餐次:${mealType}。
+直接返回JSON数组，对象字段:
+food:食物名(含数量与总重如"小笼包 (9 颗 / 约 270g)")
+food_en:英文名
+grams:整盘总克数
+calories:整盘总热量(单品×数量)
+protein_g:整盘蛋白质g
+fat_g:整盘脂肪g
+carbs_g:整盘碳水g
+confidence:0~1置信度
+只返回JSON数组，无其他文字。`,
   petai: () =>
-    `你是宠物健康助手。请分析这张宠物照片，返回 JSON 数组格式的对象列表。
-每个对象必须包含: food(宠物名称/品种), food_en(英文名), grams(估算体重克数), calories(建议每日卡路里), protein_g(蛋白质克数), fat_g(脂肪克数), carbs_g(碳水克数), confidence(0-1的置信度).
-只返回 JSON 数组，不要其他文字。`,
+    `分析宠物照片评估营养需求。直接返回JSON数组，对象字段:
+food:宠物名称/品种
+food_en:英文名
+grams:估算体重克数
+calories:建议每日卡路里
+protein_g:蛋白质克数
+fat_g:脂肪克数
+carbs_g:碳水克数
+confidence:0~1置信度
+只返回JSON数组，无其他文字。`,
 };
 
 const VALID_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
 const TEXT_PROMPTS: Record<string, (text: string, mealType: string) => string> = {
   calorieai: (text, mealType) =>
-    `你是一位专业的营养师。请根据用户的食物描述文本，估算每种食物的营养数据，返回 JSON 数组格式的食物列表。
-每个对象必须包含: food(中文名), food_en(英文名), grams(估算重量克数), calories(卡路里), protein_g(蛋白质克数), fat_g(脂肪克数), carbs_g(碳水克数), confidence(0-1的置信度).
-餐次类型: ${mealType}
-用户描述: ${text}
-只返回 JSON 数组，不要其他文字。`,
+    `估算用户食物描述的营养。餐次:${mealType}，描述:${text}。
+直接返回JSON数组，对象字段:
+food:食物名
+food_en:英文名
+grams:克数
+calories:热量
+protein_g:蛋白质g
+fat_g:脂肪g
+carbs_g:碳水g
+confidence:0~1置信度
+只返回JSON数组，无其他文字。`,
   petai: (text) =>
-    `你是宠物健康助手。请根据用户描述估算宠物每日营养需求，返回 JSON 数组格式的对象列表。
-每个对象必须包含: food(项目名称), food_en(英文名), grams(克数), calories(卡路里), protein_g(蛋白质克数), fat_g(脂肪克数), carbs_g(碳水克数), confidence(0-1的置信度).
-用户描述: ${text}
-只返回 JSON 数组，不要其他文字。`,
+    `根据描述估算宠物每日营养需求。描述:${text}。
+直接返回JSON数组，对象字段:
+food:项目名称
+food_en:英文名
+grams:克数
+calories:卡路里
+protein_g:蛋白质克数
+fat_g:脂肪克数
+carbs_g:碳水克数
+confidence:0~1置信度
+只返回JSON数组，无其他文字。`,
 };
 
 vision.post("/vision", rateLimit(10), async (c: Context<{ Variables: Variables }>) => {
