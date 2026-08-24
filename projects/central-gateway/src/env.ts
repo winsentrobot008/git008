@@ -77,7 +77,8 @@ export const env = {
   geminiKey: process.env.GEMINI_API_KEY || "",
   openrouterKey: process.env.OPENROUTER_API_KEY || "",
   deepseekKey: process.env.DEEPSEEK_API_KEY || "",
-  geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+  // 模型 ID 必须是裸名称：剥离误配的 "models/" 前缀，防止 /models/models/ 双路径 404
+  geminiModel: (process.env.GEMINI_MODEL || "gemini-2.5-flash").trim().replace(/^(?:models\/)+/, ""),
   openrouterModel: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
   deepseekModel: process.env.DEEPSEEK_MODEL || "deepseek-chat",
 
