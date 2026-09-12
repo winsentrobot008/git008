@@ -14,11 +14,14 @@ git008 已验证的情感化商业化模式，供所有套娃产品复用。
 
 1. **免费额度 + 触发型付费墙**
    - 新用户赠送 3 积分（`DEFAULT_FREE_CREDITS`，见 `middleware/credits.ts`）；
+   - 每个 UTC 自然日自动补足免费额度到 3 积分并清零每日计数
+     （`DAILY_FREE_CREDITS` / `ensureDailyQuota`，跨天请求即结算）；
    - 每次 AI 调用扣 1 积分（`middleware/credit-guard.ts`），余额 < 1 时返回
      402 `INSUFFICIENT_CREDITS`；
    - 前端在收到 402 时弹出「积分不足」引导弹窗，而不是报错页。
 2. **看广告领积分（互惠）**
-   - `POST /api/v1/billing/ad-reward` 发放 +10 积分；
+   - `POST /api/v1/billing/ad-reward` 每次发放 +1 积分（`AD_REWARD_CREDITS`），
+     单账号每日上限 3 次（`AD_DAILY_LIMIT`），超限返回 400 `AD_DAILY_LIMIT_REACHED`；
    - 前端 AdModal 3–5 秒倒计时后发奖，制造「付出即有回报」的正反馈。
 3. **定价卡片情绪锚点**
    - 三档积分包（starter / booster / power），中间档标记 `popular` 徽章；

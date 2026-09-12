@@ -15,6 +15,9 @@ import type { JSX } from "react";
 export interface CreditPackView {
   id: string;
   credits: number;
+  /** 基准价：人民币元（1 RMB = 1 Credit，Stripe 以 CNY 结算） */
+  priceCny: number;
+  /** 由基准价折算的美元价（PayPal 等不支持 CNY 的通道使用） */
   priceUsd: number;
   labelKey: string;
   descKey: string;
@@ -92,7 +95,7 @@ export default function BillingModalTemplate({
               {idx === 1 && <div className="plan-badge">{t("billing_most_popular")}</div>}
               <div className="plan-name">{t(pack.labelKey)}</div>
               <div className="plan-price">
-                <span className="price">${pack.priceUsd.toFixed(2)}</span>
+                <span className="price">¥{pack.priceCny}</span>
                 <span className="period">{t("billing_one_time")}</span>
               </div>
               <div className="plan-save">
@@ -104,7 +107,7 @@ export default function BillingModalTemplate({
                 <li>{t("billing_pack_feature_1credit_per_scan")}</li>
               </ul>
               <button className="btn-primary plan-btn" onClick={() => onSelectPack(pack.id)}>
-                {t("billing_select_pack", { credits: pack.credits, price: `$${pack.priceUsd.toFixed(2)}` })}
+                {t("billing_select_pack", { credits: pack.credits, price: `¥${pack.priceCny}` })}
               </button>
             </div>
           ))}
@@ -158,7 +161,7 @@ export default function BillingModalTemplate({
               {processing ? (
                 <span className="spinner" />
               ) : (
-                t("billing_pay_btn_card", { amount: `$${selectedPack.priceUsd.toFixed(2)}` })
+                t("billing_pay_btn_card", { amount: `¥${selectedPack.priceCny}` })
               )}
             </button>
           </div>

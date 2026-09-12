@@ -9,7 +9,9 @@
 
 - **取消订阅套路**：全量采用一次性付款积分包，月付 / 年付 / 永久买断接口全部
   返回 410（`src/app/api/v1/billing/{subscribe,license}/route.ts`）；
-- **固定汇率**：1 次 AI 识图 = 1 积分，积分不过期；
+- **固定汇率**：1 次 AI 识图 = 1 积分，积分不过期；每日免费额度 3 积分（UTC 日切自动补足）；
+- **定价基准**：1 RMB = 1 Credit（`CNY_PER_CREDIT`）——Stripe 以 CNY 结算，
+  PayPal 按固定基准汇率折算 USD，两条通道折算回人民币后与基准价一致；
 - **统一商品目录**：`middleware/credit-packs.ts` 是价格 / 积分唯一来源，
   Stripe / PayPal / 前端 / 中央网关共用，杜绝价差。
 
@@ -18,7 +20,7 @@
 ```text
 前端 BillingModal
   → POST /api/stripe/checkout { pack_id, user_id, email, locale }
-  → Stripe Checkout Session（mode=payment，元数据携带 pack_id/credits/amount_usd）
+  → Stripe Checkout Session（mode=payment，元数据携带 pack_id/credits/amount_cny/amount_usd）
   → checkout.session.completed Webhook
   → addServerCredits(userId, pack.credits)      // 服务端权威发放
   → db.recordPayment({ orderId: session.id })   // 幂等去重
@@ -36,9 +38,12 @@ PayPal 同构：`create-order` → 前端 approve → `capture-order` → `COMPL
 3. **密钥缺失降级**：未配置真实密钥时返回 `mock:true` + 可读 message，
    禁止静默假成功（见 `docs/AI_FACTORY_SPEC.md` §4.3）；
 4. **旧 plan 兼容**：`resolvePack()` 把 `monthly/yearly/permanent` 一律
-   回退到默认体验包，防止旧客户端复活订阅语义。
+   回退到默认体验包，防止旧客户端复活订阅语义；
+5. **每日额度权威计数**：`last_reset_timestamp` / `daily_free_used` /
+   `daily_ad_views_today` 与余额同库持久化；免费额度日切与广告奖励上限
+   一律以服务端 UTC 计时为准，客户端不可篡改。
 
 ## 质量闸门
 
 - `check-stripe-config.mjs` / `test-stripe-e2e.mjs` 覆盖积分包元数据与幂等断言；
-- 商品名必须含 `Credits`（英文环境），例如 `CalorieAI 50 Credits Pack`。
+- 商品名必须含 `Credits`（英文环境），例如 `CalorieAI 35 Credits Pack`。

@@ -10,6 +10,7 @@
  *
  * planId 覆盖：
  *   - 积分包（Credits Top-up，一次性付款）：pack_starter / pack_booster / pack_power
+ *     （定价基准 1 RMB = 1 Credit，结算币种 CNY）
  *   - Pro 订阅（Paywall，$9.99/月）：pro_monthly
  *
  * 套娃应用克隆后只需同步商品文案，禁止在各支付路由内各自维护一份。
@@ -26,7 +27,8 @@ export type StripePlanId =
 export interface LocalizedPaymentItem {
   name: string;
   description: string;
-  currency: "usd";
+  /** 结算币种：积分包基准币种为 CNY（1 RMB = 1 Credit）；旧订阅为 USD */
+  currency: "cny" | "usd";
 }
 
 /** 全外语 / 英文环境零汉字盲点断言（SOP §5）：CJK 统一汉字正则 */
@@ -64,7 +66,7 @@ export function getLocalizedPaymentItem(
       description: zh
         ? `一次性付款 · ${pack.credits} 积分即时到账（无订阅）`
         : `One-time payment - ${pack.credits} Credits added instantly (No subscription)`,
-      currency: "usd",
+      currency: "cny",
     };
   }
 
