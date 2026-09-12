@@ -70,6 +70,14 @@ __pycache__/
 *.bak_*
 $null
 
+# --- env 凭证隔离（安全审计：禁止提交任何真实密钥）---
+.env
+.env.local
+.env.*
+!.env.example
+!*.env.template
+!*.env.sample
+
 # Governance & Temporary Artifacts
 TEMP/*
 output/*
