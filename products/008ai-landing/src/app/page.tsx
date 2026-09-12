@@ -44,7 +44,7 @@ function TrustBadges({ slots = "67 / 90" }: { slots?: string }) {
         {badges.map((b) => (
           <span
             key={b.label}
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-white/20 px-3 py-1.5 text-[11px] font-semibold text-slate-700 backdrop-blur-md shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/80 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-slate-700 backdrop-blur-md shadow-[inset_0_1px_2px_rgba(255,255,255,0.9)]"
           >
             <b.icon className="h-3.5 w-3.5 text-pink-600" />
             {b.label}
@@ -65,59 +65,63 @@ function AppGrid() {
       className="scroll-mt-20 px-5 pb-16 pt-4 sm:px-8 sm:pb-20"
     >
       <div className="mx-auto max-w-6xl">
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
-          {APPS.map((app) => {
-            const card = (
-              <>
-                {app.flagship && (
-                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-md shadow-pink-500/30">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
-                  </span>
-                )}
-                {app.status === "soon" && (
-                  <span className="absolute right-3 top-3 rounded-full border border-white/60 bg-white/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 backdrop-blur-md">
-                    Coming Soon
-                  </span>
-                )}
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/10 border border-pink-400/30 text-pink-600 sm:h-12 sm:w-12 sm:rounded-2xl">
-                  <app.icon className="h-5 w-5 sm:h-6 sm:w-6" />
-                </span>
-                <h3 className="mt-3 text-base font-bold text-slate-900 sm:text-lg">{app.title}</h3>
-                <p className="mt-0.5 text-xs font-semibold text-pink-600 sm:text-sm">
-                  {app.tagline}
-                </p>
-                <div className="mt-auto pt-6">
-                  {app.href ? (
-                    <span className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 px-3 text-xs font-bold text-white shadow-lg shadow-pink-500/30 transition hover:brightness-105 sm:text-sm">
-                      {app.cta} →
-                    </span>
-                  ) : (
-                    <span className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-white/60 bg-white/30 px-3 text-xs font-bold text-slate-500 backdrop-blur-md sm:text-sm">
-                      Join Waitlist
+        {/* 卡片 Grid 背部透光层：让色彩从毛玻璃内部透出来 */}
+        <div className="relative isolate">
+          <div className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
+            <div className="h-[250px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/40 via-fuchsia-400/30 to-purple-500/40 blur-[90px]" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
+            {APPS.map((app) => {
+              const card = (
+                <>
+                  {/* 水晶顶部折射高光线 */}
+                  <div className="pointer-events-none absolute left-0 right-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/80 to-transparent" />
+                  {app.flagship && (
+                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-md shadow-pink-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
                     </span>
                   )}
+                  {app.status === "soon" && (
+                    <span className="absolute right-3 top-3 rounded-full border border-white/60 bg-white/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 backdrop-blur-md">
+                      Coming Soon
+                    </span>
+                  )}
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/10 border border-pink-400/30 text-pink-600 sm:h-12 sm:w-12 sm:rounded-2xl">
+                    <app.icon className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </span>
+                  <h3 className="mt-3 text-base font-bold text-slate-900 sm:text-lg">{app.title}</h3>
+                  <p className="mt-0.5 text-xs font-semibold text-pink-600 sm:text-sm">
+                    {app.tagline}
+                  </p>
+                  <div className="mt-auto pt-6">
+                    {app.href ? (
+                      <span className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 px-3 text-xs font-bold text-white shadow-lg shadow-pink-500/30 transition hover:brightness-105 sm:text-sm">
+                        {app.cta} →
+                      </span>
+                    ) : (
+                      <span className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-white/60 bg-white/30 px-3 text-xs font-bold text-slate-500 backdrop-blur-md sm:text-sm">
+                        Join Waitlist
+                      </span>
+                    )}
+                  </div>
+                </>
+              );
+
+              /* 3D 水晶晶体卡片：切边高光 + 晶体厚度 */
+              const cls = `relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-white/80 via-white/25 to-white/50 p-6 backdrop-blur-2xl border-t border-l border-white/90 border-b border-r border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,1),inset_0_-2px_4px_rgba(236,72,153,0.15),0_15px_35px_-5px_rgba(236,72,153,0.25)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[inset_0_1px_3px_rgba(255,255,255,1),0_20px_45px_-5px_rgba(236,72,153,0.35)]`;
+
+              return app.href ? (
+                <a key={app.title} href={app.href} target="_self" className={cls}>
+                  {card}
+                </a>
+              ) : (
+                <div key={app.title} className={cls}>
+                  {card}
                 </div>
-              </>
-            );
-
-            /* 降低透明度至 bg-white/15 + 3D高光阴影 */
-            const cls = `relative flex flex-col rounded-3xl border border-white/60 bg-white/15 p-5 backdrop-blur-xl shadow-[0_10px_30px_rgba(236,72,153,0.1),inset_0_1px_2px_rgba(255,255,255,0.8)] transition duration-300 hover:bg-white/25 hover:shadow-[0_15px_35px_rgba(236,72,153,0.2),inset_0_1px_3px_rgba(255,255,255,0.9)] sm:p-6 ${
-              app.flagship
-                ? "border-white/80 shadow-pink-200/40"
-                : "border-white/50"
-            }`;
-
-            return app.href ? (
-              <a key={app.title} href={app.href} target="_self" className={cls}>
-                {card}
-              </a>
-            ) : (
-              <div key={app.title} className={cls}>
-                {card}
-              </div>
-            );
-          })}
-          <WishCard />
+              );
+            })}
+            <WishCard />
+          </div>
         </div>
       </div>
     </section>
@@ -126,17 +130,17 @@ function AppGrid() {
 
 export default function Home() {
   return (
-    /* 1. 水晶粉柔和背景 */
     <main className="relative min-h-screen overflow-x-hidden bg-gradient-to-br from-[#ffd6e8] via-[#fff0f6] to-[#e8d5ff] font-sans text-slate-800">
-      
-      {/* 2. 左右连体 3D 光泽柱体（贯穿上下不中断） */}
-      <div className="pointer-events-none fixed inset-0 z-10 flex justify-between px-2 sm:px-6">
-        <div className="h-full w-3 sm:w-5 bg-white/20 backdrop-blur-md rounded-full border-x border-white/60 shadow-[inset_-3px_0_8px_rgba(255,255,255,0.8),inset_3px_0_8px_rgba(255,182,193,0.4),0_0_15px_rgba(236,72,153,0.15)]" />
-        <div className="h-full w-3 sm:w-5 bg-white/20 backdrop-blur-md rounded-full border-x border-white/60 shadow-[inset_3px_0_8px_rgba(255,255,255,0.8),inset_-3px_0_8px_rgba(255,182,193,0.4),0_0_15px_rgba(236,72,153,0.15)]" />
+      {/* 1. 强力 3D 水晶柱：固定全屏置顶 (z-30) + 强烈双侧光泽感 */}
+      <div className="pointer-events-none fixed inset-0 z-30 flex justify-between px-2 sm:px-6">
+        {/* 左柱：左向侧强高光 */}
+        <div className="h-full w-4 sm:w-6 rounded-full bg-gradient-to-r from-white/80 via-pink-200/40 to-white/60 backdrop-blur-md border-x border-white shadow-[inset_-4px_0_12px_rgba(255,255,255,0.95),inset_4px_0_10px_rgba(236,72,153,0.25),0_0_20px_rgba(236,72,153,0.2)]" />
+        {/* 右柱：右向侧强高光 */}
+        <div className="h-full w-4 sm:w-6 rounded-full bg-gradient-to-r from-white/60 via-pink-200/40 to-white/80 backdrop-blur-md border-x border-white shadow-[inset_4px_0_12px_rgba(255,255,255,0.95),inset_-4px_0_10px_rgba(236,72,153,0.25),0_0_20px_rgba(236,72,153,0.2)]" />
       </div>
 
-      {/* ── Minimal Header：Logo + ⋮ 菜单 ───────────────── */}
-      <header className="sticky top-0 z-50 border-b border-white/40 bg-white/20 backdrop-blur-xl">
+      {/* ── Minimal Header ───────────────── */}
+      <header className="sticky top-0 z-50 border-b border-white/50 bg-white/20 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
           <a href="#" className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 text-sm font-extrabold text-white shadow-md shadow-pink-300/50">
@@ -151,7 +155,7 @@ export default function Home() {
       </header>
 
       <div className="relative z-20">
-        {/* ── Hero：仅标题 + 副标题 ───────────────────────── */}
+        {/* ── Hero ───────────────────────── */}
         <section className="relative px-5 pb-8 pt-12 sm:px-8 sm:pt-16">
           <div className="mx-auto max-w-4xl text-center">
             <h1 className="bg-gradient-to-r from-pink-600 via-rose-500 to-purple-600 bg-clip-text text-4xl font-black leading-[1.08] tracking-tight text-transparent sm:text-6xl">
@@ -163,13 +167,13 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── 核心：AppGrid 矩阵 ──────────────────────────── */}
+        {/* ── AppGrid ──────────────────────────── */}
         <AppGrid />
 
-        {/* ── Lifetime Pass（3D 毛玻璃支付卡）────────────── */}
+        {/* ── Lifetime Pass ────────────── */}
         <section id="pricing" className="scroll-mt-20 px-5 pb-20 pt-4 sm:px-8">
           <div className="mx-auto max-w-md">
-            <div className="relative overflow-hidden rounded-3xl border border-white/80 bg-white/20 p-8 shadow-[0_20px_50px_rgba(236,72,153,0.15),inset_0_1px_3px_rgba(255,255,255,0.9)] backdrop-blur-2xl">
+            <div className="relative overflow-hidden rounded-3xl border border-white/90 bg-white/30 p-8 shadow-[0_20px_50px_rgba(236,72,153,0.2),inset_0_2px_4px_rgba(255,255,255,0.9)] backdrop-blur-2xl">
               <div className="absolute right-0 top-0 rounded-bl-2xl bg-gradient-to-r from-pink-500 to-rose-500 px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-white shadow-sm">
                 Early Bird
               </div>
@@ -221,7 +225,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Footer（极简）───────────────────────────────── */}
+        {/* ── Footer ───────────────────────────────── */}
         <footer className="border-t border-white/40 bg-white/10 backdrop-blur-md px-5 py-8 sm:px-8">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-2">

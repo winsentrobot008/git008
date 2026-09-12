@@ -59,7 +59,7 @@
 
 | 文件 | 变更 |
 | --- | --- |
-| `tsconfig.json` | 新增 paths：`@commercial-engine/* → ../../commercial-engine/*` |
+| `tsconfig.json` | 新增 paths：`@git008/commercial-engine/* → ./src/lib/commercial-engine/*（SPU 内联快照）` |
 | `next.config.ts` | 新增 `turbopack.root = <repo root>`（Turbopack monorepo 支持） |
 | `src/lib/cost-control.ts` | 删除 Upstash/Redis 实现 → 委托 `credit-guard`（db 端口注入） |
 | `src/lib/rate-limit.ts` | 删除本地 bucket 实现 → re-export / 委托 `rate-limit` |
@@ -100,7 +100,7 @@
 | 消费方 | 导入路径 |
 | --- | --- |
 | calorieai（Next / bundler） | `@commercial-engine/middleware/credit-guard`、`.../rate-limit`、`.../credits`、`.../credit-packs`、`.../stripe-i18n`、`.../billing-store`、`.../billing-activate`、`.../payment-keys`、`.../payment-errors` |
-| central-gateway（Hono / NodeNext→bundler 类型检查，tsx 运行） | `../../../../commercial-engine/middleware/rate-limit`、`.../credits`、`.../credit-packs`、`.../stripe-i18n`、`.../payment-keys` |
+| central-gateway（Hono / NodeNext→bundler 类型检查，tsx 运行） | `@git008/commercial-engine/middleware/rate-limit`、`.../credits`、`.../credit-packs`、`.../stripe-i18n`、`.../payment-keys` |
 
 ## 6. 验证结果（Validation）
 

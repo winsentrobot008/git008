@@ -10,7 +10,7 @@
  *   1. 从标准模版 products/calorieai 复制到 products/<target>
  *      （自动排除 .git / node_modules / .next / qa-logs / data / .env.local* 等）；
  *   2. 全局重命名：calorieai→<target>、CalorieAI→<brand>、calorie-ai-seven→<target>-seven；
- *   3. 打印 10 分钟上线清单（改 app-config / i18n / env / 网关注册 / Vercel 部署）。
+ *   3. 打印 10 分钟上线清单（改 app-config / i18n / env / SPU 自洽 / Vercel 部署）。
  *
  * 克隆后只需变更三处即可完成业务差异化：
  *   - src/lib/app-config.ts  → App-ID / 品牌名 / Prompt / 主题配色
@@ -117,9 +117,10 @@ console.log(`
 │    · src/lib/i18n/{zh,en}.json → 品牌文案                        │
 │ 2. 密钥（必改）:                                                  │
 │    · cp .env.example .env.local 并填入 AI Key / Stripe 双 Key     │
-│ 3. 网关注册（10 秒）:                                             │
-│    · GATEWAY_APP_TOKENS 追加 "target":"tok_xxx"                  │
-│    · .env.local 写入 GATEWAY_BASE_URL + GATEWAY_APP_KEY           │
+│ 3. SPU 自主运行（默认，免网关）:                                 │
+│    · 直连 AI：GEMINI_API_KEY / DEEPSEEK_API_KEY                  │
+│    · src/lib/commercial-engine/ = 商业中台内联快照               │
+│    · 识图 / 积分 / 收银台全部本地执行，无跨仓依赖                │
 │ 4. 本地门禁（必跑）:                                              │
 │    · npm install && npm run build                                 │
 │    · npm run test:api（语义探针）/ npm run qa:ui（语义探针）        │

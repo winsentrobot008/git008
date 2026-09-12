@@ -1,6 +1,10 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import { env } from "../env.js";
+import {
+  createCreditLedger,
+  DEFAULT_FREE_CREDITS,
+} from "@git008/commercial-engine/middleware/credits.js";
 
 /**
  * 跨端积分 / Pro 状态存储。
@@ -9,6 +13,9 @@ import { env } from "../env.js";
  *   1. KV（Vercel KV / Upstash REST）——配置后跨实例一致；
  *   2. 本地文件（os.tmpdir）——开发/单实例回退。
  * （Postgres 接入可按同样接口扩展，见 CalorieAI 的 DAL 模式。）
+ *
+ * 积分账本算术（赠送 / 增减 / 下限 0）由商业引擎 createCreditLedger 统一提供，
+ * 本文件只保留记录结构（is_pro / last_app_id）与存储适配。
  */
 
 export interface CreditRecord {
@@ -83,7 +90,7 @@ async function kvSet(key: string, value: unknown): Promise<void> {
 
 const kvKey = (userId: string) => `gateway:credits:${userId}`;
 
-// ─── 公开 API ──────────────────────────────────────────────────────
+// ─── 存储公开 API ──────────────────────────────────────────────────
 
 export async function getCredit(userId: string): Promise<CreditRecord | null> {
   if (env.kvUrl && env.kvToken) {
@@ -103,13 +110,32 @@ export async function setCredit(record: CreditRecord): Promise<CreditRecord> {
   return record;
 }
 
+// ─── 积分账本（商业引擎统一实现） ───────────────────────────────────
+
+const creditLedger = createCreditLedger({
+  getCredits: async (userId) => (await getCredit(userId))?.credits ?? null,
+  setCredits: async (userId, credits) => {
+    const current = (await getCredit(userId)) || {
+      user_id: userId,
+      credits: 0,
+      is_pro: false,
+      updated_at: new Date().toISOString(),
+    };
+    await setCredit({
+      ...current,
+      credits: Math.max(0, Math.floor(credits)),
+      updated_at: new Date().toISOString(),
+    });
+  },
+});
+
 /** 读取积分（无记录初始化赠送 3） */
 export async function initCredits(userId: string, appId: string): Promise<CreditRecord> {
   const existing = await getCredit(userId);
   if (existing) return existing;
   const record: CreditRecord = {
     user_id: userId,
-    credits: 3,
+    credits: DEFAULT_FREE_CREDITS,
     is_pro: false,
     updated_at: new Date().toISOString(),
     last_app_id: appId,
@@ -128,7 +154,10 @@ export async function updateCredit(input: {
   const current = await initCredits(input.userId, input.appId);
   const next: CreditRecord = {
     ...current,
-    credits: Math.max(0, Math.floor(current.credits + (input.delta || 0))),
+    credits:
+      input.delta !== undefined
+        ? await creditLedger.addCredits(input.userId, input.delta)
+        : current.credits,
     is_pro: input.isPro !== undefined ? input.isPro : current.is_pro,
     updated_at: new Date().toISOString(),
     last_app_id: input.appId,

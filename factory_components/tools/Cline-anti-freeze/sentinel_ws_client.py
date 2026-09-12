@@ -26,6 +26,7 @@ import asyncio
 import signal
 import threading
 import platform
+import socket
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Optional
@@ -39,6 +40,7 @@ ANTI_FREEZE_DIR = THIS_DIR
 PORT_CONFIG_PATH = ANTI_FREEZE_DIR / ".governance_ui_port.json"
 HEARTBEAT_INTERVAL = 5  # seconds
 RECONNECT_DELAY = 3     # seconds
+MAX_RECONNECT_DELAY = 300  # seconds — 控制台未就绪时的退避上限
 
 _try_ws = False
 try:
@@ -60,6 +62,27 @@ def discover_ws_url() -> str:
         except (json.JSONDecodeError, OSError):
             pass
     return "ws://localhost:8769"
+
+
+def _ws_host_port(ws_url: str):
+    """从 ws:// URL 解析 host/port，供连接前预检使用。"""
+    rest = ws_url.split("://", 1)[-1].split("/", 1)[0]
+    host, _, port = rest.rpartition(":")
+    if not host:
+        return "localhost", 8769
+    try:
+        return host, int(port)
+    except ValueError:
+        return host, 8769
+
+
+def _console_reachable(host: str, port: int, timeout: float = 2.0) -> bool:
+    """TCP 预检：治理控制台端口是否已监听（避免对未启动服务死循环重连）。"""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def get_project_heartbeat_state(project_name: str) -> Dict:
@@ -123,9 +146,22 @@ async def sentinel_client(project_name: str, ws_url: str = None):
         return
 
     consecutive_failures = 0
+    host, port = _ws_host_port(ws_url)
 
     while True:
         try:
+            # 预检：控制台未启动时静默退避，避免死循环重连刷日志
+            if not _console_reachable(host, port):
+                consecutive_failures += 1
+                delay = min(RECONNECT_DELAY * (2 ** min(consecutive_failures, 6)),
+                            MAX_RECONNECT_DELAY)
+                if consecutive_failures == 1 or consecutive_failures % 10 == 0:
+                    hint = "" if PORT_CONFIG_PATH.exists() else "（.governance_ui_port.json 缺失）"
+                    print(f"[sentinel_ws] 治理控制台 {host}:{port} 未就绪{hint}，"
+                          f"退避 {delay}s 后重试（第 {consecutive_failures} 次）")
+                await asyncio.sleep(delay)
+                continue
+
             print(f"[sentinel_ws] 正在连接治理控制台...")
             async with websockets.connect(ws_url, ping_interval=20, ping_timeout=10) as ws:
                 print(f"[sentinel_ws] ✅ 已连接到治理控制台")
@@ -187,8 +223,10 @@ async def sentinel_client(project_name: str, ws_url: str = None):
 
         except (OSError, websockets.exceptions.InvalidURI, ConnectionRefusedError) as e:
             consecutive_failures += 1
-            delay = min(RECONNECT_DELAY * consecutive_failures, 60)
-            print(f"[sentinel_ws] 连接失败 ({e})，{delay}s 后重试...")
+            delay = min(RECONNECT_DELAY * (2 ** min(consecutive_failures, 6)),
+                        MAX_RECONNECT_DELAY)
+            if consecutive_failures == 1 or consecutive_failures % 10 == 0:
+                print(f"[sentinel_ws] 连接失败 ({e})，退避 {delay}s 后重试（第 {consecutive_failures} 次）")
             await asyncio.sleep(delay)
         except Exception as e:
             print(f"[sentinel_ws] ⚠️ 未知错误: {e}")

@@ -1,0 +1,59 @@
+{
+  "product": "calorieai",
+  "target": "calorie-ai",
+  "resolution": "1080x1920",
+  "background": "ui",
+  "source": "hybrid",
+  "hooks": [
+    {
+      "id": "60s",
+      "lang": "en",
+      "voice": "en-US-AriaNeural",
+      "lines": [
+        {
+          "text": "Ever wondered how many calories are actually on your plate?",
+          "voice": "en-US-AriaNeural",
+          "duration_ms": 9000
+        },
+        {
+          "text": "Most people guess. And most guesses are wrong.",
+          "voice": "en-US-AriaNeural",
+          "duration_ms": 8000
+        },
+        {
+          "text": "Meet CalorieAI. Just snap a photo, and our AI instantly recognizes every dish.",
+          "voice": "en-US-AriaNeural",
+          "duration_ms": 10000
+        },
+        {
+          "text": "Real nutrition data: calories, protein, fat and carbs — automatically calculated for the whole plate.",
+          "voice": "en-US-AriaNeural",
+          "duration_ms": 10000
+        },
+        {
+          "text": "Track your meals every day, and watch your goals become reachable.",
+          "voice": "en-US-AriaNeural",
+          "duration_ms": 9000
+        },
+        {
+          "text": "No more spreadsheets. No more guessing. Just one tap, and your meal is logged.",
+          "voice": "en-US-AriaNeural",
+          "duration_ms": 9000
+        },
+        {
+          "text": "Join thousands eating smarter with CalorieAI. Download now — your health starts with one photo.",
+          "voice": "en-US-AriaNeural",
+          "duration_ms": 10000
+        }
+      ]
+    }
+  ],
+  "jobs": [
+    {
+      "hook": "60s",
+      "resolution": "1080x1920",
+      "background": "ui",
+      "source": "hybrid"
+    }
+  ]
+}

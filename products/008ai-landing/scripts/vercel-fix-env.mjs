@@ -4,7 +4,8 @@
  *
  * 背景：Vercel 对 sensitive 环境变量 GET 时不返回明文（value=""），
  * 之前“从老项目导入”复制到的是空值，导致 Stripe/PayPal 运行时走 mock。
- * 本脚本从本地 products/calorieai/.env.local 读取真实明文并重建对应变量。
+ * 本脚本现在只从 008ai-landing 自己的 .env.local 读取真实明文，
+ * 不再依赖任何其他产品目录或项目的本地配置。
  *
  * 用法：
  *   $env:VERCEL_TOKEN = "<token>"
@@ -19,7 +20,7 @@ import path from "node:path";
 const TOKEN = process.env.VERCEL_TOKEN || "";
 const TEAM_ID = process.env.VERCEL_TEAM_ID || "team_yziFzTtkDBBAkujUR0JQOpRk";
 const PROJECT = "008ai-landing";
-const ENV_LOCAL = path.resolve(process.cwd(), "../calorieai/.env.local");
+const ENV_LOCAL = path.resolve(process.cwd(), ".env.local");
 const API = "https://api.vercel.com";
 
 const TARGET_KEYS = [
@@ -28,9 +29,6 @@ const TARGET_KEYS = [
   "NEXT_PUBLIC_PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",
   "PAYPAL_API_URL",
-  "GEMINI_API_KEY",
-  "OPENROUTER_API_KEY",
-  "DEEPSEEK_API_KEY",
 ];
 
 async function call(method, urlPath, body) {
@@ -92,7 +90,7 @@ async function main() {
     if (r.status === 200 || r.status === 201) console.log(`  ✅ 已重建 ${key}`);
     else console.warn(`  ⚠️ ${key} 重建失败 (${r.status}): ${JSON.stringify(r.data).slice(0, 200)}`);
   }
-  console.log("完成：支付相关环境变量已用真实明文重建");
+  console.log("完成：008ai-landing 自有环境变量已用本地明文重建");
 }
 
 main().catch((e) => {

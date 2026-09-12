@@ -1,0 +1,13 @@
+{"type": "HOOKS_BOOT", "constitution": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\AGENTS.md", "ts": "2026-08-22T10:46:07.886656+00:00"}
+{"type": "HOOKS_BOOT", "constitution": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\AGENTS.md", "ts": "2026-08-22T10:46:22.595540+00:00"}
+{"type": "PATH_BLOCKED", "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\.env", "rule": ".env", "message": "⛔ 敏感文件：.env（来自 AGENTS.md 黑名单），已阻断。", "ts": "2026-08-22T10:46:27.392924+00:00"}
+{"type": "HOOKS_BOOT", "constitution": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\AGENTS.md", "ts": "2026-08-22T10:46:48.900709+00:00"}
+{"type": "PATH_BLOCKED", "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\products\\008-video-factory\\output\\demo.mp4", "rule": "output", "message": "⛔ 禁读目录：output/（来自 AGENTS.md 黑名单动态同步），已阻断。", "ts": "2026-08-22T10:46:53.596140+00:00"}
+{"type": "PATH_BLOCKED", "path": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\products\\008-video-factory\\work\\preview\\seg.mp4", "rule": "work", "message": "⛔ 禁读目录：work/（来自 AGENTS.md 黑名单动态同步），已阻断。", "ts": "2026-08-22T10:46:53.942006+00:00"}
+{"type": "CIRCUIT_TRIP", "reasons": ["单会话超限 600,000/500,000"], "ts": "2026-08-22T10:46:58.758541+00:00"}
+{"type": "CONTEXT_WARN", "context_tokens": 600000, "rounds": 0, "message": "上下文膨胀，请立刻运行 /clear", "ts": "2026-08-22T10:47:02.907107+00:00"}
+{"type": "SESSION_CLEARED", "ts": "2026-08-22T10:47:05.840096+00:00"}
+{"type": "HOOKS_BOOT", "constitution": "C:\\Users\\aoogoost\\Desktop\\Projekt\\git008\\AGENTS.md", "ts": "2026-08-22T10:48:12.722885+00:00"}
+{"type": "HOOKS_BOOT", "constitution": "C:\\Users\\aoogoost\\git008\\AGENTS.md", "ts": "2026-09-11T16:21:05.269257+00:00"}
+{"type": "HOOKS_BOOT", "constitution": "C:\\Users\\aoogoost\\git008\\AGENTS.md", "ts": "2026-09-11T16:34:02.130703+00:00"}
+{"type": "HOOKS_BOOT", "constitution": "C:\\Users\\aoogoost\\git008\\AGENTS.md", "ts": "2026-09-11T16:36:31.698228+00:00"}

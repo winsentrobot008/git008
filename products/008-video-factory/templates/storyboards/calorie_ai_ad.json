@@ -1,0 +1,93 @@
+{
+  "title": "calorie-ai-ad",
+  "product": "calorie-ai",
+  "width": 480,
+  "height": 854,
+  "fps": 24,
+  "theme": {
+    "bg": ["#0F0C29", "#302B63", "#5E2A84"],
+    "fg": "#FFFFFF",
+    "accent": "#FF3D81",
+    "highlight": "#FACC15",
+    "tag_bg": "#FACC15",
+    "tag_fg": "#111111",
+    "card_bg": "rgba(15, 12, 41, 0.82)",
+    "card_border": "rgba(250, 204, 21, 0.45)"
+  },
+  "scenes": [
+    {
+      "type": "hero_title",
+      "text": "STOP GUESSING YOUR CALORIES",
+      "subtitle": "Snap a photo. Know exactly what you eat.",
+      "duration_s": 3,
+      "style": {
+        "kind": "hook",
+        "align": "center",
+        "color": "#FFFFFF",
+        "highlight": "ZERO GUESSING"
+      },
+      "asset_queries": [
+        "healthy food overhead",
+        "person taking photo of food"
+      ]
+    },
+    {
+      "type": "text_card",
+      "text": "Snap a photo, get instant macros.",
+      "duration_s": 4,
+      "style": {
+        "kind": "value",
+        "align": "center",
+        "color": "#FFFFFF"
+      },
+      "asset_queries": [
+        "delicious salad bowl",
+        "avocado toast"
+      ],
+      "overlay": {
+        "kind": "nutrition",
+        "title": "Instant Macros",
+        "rows": [
+          { "label": "Protein", "value": "24g" },
+          { "label": "Carbs", "value": "38g" },
+          { "label": "Fat", "value": "16g" }
+        ]
+      }
+    },
+    {
+      "type": "text_card",
+      "text": "AI analyzes your daily targets in seconds.",
+      "duration_s": 4,
+      "style": {
+        "kind": "value",
+        "align": "center",
+        "color": "#FFFFFF"
+      },
+      "asset_queries": [
+        "fitness tracker user",
+        "healthy lifestyle"
+      ]
+    },
+    {
+      "type": "callout",
+      "text": "Try CalorieAI Today!",
+      "subtitle": "Scan. Track. Achieve.",
+      "duration_s": 4,
+      "style": {
+        "kind": "cta",
+        "align": "center",
+        "color": "#FACC15",
+        "highlight": "FREE TO START"
+      },
+      "asset_queries": [
+        "healthy food colorful",
+        "smartphone nutrition app"
+      ],
+      "overlay": {
+        "kind": "badge",
+        "text": "Download on the App Store"
+      }
+    }
+  ],
+  "audio": {}
+}

@@ -49,3 +49,33 @@ error_log.md
 
 # --- 对话记录/敏感日志 ---
 GEMINI/
+
+# --- 服务层单元测试临时目录 ---
+services/tests/.tmp/
+services/tests/tmp*/
+
+# --- 服务层/工厂运行时产物 ---
+runtime_data/crawler/*.json
+runtime_data/gui/*.png
+runtime_data/pipeline/batch_*.json
+runtime_data/pipeline/pipeline_report_*.json
+
+# Governance & Temporary
+TEMP/
+output/
+work/
+runtime_data/logs/*
+!runtime_data/logs/.gitkeep
+__pycache__/
+*.bak_*
+$null
+
+# Governance & Temporary Artifacts
+TEMP/*
+output/*
+work/*
+runtime_data/logs/*
+!runtime_data/logs/.gitkeep
+__pycache__/
+*.bak_*
+$null

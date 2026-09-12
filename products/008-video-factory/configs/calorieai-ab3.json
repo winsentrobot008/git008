@@ -1,0 +1,41 @@
+{
+  "product": "calorieai",
+  "target": "calorie-ai",
+  "hooks": [
+    {
+      "id": "ab1",
+      "lang": "en",
+      "lines": [
+        { "text": "Snap a photo. Know your calories instantly.", "voice": "en" },
+        { "text": "CalorieAI recognizes every dish on your plate.", "voice": "en" },
+        { "text": "Track meals, hit your goals, feel great.", "voice": "en" },
+        { "text": "Try CalorieAI today — one tap away.", "voice": "en" }
+      ]
+    },
+    {
+      "id": "ab2",
+      "lang": "zh",
+      "lines": [
+        { "text": "拍张照片，立刻知道卡路里。", "voice": "zh-cn" },
+        { "text": "CalorieAI 自动识别餐盘里的每一道菜。", "voice": "zh-cn" },
+        { "text": "记录饮食，达成目标，轻松自律。", "voice": "zh-cn" },
+        { "text": "今天就试试 CalorieAI。", "voice": "zh-cn" }
+      ]
+    },
+    {
+      "id": "ab3",
+      "lang": "en",
+      "lines": [
+        { "text": "Snap a photo, know your calories instantly.", "voice": "en" },
+        { "text": "每张餐盘照片，AI 帮你算出整盘热量。", "voice": "zh-cn" },
+        { "text": "Track smarter, eat better, live healthier.", "voice": "en" },
+        { "text": "CalorieAI — your pocket dietitian.", "voice": "en" }
+      ]
+    }
+  ],
+  "jobs": [
+    { "hook": "ab1", "resolution": "480x480", "background": "ui" },
+    { "hook": "ab2", "resolution": "480x480", "background": "ui" },
+    { "hook": "ab3", "resolution": "1080x1920", "background": "generated" }
+  ]
+}

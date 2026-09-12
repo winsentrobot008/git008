@@ -1,0 +1,22 @@
+{
+  "name": "@git008/commercial-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "008AI.ONLINE SPU monetization engine: payments, credits, rate limiting and paywall (framework-agnostic, storage injected via ports)",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./README.md": "./README.md",
+    "./MIGRATION_AUDIT_REPORT.md": "./MIGRATION_AUDIT_REPORT.md",
+    "./middleware/*.js": "./middleware/*.ts",
+    "./middleware/*": "./middleware/*.ts",
+    "./templates/*.tsx": "./templates/*.tsx",
+    "./templates/*": "./templates/*.tsx",
+    "./skills/*.md": "./skills/*.md",
+    "./skills/*": "./skills/*.md"
+  }
+}

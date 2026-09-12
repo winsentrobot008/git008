@@ -1,0 +1,15 @@
+{
+  "session": {
+    "started_at": null,
+    "tokens": 0,
+    "requests": 0,
+    "rounds": 0
+  },
+  "daily": {
+    "date": "2026-08-22",
+    "tokens": 600000
+  },
+  "tripped": false,
+  "tripped_at": null,
+  "trip_reasons": []
+}

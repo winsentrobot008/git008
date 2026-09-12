@@ -1,0 +1,10 @@
+{
+  "command": null,
+  "severity": "NONE",
+  "reason": "context_recovered",
+  "context_tokens": 0,
+  "rounds": 3,
+  "auto_clear_enabled": true,
+  "written_at": "2026-08-25T20:28:49.110Z",
+  "source": "cline-governance-extension"
+}

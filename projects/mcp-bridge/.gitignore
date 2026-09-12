@@ -1,0 +1,13 @@
+# 本地凭据（start-tunnel.ps1 生成，含 Bearer Token，严禁入库）
+.token
+
+# Cloudflare 隧道日志
+cloudflared.*.log
+
+# Python 运行时产物
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 虚拟环境（根 .gitignore 已覆盖，此处双保险）
+.venv/

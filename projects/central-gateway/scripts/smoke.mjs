@@ -25,7 +25,7 @@ const ORIGIN_OK = "https://calorie-ai-seven.vercel.app";
 const ORIGIN_WILDCARD = "https://petai-clone-001.vercel.app";
 const ORIGIN_BAD = "https://evil.example.com";
 
-const child = spawn("node", ["dist/src/index.js"], {
+const child = spawn(process.execPath, [path.join(ROOT, "node_modules/tsx/dist/cli.mjs"), "src/index.ts"], {
   cwd: ROOT,
   env: {
     ...process.env,

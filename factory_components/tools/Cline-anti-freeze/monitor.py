@@ -208,60 +208,252 @@ def check_file_integrity() -> List[str]:
 # Agent 进程检测
 # ============================================================
 
+# 自愈清理时必须保留的治理基础设施（自身 / 面板 / 看门狗 / 哨兵），严禁误杀
+PROTECTED_PROCESS_MARKERS = (
+    "governance_ui.py", "streamlit", "monitor.py", "heartbeat_monitor.py",
+    "sentinel_ws_client.py", "anti_freeze_watchdog.py", "codex_metrics.py",
+    "auto_enforce.py", "uvicorn", "git008_main_panel",
+)
+
+
+def _is_protected_process(pid: int, name: str = "", command: Optional[str] = None) -> bool:
+    """判定进程是否为治理基础设施（含当前进程/父进程），自愈清理时必须跳过。"""
+    if pid == os.getpid():
+        return True
+    parent_pid = os.getppid() if hasattr(os, "getppid") else None
+    if parent_pid is not None and pid == parent_pid:
+        return True
+    low = f"{name or ''} {command or ''}".lower()
+    return any(marker in low for marker in PROTECTED_PROCESS_MARKERS)
+
+
 def enumerate_python_processes() -> List[Dict]:
-   """枚举所有 Python 子进程（跨平台）"""
-   processes = []
-   try:
-       if platform.system() == "Windows":
-           result = subprocess.run(
-               ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
-               capture_output=True, text=True, timeout=10
-           )
-           for line in result.stdout.strip().split("\n"):
-               if 'python' in line.lower():
-                   parts = line.replace('"', '').split(",")
-                   if len(parts) >= 2:
-                       processes.append({"name": parts[0].strip(), "pid": int(parts[1].strip())})
-       else:
-           result = subprocess.run(
-               ["ps", "aux"], capture_output=True, text=True, timeout=10
-           )
-           for line in result.stdout.strip().split("\n"):
-               if "python" in line and "monitor.py" not in line:
-                   parts = line.split()
-                   if len(parts) >= 2:
-                       processes.append({"name": "python", "pid": int(parts[1])})
-   except Exception:
-       pass
-   return processes
+    """枚举所有 Python 子进程（跨平台）。
+
+    Windows 优先经 CIM 取命令行，用于自愈前的安全过滤；
+    CIM 不可用时回退 tasklist（仅有 PID，command=None → 清理时跳过）。
+    """
+    processes: List[Dict] = []
+    try:
+        if platform.system() == "Windows":
+            ps_cmd = (
+                "Get-CimInstance Win32_Process "
+                "-Filter \"Name='python.exe' or Name='pythonw.exe'\" | "
+                "Select-Object ProcessId, Name, CommandLine | ConvertTo-Json -Compress"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout)
+                if isinstance(data, dict):
+                    data = [data]
+                for item in data or []:
+                    pid = item.get("ProcessId")
+                    if pid is None:
+                        continue
+                    processes.append({
+                        "name": item.get("Name") or "python.exe",
+                        "pid": int(pid),
+                        "command": (item.get("CommandLine") or "")[:400],
+                    })
+            if not processes:
+                result = subprocess.run(
+                    ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
+                    capture_output=True, text=True, timeout=10
+                )
+                for line in result.stdout.strip().split("\n"):
+                    if 'python' in line.lower():
+                        parts = line.replace('"', '').split(",")
+                        if len(parts) >= 2:
+                            processes.append({
+                                "name": parts[0].strip(),
+                                "pid": int(parts[1].strip()),
+                                "command": None,
+                            })
+        else:
+            result = subprocess.run(
+                ["ps", "aux"], capture_output=True, text=True, timeout=10
+            )
+            for line in result.stdout.strip().split("\n"):
+                if "python" in line and "monitor.py" not in line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        processes.append({
+                            "name": "python",
+                            "pid": int(parts[1]),
+                            "command": " ".join(parts[10:]) if len(parts) > 10 else "",
+                        })
+    except Exception:
+        pass
+    return processes
 
 def kill_all_agents() -> Dict:
-   """
-   强制终止所有僵尸 Agent 进程（自愈触发器）
-   返回: {"terminated": int, "errors": []}
-   """
-   result = {"terminated": 0, "errors": [], "pids_killed": []}
-   procs = enumerate_python_processes()
-   for proc in procs:
-       pid = proc.get("pid")
-       if pid is None:
-           continue
-       try:
-           if platform.system() == "Windows":
-               subprocess.run(["taskkill", "/PID", str(pid), "/F"],
-                            capture_output=True, timeout=10)
-           else:
-               os.kill(pid, signal.SIGKILL)
-           result["terminated"] += 1
-           result["pids_killed"].append(pid)
-           time.sleep(0.3)
-       except Exception as e:
-           result["errors"].append(f"无法终止 PID {pid}: {e}")
+    """
+    强制终止僵尸 Agent 进程（自愈触发器）
 
-   # 写入审计日志
-   msg = f"kill_all_agents() 已触发: 终止 {result['terminated']} 个进程 (PIDs: {result['pids_killed']})"
-   log_error(msg, "self_heal")
-   return result
+    安全约束：
+      - 仅按 PID 精准清理，严禁 taskkill /F /IM python.exe 盲杀；
+      - 排除当前进程、父进程及治理面板/看门狗/哨兵等基础设施进程；
+      - 命令行不可知时（CIM 不可用）跳过该进程：宁可漏杀，不可误杀。
+    返回: {"terminated": int, "errors": [], "pids_killed": [], "skipped": []}
+    """
+    result = {"terminated": 0, "errors": [], "pids_killed": [], "skipped": []}
+    for proc in enumerate_python_processes():
+        pid = proc.get("pid")
+        if pid is None:
+            continue
+        name = proc.get("name", "")
+        command = proc.get("command")
+        if command is None:
+            result["skipped"].append({"pid": pid, "name": name, "reason": "unknown_command_line"})
+            continue
+        if _is_protected_process(pid, name, command):
+            result["skipped"].append({"pid": pid, "name": name, "reason": "protected"})
+            continue
+        try:
+            if platform.system() == "Windows":
+                subprocess.run(["taskkill", "/PID", str(pid), "/F"],
+                            capture_output=True, timeout=10)
+            else:
+                os.kill(pid, signal.SIGKILL)
+            result["terminated"] += 1
+            result["pids_killed"].append(pid)
+            time.sleep(0.3)
+        except Exception as e:
+            result["errors"].append(f"无法终止 PID {pid}: {e}")
+
+    # 写入审计日志
+    msg = (f"kill_all_agents() 已触发: 终止 {result['terminated']} 个进程 "
+           f"(PIDs: {result['pids_killed']}), 跳过 {len(result['skipped'])} 个受保护进程")
+    log_error(msg, "self_heal")
+    return result
+
+# ============================================================
+# CODEX 专属进程强杀 (治理面板「强制终止所有 Agent」绑定)
+# ============================================================
+CODEX_PROCESS_NAMES = ("node.exe", "python.exe", "pythonw.exe", "codex.exe", "bun.exe")
+
+
+def enumerate_codex_processes() -> List[Dict]:
+    """枚举与 CODEX / git008 工作区相关的后台 Node/Python 任务进程。
+
+    匹配规则：进程名为 node/python/codex/bun，且命令行包含
+    codex / git008 / Cline-anti-freeze 等标记；排除治理面板自身进程
+    （governance_ui / streamlit / monitor / codex_metrics / auto_enforce）。
+    """
+    processes: List[Dict] = []
+    self_pid = os.getpid()
+    parent_pid = os.getppid() if hasattr(os, "getppid") else None
+
+    def _is_target(name: str, cmdline: str) -> bool:
+        name_low = name.lower()
+        if not any(n in name_low for n in ("node", "python", "codex", "bun")):
+            return False
+        if not cmdline:
+            return False
+        low = cmdline.lower()
+        # 治理面板/监控自身进程，绝不误杀
+        if any(skip in low for skip in (
+            "governance_ui.py", "streamlit", "monitor.py",
+            "codex_metrics.py", "auto_enforce.py",
+        )):
+            return False
+        markers = (
+            "codex", "git008", "cline-anti-freeze", "sentinel",
+            "anti_freeze_watchdog.py", "executor", "hf_", "fork_",
+        )
+        return any(m in low for m in markers)
+
+    try:
+        if platform.system() == "Windows":
+            names_csv = ",".join(f"'{n}'" for n in CODEX_PROCESS_NAMES)
+            ps_cmd = (
+                "Get-CimInstance Win32_Process | "
+                f"Where-Object {{ $_.Name -in @({names_csv}) }} | "
+                "Select-Object ProcessId, Name, CommandLine | ConvertTo-Json -Compress"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout)
+                if isinstance(data, dict):
+                    data = [data]
+                for item in data or []:
+                    pid = item.get("ProcessId")
+                    name = item.get("Name") or ""
+                    cmdline = item.get("CommandLine") or ""
+                    if pid is None or int(pid) in (self_pid, parent_pid):
+                        continue
+                    if _is_target(name, cmdline):
+                        processes.append({
+                            "name": name, "pid": int(pid), "command": cmdline[:200],
+                        })
+        else:
+            result = subprocess.run(
+                ["ps", "-eo", "pid=,comm=,args="],
+                capture_output=True, text=True, timeout=15,
+            )
+            for line in result.stdout.splitlines():
+                parts = line.strip().split(None, 2)
+                if len(parts) < 3:
+                    continue
+                try:
+                    pid = int(parts[0])
+                except ValueError:
+                    continue
+                name = parts[1]
+                cmdline = parts[2]
+                if pid in (self_pid, parent_pid):
+                    continue
+                if _is_target(name, cmdline):
+                    processes.append({
+                        "name": name, "pid": pid, "command": cmdline[:200],
+                    })
+    except Exception as e:
+        print(f"[monitor] 枚举 CODEX 进程失败: {e}")
+    return processes
+
+
+def kill_codex_processes(dry_run: bool = False) -> Dict:
+    """直接强杀 CODEX 后台 Node/Python 任务进程（治理面板按钮绑定）。"""
+    result = {
+        "action": "kill_codex_processes",
+        "dry_run": dry_run,
+        "terminated": 0,
+        "errors": [],
+        "pids_killed": [],
+        "processes": [],
+    }
+    procs = enumerate_codex_processes()
+    result["processes"] = procs
+
+    for proc in procs:
+        pid = proc["pid"]
+        result["pids_killed"].append(pid)
+        if dry_run:
+            continue
+        try:
+            if platform.system() == "Windows":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True, timeout=10,
+                )
+            else:
+                os.kill(pid, signal.SIGKILL)
+            result["terminated"] += 1
+            time.sleep(0.3)
+        except Exception as e:
+            result["errors"].append(f"无法终止 PID {pid}: {e}")
+
+    if not dry_run:
+        msg = (f"kill_codex_processes(executed): 匹配 {len(procs)} 个进程, "
+               f"终止 {result['terminated']} 个 (PIDs: {result['pids_killed']})")
+        log_error(msg, "codex_force_kill")
+    return result
 
 # ============================================================
 # 环境权限与安全性检测
@@ -609,6 +801,8 @@ if __name__ == "__main__":
     parser.add_argument("--report", action="store_true", help="生成治理审计报告 (含实例检查)")
     parser.add_argument("--local-test", action="store_true", help="仅运行环境权限测试")
     parser.add_argument("--kill-all", action="store_true", help="强制终止所有 Agent 进程")
+    parser.add_argument("--list-codex", action="store_true", help="列出 CODEX 后台 Node/Python 任务进程（只读）")
+    parser.add_argument("--kill-codex", action="store_true", help="直接强杀 CODEX 后台 Node/Python 任务进程")
     parser.add_argument("--scan-errors", action="store_true", help="扫描近期错误日志")
     parser.add_argument("--evolution", type=str, help="写入治理演进记录")
     parser.add_argument("--heartbeat", action="store_true", help="发送开发工位心跳存活信号")
@@ -641,6 +835,15 @@ if __name__ == "__main__":
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.kill_all:
         result = kill_all_agents()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.list_codex:
+        procs = enumerate_codex_processes()
+        print(json.dumps({
+            "count": len(procs),
+            "processes": procs,
+        }, ensure_ascii=False, indent=2))
+    elif args.kill_codex:
+        result = kill_codex_processes()
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.scan_errors:
         errors = scan_recent_errors(hours=24)

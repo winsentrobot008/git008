@@ -1,0 +1,27 @@
+{
+  "name": "008-token-nexus",
+  "version": "1.0.0",
+  "description": "008-TokenNexus — High-availability LLM API proxy with prefix caching, token-saver optimization, and smart 429/5xx failover",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "token-nexus",
+    "llm-proxy",
+    "failover",
+    "prompt-cache",
+    "token-saver",
+    "openai-compatible"
+  ],
+  "author": "git008",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

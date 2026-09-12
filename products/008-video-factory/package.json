@@ -1,0 +1,20 @@
+{
+  "name": "008-video-factory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "008 Video Factory — script → voice → media → 9:16 compose CLI (integrated from VOICE22 / RoastBro / MediaIndexerPro)",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "test": "node tests/e2e.mjs --target calorie-ai",
+    "test:calorie-ai": "node src/index.mjs --target calorie-ai",
+    "build": "node scripts/check-build.mjs",
+    "typecheck": "node scripts/check-build.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.62.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

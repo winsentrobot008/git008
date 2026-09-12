@@ -1,47 +1,69 @@
-import { Hono } from "hono";
+﻿import { Hono } from "hono";
 import type { Context } from "hono";
 import { rateLimit } from "../middleware/rate-limit.js";
 import type { Variables } from "../middleware/security.js";
 import { env } from "../env.js";
+import { getCreditPack, resolvePack } from "@git008/commercial-engine/middleware/credit-packs.js";
+import { getLocalizedPaymentItem } from "@git008/commercial-engine/middleware/stripe-i18n.js";
+import {
+  isPlaceholderKey,
+  resolvePaymentMethodTypes,
+} from "@git008/commercial-engine/middleware/payment-keys.js";
 
 /**
  * POST /api/v1/billing/checkout
  *
  * 统一支付发起端点：Stripe Checkout Session 或 PayPal Order，并透传 app_id。
  * 商业化模式：Credits Top-up（积分充值/按次付费）一次性付款，无订阅、无自动续费。
- * Body: { plan: "monthly" | "yearly" | "permanent", provider: "stripe" | "paypal",
- *         payment_method?, user_id?, email?, credits?, success_url?, cancel_url? }
- * 统一测试价 $1.00。
+ *
+ * Body: { pack_id: "pack_starter" | "pack_booster" | "pack_power",
+ *         plan?: "monthly" | "yearly" | "permanent"（旧字段，自动回退默认包）,
+ *         provider: "stripe" | "paypal", payment_method?, user_id?, email?,
+ *         locale?, current_lang?, credits?, success_url?, cancel_url? }
+ *
+ * 价格 / 商品名 / 密钥校验全部来自 @git008/commercial-engine（唯一权威实现）。
  */
 const billing = new Hono<{ Variables: Variables }>();
 
-const PRICE_USD = "1.00";
-
 async function createStripeSession(input: {
   appId: string;
-  plan: "monthly" | "yearly" | "permanent";
+  pack: { id: string; credits: number; priceUsd: number };
   paymentMethod?: string;
   userId?: string;
   email?: string;
   credits?: number;
   successUrl?: string;
   cancelUrl?: string;
+  locale?: string;
 }): Promise<{ sessionId: string; url: string }> {
-  if (!env.stripeSecretKey || !env.stripePublishableKey) {
+  if (isPlaceholderKey(env.stripeSecretKey) || isPlaceholderKey(env.stripePublishableKey)) {
     throw new Error("STRIPE_NOT_CONFIGURED");
   }
 
+  const item = getLocalizedPaymentItem(input.pack.id, input.locale || "en");
   const params = new URLSearchParams();
   params.set("mode", "payment"); // Credits Top-up 一次性付款（无订阅）
-  params.set("success_url", input.successUrl || "https://calorie-ai-seven.vercel.app/billing/success?session_id={CHECKOUT_SESSION_ID}");
+  params.set("locale", "en");
+  params.set(
+    "success_url",
+    input.successUrl ||
+      "https://calorie-ai-seven.vercel.app/billing/success?pack_id=" +
+        input.pack.id +
+        "&session_id={CHECKOUT_SESSION_ID}"
+  );
   params.set("cancel_url", input.cancelUrl || "https://calorie-ai-seven.vercel.app/billing/cancel");
   params.set("line_items[0][quantity]", "1");
   params.set("line_items[0][price_data][currency]", "usd");
-  params.set("line_items[0][price_data][unit_amount]", "100");
-  params.set("line_items[0][price_data][product_data][name]", `CalorieAI ${input.plan} 积分包 ($1 测试价 · 一次性付款)`);
+  params.set(
+    "line_items[0][price_data][unit_amount]",
+    String(Math.round(input.pack.priceUsd * 100))
+  );
+  params.set("line_items[0][price_data][product_data][name]", item.name);
+  params.set("line_items[0][price_data][product_data][description]", item.description);
   params.set("metadata[app_id]", input.appId);
-  params.set("metadata[plan]", input.plan);
-  if (input.credits) params.set("metadata[credits]", String(input.credits));
+  params.set("metadata[pack_id]", input.pack.id);
+  params.set("metadata[credits]", String(input.credits ?? input.pack.credits));
+  params.set("metadata[amount_usd]", String(input.pack.priceUsd));
   if (input.userId) params.set("metadata[user_id]", input.userId);
   if (input.email) {
     params.set("customer_email", input.email);
@@ -65,11 +87,13 @@ async function createStripeSession(input: {
 }
 
 async function createPayPalOrder(input: {
-  plan: "monthly" | "yearly" | "permanent";
+  pack: { id: string; credits: number; priceUsd: number };
+  locale?: string;
 }): Promise<{ orderId: string }> {
-  if (!env.paypalClientId || !env.paypalClientSecret) {
+  if (isPlaceholderKey(env.paypalClientId) || isPlaceholderKey(env.paypalClientSecret)) {
     throw new Error("PAYPAL_NOT_CONFIGURED");
   }
+  const item = getLocalizedPaymentItem(input.pack.id, input.locale || "en");
   const basicAuth = Buffer.from(`${env.paypalClientId}:${env.paypalClientSecret}`).toString("base64");
   const tokenRes = await fetch(`${env.paypalApi}/v1/oauth2/token`, {
     method: "POST",
@@ -92,11 +116,37 @@ async function createPayPalOrder(input: {
       intent: "CAPTURE",
       purchase_units: [
         {
-          reference_id: input.plan,
-          amount: { currency_code: "USD", value: PRICE_USD },
+          reference_id: input.pack.id,
+          description: item.description,
+          amount: {
+            currency_code: "USD",
+            value: input.pack.priceUsd.toFixed(2),
+            breakdown: {
+              item_total: {
+                currency_code: "USD",
+                value: input.pack.priceUsd.toFixed(2),
+              },
+            },
+          },
+          items: [
+            {
+              name: item.name,
+              description: item.description,
+              unit_amount: {
+                currency_code: "USD",
+                value: input.pack.priceUsd.toFixed(2),
+              },
+              quantity: "1",
+              category: "DIGITAL_GOODS",
+            },
+          ],
         },
       ],
-      application_context: { brand_name: "CalorieAI", shipping_preference: "NO_SHIPPING", user_action: "PAY_NOW" },
+      application_context: {
+        brand_name: "CalorieAI",
+        shipping_preference: "NO_SHIPPING",
+        user_action: "PAY_NOW",
+      },
     }),
   });
   if (!orderRes.ok) throw new Error(`PayPal order failed: ${orderRes.status}`);
@@ -107,33 +157,45 @@ async function createPayPalOrder(input: {
 billing.post("/checkout", rateLimit(20), async (c: Context<{ Variables: Variables }>) => {
   const appId = c.get("appId");
   const body = await c.req.json().catch(() => ({}));
-  const plan = body.plan || "monthly";
-  const provider = body.provider || "stripe";
-  if (!["monthly", "yearly", "permanent"].includes(plan)) {
-    return c.json({ error: "INVALID_PLAN", detail: `未知方案: ${plan}` }, 400);
+  const pack = body.pack_id ? getCreditPack(body.pack_id) : resolvePack(body.plan);
+  if (!pack) {
+    return c.json({ error: "INVALID_PACK", detail: `未知积分包: ${body.pack_id}` }, 400);
   }
+  const provider = body.provider || "stripe";
+  const locale = body.locale || body.current_lang || "en";
 
   try {
     if (provider === "paypal") {
-      const { orderId } = await createPayPalOrder({ plan });
-      return c.json({ provider: "paypal", app_id: appId, plan, amount: PRICE_USD, orderId });
+      const { orderId } = await createPayPalOrder({ pack, locale });
+      return c.json({
+        provider: "paypal",
+        app_id: appId,
+        pack_id: pack.id,
+        plan: body.plan || "monthly",
+        credits: pack.credits,
+        amount: pack.priceUsd,
+        orderId,
+      });
     }
 
     const session = await createStripeSession({
       appId,
-      plan,
+      pack,
       paymentMethod: body.payment_method,
       userId: body.user_id,
       email: body.email,
       credits: body.credits,
       successUrl: body.success_url,
       cancelUrl: body.cancel_url,
+      locale,
     });
     return c.json({
       provider: "stripe",
       app_id: appId,
-      plan,
-      amount: PRICE_USD,
+      pack_id: pack.id,
+      plan: body.plan || "monthly",
+      credits: pack.credits,
+      amount: pack.priceUsd,
       sessionId: session.sessionId,
       url: session.url,
     });

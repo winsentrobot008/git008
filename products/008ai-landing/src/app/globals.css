@@ -24,3 +24,25 @@
     @apply bg-brand/30;
   }
 }
+/* 3D 水晶柱体与毛玻璃效果 */
+.crystal-pillar-left {
+  background: linear-gradient(90deg, rgba(255,255,255,0.8) 0%, rgba(255,192,203,0.3) 50%, rgba(255,255,255,0.6) 100%);
+  box-shadow: inset -4px 0 10px rgba(255,255,255,0.9), inset 4px 0 10px rgba(236,72,153,0.3), 0 0 20px rgba(236,72,153,0.25);
+  border-left: 1.5px solid rgba(255,255,255,0.9);
+  border-right: 1.5px solid rgba(255,255,255,0.6);
+}
+
+.crystal-pillar-right {
+  background: linear-gradient(90deg, rgba(255,255,255,0.6) 0%, rgba(255,192,203,0.3) 50%, rgba(255,255,255,0.8) 100%);
+  box-shadow: inset 4px 0 10px rgba(255,255,255,0.9), inset -4px 0 10px rgba(236,72,153,0.3), 0 0 20px rgba(236,72,153,0.25);
+  border-left: 1.5px solid rgba(255,255,255,0.6);
+  border-right: 1.5px solid rgba(255,255,255,0.9);
+}
+
+.crystal-card {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.9), inset 0 -2px 4px rgba(236, 72, 153, 0.15), 0 10px 30px rgba(236, 72, 153, 0.15) !important;
+}

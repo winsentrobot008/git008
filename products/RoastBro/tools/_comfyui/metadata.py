@@ -11,7 +11,7 @@ COMFYUI_SETUP_OFFER: dict[str, Any] = {
     "kind": "local_server",
     "fix_complexity": "1-minute env-var if ComfyUI is already running; otherwise local install",
     "env_var": "COMFYUI_SERVER_URL",
-    "default_url": "http://localhost:8188",
+    "default_url": "http://127.0.0.1:8188",
     "health_check": "GET /system_stats",
     "what_it_unlocks": [
         "free local image generation through ComfyUI workflows",

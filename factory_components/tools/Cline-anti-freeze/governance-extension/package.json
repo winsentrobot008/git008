@@ -1,0 +1,45 @@
+{
+	"name": "cline-governance-center",
+	"displayName": "CODEX 治理中心",
+	"description": "Cline-anti-freeze 原生治理侧边栏 v3 — 直连 governance_logs/auto_clear_signal.json 与全局配置，Token 熔断/Auto-Clear/健康指数实时同步，零 Python 后端进程。",
+	"version": "3.1.0",
+	"publisher": "cline-governance",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.80.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./extension.js",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "cline-governance",
+					"title": "Cline 治理中心",
+					"icon": "media/governance-icon.svg"
+				}
+			]
+		},
+		"views": {
+			"cline-governance": [
+				{
+					"type": "webview",
+					"id": "cline-governance.panel",
+					"name": "治理面板"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "cline-governance.panel.focus",
+				"title": "打开 Cline 治理中心面板",
+				"icon": "media/governance-icon.svg"
+			}
+		]
+	}
+}

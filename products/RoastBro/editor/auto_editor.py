@@ -16,9 +16,48 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 import subprocess
 import os
+import shutil
 import logging
 
 logger = logging.getLogger("roastbro.editor")
+
+
+_NVENC_CACHE: Optional[bool] = None
+
+_NVENC_PRESETS = {
+    "ultrafast": "p1", "superfast": "p1", "veryfast": "p2", "faster": "p3",
+    "fast": "p4", "medium": "p5", "slow": "p6", "slower": "p7",
+    "veryslow": "p7", "placebo": "p7",
+}
+
+
+def _nvenc_available(ffmpeg_cmd: list) -> bool:
+    """检测 ffmpeg 是否带 h264_nvenc（进程内缓存；FFMPEG_DISABLE_NVENC=1 关闭）。"""
+    global _NVENC_CACHE
+    if _NVENC_CACHE is None:
+        if os.environ.get("FFMPEG_DISABLE_NVENC", "").lower() in {"1", "true", "yes"}:
+            _NVENC_CACHE = False
+        else:
+            try:
+                probe = subprocess.run(
+                    ffmpeg_cmd + ["-hide_banner", "-encoders"],
+                    capture_output=True, text=True, timeout=30,
+                )
+                _NVENC_CACHE = "h264_nvenc" in (probe.stdout or "")
+            except (OSError, subprocess.SubprocessError):
+                _NVENC_CACHE = False
+    return _NVENC_CACHE
+
+
+def _video_encoder_args(*, use_nvenc: bool, preset: str, crf: int) -> list:
+    """返回视频编码器参数：h264_nvenc 硬编 或 libx264 软编回退。"""
+    if use_nvenc:
+        return [
+            "-c:v", "h264_nvenc",
+            "-preset", _NVENC_PRESETS.get(preset, "p4"),
+            "-rc", "vbr", "-cq", str(crf), "-b:v", "0",
+        ]
+    return ["-c:v", "libx264", "-preset", preset, "-crf", str(crf)]
 
 
 class OutputFormat(str, Enum):
@@ -107,11 +146,18 @@ class AutoEditor:
             logger.warning("FFmpeg not found! Install FFmpeg or add to PATH.")
 
     def _get_ffmpeg_cmd(self) -> list:
-        """获取 ffmpeg 命令（优先使用 FFMPEG_PATH 环境变量）"""
-        ffmpeg_path = os.environ.get("FFMPEG_PATH", "")
-        if ffmpeg_path and os.path.isfile(ffmpeg_path):
-            return [ffmpeg_path]
-        return ["ffmpeg"]
+        """获取 ffmpeg 命令（FFMPEG_PATH / FFMPEG_BIN / C:/ffmpeg/bin / PATH）。"""
+        for key in ("FFMPEG_PATH", "FFMPEG_BIN"):
+            candidate = os.environ.get(key, "")
+            if candidate and os.path.isdir(candidate):
+                candidate = os.path.join(candidate, "ffmpeg.exe")
+            if candidate and os.path.isfile(candidate):
+                return [candidate]
+        canonical = r"C:\ffmpeg\bin\ffmpeg.exe"
+        if os.path.isfile(canonical):
+            return [canonical]
+        found = shutil.which("ffmpeg")
+        return [found] if found else ["ffmpeg"]
 
     def edit(
         self,
@@ -183,10 +229,34 @@ class AutoEditor:
         logger.info(f"  [SRT] Generated {len(script.segments)} subtitle entries -> {srt_path}")
         return srt_path
 
+    def _encode(self, ff: list, before: list, after: list, *, crf: int, timeout: int):
+        """执行编码：优先 h264_nvenc 硬编，失败自动回退 libx264 软编。"""
+        preset = self.config.ffmpeg_preset
+        attempts = [True, False] if _nvenc_available(ff) else [False]
+        last: Any = None
+        for index, use_nvenc in enumerate(attempts):
+            cmd = ff + ["-y"]
+            if use_nvenc:
+                cmd += ["-hwaccel", "cuda"]
+            cmd += before
+            cmd += _video_encoder_args(use_nvenc=use_nvenc, preset=preset, crf=crf)
+            cmd += after
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            except (OSError, subprocess.SubprocessError) as exc:
+                last = exc
+                if index == len(attempts) - 1:
+                    raise
+                continue
+            if result.returncode == 0:
+                return result
+            last = result
+        return last
+
     def _render_with_ffmpeg(self, input_path: str, output_path: str, srt_path: Optional[str] = None):
-        """FFmpeg rendering: copy video + burn subtitles (with no-ffmpeg fallback)."""
+        """FFmpeg rendering: burn subtitles (NVENC first, libx264 fallback)."""
         ff = self._get_ffmpeg_cmd()
-        cmd = ff + ["-y", "-i", input_path]
+        before = ["-i", input_path]
 
         # Subtitle filter
         if srt_path and os.path.exists(srt_path):
@@ -200,21 +270,18 @@ class AutoEditor:
                 f"OutlineColour=&H00000000,"
                 f"BorderStyle=1,Outline=2,Shadow=1'"
             )
-            cmd.extend(["-vf", vf])
+            before += ["-vf", vf]
 
-        cmd.extend([
-            "-c:v", "libx264",
-            "-preset", self.config.ffmpeg_preset,
-            "-crf", "23",
+        after = [
+            "-c:a", "aac", "-b:a", "128k",
             "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "128k" if os.path.exists(input_path) else "",
             "-movflags", "+faststart",
             output_path,
-        ])
+        ]
 
         try:
             logger.info(f"  [FFmpeg] {ff[0]} -i {Path(input_path).name} ...")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = self._encode(ff, before, after, crf=23, timeout=300)
 
             if result.returncode != 0:
                 logger.error(f"  [FFmpeg] Error: {result.stderr[:300]}")
@@ -227,7 +294,6 @@ class AutoEditor:
 
         except FileNotFoundError:
             logger.warning(f"  [FFmpeg] NOT FOUND — copying source video (no subtitle burn)")
-            import shutil
             shutil.copy2(input_path, output_path)
             logger.info(f"  [FALLBACK] Copied source to {output_path}")
             if srt_path and os.path.exists(srt_path):
@@ -236,52 +302,35 @@ class AutoEditor:
                 logger.info(f"  [FALLBACK] SRT saved to {srt_dest}")
 
     def _render_shorts(self, input_path: str, output_path: str, srt_path: Optional[str] = None):
-        """Render vertical Shorts format (with no-ffmpeg fallback)."""
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", input_path,
-            "-vf", f"scale={self.config.shorts_width}:{self.config.shorts_height}:force_original_aspect_ratio=decrease,"
-                   f"pad={self.config.shorts_width}:{self.config.shorts_height}:(ow-iw)/2:(oh-ih)/2",
-            "-c:v", "libx264",
-            "-preset", self.config.ffmpeg_preset,
-            "-crf", "23",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            output_path,
-        ]
+        """Render vertical Shorts format (NVENC first, libx264 fallback)."""
+        ff = self._get_ffmpeg_cmd()
+        vf = (
+            f"scale={self.config.shorts_width}:{self.config.shorts_height}:force_original_aspect_ratio=decrease,"
+            f"pad={self.config.shorts_width}:{self.config.shorts_height}:(ow-iw)/2:(oh-ih)/2"
+        )
 
         if srt_path and os.path.exists(srt_path):
             font = self.config.font_path.replace("\\", "/").replace(":", "\\\\:")
-            vf_sub = (
-                f"subtitles={srt_path.replace(':', '\\\\:')}:"
+            vf += (
+                f",subtitles={srt_path.replace(':', '\\\\:')}:"
                 f"fontsdir={Path(font).parent}:"
                 f"force_style='FontName={Path(self.config.font_path).stem},"
                 f"FontSize={int(self.config.subtitle_fontsize * 1.5)},"
                 f"PrimaryColour=&H00FFFFFF,"
                 f"BorderStyle=1,Outline=2,Shadow=1'"
             )
-            cmd = [
-                "ffmpeg", "-y",
-                "-i", input_path,
-                "-vf", (
-                    f"scale={self.config.shorts_width}:{self.config.shorts_height}:force_original_aspect_ratio=decrease,"
-                    f"pad={self.config.shorts_width}:{self.config.shorts_height}:(ow-iw)/2:(oh-ih)/2,"
-                    f"{vf_sub}"
-                ),
-                "-c:v", "libx264",
-                "-preset", self.config.ffmpeg_preset,
-                "-crf", "23",
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-                output_path,
-            ]
 
         try:
-            subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            self._encode(
+                ff,
+                ["-i", input_path, "-vf", vf],
+                ["-pix_fmt", "yuv420p", "-movflags", "+faststart", output_path],
+                crf=23,
+                timeout=300,
+            )
             logger.info(f"  [FFmpeg] Shorts: {output_path}")
         except FileNotFoundError:
             logger.warning("  [FFmpeg] NOT FOUND — skipping shorts render, copying source")
-            import shutil
             shutil.copy2(input_path, output_path)
             logger.info(f"  [FALLBACK] Shorts copied to {output_path}")
 
@@ -290,7 +339,7 @@ class AutoEditor:
         for i, instr in enumerate(instructions):
             out = str(Path(self.config.temp_dir) / f"clip_{i:03d}.mp4")
             cmd = [
-                "ffmpeg", "-y",
+                *self._get_ffmpeg_cmd(), "-y",
                 "-ss", str(instr.start_time),
                 "-i", video_path,
                 "-t", str(instr.end_time - instr.start_time),
@@ -322,7 +371,7 @@ class AutoEditor:
         if not narration_path and not bgm_path:
             return
 
-        inputs = ["ffmpeg", "-y", "-i", clip_path]
+        inputs = [*self._get_ffmpeg_cmd(), "-y", "-i", clip_path]
         filter_chains = []
 
         if narration_path and os.path.exists(narration_path):

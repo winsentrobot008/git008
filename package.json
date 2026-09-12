@@ -1,0 +1,9 @@
+{
+  "name": "git008",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GIT008 SaaS matrix factory workspace (SPU-first root orchestration)",
+  "scripts": {
+    "check:engine-sync": "node scripts/check-engine-sync.mjs"
+  }
+}

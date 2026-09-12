@@ -1,10 +1,10 @@
 {
-  "HomPC-13452-dd788000": {
+  "RobotAI-4744-a40ea038": {
     "role": "governance",
-    "pid": 10720,
-    "hostname": "HomPC",
+    "pid": 4744,
+    "hostname": "RobotAI",
     "platform": "Windows",
-    "registered_at": "2026-07-12T12:52:41.199875",
-    "last_heartbeat": "2026-07-12T12:52:41.199875"
+    "registered_at": "2026-09-11T18:32:10.496591",
+    "last_heartbeat": "2026-09-11T20:53:54.318336"
   }
 }

@@ -2,23 +2,178 @@
 
 Handles the full generation cycle: submit workflow, poll for completion,
 download artifacts.  Used by comfyui_image, comfyui_video, and comfyui_music.
+
+GPU-bound calls are serialized through :class:`FileLock`, a cross-process file
+lock.  ComfyUI keeps the whole diffusion pipeline resident in VRAM, so a second
+local process hitting the same server OOMs a 12 GB card in seconds.
 """
 
 from __future__ import annotations
 
 import copy
+import functools
 import json
 import os
 import random
+import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
 import requests
 
+try:  # pragma: no cover - Windows
+    import msvcrt
+except ImportError:  # pragma: no cover - POSIX
+    msvcrt = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - POSIX
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+
+
+DEFAULT_SERVER_URL = "http://127.0.0.1:8188"
+
+_LOCK_STATE = threading.local()
+
 
 class ComfyUIError(Exception):
     """Raised when ComfyUI returns an error or times out."""
+
+
+class FileLock:
+    """Cross-process exclusive lock backed by a single lock file.
+
+    Serializes every GPU-bound ComfyUI request so that two local processes
+    cannot drive the same server at once.  Re-entrant within a single thread,
+    so generate() may wrap submit() without deadlocking.
+
+    Lock file: COMFYUI_LOCK_FILE env var, else
+    <tempdir>/008_comfyui_gpu.lock.  Wait budget: COMFYUI_LOCK_TIMEOUT
+    seconds (default 3600).  Usable as context manager and as decorator.
+    """
+
+    def __init__(
+        self,
+        path: str | os.PathLike[str] | None = None,
+        *,
+        timeout: float | None = None,
+        poll: float = 0.25,
+    ) -> None:
+        self.path = Path(
+            path
+            or os.environ.get("COMFYUI_LOCK_FILE")
+            or Path(tempfile.gettempdir()) / "008_comfyui_gpu.lock"
+        )
+        if timeout is None:
+            timeout = float(os.environ.get("COMFYUI_LOCK_TIMEOUT") or 3600)
+        self.timeout = timeout
+        self.poll = poll
+        self._fd = None
+
+    def __call__(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with self:
+                return func(*args, **kwargs)
+
+        return wrapper
+
+    def _depths(self) -> dict[str, int]:
+        depths = getattr(_LOCK_STATE, "depths", None)
+        if depths is None:
+            depths = {}
+            _LOCK_STATE.depths = depths
+        return depths
+
+    def _depth(self) -> int:
+        return self._depths().get(str(self.path), 0)
+
+    def _set_depth(self, depth: int) -> None:
+        self._depths()[str(self.path)] = depth
+
+    @staticmethod
+    def _try_lock(fd) -> None:
+        """Acquire the OS lock; raise OSError when another holder exists."""
+        if msvcrt is not None:
+            fd.seek(0)
+            msvcrt.locking(fd.fileno(), msvcrt.LK_NBLCK, 1)
+        elif fcntl is not None:
+            fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    @staticmethod
+    def _unlock(fd) -> None:
+        try:
+            if msvcrt is not None:
+                fd.seek(0)
+                msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
+            elif fcntl is not None:
+                fcntl.flock(fd.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+
+    def acquire(self) -> "FileLock":
+        depth = self._depth()
+        if depth:
+            self._set_depth(depth + 1)
+            return self
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = open(self.path, "a+b")
+        fd.seek(0, os.SEEK_END)
+        if fd.tell() == 0:
+            fd.write(b"008")
+            fd.flush()
+
+        deadline = time.monotonic() + self.timeout
+        while True:
+            try:
+                self._try_lock(fd)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    fd.close()
+                    raise ComfyUIError(
+                        f"Timed out waiting for the ComfyUI GPU lock "
+                        f"({self.path}) after {self.timeout:.0f}s. Another "
+                        f"local process is generating; retry when it ends."
+                    ) from None
+                time.sleep(self.poll)
+
+        self._fd = fd
+        self._set_depth(1)
+        return self
+
+    def release(self) -> None:
+        depth = self._depth()
+        if depth > 1:
+            self._set_depth(depth - 1)
+            return
+        self._set_depth(0)
+        fd, self._fd = self._fd, None
+        if fd is None:
+            return
+        try:
+            self._unlock(fd)
+        finally:
+            fd.close()
+
+    def __enter__(self) -> "FileLock":
+        return self.acquire()
+
+    def __exit__(self, *exc_info) -> None:
+        self.release()
+
+    def locked(self) -> bool:
+        """True when the current thread already holds this lock."""
+        return self._depth() > 0
+
+
+# One lock for the whole process: the GPU is a single shared resource, so the
+# lock file is not per client instance and not per server URL.
+gpu_lock = FileLock()
 
 
 class ComfyUIClient:
@@ -34,7 +189,7 @@ class ComfyUIClient:
     def __init__(self, server_url: str | None = None) -> None:
         self.server_url = (
             server_url
-            or os.environ.get("COMFYUI_SERVER_URL", "http://localhost:8188")
+            or os.environ.get("COMFYUI_SERVER_URL", DEFAULT_SERVER_URL)
         ).rstrip("/")
 
     # ------------------------------------------------------------------
@@ -63,7 +218,7 @@ class ComfyUIClient:
                 f"No ComfyUI server found at {self.server_url} "
                 f"(default — no COMFYUI_SERVER_URL configured).\n"
                 f"Set COMFYUI_SERVER_URL in your .env file to the address of "
-                f"your ComfyUI server (e.g. http://localhost:8188)."
+                f"your ComfyUI server (e.g. http://127.0.0.1:8188)."
             )
         return (
             f"ComfyUI server not reachable at {self.server_url}.\n"
@@ -133,6 +288,7 @@ class ComfyUIClient:
     # Core cycle
     # ------------------------------------------------------------------
 
+    @gpu_lock
     def submit(self, workflow: dict) -> str:
         """Queue a workflow for execution.  Returns the ``prompt_id``."""
         resp = requests.post(
@@ -203,6 +359,7 @@ class ComfyUIClient:
         dest.write_bytes(resp.content)
         return dest
 
+    @gpu_lock
     def upload_image(self, local_path: Path, name: str) -> str:
         """Upload a local image so it can be referenced by LoadImage nodes.
 
@@ -221,6 +378,7 @@ class ComfyUIClient:
     # High-level helper
     # ------------------------------------------------------------------
 
+    @gpu_lock
     def generate(
         self,
         workflow: dict,

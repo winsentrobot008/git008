@@ -1,0 +1,65 @@
+﻿# 008-TokenNexus Provider Routing & Failover Configuration
+# 优先级顺序：Priority 越小越优先 (1 -> 2 -> 3 -> 4)
+
+[server]
+port = 8080
+host = "0.0.0.0"
+title = "008-TokenNexus Gateway"
+
+[cache_booster]
+# 启用前缀缓存优化（将稳定 System 提示前置对齐以命中 DeepSeek / Gemini Context Caching）
+enable_prefix_cache = true
+# 启用重复历史智能剔除
+trim_duplicate_history = true
+# 最大保留对话轮次（超出时压缩旧轮次，保留首轮与最新轮次）
+max_history_turns = 12
+# 注入极简输出 token-saver 指令（强制剔除客套废话以压减 Output Token）
+inject_token_saver = true
+token_saver_prompt = "[Constraint: Output directly, concise and factual without pleasantries or conversational filler.]"
+
+[failover]
+# 触发切流的状态码
+retry_on_status = [429, 500, 502, 503, 504, 524]
+# 单提供商最大重试次数
+max_retries_per_provider = 2
+# 指数退避基准时间 (ms)
+backoff_base_ms = 400
+# 熔断冷却时间 (ms)
+circuit_breaker_cooldown_ms = 60000
+
+# ─── 提供商列表 ───
+
+# 1. 主路由：DeepSeek（极高性价比与强大推理）
+[providers.deepseek]
+name = "DeepSeek"
+priority = 1
+enabled = true
+base_url = "https://api.deepseek.com/v1"
+api_key_env = "DEEPSEEK_API_KEY"
+default_model = "deepseek-chat"
+timeout_ms = 45000
+protocol = "openai"
+
+# 2. 次路由：Google Gemini（极速且低成本）
+[providers.gemini]
+name = "Google Gemini"
+priority = 1
+enabled = true
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+api_key_env = "GEMINI_API_KEY"
+default_model = "gemini-1.5-flash"
+timeout_ms = 35000
+protocol = "openai"
+
+# 3. 备用路由：OpenRouter 聚合通道（高可用全模型）
+[providers.openrouter]
+name = "OpenRouter"
+priority = 1
+enabled = true
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+default_model = "deepseek/deepseek-chat"
+timeout_ms = 35000
+protocol = "openai"
+
+# 4. 兜底路由：FCC 免费通道

@@ -1,0 +1,4 @@
+{
+  "registry": "https://raw.githubusercontent.com/heygen-com/hyperframes/main/registry",
+  "compositions": ["index.html"]
+}

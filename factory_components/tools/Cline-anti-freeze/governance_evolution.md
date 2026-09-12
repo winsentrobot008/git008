@@ -28,6 +28,34 @@
 
 ---
 
+## [2026-08-23] 阶段五：治理面板全量迁移至 VS Code 原生 Webview
+
+### 背景
+旧架构以 Streamlit 网页端（`localhost:8501`）+ iframe WebView 包装层呈现治理面板：
+每次打开 VS Code 都会由 VS Code Task 拉起 `governance_ui.py`，进而常驻
+Streamlit（8501）、WebSocket（8769）与 WebView HTTP（8599）三个监听，
+并叠加 `auto_enforce.py` 每 5 秒一次的 Token 巡检写盘，占用 CPU/内存，
+且信号文件与面板展示经常不同步（“显示旧数据”）。
+
+### 变更内容
+- **废弃网页端**：删除 `governance_ui.py`（Streamlit 控制台 + WS + WebView 服务）、
+  `governance_webview.py`（iframe 模板）、`governance_task.json`（文件夹打开自动拉起）、
+  `install_governance.py`（任务模板分发器）与 `.governance_ui_port.json` 等运行产物。
+- **移除常驻监控**：`auto_enforce.py` 降级为纯 CLI 规则执行器
+  （`--enforce` / `--check-read` / `--auto-clear-config`），删除自动拉起、
+  PID/端口锁、弹窗通知与 30s 常驻巡检线程；已停止并确认 8501/8769 端口释放。
+- **VS Code 插件 v3.0**：新增 `governance-extension/`，Activity Bar 侧边栏
+  原生 WebviewView 治理面板（Webview UI Sync）：
+  - 每 3s 直读 `governance_logs/auto_clear_signal.json`、`.codex/governance.json`、
+    `global_controls.json`、`fault_blackbox.json`、子项目 `.heartbeat` 与
+    `~/.codex/sessions` 最新会话，逐项显示数据源新鲜度；
+  - Token 熔断触发器迁移进扩展进程：SOFT(80k/轮数) / CRITICAL(100k) 状态
+    变化即时写信号文件，上下文回落后自动写 NONE 清除陈旧信号；
+  - 面板可直接修改 Auto-Clear 开关、软/硬阈值、轮数预警、熔断冷却、心跳超时、
+    风险阈值与全局控制开关，并支持手动写入/清除 /clear 信号；
+  - 强制终止 Agent 改为 Node 实现（PowerShell 枚举 + taskkill），按需调用。
+- **零 Python 后端进程开销**：治理面板不再依赖任何 Python 常驻服务。
+
 ## [2026-06-05 09:45:00] 治理演进记录
 
 ## 阶段五：多实例并行协作协议（2026-06-05 宪法修正案）

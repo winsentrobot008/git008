@@ -1,6 +1,6 @@
 # GIT008 AI 工厂 SOP 说明书（AI_FACTORY_SPEC.md）
 
-**版本**: v1.6（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
+**版本**: v1.7（2026.08）· **适用范围**: git008 矩阵工厂全部套娃产品（CalorieAI / PetAI / PlantAI…）与 Central Gateway 视觉链路
 
 > 本文件沉淀五类可复制的工厂标准规范，任何套娃应用克隆后必须对齐：
 > **SOP-01** CEO 拟人化慢速轨迹光标巡检（slowMo=1200ms）｜
@@ -236,7 +236,7 @@ Agent B（对标巡检）以移动端 Playwright 巡检脚本独立回测，只�
   营销页等）一律禁止加入 MVP。需求外溢须先经架构师总监 / CEO 书面审批并记录，否则一律回退。
   新增功能必须显式回答「它服务于 Cal AI 主路线四步的哪一步？」。
 - **禁令三 · i18n 支付数据一致性（严禁中英混杂商品名）**：
-  所有传入 Stripe 的 `name` / `description` 必须经 `src/lib/stripe-i18n.ts` 的
+  所有传入 Stripe 的 `name` / `description` 必须经 `projects/commercial-engine/middleware/stripe-i18n.ts` 的
   `getLocalizedPaymentItem(planId, lang)` 统一产出；**严禁在 `api/stripe/*` 路由内硬编码任何
   中文商品名或描述**。当 `lang === 'en'`（或任何非中文环境）时，商品名与描述必须 100% 为标准
   英文（零汉字）。订阅 Paywall（`stripe/subscribe`）与积分包一致按应用语言联动
@@ -267,8 +267,10 @@ Agent B（对标巡检）以移动端 Playwright 巡检脚本独立回测，只�
 - **实现位置**：`products/<app>/e2e/mobile-calai-benchmark.spec.ts` → `[M2]`（TEST-STUB
   返回确定性英文商品摘要页 `STRIPE_CHECKOUT_PAGE`，`data-testid="product-name"` /
   `data-testid="product-description"` 为断言锚点）。
-- **后端契约**：商品名/描述统一由 `src/lib/stripe-i18n.ts` 的 `getLocalizedPaymentItem(planId, lang)`
-  产出（008 工厂统一函数）；`/api/stripe/checkout` 按请求体 `locale` / `current_lang` 联动
+- **后端契约**：商品名/描述统一由 `projects/commercial-engine/middleware/stripe-i18n.ts` 的
+  `getLocalizedPaymentItem(planId, lang)` 产出（008 工厂统一函数，应用侧经
+  `products/<app>/src/lib/stripe-i18n.ts` re-export）；`/api/stripe/checkout` 按请求体
+  `locale` / `current_lang` 联动
   （`'zh'` 输出中文商品名/描述，其余含 `'en'` 一律 100% 英文）；`/api/stripe/subscribe`（Pro 订阅
   Paywall）同样按 `locale` / `current_lang` 联动（EN 恒英文，zh 可中文）。严禁在路由内硬编码。
 
@@ -294,8 +296,9 @@ npx playwright test e2e/mobile-calai-benchmark.spec.ts   # iPhone 390x844 移动
 
 ### 5.2 i18n 支付数据一致性规程（Payment Data i18n Consistency）
 
-- **统一函数**：所有 Stripe 商品名/描述统一经 `products/<app>/src/lib/stripe-i18n.ts` 的
-  `getLocalizedPaymentItem(planId, lang)` 产出，套娃克隆只同步该文件；
+- **统一函数**：所有 Stripe 商品名/描述统一经 `projects/commercial-engine/middleware/stripe-i18n.ts` 的
+  `getLocalizedPaymentItem(planId, lang)` 产出（权威实现），套娃克隆只同步应用侧
+  `products/<app>/src/lib/stripe-i18n.ts` re-export；
   - `lang === 'en'`（或非中文环境）→ `name` / `description` 100% 标准英文（零汉字）；
   - `lang === 'zh'` → 允许中文商品文案（仅当应用 UI 为中文时）。
 - **禁止硬编码**：`api/stripe/*` 路由内**严禁**出现任何中文商品名/描述硬编码（违者违反禁令三）。
@@ -307,7 +310,8 @@ npx playwright test e2e/mobile-calai-benchmark.spec.ts   # iPhone 390x844 移动
 
 ### 5.3 全外语环境零汉字盲点断言（Zero-Chinese Gate）
 
-- **CJK 正则**：`/[\u4e00-\u9fa5]/`（`src/lib/stripe-i18n.ts` 的 `CJK_CHARS_REGEX` /
+- **CJK 正则**：`/[\u4e00-\u9fa5]/`（`projects/commercial-engine/middleware/stripe-i18n.ts` 的
+  `CJK_CHARS_REGEX` /
   `hasChineseChars()`）。
 - **E2E 硬断言**：所有全英文用例对以下文本执行 `expect(text).not.toMatch(CJK)`，命中即 FAIL：
   1. **Stripe 页面**（TEST-STUB 镜像 `checkout.stripe.com`）：`data-testid="product-name"` /
@@ -320,7 +324,7 @@ npx playwright test e2e/mobile-calai-benchmark.spec.ts   # iPhone 390x844 移动
 ### 5.4 套娃自动继承
 
 - 克隆套娃模板后，以下质量检查链随模板自动生效，无需人工配置：
-  1. `src/lib/stripe-i18n.ts`（统一商品名函数 + CJK 正则）；
+  1. `projects/commercial-engine/middleware/stripe-i18n.ts`（统一商品名函数 + CJK 正则，应用侧 re-export）；
   2. `e2e/mobile-calai-benchmark.spec.ts`（零汉字断言用例 M2 / M4）；
   3. `playwright.config.ts`（iPhone 390x844 移动端 + 生产构建 webServer）。
 - 新增支付类功能时，必须同步补充对应 `getLocalizedPaymentItem` 条目与 E2E 零汉字断言，
@@ -343,6 +347,7 @@ python scripts/ceo_visual_demo.py --mode mobile   # 移动端全绿验证
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026.08 | v1.7 | 商业化中台 consolidation：支付/积分/限流/付费墙权威实现迁入 `projects/commercial-engine/`（middleware + templates + skills 01–05）；`stripe-i18n` 权威路径改为 `projects/commercial-engine/middleware/stripe-i18n.ts`（应用侧 re-export）；识图结果分享卡模板迁至 `projects/commercial-engine/templates/report-share-card.tsx`（SOP-02 records/totals 契约渲染）；迁移清单见 `projects/commercial-engine/MIGRATION_AUDIT_REPORT.md`。SOP-01～SOP-03 履历同步：SOP-01（slowMo=1200ms 轨迹巡检 + TEMP 真实图片集 A-D 全 UI 分支 + `--fast`/`--promo-en` 双模式）、SOP-02（Count & Total：名称带数量/约重 + 整盘总账 + 数量单位白名单）、SOP-03（Canvas 1024px / JPEG 0.8 / ≤500KB 阶梯降级 + HEIC 兜底）维持现行规范 |
 | 2026.08 | v1.6 | 新增 SOP-05 质量闸门（Quality Gate）：i18n 支付数据一致性规程（统一 `getLocalizedPaymentItem(planId, lang)`，严禁 api/stripe/* 硬编码中文商品名/描述）+ 全外语环境零汉字盲点断言（`expect(text).not.toMatch(/[\u4e00-\u9fa5]/)`）；新增红线禁令三；E2E 升级（M4：50 积分包 `CalorieAI 50 Credits Pack` 零汉字） |
 | 2026.08 | v1.5 | 新增 SOP-04《008 工厂极速 MVP 交付规范：双 Agent 互测闭环》：以 Cal AI 为 Ground Truth（极简 Onboarding → 拍照 AI 拆解 → 今日进度条 → 免费 2 次后 Stripe 订阅）；双 Agent 互测闭环交付；红线禁令（严禁过度 Dummy Mock 欺骗 / 严格收缩 MVP 边界）；移动端 Playwright 对标用例（按钮触达 ≥48px / 全英文 Stripe 路由 / Cal AI 核心链路） |
 | 2026.08 | v1.4 | 新增 SOP-01.6.2 YouTube Shorts 英文宣推模式（--promo-en）：locale en-US 全英文 UI、Edge-TTS 4 段美音解说（含演练实时播放 + adelay/amix 时间轴混音）、`-preset slow -crf 18 -b:v 6M -movflags +faststart` 高码率高清导出 |

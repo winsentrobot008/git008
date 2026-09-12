@@ -37,8 +37,10 @@ export default function WishCard() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="relative flex flex-col rounded-3xl border border-pink-200/50 bg-white/70 p-4 shadow-pink-100/50 backdrop-blur-xl transition hover:-translate-y-1 sm:p-6"
+      className="relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-white/80 via-white/25 to-white/50 p-6 backdrop-blur-2xl border-t border-l border-white/90 border-b border-r border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,1),inset_0_-2px_4px_rgba(236,72,153,0.15),0_15px_35px_-5px_rgba(236,72,153,0.25)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[inset_0_1px_3px_rgba(255,255,255,1),0_20px_45px_-5px_rgba(236,72,153,0.35)]"
     >
+      {/* 水晶顶部折射高光线 */}
+      <div className="pointer-events-none absolute left-0 right-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/80 to-transparent" />
       <span className="absolute right-3 top-3 rounded-full border border-pink-200/70 bg-white/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ink-faint backdrop-blur">
         Wishlist
       </span>

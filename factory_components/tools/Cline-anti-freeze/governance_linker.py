@@ -28,8 +28,22 @@ from typing import Dict, Optional, Tuple, Literal
 # ============================================================
 # 路径常量
 # ============================================================
-ROOT_DIR = Path(__file__).resolve().parent.parent  # git008 根
+THIS_DIR = Path(__file__).resolve().parent
+
+
+def _find_repo_root(start: Path) -> Path:
+    """向上锚定 git008 根：首个包含 .codex/governance.json 的目录。"""
+    for parent in (start, *start.parents):
+        if (parent / ".codex" / "governance.json").exists():
+            return parent
+    return start.parents[1] if len(start.parents) > 1 else start
+
+
+ROOT_DIR = _find_repo_root(THIS_DIR)
 ANTI_FREEZE_DIR = ROOT_DIR / "Cline-anti-freeze"
+if not ANTI_FREEZE_DIR.exists():
+    # 治理中心实际位于 factory_components/tools/Cline-anti-freeze
+    ANTI_FREEZE_DIR = THIS_DIR
 INSTANCE_ID_FILE = ANTI_FREEZE_DIR / ".instance_id"
 INSTANCE_ROLE_FILE = ANTI_FREEZE_DIR / ".instance_role"
 INSTANCE_REGISTRY = ANTI_FREEZE_DIR / ".instance_registry.json"
@@ -541,6 +555,18 @@ def boot_check() -> Dict:
         "warnings": [],
         "passed": False,
     }
+
+    # 0. 治理钩子：AGENTS.md 宪法动态解析 + Token 护栏同步
+    try:
+        import governance_hooks
+
+        hooks_report = governance_hooks.boot_hooks()
+        report["governance_hooks"] = hooks_report
+        if hooks_report.get("active"):
+            report["token_snapshot"] = hooks_report.get("token_snapshot")
+            report["constitution_parsed"] = hooks_report.get("constitution_parsed")
+    except Exception as exc:
+        report["governance_hooks"] = {"active": False, "error": str(exc)}
 
     # 1. 验证治理中心
     valid, msg = validate_governance_center()

@@ -155,3 +155,9 @@ def dispatch_task(target_url: str = Form(...), texts: str = Form(...)) -> HTMLRe
         f"目标节点: {target_url}<br><br>"
         f"{summary}"
     )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("git008_main_panel:app", host="127.0.0.1", port=8000)

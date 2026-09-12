@@ -1,6 +1,6 @@
 """Multi-model provider registry with auto-detect, ranking, and fallback.
 
-Images: Flux (FAL) → SDXL (local) → Seedance → Runway → Placeholder
+Images: ComfyUI (local) → Flux (FAL) → SDXL (local) → Placeholder
 Videos: Seedance → AnimateDiff (local) → Hailuo → Runway → ffmpeg slideshow
 
 Each provider is auto-detected (API key, GPU, model files).
@@ -92,6 +92,65 @@ def _find_ffmpeg() -> str | None:
     return None
 
 
+_COMFYUI_WORKFLOWS = Path(__file__).resolve().parent / "_comfyui" / "workflows"
+
+
+def _comfyui_server_url() -> str:
+    return os.environ.get("COMFYUI_SERVER_URL", "http://127.0.0.1:8188").rstrip("/")
+
+
+def _check_comfyui(timeout: float = 2.0) -> bool:
+    """Check whether a local ComfyUI server is reachable."""
+    try:
+        import requests
+        resp = requests.get(f"{_comfyui_server_url()}/system_stats", timeout=timeout)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def _comfyui_image(prompt: str, output_path: str | None = None) -> str | None:
+    """Generate an image through the local ComfyUI server; None on any failure."""
+    try:
+        from tools._comfyui.client import ComfyUIClient
+
+        workflow_path = Path(
+            os.environ.get("COMFYUI_IMAGE_WORKFLOW")
+            or (_COMFYUI_WORKFLOWS / "flux2-txt2img.json")
+        )
+        if not workflow_path.exists():
+            return None
+        workflow = ComfyUIClient.load_workflow(workflow_path)
+        for node in workflow.values():
+            if not isinstance(node, dict):
+                continue
+            inputs = node.get("inputs")
+            if not isinstance(inputs, dict):
+                continue
+            if "TextEncode" in str(node.get("class_type", "")) and "text" in inputs:
+                inputs["text"] = prompt
+                break
+        output_node = os.environ.get("COMFYUI_IMAGE_OUTPUT_NODE") or next(
+            (
+                str(node_id)
+                for node_id, node in workflow.items()
+                if isinstance(node, dict)
+                and node.get("class_type") in {"SaveImage", "SaveAnimatedWEBP", "SaveVideo"}
+            ),
+            "",
+        )
+        if not output_node:
+            return None
+        path = output_path or str(Path(tempfile.gettempdir()) / f"comfyui_{int(time.time())}.png")
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        ComfyUIClient().generate(workflow, output_node, Path(path))
+        print(f"[Image] ComfyUI generated: {path}")
+        return path
+    except Exception as exc:
+        print(f"[Image] ComfyUI failed: {exc}")
+        return None
+
+
 # ─── Provider Registry ───────────────────────────────────────────
 
 class ImageProvider:
@@ -104,13 +163,20 @@ class ImageProvider:
         """Scan and return status of all image providers."""
         statuses = []
         
-        # 1. Flux via FAL
+        # 1. ComfyUI (local GPU) — preferred: free, private, no cloud quota
+        has_comfy = _check_comfyui()
+        statuses.append(ProviderStatus(
+            "ComfyUI (local)", has_comfy,
+            f"server at {_comfyui_server_url()}" if has_comfy else "server not reachable"
+        ))
+
+        # 2. Flux via FAL (cloud fallback)
         statuses.append(ProviderStatus(
             "Flux (FAL AI)", _check_fal(),
             "FAL_KEY configured" if _check_fal() else "No FAL_KEY"
         ))
         
-        # 2. SDXL local
+        # 3. SDXL local
         has_cuda = _check_cuda()
         has_model = _check_sdxl_model()
         statuses.append(ProviderStatus(
@@ -119,7 +185,7 @@ class ImageProvider:
             "No GPU" if not has_cuda else "No model"
         ))
         
-        # 3. Placeholder (always works)
+        # 4. Placeholder (always works)
         statuses.append(ProviderStatus("Placeholder (ffmpeg)", True, "Always available"))
         
         return statuses
@@ -128,7 +194,13 @@ class ImageProvider:
     def generate(cls, prompt: str, output_path: str | None = None) -> str:
         """Generate an image from prompt. Never fails."""
         
-        # Try Flux
+        # Try local ComfyUI first (free, private, no cloud quota)
+        if _check_comfyui():
+            local = _comfyui_image(prompt, output_path)
+            if local:
+                return local
+
+        # Try Flux (cloud)
         if _check_fal():
             try:
                 import requests

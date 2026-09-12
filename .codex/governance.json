@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "project": "git008",
+  "scope": "workspace-only",
+  "constitution": {
+    "file": "AGENTS.md",
+    "dynamic_parse": true,
+    "last_synced": "2026-09-11T16:36:31.698228+00:00"
+  },
+  "token_guardrails": {
+    "max_session_tokens": 80000,
+    "max_request_tokens": 80000,
+    "max_context_tokens": 30000,
+    "context_warn_rounds": 5,
+    "daily_budget_tokens": 2000000
+  },
+  "auto_clear_enabled": true,
+  "max_context_tokens": 30000,
+  "max_turns": 5,
+  "circuit_breaker": {
+    "enabled": true,
+    "force_stop_on_breach": true,
+    "cooldown_seconds": 120
+  },
+  "blacklist": {
+    "directories": [
+      "output",
+      "work",
+      "node_modules",
+      ".git"
+    ],
+    "files": [
+      ".env"
+    ]
+  },
+  "reminders": {
+    "clear_context_on_task_done": true,
+    "clear_command": "/clear"
+  }
+}

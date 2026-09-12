@@ -136,6 +136,19 @@ COGVIDEO_VARIANTS = {
     },
 }
 
+# Models that cannot fit an RTX 3060 12 GB.  Hard guard, not a warning: a 14B
+# checkpoint will offload-thrash or OOM the card and stall the whole run.
+_VRAM_BLOCKED_MODELS = ("wan2.1-14b", "hunyuan-1.5")
+
+
+def assert_local_model_supported(model_name: str) -> str:
+    """Raise ValueError when *model_name* is a >12 GB (14B-class) model."""
+    normalized = str(model_name or "").lower()
+    if any(pattern in normalized for pattern in _VRAM_BLOCKED_MODELS):
+        raise ValueError("VRAM limit exceeded: 14B models require >12GB")
+    return model_name
+
+
 LTX2_FRAME_COUNTS = {
     "1s": 25,
     "2s": 49,
@@ -229,6 +242,7 @@ def estimate_local_runtime(speed: str) -> float:
 
 
 def load_diffusers_pipeline(pipeline_class: str, model_id: str, enable_offload: bool):
+    assert_local_model_supported(model_id)
     import diffusers
     import torch
 
@@ -314,7 +328,12 @@ def generate_local_video(
             error=f"Unknown model_variant: {variant}. Available: {', '.join(sorted(variants))}",
         )
 
+    # Hard 12 GB VRAM guard: never let a 14B-class model reach the pipeline.
+    assert_local_model_supported(variant)
     meta = variants[variant]
+    assert_local_model_supported(meta.get("hf_id", ""))
+    assert_local_model_supported(meta.get("hf_i2v_id", ""))
+
     prompt = inputs["prompt"]
     operation = inputs.get("operation", "text_to_video")
     seed = inputs.get("seed")
