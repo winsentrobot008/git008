@@ -2,7 +2,9 @@
 
 **版本**: 2026.08 | **状态**: ✅ 运行中 | **健康评分**: 100/100
 
-> **定位**：GIT008 是 **SaaS 套娃矩阵工厂**——以 **Central Gateway（中央大脑与收银中枢）** 为枢纽，批量生产同构 AI SaaS（CalorieAI / PetAI / PlantAI…）。每个套娃应用即一个**独立 Git 仓库**（主仓库 submodule 指针同步），克隆后只需配置 `GATEWAY_APP_TOKEN` 即可 **10 秒接入网关**。
+> **定位**：GIT008 是 **SPU 优先（SPU-first）的 SaaS 套娃矩阵工厂**——批量生产同构 AI SaaS（CalorieAI / PetAI / PlantAI…）。每个套娃应用即一个**独立 Git 仓库**（主仓库 gitlink 指针同步），自带商业化中台内联快照（`@git008/commercial-engine`）与直连 AI 调用，克隆后配置自有密钥即可**独立构建与部署**。
+> 
+> **Central Gateway 是可选组件**：仅作为多项目密钥集中托管 / 统一端点的开发者与矩阵代理，**不是任何应用的运行时必需**。
 
 ---
 
@@ -34,7 +36,7 @@
 │   │  /api/v1/ai/vision · /api/v1/billing/checkout · /api/v1/credits     │         │
 │   │  App-Token 鉴权 · 动态 CORS 白名单 · 限频 · 上游密钥集中托管          │         │
 │   └──────────┬──────────────────────┬───────────────────┬───────────────┘         │
-│              │ GATEWAY_APP_TOKEN     │ 10 秒接入         │                          │
+│              │ 密钥集中托管（可选）  │ 仅网关模式        │                          │
 │   ┌──────────▼─────────┐   ┌────────▼─────────┐ ┌──────▼─────────┐                 │
 │   │ CalorieAI（参考实现）│   │ PetAI（克隆示例）  │ │ PlantAI（可克隆）│  … 矩阵可扩展  │
 │   │ products/calorieai │   │ products/petai   │ │ products/plantai│                 │
@@ -49,6 +51,8 @@
 ```
 
 ---
+
+> **架构说明**：上图中 Central Gateway 为**可选**的矩阵级代理；每个 SPU 默认以内联商业化中台 + 直连 AI 独立运行，不依赖网关。
 
 ## 🔗 2. 主 / 子仓库协同机制
 
@@ -74,24 +78,24 @@
 | 4 | 本地门禁 | `npm install && npm run build` |
 | 5 | 一键上线 | Vercel Import → Deploy（`vercel.json` 已内置 framework/build） |
 | 6 | 支付 Webhook | Stripe → `/api/stripe/webhook` |
-| 7 | 接入网关 | 配置 `GATEWAY_BASE_URL + GATEWAY_APP_TOKEN` |
+| 7 | 独立上线 | SPU 自包含，无需网关；如需多项目密钥集中托管再可选接入 Central Gateway |
 
-### 3.2 极速接入网关（10 秒上线）
+### 3.2 可选：接入 Central Gateway（多项目开发者代理）
 
 ```bash
-# 子应用只需两项环境变量，识图/积分/收银立即切换到中央网关
+# 可选：仅当需要密钥集中托管 / 统一端点时才配置（SPU 默认不接网关）
 GATEWAY_BASE_URL=https://<your-gateway>.vercel.app
 GATEWAY_APP_TOKEN=tok_calorieai_xxx
 ```
 
-网关不可用时自动回退子应用直连，**旧业务零影响**。SDK 示例：`products/calorieai/src/lib/gateway-client.ts`。
+未配置这两项时，SPU 走本地商业化中台与直连 AI（**默认路径**）；网关仅在这两个环境变量存在时才参与请求。
 
-**10 秒挂载全套积分与收银台**：
+**网关（可选）提供的能力**：
 
 1. 网关颁发 `GATEWAY_APP_TOKEN`（`GATEWAY_APP_TOKENS={"petai":"tok_petai_xxx",...}` 一行注册）；
-2. 子应用配置 `GATEWAY_BASE_URL + GATEWAY_APP_TOKEN` 两项环境变量；
-3. SDK 自动挂载统一 `credits`（跨端积分）、`billing/checkout`（统一收银台）、`ai/vision`（统一识图），
-   计费与计价全部由网关统一下发 —— **改网关一处配置，全网 50+ 套娃应用秒级同步**。
+2. 使用网关的部署再配置 `GATEWAY_BASE_URL + GATEWAY_APP_TOKEN` 两项环境变量（**SPU 默认不需要**）；
+3. 网关侧统一 `credits`（跨端积分）、`billing/checkout`（统一收银台）、`ai/vision`（统一识图），
+   便于多项目共享计价 —— **改网关一处配置，已接入的应用即按新配置收银**；未接入的 SPU 不受影响。
 
 **10 分钟一键克隆引擎（v3.4）**：`node scripts/clone_app.mjs petai` 自动复制标准模版（`products/calorieai`）并全局重命名；克隆后只需改 `src/lib/app-config.ts`（App-ID/Prompt/配色）+ i18n 文案即可上线，详见 [`TEMPLATE_APP.md`](TEMPLATE_APP.md)。
 
@@ -99,16 +103,16 @@ GATEWAY_APP_TOKEN=tok_calorieai_xxx
 
 ## 🧬 4. 套娃应用矩阵与接入状态
 
-| 应用 | 路径 | 状态 | 网关接入 |
+| 应用 | 路径 | 状态 | 网关接入（可选） |
 |------|------|:---:|------|
-| **CalorieAI** | `products/calorieai` | 🟢 生产就绪（Vercel 实盘巡检通过） | ✅ SDK 内置 + 环境门控 |
-| **PetAI** | 待克隆 | 🟡 模板可直接克隆 | 10 秒接入 |
-| **PlantAI** | 待克隆 | 🟡 模板可直接克隆 | 10 秒接入 |
-| **…** | 任意同构 AI SaaS | 🟢 矩阵可扩展 | 注册 `GATEWAY_APP_TOKENS` 即可 |
+| **CalorieAI** | `products/calorieai` | 🟢 生产就绪（Vercel 实盘巡检通过） | SPU 自洽（内联商业化中台；网关可选） |
+| **PetAI** | 待克隆 | 🟡 模板可直接克隆 | SPU 自洽（可选接网关） |
+| **PlantAI** | 待克隆 | 🟡 模板可直接克隆 | SPU 自洽（可选接网关） |
+| **…** | 任意同构 AI SaaS | 🟢 矩阵可扩展 | 克隆即独立运行；如需网关再注册 `GATEWAY_APP_TOKENS` |
 
 ---
 
-## 🛰️ 5. Central Gateway（中央大脑与收银中枢）
+## 🛰️ 5. Central Gateway（可选 · 矩阵级开发者代理）
 
 位于 [`projects/central-gateway`](projects/central-gateway/README.md)，Hono + Node + TypeScript：
 
@@ -132,12 +136,12 @@ GATEWAY_APP_TOKEN=tok_calorieai_xxx
 
 > 原则：**任何情况下不向用户强推按月/按年自动续费**。订阅类事件（`customer.subscription.*` / `invoice.*`）在网关与套娃侧一律视为遗留并忽略。
 
-### 5.2 中央网关控制一切（Central Gateway Centralized Control）
+### 5.2 SPU 自洽优先，网关可选（SPU-First, Gateway Optional）
 
-- **计费与计价由网关统一下发**：积分包目录、价格、终身买断 SKU、支付渠道（Stripe/PayPal）全部收敛在网关配置（`GATEWAY_APP_TOKENS` 注册表 + `billing/checkout` 统一计价）；
-- **改一处，全网生效**：调整网关计价/积分包配置后，50+ 套娃应用无需逐个改代码或重新发版，下一次请求即按新配置收银；
-- **零 Key 客户端**：套娃前端不持有任何上游密钥，只持 `APP_ID + GATEWAY_APP_TOKEN`；
-- **自动回退**：网关不可用时子应用回退直连（演示/降级模式），旧业务零影响。
+- **计费与计价默认由 SPU 本地自洽**：积分包目录与价格来自 `@git008/commercial-engine/middleware/credit-packs.ts`，支付渠道（Stripe/PayPal）在 SPU 路由内直连；接入网关时才改由网关 `GATEWAY_APP_TOKENS` 注册表 + `billing/checkout` 统一下发；
+- **改一处，接入方生效**：调整网关配置后，已接入网关的应用无需改代码或重新发版；SPU 本地模式则升级权威实现后同步内联快照（`npm run check:engine-sync` 校验）；
+- **零 Key 客户端（仅网关模式）**：接入网关时套娃前端不持有上游密钥，只持 `APP_ID + GATEWAY_APP_TOKEN`；SPU 模式下密钥只存在于自身部署环境变量；
+- **无网关依赖**：SPU 默认不依赖网关，网关可用性与否都不影响 SPU 独立运行。
 
 ### 5.3 管理后台安全隐身（Admin Security Isolation）
 
@@ -176,8 +180,12 @@ git008/
 ├── products/                     📂 套娃应用（每个均为独立 Git 仓库，submodule 指针同步）
 │   ├── calorieai/                🟢 CalorieAI 参考实现（Next.js 16）
 │   └── …（PetAI / PlantAI 待克隆）
+├── config/                       ⚙️ 根工厂统一配置（config.toml + models.json 模型目录）
+├── factory_core/                 🧩 根工厂核心（web_browser / computer_use / llm）
+├── master_pipeline.py            🎛️ 根总控：OpenRouter 分发 → 抓取 → 桌面闭环
+├── services/                     🔌 自动化服务层（bb-browser 网络感知 + Computer Use 桌面自动化 + 三层流水线）
 ├── factory_components/           🏛️ 治理中心（constitution / orchestrator / tools）
-├── scripts/                      📝 工厂脚本（git008_main_panel / qa_inspect / smoke-api）
+├── scripts/                      📝 工厂脚本（qa_inspect / clone_app / check_integrations / api_budget_guard）
 ├── qa_delivery/                  🧪 质检报告与截图（latest.md / screenshots）
 ├── runtime_data/                 💾 运行时日志与调度数据
 └── README.md                     📘 本说明文件
@@ -189,10 +197,56 @@ git008/
 
 | 脚本 | 路径 | 用途 |
 |--------|------|------|
-| 主面板 | [`scripts/git008_main_panel.py`](scripts/git008_main_panel.py) | 中央调度 UI（FastAPI, 端口 8000） |
+| 主面板 | [`factory_components/tools/scripts/git008_main_panel.py`](factory_components/tools/scripts/git008_main_panel.py) | 中央调度 UI（FastAPI, 端口 8000） |
 | 线上巡检 | [`scripts/qa_inspect.py`](scripts/qa_inspect.py) | Playwright 0-Token E2E（写 qa_delivery/reports/latest.md） |
-| 管线测试 | [`scripts/test_pipeline_run.py`](scripts/test_pipeline_run.py) | 集成测试套件 |
+| 管线测试 | [`factory_components/tools/scripts/test_pipeline_run.py`](factory_components/tools/scripts/test_pipeline_run.py) | 集成测试套件 |
 | 网关冒烟 | [`projects/central-gateway/scripts/smoke.mjs`](projects/central-gateway/scripts/smoke.mjs) | 网关鉴权/CORS/积分/降级 10 项自检 |
+| 根总控 | [`master_pipeline.py`](master_pipeline.py) | OpenRouter 免费模型任务分发 → bb-browser 抓取 → Computer Use 桌面闭环 |
+
+## 🔌 13. 自动化服务层（bb-browser + Computer Use）
+
+> 定位：把「结构化网络抓取」与「桌面 GUI 自动化」接入工厂，实现
+> **素材搜集 → 视频渲染 → 桌面发布** 无人值守闭环。详见
+> [`services/README.md`](services/README.md)。
+
+| 层 | 模块 | 能力 |
+|----|------|------|
+| **Fetch** | `services/crawler/` | bb-browser CLI/daemon 复用已登录 Chrome Cookie/Session，站点 adapter 输出低 Token 结构化 JSON（知乎热榜/Twitter/B站/Reddit 等 103+ 命令） |
+| **Process** | `services/pipeline/` | 调用现有 `008-video-factory`（Edge-TTS + FFmpeg）`node src/index.mjs --batch` 完成标准视频合成 |
+| **Publish** | `services/gui_automation/` | Computer Use 三后端（pyautogui → powershell → MCP）桌面交互；后台/锁屏状态监测，无人值守默认拒绝注入 |
+
+### 13.1 根总控（master_pipeline）
+
+[`master_pipeline.py`](master_pipeline.py) 是根工厂调度入口：由 OpenRouter 免费模型
+（`config/models.json` 中 `google/gemini-2.0-flash-exp:free` / `deepseek/deepseek-r1:free`）
+按 Chat Completions（`wire_api="chat_completions"`）做任务分发，优先走
+`factory_core/web_browser.py` 抓取素材；遇到本地应用渲染 / 复杂桌面操作时自动切入
+`factory_core/computer_use.py` 闭环执行。LLM 不可用或 `--offline` 时回退规则分发。
+
+```bash
+# 模型下拉菜单数据源（界面可识别）
+python master_pipeline.py --list-models
+
+# 在线：LLM 分发 → bb-browser 抓取 → （必要时）渲染/桌面闭环
+python master_pipeline.py --task "抓取知乎热榜文案并生成一条 CalorieAI 视频"
+
+# 离线演示：规则分发 + 本地模板（零网络）
+python master_pipeline.py --offline --task "抓取热点素材"
+```
+
+配置：仓库根 `config/config.toml`（`[llm]` + `[integrations.bb_browser]` / `[integrations.computer_use]` /
+`[pipeline]`），环境变量同名覆盖（见 `.env.example`）。
+
+```bash
+# 健康检查（bb-browser / Chrome CDP / 屏幕控制接口）
+python scripts/check_integrations.py --online
+
+# 三层流水线（离线演示：Fetch 回退本地模板）
+python -m services.pipeline --offline --product calorieai
+```
+
+接口失败均有明确 Fallback 日志（`runtime_data/logs/integration_fallback.log`），
+与现有 Python/TypeScript 脚本完全解耦。
 
 ---
 
@@ -210,7 +264,7 @@ git008/
 
 ```bash
 # 启动中央面板
-python scripts/git008_main_panel.py          # → http://localhost:8000
+python factory_components/tools/scripts/git008_main_panel.py          # → http://localhost:8000
 
 # 网关本地开发
 cd projects/central-gateway && npm run dev   # → http://127.0.0.1:8787

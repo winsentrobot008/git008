@@ -27,8 +27,9 @@ commercial-engine/
 ## 接入约定
 
 1. **后端逻辑**：子项目禁止复制本目录逻辑；必须 import 本目录实现。
-   - calorieai（Next.js / bundler）：`import { ... } from "@commercial-engine/middleware/xxx"`
-   - central-gateway（NodeNext / Hono）：`import { ... } from "../../../../commercial-engine/middleware/xxx.js"`
+   - 模块名：`@git008/commercial-engine`（`package.json` 已声明 `middleware/*`、`templates/*`、`skills/*` 子路径 exports）；
+   - calorieai（Next.js / bundler）：`import { ... } from "@git008/commercial-engine/middleware/xxx"`
+   - central-gateway（NodeNext / Hono）：`import { ... } from "@git008/commercial-engine/middleware/xxx.js"`
 2. **存储注入**：本目录 middleware 不依赖任何数据库 / Next.js / Hono。
    调用方把自己的 `getCredits/setCredits/upsertSubscription` 等以端口（Port）方式注入。
 3. **价格单一来源**：`credit-packs.ts` 是唯一价格 / 积分映射源；
