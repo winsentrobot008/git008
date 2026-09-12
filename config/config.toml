@@ -1,0 +1,44 @@
+# =====================================================================
+# GIT008 根工厂统一配置（唯一配置源）
+# 优先级：环境变量 > config/config.toml > 内置默认值
+# 敏感密钥（OPENROUTER_API_KEY 等）一律放在 .env / 环境变量，本文件不存密钥。
+# =====================================================================
+
+[llm]
+provider = "openrouter"          # 模型 Provider（OpenRouter 免费模型做任务分发）
+wire_api = "chat_completions"    # 线协议：OpenAI 兼容 Chat Completions
+base_url = "https://openrouter.ai/api/v1"
+models_file = "config/models.json"  # 界面下拉菜单模型目录
+default_model = "google/gemini-2.0-flash-exp:free"
+free_only = true                 # 任务分发只允许使用 :free 免费档模型
+timeout = 120                    # 单次 LLM 调用超时（秒）
+max_tokens = 4096                # 决策 JSON 输出上限
+temperature = 0.2                # 低温度保证任务分发稳定
+
+[integrations.bb_browser]
+bin = ""                  # bb-browser 可执行文件；留空自动发现（PATH / npm 全局 shim）
+daemon_host = "127.0.0.1" # daemon 监听地址
+daemon_port = 19824       # daemon 默认端口
+auto_start_daemon = true  # 未运行时自动拉起 daemon
+timeout = 45              # 单次 CLI 调用超时（秒）
+openclaw_fallback = false # CLI/daemon 失败后尝试复用 OpenClaw 浏览器
+data_dir = "runtime_data/crawler"  # 抓取清单 JSON 落盘目录（相对仓库根）
+
+[integrations.computer_use]
+enabled = false           # 总开关：false 时桌面操作一律跳过并记日志
+backend = "auto"          # auto | pyautogui | powershell | mcp（逗号分隔可组合）
+allow_unattended = false  # 锁屏/断开/非交互会话下禁止实际注入（安全默认）
+dry_run = true            # true=只记录动作不注入输入（健康检查/CI 安全默认）
+mcp_bin = ""              # 外接 Computer Use MCP 插件可执行文件（可选）
+screenshot_dir = "runtime_data/gui"
+action_timeout = 30
+key_delay_ms = 50
+
+[pipeline]
+video_factory_dir = "products/008-video-factory"  # Edge-TTS + FFmpeg 渲染引擎
+node_bin = ""              # 留空自动发现 PATH 中的 node
+work_dir = "runtime_data/pipeline"  # 批次配置 / 流水线报告落盘目录
+default_product = "calorieai"
+default_target = "calorie-ai"
+mock_voice = false         # Edge-TTS 不可用时是否强制正弦占位音
+no_pexels = true           # 默认不联网抓 Pexels 真人素材（素材由 web_browser 提供）

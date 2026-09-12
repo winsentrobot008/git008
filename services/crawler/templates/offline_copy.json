@@ -1,0 +1,27 @@
+{
+  "source": "local-template",
+  "note": "bb-browser 不可达时的离线回退文案（FALLBACK 场景演示 / CI 零网络）",
+  "items": [
+    {
+      "platform": "template",
+      "adapter": "local",
+      "title": "拍张照片，立刻知道卡路里。",
+      "content": "CalorieAI 自动识别餐盘里的每一道菜，整盘热量一目了然。",
+      "url": ""
+    },
+    {
+      "platform": "template",
+      "adapter": "local",
+      "title": "记录饮食，达成目标。",
+      "content": "每天三秒拍照，热量、蛋白、碳水全部自动记账，轻松自律。",
+      "url": ""
+    },
+    {
+      "platform": "template",
+      "adapter": "local",
+      "title": "你的口袋营养师。",
+      "content": "CalorieAI — 今天就试试，一按即可。",
+      "url": ""
+    }
+  ]
+}

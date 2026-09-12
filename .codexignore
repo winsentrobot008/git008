@@ -1,0 +1,22 @@
+# git008 宪法黑名单 — 由 Cline-anti-freeze 治理中心同步（CODEX 拦截规则）
+# 与 AGENTS.md / .codex/governance.json 的 blacklist 保持一致
+
+# 禁止 Agent 直接读取/写入的目录
+output/
+work/
+node_modules/
+.git/
+
+# 禁止读取的敏感文件
+.env
+
+# 附加：运行时噪音目录（避免 CODEX 默认递归扫描）
+__pycache__/
+.venv/
+dist/
+build/
+
+# Token-Saver 自动追加：剔除依赖/产物/运行时与日志大文件
+runtime_data/
+*.log
+*.jsonl

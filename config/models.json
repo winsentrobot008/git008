@@ -1,0 +1,27 @@
+{
+  "provider": "openrouter",
+  "wire_api": "chat_completions",
+  "default_model": "google/gemini-2.0-flash-exp:free",
+  "models": [
+    {
+      "id": "google/gemini-2.0-flash-exp:free",
+      "name": "Gemini 2.0 Flash (free)",
+      "provider": "google",
+      "pricing": "free",
+      "context_window": 1048576,
+      "max_output_tokens": 8192,
+      "notes": "OpenRouter 免费档：任务分发与轻量决策，低 Token 首选",
+      "enabled": true
+    },
+    {
+      "id": "deepseek/deepseek-r1:free",
+      "name": "DeepSeek R1 (free)",
+      "provider": "deepseek",
+      "pricing": "free",
+      "context_window": 163840,
+      "max_output_tokens": 32768,
+      "notes": "OpenRouter 免费档：深度推理与复杂文案生成",
+      "enabled": true
+    }
+  ]
+}
