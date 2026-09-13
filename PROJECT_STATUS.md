@@ -87,14 +87,18 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 
 ### 7.3 食物识别接线缺口（CALORIE_AI_API_URL）
 
-- 现状：该键在生产环境缺失，`savage-cal/recognize/route.ts:132-142` 直接返回 503，不会发起任何上游调用。
+- 现状：该键在生产环境**仍然缺失**，`savage-cal/recognize/route.ts:132-142` 会在任何上游调用之前直接返回 503；这是当前 503 的直接原因，协议修复不会改变它。
 - 目标后端已存在且在线：Vercel 项目 `calorie-ai`，域名 `calorie-ai-seven.vercel.app`，路径 `/api/v1/meals/analyze-image`（实测 `x-matched-path` 命中，非 404）。
 - 建议接线值：`CALORIE_AI_API_URL=https://calorie-ai-seven.vercel.app/api/v1/meals/analyze-image`。
-- **协议不匹配（关键阻塞）**：008ai 桥接以 `Content-Type: application/json` 发送 `{ image, mime_type, meal_type }`；CalorieAI 端点只读取 `await request.formData()`，JSON 请求体被判为缺少文件并返回 400 `请上传图片文件`。
-  - 结论：**仅补键不足以清除识别报错**，桥接会把该 400 映射为 `502 UPSTREAM_ERROR: Recognition backend error 400`。
-  - 修复方向：桥接改发 `multipart/form-data` 且 `file` 字段传 base64/data URI（CalorieAI 已兼容该形态），或在 CalorieAI 侧新增 JSON 入口。
+- **协议不匹配 —— 已修复（commit `ed68ec7`）**：原实现以 `application/json` 发送 `{ image, mime_type, meal_type }`，而 CalorieAI 只读取 `await request.formData()`，JSON 请求体被判为缺少文件并返回 400 `请上传图片文件`，桥接再将其放大为 `502 UPSTREAM_ERROR`。
+  - 修复：桥接改为构造 `FormData`，`file` 字段传 data URI（`data:<mime>;base64,<data>`，一次性携带 base64 与 mime），并附加 `meal_type`；不再手工设置 `Content-Type`，由 fetch 生成 multipart boundary。
+  - 实测对照（直连 `calorie-ai-seven.vercel.app`）：新形态 multipart + data URI 被正常解析并进入 AI 调用，返回 502 `AI_SERVICE_UNAVAILABLE`（该后端自身上游不可用）；旧形态 `application/json` 返回 400 `请上传图片文件`。
   - 响应侧兼容：CalorieAI 返回 `records[]`，桥接 `normalizeItems` 已兼容 `items/records/foods`，无需改动。
-- 另需注意：CalorieAI 自带反爬虫 `checkAntiCrawler` 会拦截空 UA 与 bot/CLI UA（`node-fetch`、`axios`、`curl`、`python-requests` 等均在黑名单），接线后须确认服务端 fetch 的 UA 不被拦截。
+- 剩余阻塞（接线前须一并评估）：
+  1. `CALORIE_AI_API_URL` 未配置 → 即使协议已修好，接口仍会在配置检查处短路为 503。
+  2. CalorieAI 自身上游当前不可用（`AI_SERVICE_UNAVAILABLE`），与 7.4 的 Gemini 503 属同类供应商故障。
+  3. CalorieAI 对 inline base64 有 ≤200KB 上限（请求体上限 4MB），桥接允许的 4MB 图片可能在对方侧被判 `IMAGE_TOO_LARGE`。
+  4. CalorieAI 自带反爬虫 `checkAntiCrawler` 会拦截空 UA 与 bot/CLI UA（`node-fetch`、`axios`、`curl` 等），接线后须确认服务端 fetch 的 UA 未被拦截。
 
 ### 7.4 上游 Gemini 健康（/api/savage-fit/chat）
 
@@ -107,7 +111,7 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 
 - 结论：站点与三个页面全部 200；两个 AI 接口均未达到设计契约，原因均为配置/上游问题，非路由或构建缺陷。
 - 待办（按优先级）：
-  1. 接线 `CALORIE_AI_API_URL` **并同时**修掉 JSON↔multipart 协议不匹配，否则接线无效。
+  1. 接线 `CALORIE_AI_API_URL`（JSON↔multipart 协议不匹配已随 `ed68ec7` 修复，仅剩环境变量未配置）。
   2. 取 Gemini 上游错误体确认 503 根因，再决定重试、换模型或换供应商。
   3. 补齐 `TTS_SUBSCRIPTION_KEY` / `TTS_REGION` 以恢复语音能力。
   4. 环境变量变更后必须重新执行 `node scripts/vercel-api-deploy.mjs` 才会生效。
