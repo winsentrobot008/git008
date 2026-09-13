@@ -6,7 +6,7 @@
 ## 1. 生产状态（Production State）
 
 - Savage Bestie MVP 代码已合入 `main`：commit `4319a30`（feat(savage-bestie): complete dual-app MVP with private roast engine, balance math, and hermetic fonts，2026-09-13）。
-- 当前 `main` HEAD：`e2c2ca1`（docs(008ai-landing): add project .clinerules for automated handoff）。
+- 当前 `main` HEAD：`511c903`（fix(deploy): configure maxDuration and vercel.json to prevent deployment timeouts）。
 - 生产域名：`https://008ai.online`（同源别名 `www.008ai.online`）。
 - 最近一次生产部署：`dpl_aDT58NWLAAxGsyk5FMeShoeQ6h8q`，状态 `READY`，别名已重绑（部署地址 `https://008ai-landing-8i0yb844e-git008.vercel.app`）。
 - Vercel 项目：`008ai-landing`，framework `nextjs`，rootDirectory `products/008ai-landing`，team `team_yziFzTtkDBBAkujUR0JQOpRk`。
@@ -26,7 +26,8 @@
 - 生产发布只能由人工执行 `node scripts/vercel-api-deploy.mjs`（工作目录 `products/008ai-landing`），且必须注入 `VERCEL_TOKEN`；仓库无 CI（无 `.github/workflows`），没有自动发布兜底，属于发布链路单点。
 - `VERCEL_TOKEN` 仅以环境变量注入，仓库与本文档均不登记其值，轮换后须重新注入方可发布。
 - 已知阻塞：`/api/savage-fit/chat` 调用 Gemini（`gemini-3.7-flash`）时上游返回 503，应用映射为 `502 UPSTREAM_ERROR`；需上游恢复或切换模型/供应商后复测。
-- 待提交变更：`products/008ai-landing/vercel.json` 与三个路由文件（`savage-fit/chat`、`savage-fit/tts`、`savage-cal/recognize`）的 `maxDuration` 声明尚未提交。
+- 构建/超时修复已提交：`products/008ai-landing/vercel.json` 与三个路由文件（`savage-fit/chat`、`savage-fit/tts`、`savage-cal/recognize`）的 `maxDuration` 声明已随 commit `511c903` 合入 `main`；`vercel.json` 的 `functions` 块已移除，超时预算改由路由级 `export const maxDuration` 声明。
+- 工作区状态：已无待提交的构建修复；仅剩 `coding-tools-mcp`、`products/Confession`、`products/fireworkbloom` 三个子模块指针变更（属有意保留，不提交）。
 
 ## 4. 子项目地图（Subproject Map）
 
@@ -46,3 +47,9 @@ npx tsc --noEmit                      # 构建门禁：提交/发布前必须通
 $env:VERCEL_TOKEN = "<injected>"      # 仅环境变量注入，禁止落盘
 node scripts/vercel-api-deploy.mjs    # 生产发布（唯一通道）
 ```
+
+## 6. 活跃运行日志（Active Runtime Log）
+
+- 2026-09-13 —— 生产部署成功：`dpl_aDT58NWLAAxGsyk5FMeShoeQ6h8q` 状态 `READY`，`008ai.online` 别名已重绑，主页 `/savage-cal`、`/savage-fit` 均返回 200。
+- 2026-09-13 —— `/api/savage-fit/chat` 返回 `502 UPSTREAM_ERROR`：路由本身可达且非 404（`x-matched-path: /api/savage-fit/chat`），错误来自上游模型调用，响应体为 `{"code":"UPSTREAM_ERROR","detail":"Model error 503"}`。
+- 处置方向：优先在 Vercel 控制台核对 `GEMINI_API_KEY` 的密钥有效性与用量配额（key/quota）。注意该键已在生产环境变量清单中存在，故「key/quota 失效」仍属待验证假设；若密钥与配额正常，则应判定为供应商侧不可用，需重试或切换模型后再复测。
