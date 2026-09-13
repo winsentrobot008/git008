@@ -168,20 +168,23 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // The target endpoint reads request.formData(), so the caller JSON is
+    // converted to multipart here. Its `file` field accepts a data URI, which
+    // carries the base64 payload and the mime type in a single value.
+    const form = new FormData();
+    form.append("file", `data:${mimeType};base64,${base64}`);
+    form.append("meal_type", mealType);
+    if (body.note) form.append("note", String(body.note).slice(0, 200));
+
+    // Content-Type is deliberately unset: fetch adds the multipart boundary.
     const upstream = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         ...(process.env.CALORIE_AI_API_KEY
           ? { Authorization: `Bearer ${process.env.CALORIE_AI_API_KEY}` }
           : {}),
       },
-      body: JSON.stringify({
-        image: base64,
-        mime_type: mimeType,
-        meal_type: mealType,
-        ...(body.note ? { note: String(body.note).slice(0, 200) } : {}),
-      }),
+      body: form,
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
