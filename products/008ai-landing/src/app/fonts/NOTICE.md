@@ -8,9 +8,7 @@
 - Downloaded: 2026-09-13
 - Loaded via `next/font/local` in `src/app/layout.tsx` as `--font-manrope`
 
-Manrope is licensed under the SIL Open Font License 1.1. The OFL requires the
-license text to ship with the font, so add `OFL.txt` here (or in the deployed
-static assets) before a public release.
+Manrope is licensed under the SIL Open Font License 1.1. The full license text ships alongside the font in `OFL.txt`.
 
 To refresh: download the latin subset again and replace `Manrope.woff2`; keep the
 `weight` range and the CSS variable name in sync with `layout.tsx` and the
