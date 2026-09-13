@@ -22,6 +22,11 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // 1x1 transparent PNG, enough to satisfy the base64 image guard.
 const TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
 
+// Both POST probes are gated by a per-session free quota, so a fixed session id
+// exhausts it and surfaces a false 402 PAYWALL_REACHED on repeat runs. Mint a
+// fresh id per run; set SMOKE_SESSION_ID to pin one for reproducibility.
+const SESSION_ID = process.env.SMOKE_SESSION_ID || "smoke-audit-" + Date.now();
+
 const CHECKS = [
   { id: "landing", label: "Landing page", method: "GET", path: "/", expect: [200] },
   { id: "savage-cal-page", label: "Savage Cal AI page", method: "GET", path: "/savage-cal", expect: [200] },
@@ -31,7 +36,7 @@ const CHECKS = [
     label: "Savage Cal AI recognize",
     method: "POST",
     path: "/api/savage-cal/recognize",
-    body: { image: TINY_PNG, mimeType: "image/png", sessionId: "smoke-audit" },
+    body: { image: TINY_PNG, mimeType: "image/png", sessionId: SESSION_ID },
     // 503 RECOGNITION_NOT_CONFIGURED is the documented contract while the
     // CalorieAI bridge is unwired; it is flagged separately as a wiring gap.
     expect: [200, 400, 503],
@@ -42,7 +47,7 @@ const CHECKS = [
     label: "Savage Fit AI chat",
     method: "POST",
     path: "/api/savage-fit/chat",
-    body: { transcript: "hello coach", personaId: "coach", mode: "reply", sessionId: "smoke-audit" },
+    body: { transcript: "hello coach", personaId: "coach", mode: "reply", sessionId: SESSION_ID },
     expect: [200, 400, 503],
     keyDependent: "GEMINI_API_KEY",
   },

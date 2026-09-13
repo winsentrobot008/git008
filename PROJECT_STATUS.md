@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | `HEAD /savage-cal` | 200 | 200 通过 |
 | `HEAD /savage-fit` | 200 | 200 通过 |
-| `POST /api/savage-fit/chat` | 200/400/503（非 404） | 部署后首次复测 200 通过；随后同 sessionId 复测转为 402 `PAYWALL_REACHED`（免费额度耗尽，见 6、7.1） |
+| `POST /api/savage-fit/chat` | 200/400/503（非 404） | 200 通过（冒烟改用动态 sessionId 后，复跑不再出现 402，见 6、7.1） |
 | `POST /api/savage-cal/recognize` | 200/400/503 | 502 `UPSTREAM_ERROR`（已接线，转发后带回上游 CalorieAI 的 502） |
 
 - 应用自带 WAF（`checkUserAgent`）会拒绝 curl 默认 UA 并返回 403 BLOCKED_BY_WAF，冒烟须携带浏览器 UA。
@@ -84,6 +84,9 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 - 2026-09-13 —— 部署后冒烟（复跑一次用于定稿）：**3/5 = 60.0%**，可达率 5/5；`/api/savage-fit/chat` 因上述配额耗尽返回 **402 `PAYWALL_REACHED`**（提示 Free sessions include 3 voice turns），`/api/savage-cal/recognize` 维持 502。**评定口径**：本轮唯一真实回归项是 recognize 的上游 502（CalorieAI 侧）；chat 的 402 属冒烟重复调用所致，非生产缺陷，首次复测为 200。
 - 发布判定（按 `products/008ai-landing/.clinerules`）：脚本输出 `✅ 生产部署完成`、状态 `READY`、别名已重绑 → **本次发布判定为成功**。
 
+- 2026-09-13 —— 冒烟套件修复：`scripts/automated-smoke-test.mjs` 不再复用固定 `sessionId: "smoke-audit"`，改为每次运行生成 `smoke-audit-<Date.now()>`（可用 `SMOKE_SESSION_ID` 固定以便复现），两个 POST 探针共用同一运行 ID。根因：`recognize` 与 `chat` 都按 `resolveGateKey(sessionId, ip)` 计免费额度（`HEALTH_LIMITS.foodScans` / 语音轮次），固定 ID 会让复跑打到配额上限并返回 402 `PAYWALL_REACHED`，污染通过率。
+- 2026-09-13 —— 修复后连续 4 次冒烟（base `https://008ai.online`）：**未再出现任何 402**；结果为 4/5、4/5、3/5、4/5（80.0% / 80.0% / 60.0% / 80.0%），可达率均 5/5。唯一波动项是 `chat` 的 502 `UPSTREAM_ERROR`（Gemini 上游间歇性 503），属真实上游故障而非套件副作用；`recognize` 稳定 502（CalorieAI 侧不可用）。
+
 ## 7. AI 工厂 008 系统审计报告
 
 > 审计时间：2026-09-13 ｜ 审计工具：`scripts/automated-smoke-test.mjs`（本次新建，只读）｜ 目标：`https://008ai.online`
@@ -99,8 +102,8 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 | 4 | `/api/savage-cal/recognize` | POST | 502 | `UPSTREAM_ERROR`（源站直读） | 200/400/503 | **不通过（接线已完成，上游不可用）** |
 | 5 | `/api/savage-fit/chat` | POST | 402 | `PAYWALL_REACHED`（首次复测为 200） | 200/400/503 | 首次通过；复跑受冒烟配额影响 |
 
-- 通过率：部署后首次 **4/5 = 80.0%**（`chat` 200）；定稿复跑 **3/5 = 60.0%**（`chat` 402 `PAYWALL_REACHED`、`recognize` 502）；可达率两次均 **5/5**（无 404，全部路由存在）。历史：`dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY` 部署后为 5/5 = 100.0%。
-- 目标达成情况：`recognize` **已脱离 503**（配置缺口闭合），但因 CalorieAI 自身上游不可用而落在 502，非可用响应（7.3）；`chat` 首次复测 200，其后因冒烟固定 sessionId 的免费额度耗尽变为 402，属**套件副作用**而非生产回归。
+- 通过率（动态 sessionId 修复后）：连续 4 次运行 **4/5、4/5、3/5、4/5**（80.0% / 80.0% / 60.0% / 80.0%），可达率均 **5/5**；**402 `PAYWALL_REACHED` 已彻底消失**，波动仅来自 `chat` 的真实上游 502。历史：修复前定稿复跑曾因固定 sessionId 掉到 3/5 并出现 402。
+- 目标达成情况：`recognize` **已脱离 503**（配置缺口闭合），但因 CalorieAI 自身上游不可用而落在 502，非可用响应（7.3）；`chat` 余下的 FAIL 为 Gemini 上游间歇性 503 映射的 502，非套件缺陷。
 - 应用层 `code` 仅在直连源站时可见（Cloudflare 会把 502 替换为边缘错误页）；三个 base 的解释力不同，故一并记录。
 
 ### 7.2 密钥健康（Key Health）
@@ -135,15 +138,15 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 - 现象：路由可达（`x-matched-path` 命中，非 404），上游返回 503，应用在 `chat/route.ts:343-348` 映射为 `502 UPSTREAM_ERROR: Model error 503`。该路由无备用供应商，直接调用 Gemini（默认 `gemini-3.7-flash`）。
 - 对照实验：向 `generativelanguage.googleapis.com` 发送无效密钥，返回 `400 API_KEY_INVALID`。即鉴权类失败为 400、配额类失败为 429，而实测为 503。
 - 结论：证据**不支持**「key/quota 失效」的判断；503 指向 Gemini 侧 UNAVAILABLE（服务过载/不可用），属临时性供应商故障。
-- 最新状态（2026-09-13 部署后复测）：`/api/savage-fit/chat` 首次复测 **200**；同轮源站直连与后续复跑交替出现 `502 UPSTREAM_ERROR: Model error 503`，并在免费额度耗尽后返回 `402 PAYWALL_REACHED`。可判定 Gemini 侧仍**间歇性** UNAVAILABLE，属供应商波动，无需改动代码。
+- 最新状态（2026-09-13 部署后复测）：`/api/savage-fit/chat` 首次复测 **200**；同轮源站直连与后续复跑交替出现 `502 UPSTREAM_ERROR: Model error 503`。可判定 Gemini 侧仍**间歇性** UNAVAILABLE，属供应商波动，无需改动代码；`402 PAYWALL_REACHED` 一节已由冒烟套件的动态 sessionId 修复消除（见 6）。
 - 取证据路径：路由会在服务端打印 `[savage-fit] upstream 503: <body>`，需在 Vercel 控制台运行时日志或日志 Drain 中查看；公开 API 不暴露运行时日志。
 
 ### 7.5 结论与待办
 
-- 结论（2026-09-13 定稿）：站点与三个页面全部 200；`/api/savage-cal/recognize` 的**配置缺口已闭合**（`CALORIE_AI_API_URL` 已在生产生效），接口由 503 `RECOGNITION_NOT_CONFIGURED` 前移至 502 `UPSTREAM_ERROR` —— 剩余阻塞完全落在 CalorieAI 自身不可用；`/api/savage-fit/chat` 上游间歇性不可用，且冒烟固定 sessionId 的免费额度已耗尽（402），均非代码缺陷。
+- 结论（2026-09-13 定稿）：站点与三个页面全部 200；`/api/savage-cal/recognize` 的**配置缺口已闭合**（`CALORIE_AI_API_URL` 已在生产生效），接口由 503 `RECOGNITION_NOT_CONFIGURED` 前移至 502 `UPSTREAM_ERROR` —— 剩余阻塞完全落在 CalorieAI 自身不可用；`/api/savage-fit/chat` 上游间歇性不可用（402 假阳性已随冒烟套件的动态 sessionId 修复消除），均非代码缺陷。
 - 待办（按优先级）：
   1. 修复 CalorieAI 自身上游（`calorie-ai-seven.vercel.app` 现返回 502 `AI_SERVICE_UNAVAILABLE`）—— 这是 recognize 目前唯一的剩余阻塞。
   2. `/api/savage-fit/chat` 继续观察 Gemini 上游波动；若持续 503，考虑切换模型或增加备用供应商。
-  3. 修正 `scripts/automated-smoke-test.mjs` 复用固定 `sessionId` 的做法（建议每次随机），避免复跑时命中 402 `PAYWALL_REACHED` 污染通过率。
+  3. ~~修正 `scripts/automated-smoke-test.mjs` 复用固定 `sessionId`~~ → **已完成（2026-09-13）**：改为每次运行生成 `smoke-audit-<Date.now()>`，复跑不再命中 402。
   4. 补齐 `TTS_SUBSCRIPTION_KEY` / `TTS_REGION` 以恢复语音能力。
   5. `VERCEL_TOKEN` 已恢复且发布通道可用；轮换后须重新注入（仅环境变量，禁止落盘）。
