@@ -1,7 +1,7 @@
 # 008AI — Landing Page (008ai.online)
 
 Crystal Pink（水晶粉）极简落地页，Manrope 字体，Next.js 16 (App Router) +
-Tailwind CSS v4。定位为 **008ai.online Pass** 多应用生态（CalorieAI + Runify + 008AI Suite）。
+Tailwind CSS v4。除 **008ai.online Pass** 生态外，内嵌 **Savage Bestie Health Series（毒舌闺蜜健康系列）**：Savage Cal AI（毒舌卡路里闺蜜）+ Savage Fit AI（毒舌健美闺蜜）。
 
 ## 本地运行
 
@@ -53,9 +53,9 @@ NEXT_PUBLIC_DEMO_VIDEO_URL=/demo.mp4
 
 ## 双应用整合（008ai.online Pass）
 
-落地页产品矩阵三卡：**CalorieAI**（旗舰：AI 食物扫描与宏量追踪）、**Runify**
-（智能路线与地图生成）、**008AI Suite**（未来 AI 工具）。单档 `$19.99` Early Bird
-终身 Pass 同时解锁 CalorieAI + Runify + 全套件。
+落地页产品矩阵：**Savage Cal AI**（毒舌卡路里闺蜜：拍照热量审计与红黄绿评级）、**Savage Fit AI**
+（毒舌健美闺蜜：语音教练与 9:16 短片导出）、**Runify**（智能路线与地图生成）。单档 `$19.99` Early Bird
+终身 Pass 同时解锁 Savage Cal AI + Savage Fit AI + Runify + 全套件。
 
 ## PayPal Live / Sandbox 与 Webhook 权益流
 
@@ -130,3 +130,70 @@ node scripts/vercel-api-deploy.mjs
    node scripts/vercel-api-deploy.mjs
    ```
    脚本完成：拉 env → 构建 → 轮询 READY → 绑定别名 → 校验 200。
+
+## Savage Bestie Health Series（毒舌闺蜜健康系列）
+
+两个 App 共享同一条数据总线与同一道硬付费墙：
+
+| App | 路由 | 系列定位 |
+|---|---|---|
+| **Savage Cal AI**（毒舌卡路里闺蜜） | `/savage-cal` | 拍照审计热量 → 红/黄/绿评级 → 标红即转化 |
+| **Savage Fit AI**（毒舌健美闺蜜） | `/savage-fit` | 语音闺蜜教练 → 赎罪训练 → 9:16 短片导出 |
+
+闭环：**拍照审计 → 摄入/消耗平衡换算 → 毒舌开骂 → 赎罪开练 → 病毒视频导出**。
+平衡差额由 `src/lib/savage-cal/balance.ts` 换算成「要练多少」：审计结果落成
+`balanceMath` 账单，随 FoodScanEvent 进总线，并作为一行 briefing 交给语音教练，
+因此 Savage Fit AI 顶部的「Atonement queued」显示的是同一个待消耗目标。
+引流契约见 `src/lib/shared/referral.ts`：
+`/savage-fit?food=<菜名>&calories=<kcal>&from=savage_cal`。落地 `/savage-fit` 后闺蜜
+**主动开口骂第一句**（无需先按麦克风），入口参数在客户端解析，页面仍是静态预渲染。
+
+### Savage Cal AI（`/savage-cal`）
+
+| 层 | 文件 | 说明 |
+|---|---|---|
+| 配置 | `src/lib/savage-cal/config.ts` | `APP_ID='savage-cal'`、`APP_NAME='Savage Cal AI'`、`BRAND_TAGLINE='毒舌卡路里闺蜜 AI · You ate it, I audit it'`、`FREE_FOOD_SCANS` |
+| 评级 | `src/lib/savage-cal/rating.ts` | 热量分档 green ≤450 / yellow ≤850 / red >850；RED/YELLOW 触发引流 CTA |
+| 平衡算法 | `src/lib/savage-cal/balance.ts` | 摄入/消耗差额：净超标热量 = 摄入 − 餐次额度(700) − 可穿戴已消耗，再按 MET 公式（平板支撑 4.0 / 慢跑 7.0，70kg 基准）换算 `targetBurnCalories`、`suggestedPlankSeconds`、`suggestedRunMinutes` |
+| 页面 | `src/app/(apps)/savage-cal/page.tsx` | route group `(apps)` 不产生 URL 段，实际访问 `/savage-cal` |
+| UI | `src/components/savage-cal/SavageCalApp.tsx`、`src/components/savage-cal/BalanceMathCard.tsx` | 深色 `#0b0d14` + 琥珀/玫红：拍照 → 热量清单 → 评级 → 平衡账单（差额 / 平板支撑 / 慢跑等价）→ CTA「🔥 偷吃被发现了吧？让毒舌健美闺蜜带你开练 →」 |
+| 接口 | `src/app/api/savage-cal/recognize/route.ts` | 转发到 `CALORIE_AI_API_URL` 并归一化为 `FoodScanItem`；未配置返回 `RECOGNITION_NOT_CONFIGURED`（不伪造菜品与热量） |
+
+### Savage Fit AI（`/savage-fit`）
+
+| 层 | 文件 | 说明 |
+|---|---|---|
+| 配置 | `src/lib/savage-fit/config.ts` | `APP_ID='savage-fit'`、`APP_NAME='Savage Fit AI'`、`BRAND_TAGLINE='毒舌健美闺蜜 AI · You slacked, I burn it'`、9:16 尺寸与 Gemini 模型解析 |
+| 人格 | `src/lib/savage-fit/personas.ts` | Savage Bestie 毒舌辣妹闺蜜（默认）/ Soft Mentor Bestie 治愈系御姐闺蜜 / Hype Bestie 显眼包闺蜜，共享口语输出契约与安全底线（只骂选择、不骂身体） |
+| 页面 | `src/app/(apps)/savage-fit/page.tsx` | 静态预渲染；入口参数在客户端 `window.location.search` 解析，不破坏 SSG |
+| 语音引擎 | `src/components/savage-fit/use-voice-engine.ts` | SpeechRecognition + MediaRecorder + AnalyserNode VAD，免手持续对话循环 |
+| 硬付费墙 | `src/lib/savage-fit/quota.ts`、`server-quota.ts`、`components/savage-fit/PaywallModal.tsx` | 每会话 3 轮免费语音；客户端计数 + 服务端二次锁；第 3 轮后弹出订阅弹窗，支持已购 Pass 邮箱找回 |
+| 9:16 成片 | `src/components/savage-fit/SnippetStudio.tsx` | 720x1280 canvas：逐词动画字幕 + 真实麦克风波形，`canvas.captureStream` + `MediaRecorder` 导出 webm/mp4 |
+| 对话接口 | `src/app/api/savage-fit/chat/route.ts` | Gemini 3.7 Flash 流式教练接口（`mode=reply` 流式口语回复 / `mode=snippet` 社媒文案 JSON） |
+| 语音合成 | `src/app/api/savage-fit/tts/route.ts` | Azure/Edge TTS：`mode=single` 音频流 / `mode=chunked` NDJSON 分块；未配置返回 `TTS_UNAVAILABLE`，前端回退浏览器内置语音 |
+| 权益 | `src/app/api/savage-fit/entitlement/route.ts` | 校验 008ai.online Pass 邮箱，用于「已有 Pass 找回」 |
+
+### 共享健康总线（`src/lib/shared/`）
+
+| 层 | 文件 | 说明 |
+|---|---|---|
+| 契约 | `src/types/health-bus.ts` | `HealthEvent` 判别联合（food.scan / coach.turn / workout.completed / video.exported / paywall.hit / wearable.sync / wearable.metric）、`BalanceMath`、`WearableSyncPayload`、`WearableAggregate`、`TotalHealthBundle`、`RoastBriefing`、`ApiErrorEnvelope` |
+| 总线 | `src/lib/shared/health-bus.ts` | 统一存储键 `savage_bestie_health_event`：事件日志与 RoastBriefing 落 localStorage（跨刷新 / 新标签页，保证引流交接不丢），付费计数与匿名 session 留在 sessionStorage（保证「每会话」语义）。`HEALTH_LIMITS = { foodScans: 2, voiceTurns: 3 }` 是免费额度唯一来源，`TOTAL_HEALTH_BUNDLE`（$19.99/mo / $149.99/yr） |
+| Hooks | `src/lib/shared/health-hooks.ts` | `useHealthBus` / `useHealthGate`；与总线拆开，使路由处理器能 import 纯函数而不把 API 变成客户端边界 |
+| 服务端门 | `src/lib/shared/health-gate.ts` | 与客户端同源的二次锁（12h 窗口、进程内 Map 的 best-effort 层）：`consumeServerGate` / `releaseServerGate` |
+| 引流契约 | `src/lib/shared/referral.ts` | 构造 / 解析 `/savage-fit?food=&calories=&from=savage_cal`，并提供 CTA 文案 |
+| 成片引擎 | `src/lib/video-exporter.ts` | 720x1280 / 30fps：`canvas.captureStream` + Web Audio 图 → `MediaRecorder`，导出 webm/mp4，含 WeakMap 音频图缓存与 URL 回收 |
+| 可穿戴预留 | `src/app/api/wearables/sync/route.ts` | Apple Watch / Garmin 保留 webhook：校验 `WearableSyncPayload`（含单位漂移防护）+ 可选 `x-008ai-signature`（HMAC-SHA256 十六进制），返回 `WearableSyncResult { status: "reserved" }`，暂不落库；`GET` 返回机器可读契约 |
+
+硬付费墙：未付费用户每会话 **2 次拍照审计 + 3 轮实时语音**。第 3 轮语音播放结束即中断播放并弹出
+`components/savage-fit/PaywallModal.tsx`（全产品唯一订阅出口，`gate` 参数切换语音/拍照文案），主推
+**008AI Total Health Bundle（$19.99/mo | $149.99/yr）**，同时保留线上在售的
+008ai.online Pass（一次性 $19.99）与邮箱找回路径。
+
+部署：`vercel.json` 为 `api/savage-fit/chat` 与 `api/savage-fit/tts` 声明 `maxDuration: 30`，
+`api/savage-cal/recognize` 为 45（视觉识别上游较慢）。
+
+环境变量：`GEMINI_API_KEY`（必需，未配置返回 `AI_KEY_MISSING`，绝不伪造教练话术）；
+`TTS_SUBSCRIPTION_KEY` + `TTS_REGION`（实时语音）；`CALORIE_AI_API_URL` + `CALORIE_AI_API_KEY`
+（未配置时识别接口返回 503，不伪造结果）；可选 `WEARABLES_WEBHOOK_SECRET`（配置后强制 HMAC 校验）、
+`WEARABLES_SYNC_ENABLED=false`（关闭入口）。

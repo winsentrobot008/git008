@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
             currency: "usd",
             product_data: {
               name: "008AI Early Bird Lifetime Pass",
-              description: "CalorieAI + Runify + 008AI Suite - one-time $19.99, lifetime access",
+              description: "Savage Cal AI + Savage Fit AI + Runify + 008AI Suite - one-time $19.99, lifetime access",
             },
             unit_amount: Math.round(PASS_PRICE_USD * 100),
           },

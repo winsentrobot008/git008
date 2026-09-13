@@ -1,5 +1,16 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "src/app/api/savage-fit/chat/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/savage-fit/tts/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/savage-cal/recognize/route.ts": {
+      "maxDuration": 45
+    }
+  }
 }

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
 
 const MENU_ITEMS = [
+  { label: "Savage Cal AI 毒舌卡路里闺蜜", href: "/savage-cal" },
+  { label: "Savage Fit AI 毒舌健美闺蜜", href: "/savage-fit" },
   { label: "Buy Lifetime Pass", href: "#pricing" },
   { label: "Login / Account", href: "/admin" },
   { label: "Terms of Service", href: "#terms" },

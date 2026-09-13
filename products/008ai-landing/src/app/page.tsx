@@ -1,5 +1,6 @@
 import {
   ScanLine,
+  HeartPulse,
   Route,
   CreditCard,
   Lock,
@@ -16,10 +17,18 @@ const BUILD_STAMP = new Date().toISOString().slice(0, 16).replace(/\D/g, "");
 const APPS = [
   {
     icon: ScanLine,
-    title: "CalorieAI",
-    tagline: "Photo-Based Calorie Recognition",
-    flagship: true,
-    href: "https://calorie-ai-seven.vercel.app",
+    title: "Savage Cal AI",
+    tagline: "毒舌卡路里闺蜜 AI · You ate it, I audit it",
+    live: true,
+    href: "/savage-cal",
+    cta: "Launch App",
+  },
+  {
+    icon: HeartPulse,
+    title: "Savage Fit AI",
+    tagline: "毒舌健美闺蜜 AI · You slacked, I burn it",
+    live: true,
+    href: "/savage-fit",
     cta: "Launch App",
   },
   {
@@ -70,13 +79,13 @@ function AppGrid() {
           <div className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
             <div className="h-[250px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/40 via-fuchsia-400/30 to-purple-500/40 blur-[90px]" />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
             {APPS.map((app) => {
               const card = (
                 <>
                   {/* 水晶顶部折射高光线 */}
                   <div className="pointer-events-none absolute left-0 right-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/80 to-transparent" />
-                  {app.flagship && (
+                  {app.live && (
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-md shadow-pink-500/30">
                       <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
                     </span>
@@ -158,11 +167,15 @@ export default function Home() {
         {/* ── Hero ───────────────────────── */}
         <section className="relative px-5 pb-8 pt-12 sm:px-8 sm:pt-16">
           <div className="mx-auto max-w-4xl text-center">
+            {/* Temporary MVP banner - remove once the dual-app launch is past its opening week. */}
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-pink-300/70 bg-white/60 px-4 py-1.5 text-[11px] font-extrabold text-pink-700 shadow-[0_8px_24px_-8px_rgba(236,72,153,0.6)] backdrop-blur-md sm:text-xs">
+              🔥 毒舌闺蜜健康系列双子星 MVP 现已上线
+            </p>
             <h1 className="bg-gradient-to-r from-pink-600 via-rose-500 to-purple-600 bg-clip-text text-4xl font-black leading-[1.08] tracking-tight text-transparent sm:text-6xl">
               One Pass. Every AI App.
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base font-medium leading-relaxed text-slate-600 sm:text-lg">
-              One lifetime pass unlocks CalorieAI, Runify, and every AI tool we ship.
+              One lifetime pass unlocks Savage Cal AI, Savage Fit AI, Runify, and every AI tool we ship.
             </p>
           </div>
         </section>
@@ -184,7 +197,7 @@ export default function Home() {
                   <span className="text-xs font-semibold text-slate-500">one-time · lifetime</span>
                 </div>
                 <p className="mt-2 text-xs text-slate-600">
-                  Unlocks CalorieAI, Runify, and the full 008AI Suite. Limited to the first 90 slots.
+                  Unlocks Savage Cal AI, Savage Fit AI, Runify, and the full 008AI Suite. Limited to the first 90 slots.
                 </p>
                 <div className="mt-6 space-y-3">
                   <StripeCheckout />
