@@ -1,0 +1,12 @@
+# git008 根级启动协议（.clinerules）
+# 作用域：整个 git008 工作区
+# 与 AGENTS.md（项目宪法）配套：本文件只定义启动顺序，不重复宪法条目。
+
+# ============================================
+# 0. 启动协议（Boot Protocol）
+# ============================================
+- 【强制预读】Upon initialization, automatically read `AGENTS.md` and `PROJECT_STATUS.md` in the workspace root before executing any prompt or reading code.
+- 【执行解释】初始化后不得直接开工：必须先读取工作区根目录的 `AGENTS.md`（项目宪法）与 `PROJECT_STATUS.md`（进度与配置索引），完成预读后再响应用户指令或读取任何代码。
+- 【读取顺序】`AGENTS.md` → `PROJECT_STATUS.md` → 目标子项目规则（如 `products/008ai-landing/.clinerules`）→ 最后才进入具体代码。
+- 【缺失处理】任一预读文件缺失时，须先明示告知用户并请求补齐，禁止静默跳过预读。
+- 【门禁前置】预读完成后，凡涉及提交或发布的操作，一律按 `AGENTS.md` 的 Build Gates 与 Release Policy 执行。
