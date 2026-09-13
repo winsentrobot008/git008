@@ -28,6 +28,7 @@ import { getPersona, type PersonaId } from "@/lib/savage-fit/personas";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 30;
 
 const MAX_TTS_CHARS = 1000;
 const MAX_CHUNK_CHARS = 220;

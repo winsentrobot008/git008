@@ -23,6 +23,7 @@ import type { FoodScanItem, MealType } from "@/types/health-bus";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 45;
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const RATE_LIMIT_PER_MINUTE = 12;

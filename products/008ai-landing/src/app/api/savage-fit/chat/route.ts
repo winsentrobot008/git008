@@ -44,6 +44,7 @@ import { sanitizePrivateRoastConfig } from "@/lib/shared/roast-db";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 30;
 
 /** Per-IP burst and daily caps, independent from the per-session paywall. */
 const RATE_LIMIT_PER_MINUTE = 20;
