@@ -10,6 +10,7 @@
 - 生产域名：`https://008ai.online`（同源别名 `www.008ai.online`）。
 - 最近一次生产部署：`dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`，状态 `READY`，别名已重绑（部署地址 `https://008ai-landing-4j3yeag9n-git008.vercel.app`，2026-09-13）。
 - 本次发布尝试（2026-09-13）**未产生新部署**：`VERCEL_TOKEN` 未被有效注入，发布在鉴权阶段即终止，故线上版本仍为 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`（证据见第 3、6 节）。
+- i18n 语言系统（commit `72d54e0`：auto-detect language context + header language switcher）**已合入 `main` 但尚未上线**：其生效依赖本节的发布通道，而该通道仍被无效的 `VERCEL_TOKEN` 阻塞；线上运行的是 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY` 对应的构建，早于 `72d54e0`。
 - Vercel 项目：`008ai-landing`，framework `nextjs`，rootDirectory `products/008ai-landing`，team `team_yziFzTtkDBBAkujUR0JQOpRk`。
 
 ## 2. 冒烟基线（Smoke Baseline）
@@ -68,6 +69,8 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 - 结论：本次任务的三项交付 —— 写入 `CALORIE_AI_API_URL`、生产部署（新 `dpl_`）、桥接 `503 -> active upstream` —— **均未达成**，共同根因为 `VERCEL_TOKEN` 未有效注入。本段为真实状态记录，待密钥注入后重跑发布通道再补齐部署 ID。
 
 - 2026-09-13 —— 接线前置探测（直连 `https://calorie-ai-seven.vercel.app/api/v1/meals/analyze-image`，浏览器 UA + multipart tiny-PNG）：返回 **502** `AI_SERVICE_UNAVAILABLE`，`x-matched-path` 命中（非 404）。即 CalorieAI 自身上游当前不可用，构成第二重阻塞 —— 即使 `VERCEL_TOKEN` 修复并完成接线，recognize 也只会由 503 变为 502，而非任务期望的 active upstream。
+
+- 2026-09-13 —— 发布复核（i18n + CalorieAI 桥接）：环境与上一轮完全一致 —— `VERCEL_TOKEN` 仍未进入进程环境（`Process` 作用域长度 0，`Get-ChildItem Env:` 中无该键），用户级值仍是同一个中文字面占位符（字符编码与上一轮逐字相同）；发布脚本仍在阶段 1/4 以同一 ByteString 错误退出，故**未产生新部署 ID**。`npx tsc --noEmit` 通过（exit 0）。冒烟复测 **4/5 = 80.0%**（recognize 503 `RECOGNITION_NOT_CONFIGURED`、chat 502），CalorieAI 上游复测仍为 502 `AI_SERVICE_UNAVAILABLE`；三项交付（写入 `CALORIE_AI_API_URL`、生产部署、桥接转 active）**均未推进**。
 
 ## 7. AI 工厂 008 系统审计报告
 
