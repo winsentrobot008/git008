@@ -1,0 +1,35 @@
+# 008ai-landing 项目宪法（.clinerules）
+# 作用域：products/008ai-landing/ 及其全部子目录
+# 通用治理与全局宪法：../../factory_components/tools/Cline-anti-freeze/.clinerules
+# 本文件只登记本项目特有的发布标准、构建门禁与运行契约，不复制全局规则。
+
+# ============================================
+# 1. 生产发布标准（Production Release）
+# ============================================
+- 【唯一发布通道】生产发布必须执行 `node scripts/vercel-api-deploy.mjs`，工作目录固定为 products/008ai-landing。禁止使用 Vercel CLI、Git 自动部署或其他脚本作为生产发布手段。
+- 【发布成功判定】仅当脚本输出 `✅ 生产部署完成`、部署状态为 `READY`、且 `008ai.online` 别名已重新绑定到该次部署时，方可判定发布成功。
+- 【发布后冒烟】发布完成后须校验 `/savage-cal` 与 `/savage-fit` 返回 200，且 `/api/savage-fit/chat` 返回应用层错误（400/503 等）而非 404。
+- 【别名显式更新】生产域名别名只由该脚本在部署 READY 之后显式更新，禁止在其他流程中隐式改动。
+
+# ============================================
+# 2. 构建门禁（Build Gate）
+# ============================================
+- 【类型门禁】任何部署或 `git push` 之前，必须先执行 `npx tsc --noEmit`；退出码非 0 时禁止继续发布或推送。
+- 【构建配置约束】`vercel.json` 禁止同时声明 `builds` 与 `functions`，否则触发 FUNCTIONS_AND_BUILDS 导致部署直接失败。函数执行时长以路由级 `export const maxDuration` 为准，不在 vercel.json 中重复声明。
+- 【环境变量前置】部署脚本会校验生产环境变量，缺失必需键时须先补齐再发布，禁止绕过校验强行推送。
+
+# ============================================
+# 3. 必需密钥（Required Keys）
+# ============================================
+- 【必需键清单】以下键必须存在于运行环境或 Vercel 生产环境：
+  - `VERCEL_TOKEN` —— 部署脚本鉴权，仅通过环境变量注入。
+  - `GEMINI_API_KEY` —— Savage Fit AI 教练模型；缺失时 `/api/savage-fit/chat` 返回 503 AI_KEY_MISSING。
+  - `CALORIE_AI_API_URL` —— Savage Cal 食物识别桥接端点；缺失时 `/api/savage-cal/recognize` 返回 503。
+  - `STRIPE_SECRET_KEY` —— 支付下单，且为部署脚本的必需校验项之一。
+- 【密钥禁令】仅登记键名，严禁把真实密钥值写入仓库、提交历史、日志或本文件。
+
+# ============================================
+# 4. 目标域名（Target Domain）
+# ============================================
+- 【生产域名】`https://008ai.online`（`www.008ai.online` 为同源别名）。
+- 【基线地址】metadataBase、Open Graph url、PayPal webhook 等对外地址一律以 https://008ai.online 为基准。
