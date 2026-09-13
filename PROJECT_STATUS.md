@@ -67,6 +67,8 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 - 2026-09-13 —— 本次任务前后冒烟实测（`node scripts/automated-smoke-test.mjs`，base `https://008ai.online`）：**4/5 = 80.0%**，可达率 5/5；`/`、`/savage-cal`、`/savage-fit` 均 200；`/api/savage-cal/recognize` 503 `RECOGNITION_NOT_CONFIGURED`；`/api/savage-fit/chat` **502 复现**（Cloudflare 边缘返回 origin 响应无效/不完整，即 7.4 记录的 Gemini 上游不可用再次出现）。
 - 结论：本次任务的三项交付 —— 写入 `CALORIE_AI_API_URL`、生产部署（新 `dpl_`）、桥接 `503 -> active upstream` —— **均未达成**，共同根因为 `VERCEL_TOKEN` 未有效注入。本段为真实状态记录，待密钥注入后重跑发布通道再补齐部署 ID。
 
+- 2026-09-13 —— 接线前置探测（直连 `https://calorie-ai-seven.vercel.app/api/v1/meals/analyze-image`，浏览器 UA + multipart tiny-PNG）：返回 **502** `AI_SERVICE_UNAVAILABLE`，`x-matched-path` 命中（非 404）。即 CalorieAI 自身上游当前不可用，构成第二重阻塞 —— 即使 `VERCEL_TOKEN` 修复并完成接线，recognize 也只会由 503 变为 502，而非任务期望的 active upstream。
+
 ## 7. AI 工厂 008 系统审计报告
 
 > 审计时间：2026-09-13 ｜ 审计工具：`scripts/automated-smoke-test.mjs`（本次新建，只读）｜ 目标：`https://008ai.online`
@@ -109,7 +111,7 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
   - 响应侧兼容：CalorieAI 返回 `records[]`，桥接 `normalizeItems` 已兼容 `items/records/foods`，无需改动。
 - 剩余阻塞（接线前须一并评估）：
   1. `CALORIE_AI_API_URL` 未配置 → 即使协议已修好，接口仍会在配置检查处短路为 503。
-  2. CalorieAI 自身上游仍不可用：部署后复测仍返回 502 `AI_SERVICE_UNAVAILABLE`，因此即使立刻接线，recognize 也只会从 503 变成 502，而非可用。
+  2. CalorieAI 自身上游仍不可用：部署后复测仍返回 502 `AI_SERVICE_UNAVAILABLE`；**2026-09-13 本次复测再次确认**（浏览器 UA + multipart tiny-PNG 探针，`x-matched-path: /api/v1/meals/analyze-image` 命中，响应体 `code=AI_SERVICE_UNAVAILABLE`，error=`AI 服务暂时不可用，请稍后再试`）。因此即使修好密钥并立刻接线，recognize 也只会从 503 变为 502，**不会**得到任务所期望的「active upstream response」。
   3. CalorieAI 对 inline base64 有 ≤200KB 上限（请求体上限 4MB），桥接允许的 4MB 图片可能在对方侧被判 `IMAGE_TOO_LARGE`。
   4. CalorieAI 自带反爬虫 `checkAntiCrawler` 会拦截空 UA 与 bot/CLI UA（`node-fetch`、`axios`、`curl` 等），接线后须确认服务端 fetch 的 UA 未被拦截。
 
