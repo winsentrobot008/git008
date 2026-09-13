@@ -1,0 +1,108 @@
+{
+  "common": {
+    "language": "语言",
+    "switchLanguage": "切换语言"
+  },
+  "menu": {
+    "label": "更多选项",
+    "savageCal": "Savage Cal AI 毒舌卡路里闺蜜",
+    "savageFit": "Savage Fit AI 毒舌健美闺蜜",
+    "buyPass": "购买终身通行证",
+    "login": "登录 / 账户",
+    "terms": "服务条款",
+    "privacy": "隐私政策"
+  },
+  "banner": {
+    "mvp": "🔥 毒舌闺蜜健康系列双子星 MVP 现已上线"
+  },
+  "hero": {
+    "headline": "一张通行证。解锁全部 AI 应用。",
+    "subhead": "一次买断终身解锁 Savage Cal AI、Savage Fit AI、Runify，以及我们后续推出的每一个 AI 工具。"
+  },
+  "apps": {
+    "live": "已上线",
+    "soon": "即将上线",
+    "launch": "启动应用",
+    "waitlist": "加入候补名单",
+    "savageCalTitle": "毒舌卡路里闺蜜 AI",
+    "savageCalTagline": "你吃了，我来查账",
+    "savageFitTitle": "毒舌健美闺蜜 AI",
+    "savageFitTagline": "你偷懒，我来烧脂",
+    "runifyTitle": "Runify",
+    "runifyTagline": "智能路线生成"
+  },
+  "trust": {
+    "ssl": "256 位 SSL 加密",
+    "refund": "14 天无理由退款",
+    "slots": "🔒 已认领 {slots} 个名额 — 早鸟即将结束"
+  },
+  "pricing": {
+    "earlyBird": "早鸟价",
+    "passName": "008ai.online 通行证",
+    "priceNote": "一次性买断 · 终身",
+    "unlocks": "解锁 Savage Cal AI、Savage Fit AI、Runify 以及完整的 008AI 套件。仅限前 90 个名额。",
+    "checkoutDescription": "008AI 早鸟终身通行证"
+  },
+  "terms": {
+    "title": "服务条款",
+    "body": "购买 008ai.online 通行证即表示您同意仅将 008AI 产品用于合法用途。终身通行证可访问 008AI 现有及未来的全部应用；14 天退款期结束后不再受理退款。我们可能会在提前通知后更新本条款。"
+  },
+  "privacy": {
+    "title": "隐私政策",
+    "body": "008AI 仅收集运营账户与支付所必需的数据（邮箱、订单历史与愿望单提交内容）。我们绝不出售个人数据。如需访问或删除数据，请联系 hello@008ai.online。"
+  },
+  "footer": {
+    "rights": "© {year} 008AI · 008ai.online · 保留所有权利。· 构建版本 {stamp}"
+  },
+  "cal": {
+    "series": "毒舌闺蜜健康系列",
+    "productName": "毒舌卡路里闺蜜",
+    "tagline": "你吃了，我来查账",
+    "unlimitedAudits": "无限次审计",
+    "freeAuditsLeft": "还剩 {remaining} / {total} 次免费审计",
+    "addPhoto": "上传一张餐食照片",
+    "addPhotoHint": "拍下餐盘或挑一张照片 — 审计会读完整份餐食。",
+    "previewAlt": "餐食预览",
+    "mealBreakfast": "早餐",
+    "mealLunch": "午餐",
+    "mealDinner": "晚餐",
+    "mealSnack": "加餐",
+    "mealUnknown": "不确定",
+    "runAudit": "开始审计",
+    "readingDamage": "正在读取罪行…",
+    "unlockToAudit": "解锁后可继续审计",
+    "reset": "重置",
+    "errNotImage": "这不是图片文件。",
+    "errTooLarge": "图片不能超过 4MB。",
+    "errNoPhoto": "请先添加一张餐食照片。",
+    "errRecognitionFailed": "识别失败（{status}）",
+    "statusEmpty": "先做一次审计 — 闺蜜只吐槽她看得到的东西。",
+    "statusAtonement": "把这次审计（{kcal} 千卡）交给 {persona}，开始赎罪训练。",
+    "statusApproved": "{persona} 批准了。收藏本页，迎接下一个凌晨三点的决定。",
+    "disclaimer": "营养估算由 AI 生成，不构成医疗建议。每次会话提供 {free} 次免费审计，之后需 008AI Total Health Bundle。"
+  },
+  "fit": {
+    "series": "毒舌闺蜜健康系列",
+    "productName": "毒舌健美闺蜜",
+    "tagline": "你偷懒，我来烧脂",
+    "passRequired": "需要通行证",
+    "freeLeft": "剩余 {remaining} 次免费",
+    "settings": "私人毒舌语料库",
+    "handsFree": "免手动连续对话",
+    "statusIdle": "点按麦克风开始说话",
+    "statusListening": "正在聆听…",
+    "statusThinking": "正在思考…",
+    "statusSpeaking": "正在说话…",
+    "statusError": "出了点问题",
+    "sessionLocked": "会话已锁定 — 解锁后继续",
+    "startRecording": "开始录音",
+    "stopRecording": "停止录音",
+    "typeInstead": "改用键盘输入",
+    "typePlaceholder": "输入你想说的话…",
+    "send": "发送",
+    "recognitionUnavailable": "此浏览器不支持语音识别。请用键盘按钮输入你的台词 — 教练依然会开口回复。",
+    "freeSessionLeft": "免费额度：还剩 {remaining} / {limit} 轮语音",
+    "freeSessionFull": "免费额度：{limit} 轮语音",
+    "handsFreeOn": " · 已开启免手动"
+  }
+}

@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
+import { useLang } from "@/i18n/LanguageProvider";
 
 const MENU_ITEMS = [
-  { label: "Savage Cal AI 毒舌卡路里闺蜜", href: "/savage-cal" },
-  { label: "Savage Fit AI 毒舌健美闺蜜", href: "/savage-fit" },
-  { label: "Buy Lifetime Pass", href: "#pricing" },
-  { label: "Login / Account", href: "/admin" },
-  { label: "Terms of Service", href: "#terms" },
-  { label: "Privacy Policy", href: "#privacy" },
+  { key: "menu.savageCal", href: "/savage-cal" },
+  { key: "menu.savageFit", href: "/savage-fit" },
+  { key: "menu.buyPass", href: "#pricing" },
+  { key: "menu.login", href: "/admin" },
+  { key: "menu.terms", href: "#terms" },
+  { key: "menu.privacy", href: "#privacy" },
 ];
 
 /**
@@ -18,6 +19,7 @@ const MENU_ITEMS = [
 export default function MoreMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { t } = useLang();
 
   useEffect(() => {
     if (!open) return;
@@ -39,7 +41,7 @@ export default function MoreMenu() {
     <div ref={ref} className="relative">
       <button
         type="button"
-        aria-label="More options"
+        aria-label={t("menu.label")}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="flex h-11 w-11 items-center justify-center rounded-full border border-pink-200/70 bg-white/70 text-ink backdrop-blur transition hover:border-pink-400 hover:bg-pink-50"
@@ -50,12 +52,12 @@ export default function MoreMenu() {
         <div className="absolute right-0 top-14 w-56 overflow-hidden rounded-2xl border border-pink-200/60 bg-white/95 p-1.5 shadow-xl shadow-pink-100/60 backdrop-blur-xl">
           {MENU_ITEMS.map((item) => (
             <a
-              key={item.label}
+              key={item.key}
               href={item.href}
               onClick={() => setOpen(false)}
               className="flex items-center rounded-xl px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-pink-50 hover:text-pink-600"
             >
-              {item.label}
+              {t(item.key)}
             </a>
           ))}
         </div>

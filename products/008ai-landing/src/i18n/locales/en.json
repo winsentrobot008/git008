@@ -1,0 +1,108 @@
+{
+  "common": {
+    "language": "Language",
+    "switchLanguage": "Switch language"
+  },
+  "menu": {
+    "label": "More options",
+    "savageCal": "Savage Cal AI",
+    "savageFit": "Savage Fit AI",
+    "buyPass": "Buy Lifetime Pass",
+    "login": "Login / Account",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy"
+  },
+  "banner": {
+    "mvp": "🔥 Savage Bestie Health Series Twins MVP Live"
+  },
+  "hero": {
+    "headline": "One Pass. Every AI App.",
+    "subhead": "One lifetime pass unlocks Savage Cal AI, Savage Fit AI, Runify, and every AI tool we ship."
+  },
+  "apps": {
+    "live": "Live",
+    "soon": "Coming Soon",
+    "launch": "Launch App",
+    "waitlist": "Join Waitlist",
+    "savageCalTitle": "Savage Cal AI",
+    "savageCalTagline": "You ate it, I audit it",
+    "savageFitTitle": "Savage Fit AI",
+    "savageFitTagline": "You slacked, I burn it",
+    "runifyTitle": "Runify",
+    "runifyTagline": "Smart Route Generation"
+  },
+  "trust": {
+    "ssl": "256-bit SSL",
+    "refund": "14-Day Money-Back",
+    "slots": "🔒 {slots} slots claimed — early bird closes soon"
+  },
+  "pricing": {
+    "earlyBird": "Early Bird",
+    "passName": "008ai.online Pass",
+    "priceNote": "one-time · lifetime",
+    "unlocks": "Unlocks Savage Cal AI, Savage Fit AI, Runify, and the full 008AI Suite. Limited to the first 90 slots.",
+    "checkoutDescription": "008AI Early Bird Lifetime Pass"
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "body": "By purchasing the 008ai.online Pass you agree to use 008AI products for lawful purposes only. The lifetime pass grants access to all current and future 008AI apps; no refunds after the 14-day money-back period. We may update these terms with reasonable notice."
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "body": "008AI collects only the data needed to operate your account and payments (email, order history, and wishlist submissions). We never sell personal data. Contact hello@008ai.online for access or deletion requests."
+  },
+  "footer": {
+    "rights": "© {year} 008AI · 008ai.online · All rights reserved. · Build {stamp}"
+  },
+  "cal": {
+    "series": "Savage Bestie Health Series",
+    "productName": "Savage Cal AI",
+    "tagline": "You ate it, I audit it",
+    "unlimitedAudits": "Unlimited audits",
+    "freeAuditsLeft": "{remaining} of {total} free audits left",
+    "addPhoto": "Add a meal photo",
+    "addPhotoHint": "Snap the plate or pick a shot - the audit reads the whole portion.",
+    "previewAlt": "Meal preview",
+    "mealBreakfast": "Breakfast",
+    "mealLunch": "Lunch",
+    "mealDinner": "Dinner",
+    "mealSnack": "Snack",
+    "mealUnknown": "Not sure",
+    "runAudit": "Run the audit",
+    "readingDamage": "Reading the damage...",
+    "unlockToAudit": "Unlock to keep auditing",
+    "reset": "Reset",
+    "errNotImage": "That is not an image file.",
+    "errTooLarge": "Images must be 4MB or smaller.",
+    "errNoPhoto": "Add a meal photo first.",
+    "errRecognitionFailed": "Recognition failed ({status})",
+    "statusEmpty": "Run an audit first - the bestie roasts what she can see.",
+    "statusAtonement": "Hands the audit ({kcal} kcal) to {persona} for the atonement workout.",
+    "statusApproved": "{persona} approves. Bookmark this page for the next 3am decision.",
+    "disclaimer": "Nutrition estimates are AI generated - not medical advice. {free} free audits per session, then the 008AI Total Health Bundle."
+  },
+  "fit": {
+    "series": "Savage Bestie Health Series",
+    "productName": "Savage Fit AI",
+    "tagline": "You slacked, I burn it",
+    "passRequired": "Pass required",
+    "freeLeft": "{remaining} free",
+    "settings": "Private roast bank",
+    "handsFree": "Hands-free continuous dialogue",
+    "statusIdle": "Tap the mic and speak",
+    "statusListening": "Listening...",
+    "statusThinking": "Thinking...",
+    "statusSpeaking": "Speaking...",
+    "statusError": "Something went wrong",
+    "sessionLocked": "Session locked - unlock to continue",
+    "startRecording": "Start recording",
+    "stopRecording": "Stop recording",
+    "typeInstead": "Type a line instead",
+    "typePlaceholder": "Type what you would say...",
+    "send": "Send",
+    "recognitionUnavailable": "Speech recognition is unavailable in this browser. Use the keyboard button to type your line - the coach still replies out loud.",
+    "freeSessionLeft": "Free session: {remaining} of {limit} voice turns left",
+    "freeSessionFull": "Free session: {limit} voice turns",
+    "handsFreeOn": " · hands-free on"
+  }
+}

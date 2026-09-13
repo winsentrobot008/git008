@@ -13,13 +13,14 @@ import { AlertTriangle, Keyboard, Mic, MicOff, Send, Square } from "lucide-react
 import type { Persona } from "@/lib/savage-fit/personas";
 import type { DialogueTurn, QuotaState } from "@/lib/savage-fit/types";
 import { unlockAudioContext, type VoiceStatus } from "./use-voice-engine";
+import { useLang } from "@/i18n/LanguageProvider";
 
-const STATUS_LABEL: Record<VoiceStatus, string> = {
-  idle: "Tap the mic and speak",
-  listening: "Listening...",
-  thinking: "Thinking...",
-  speaking: "Speaking...",
-  error: "Something went wrong",
+const STATUS_LABEL_KEY: Record<VoiceStatus, string> = {
+  idle: "fit.statusIdle",
+  listening: "fit.statusListening",
+  thinking: "fit.statusThinking",
+  speaking: "fit.statusSpeaking",
+  error: "fit.statusError",
 };
 
 const METER_BARS = 24;
@@ -58,6 +59,7 @@ export default function VoiceStage({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [typing, setTyping] = useState(false);
   const [draft, setDraft] = useState("");
+  const { t } = useLang();
   const listening = status === "listening";
 
   useEffect(() => {
@@ -150,14 +152,14 @@ export default function VoiceStage({
         </div>
 
         <p className="mt-2 text-center text-[11px] font-bold text-slate-500">
-          {locked ? "Session locked - unlock to continue" : STATUS_LABEL[status]}
+          {locked ? t("fit.sessionLocked") : t(STATUS_LABEL_KEY[status])}
         </p>
 
         <div className="mt-3 flex items-center justify-center gap-3">
           <button
             type="button"
             onClick={handleRecordTap}
-            aria-label={listening ? "Stop recording" : "Start recording"}
+            aria-label={listening ? t("fit.stopRecording") : t("fit.startRecording")}
             className={[
               "relative flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg transition-all duration-200 active:scale-95",
               locked
@@ -175,7 +177,7 @@ export default function VoiceStage({
           <button
             type="button"
             onClick={() => setTyping((value) => !value)}
-            aria-label="Type a line instead"
+            aria-label={t("fit.typeInstead")}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white/70 text-slate-600 backdrop-blur transition hover:border-pink-300 hover:text-pink-600"
           >
             <Keyboard className="h-4 w-4" />
@@ -184,16 +186,18 @@ export default function VoiceStage({
 
         <p className="mt-2 text-center text-[10px] font-semibold text-slate-500">
           {ready
-            ? `Free session: ${Math.max(0, quota.limit - quota.used)} of ${quota.limit} voice turns left`
-            : `Free session: ${quota.limit} voice turns`}
-          {handsFree ? " · hands-free on" : ""}
+            ? t("fit.freeSessionLeft", {
+                remaining: Math.max(0, quota.limit - quota.used),
+                limit: quota.limit,
+              })
+            : t("fit.freeSessionFull", { limit: quota.limit })}
+          {handsFree ? t("fit.handsFreeOn") : ""}
         </p>
 
         {!recognitionSupported && (
           <p className="mt-2 flex items-start gap-1.5 rounded-2xl bg-amber-50/80 px-3 py-2 text-[10px] font-semibold leading-relaxed text-amber-700">
             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-            Speech recognition is unavailable in this browser. Use the keyboard button to type
-            your line - the coach still replies out loud.
+            {t("fit.recognitionUnavailable")}
           </p>
         )}
         {error && (
@@ -210,13 +214,14 @@ export default function VoiceStage({
               onKeyDown={(event) => {
                 if (event.key === "Enter") submitDraft();
               }}
-              placeholder="Type what you would say..."
+              placeholder={t("fit.typePlaceholder")}
               className="h-11 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-pink-400"
             />
             <button
               type="button"
               onClick={submitDraft}
               disabled={locked}
+              aria-label={t("fit.send")}
               className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white transition hover:bg-slate-800 disabled:opacity-40"
             >
               <Send className="h-4 w-4" />

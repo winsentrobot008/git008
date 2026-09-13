@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { LanguageProvider } from "@/i18n/LanguageProvider";
 import "./globals.css";
 
 /**
@@ -55,7 +56,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={manrope.variable}>
       <body className="min-h-screen bg-white font-sans text-ink antialiased">
-        {children}
+        {/* One language state for the landing page and both sub-apps. The server
+            still emits lang="en" and the default dictionary; the provider applies
+            the stored / detected locale in an effect (React #418 protection). */}
+        <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>
   );

@@ -17,14 +17,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Film, Flame, Hand, Infinity as InfinityIcon, Lock, Sparkles, Volume2 } from "lucide-react";
 import {
-  APP_NAME,
-  APP_NAME_ZH,
-  BRAND_TAGLINE,
   FREE_VOICE_TURNS,
-  SUPPORTED_LANGUAGES,
   resolveLanguage,
   type LanguageOption,
 } from "@/lib/savage-fit/config";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useLang } from "@/i18n/LanguageProvider";
 import { DEFAULT_PERSONA_ID, getPersona, type Persona } from "@/lib/savage-fit/personas";
 import { trackSavageEvent } from "@/lib/shared/analytics";
 import { readPrivateRoastConfig, type PrivateRoastConfig } from "@/lib/shared/roast-db";
@@ -46,7 +44,6 @@ import { useSessionQuota } from "./use-session-quota";
 import { useVoiceEngine } from "./use-voice-engine";
 
 const PERSONA_KEY = "savage-fit:persona:v1";
-const LANGUAGE_KEY = "savage-fit:language:v1";
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -61,8 +58,8 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
 }
 
 export default function SavageFitApp() {
+  const { lang, t } = useLang();
   const [persona, setPersona] = useState<Persona>(() => getPersona(DEFAULT_PERSONA_ID));
-  const [language, setLanguage] = useState<LanguageOption>(() => resolveLanguage("en"));
   const [handsFree, setHandsFree] = useState(false);
   const [turns, setTurns] = useState<DialogueTurn[]>([]);
   const [coachReply, setCoachReply] = useState("");
@@ -71,6 +68,10 @@ export default function SavageFitApp() {
   const [studioOpen, setStudioOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [roastConfig, setRoastConfig] = useState<PrivateRoastConfig | null>(null);
+
+  // The voice engine still speaks one language at a time; it now follows the
+  // site-wide choice instead of a second, app-local toggle.
+  const language = resolveLanguage(lang);
 
   const { quota, ready, entitled, consume, refund, lock } = useSessionQuota();
   const [briefing, setBriefing] = useState<RoastBriefing | null>(null);
@@ -96,8 +97,6 @@ export default function SavageFitApp() {
     try {
       const storedPersona = window.localStorage.getItem(PERSONA_KEY);
       if (storedPersona) setPersona(getPersona(storedPersona));
-      const storedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
-      if (storedLanguage) setLanguage(resolveLanguage(storedLanguage));
     } catch {
       /* private mode */
     }
@@ -141,15 +140,6 @@ export default function SavageFitApp() {
     setPersona(next);
     try {
       window.localStorage.setItem(PERSONA_KEY, next.id);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const selectLanguage = useCallback((next: LanguageOption) => {
-    setLanguage(next);
-    try {
-      window.localStorage.setItem(LANGUAGE_KEY, next.id);
     } catch {
       /* ignore */
     }
@@ -445,8 +435,8 @@ export default function SavageFitApp() {
 
   const turnsUsed = useMemo(() => turns.filter((turn) => turn.role === "user").length, [turns]);
   const remainingLabel = quota.locked
-    ? "Pass required"
-    : `${Math.max(0, quota.limit - quota.used)} free`;
+    ? t("fit.passRequired")
+    : t("fit.freeLeft", { remaining: Math.max(0, quota.limit - quota.used) });
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-gradient-to-br from-[#ffd6e8] via-[#fff0f6] to-[#e8d5ff] px-3 pb-4 pt-3 font-sans text-slate-800">
@@ -466,16 +456,18 @@ export default function SavageFitApp() {
           </a>
           <div className="text-center">
             <p className="text-[10px] font-extrabold tracking-[0.18em] text-pink-600">
-              {APP_NAME_ZH}
+              {t("fit.series")}
             </p>
-            <h1 className="text-base font-black leading-tight text-slate-900">{APP_NAME}</h1>
+            <h1 className="text-base font-black leading-tight text-slate-900">
+              {t("fit.productName")}
+            </h1>
           </div>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={openSettings}
-              aria-label="Private roast bank"
-              title="Private roast bank"
+              aria-label={t("fit.settings")}
+              title={t("fit.settings")}
               className={`flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition ${
                 entitled
                   ? "border-pink-300 bg-pink-500/90 text-white"
@@ -484,25 +476,12 @@ export default function SavageFitApp() {
             >
               {entitled ? <Sparkles className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
             </button>
-            <div className="flex overflow-hidden rounded-full border border-white/70 bg-white/60 backdrop-blur">
-              {SUPPORTED_LANGUAGES.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => selectLanguage(option)}
-                  className={`px-2.5 py-1.5 text-[10px] font-extrabold transition ${
-                    option.id === language.id ? "bg-slate-900 text-white" : "text-slate-500"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <LanguageSwitcher compact />
             <button
               type="button"
               onClick={toggleHandsFree}
               aria-pressed={handsFree}
-              title="Hands-free continuous dialogue"
+              title={t("fit.handsFree")}
               className={`flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition ${
                 handsFree
                   ? "border-emerald-300 bg-emerald-400/90 text-white"
@@ -515,7 +494,7 @@ export default function SavageFitApp() {
         </header>
 
         <p className="mt-2 text-center text-[10px] font-semibold text-slate-500">
-          {BRAND_TAGLINE}
+          {t("fit.tagline")}
         </p>
 
         <div className="mt-3">

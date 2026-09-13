@@ -15,11 +15,12 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Flame, Loader2, Lock, RefreshCw, ScanLine } from "lucide-react";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import BalanceMathCard from "@/components/savage-cal/BalanceMathCard";
 import RoastCard from "@/components/savage-cal/RoastCard";
 import PaywallModal from "@/components/savage-fit/PaywallModal";
 import { balanceBriefingLine, computeBalance } from "@/lib/savage-cal/balance";
-import { APP_NAME, APP_NAME_ZH, BRAND_TAGLINE, FREE_FOOD_SCANS } from "@/lib/savage-cal/config";
+import { FREE_FOOD_SCANS } from "@/lib/savage-cal/config";
 import { RATING_META, needsAtonement, rateFood } from "@/lib/savage-cal/rating";
 import { DEFAULT_PERSONA_ID, getPersona } from "@/lib/savage-fit/personas";
 import { getSessionId } from "@/lib/savage-fit/quota";
@@ -32,16 +33,17 @@ import {
   REFERRAL_SOURCE,
 } from "@/lib/shared/referral";
 import type { FoodScanEvent, FoodScanItem, MealType, RecognizeResponse } from "@/types/health-bus";
+import { useLang } from "@/i18n/LanguageProvider";
 
 /** Mirrors the route's own cap so a huge upload never leaves the browser. */
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
-const MEAL_OPTIONS: { id: MealType; label: string }[] = [
-  { id: "breakfast", label: "Breakfast" },
-  { id: "lunch", label: "Lunch" },
-  { id: "dinner", label: "Dinner" },
-  { id: "snack", label: "Snack" },
-  { id: "unknown", label: "Not sure" },
+const MEAL_OPTIONS: { id: MealType; labelKey: string }[] = [
+  { id: "breakfast", labelKey: "cal.mealBreakfast" },
+  { id: "lunch", labelKey: "cal.mealLunch" },
+  { id: "dinner", labelKey: "cal.mealDinner" },
+  { id: "snack", labelKey: "cal.mealSnack" },
+  { id: "unknown", labelKey: "cal.mealUnknown" },
 ];
 
 /** The dish the roast leads with: the biggest contributor on the plate. */
@@ -64,6 +66,7 @@ export default function SavageCalApp() {
   const persona = getPersona(DEFAULT_PERSONA_ID);
   const { snapshot, publish } = useHealthBus();
   const { entitled, gates, consume, lock } = useHealthGate();
+  const { t } = useLang();
 
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
@@ -117,11 +120,11 @@ export default function SavageCalApp() {
   const pickFile = useCallback(async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setError("That is not an image file.");
+      setError(t("cal.errNotImage"));
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setError("Images must be 4MB or smaller.");
+      setError(t("cal.errTooLarge"));
       return;
     }
     try {
@@ -134,12 +137,12 @@ export default function SavageCalApp() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, []);
+  }, [t]);
 
   const scan = useCallback(async () => {
     if (scanning) return;
     if (!preview) {
-      setError("Add a meal photo first.");
+      setError(t("cal.errNoPhoto"));
       return;
     }
     if (locked) {
@@ -165,7 +168,9 @@ export default function SavageCalApp() {
       }
       if (!response.ok) {
         setError(
-          typeof data.detail === "string" ? data.detail : `Recognition failed (${response.status})`
+          typeof data.detail === "string"
+            ? data.detail
+            : t("cal.errRecognitionFailed", { status: response.status })
         );
         return;
       }
@@ -202,7 +207,7 @@ export default function SavageCalApp() {
     } finally {
       setScanning(false);
     }
-  }, [consume, lock, locked, mealType, preview, publish, scanning]);
+  }, [consume, lock, locked, mealType, preview, publish, scanning, t]);
 
   /**
    * Leaves the bus briefing behind as well as the query params: the referral link
@@ -239,8 +244,8 @@ export default function SavageCalApp() {
   }, []);
 
   const remainingLabel = entitled
-    ? "Unlimited audits"
-    : `${Math.max(0, gate.remaining)} of ${FREE_FOOD_SCANS} free audits left`;
+    ? t("cal.unlimitedAudits")
+    : t("cal.freeAuditsLeft", { remaining: Math.max(0, gate.remaining), total: FREE_FOOD_SCANS });
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#0b0d14] px-3 pb-6 pt-3 font-sans text-slate-100">
@@ -260,24 +265,29 @@ export default function SavageCalApp() {
           </a>
           <div className="text-center">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-amber-400">
-              {APP_NAME_ZH}
+              {t("cal.series")}
             </p>
-            <h1 className="text-base font-black leading-tight text-white">{APP_NAME}</h1>
+            <h1 className="text-base font-black leading-tight text-white">
+              {t("cal.productName")}
+            </h1>
           </div>
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[10px] font-extrabold ${
-              locked
-                ? "border-rose-400/30 bg-rose-500/15 text-rose-300"
-                : "border-white/10 bg-white/5 text-slate-300"
-            }`}
-          >
-            {locked ? <Lock className="h-3 w-3" /> : <ScanLine className="h-3 w-3" />}
-            {remainingLabel}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <LanguageSwitcher variant="dark" compact />
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[10px] font-extrabold ${
+                locked
+                  ? "border-rose-400/30 bg-rose-500/15 text-rose-300"
+                  : "border-white/10 bg-white/5 text-slate-300"
+              }`}
+            >
+              {locked ? <Lock className="h-3 w-3" /> : <ScanLine className="h-3 w-3" />}
+              {remainingLabel}
+            </span>
+          </div>
         </header>
 
         <p className="mt-2 text-center text-[10px] font-semibold text-slate-500">
-          {BRAND_TAGLINE}
+          {t("cal.tagline")}
         </p>
 
         <label
@@ -287,7 +297,7 @@ export default function SavageCalApp() {
           {preview ? (
             <img
               src={preview}
-              alt="Meal preview"
+              alt={t("cal.previewAlt")}
               className="max-h-56 w-full rounded-2xl object-cover"
             />
           ) : (
@@ -295,9 +305,9 @@ export default function SavageCalApp() {
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-rose-500 text-white shadow-lg shadow-amber-500/25">
                 <Flame className="h-6 w-6" />
               </span>
-              <span className="text-sm font-extrabold text-white">Add a meal photo</span>
+              <span className="text-sm font-extrabold text-white">{t("cal.addPhoto")}</span>
               <span className="text-[11px] font-medium text-slate-400">
-                Snap the plate or pick a shot - the audit reads the whole portion.
+                {t("cal.addPhotoHint")}
               </span>
             </>
           )}
@@ -327,7 +337,7 @@ export default function SavageCalApp() {
                   : "border-white/10 bg-white/5 text-slate-400 hover:border-white/25"
               }`}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
@@ -346,12 +356,16 @@ export default function SavageCalApp() {
             className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-rose-500 text-sm font-extrabold text-white shadow-lg shadow-amber-500/25 transition hover:brightness-105 disabled:opacity-40"
           >
             {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
-            {scanning ? "Reading the damage..." : locked ? "Unlock to keep auditing" : "Run the audit"}
+            {scanning
+              ? t("cal.readingDamage")
+              : locked
+                ? t("cal.unlockToAudit")
+                : t("cal.runAudit")}
           </button>
           <button
             type="button"
             onClick={reset}
-            aria-label="Reset"
+            aria-label={t("cal.reset")}
             className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:border-white/25"
           >
             <RefreshCw className="h-4 w-4" />
@@ -434,15 +448,17 @@ export default function SavageCalApp() {
 
         <p className="mt-2 text-center text-[10px] font-semibold text-slate-500">
           {!audited
-            ? "Run an audit first - the bestie roasts what she can see."
+            ? t("cal.statusEmpty")
             : needsAtonement(rating ?? "green")
-              ? `Hands the audit (${Math.round(audited.totalCalories)} kcal) to ${persona.name} for the atonement workout.`
-              : `${persona.name} approves. Bookmark this page for the next 3am decision.`}
+              ? t("cal.statusAtonement", {
+                  kcal: Math.round(audited.totalCalories),
+                  persona: persona.name,
+                })
+              : t("cal.statusApproved", { persona: persona.name })}
         </p>
 
         <p className="mt-3 text-center text-[10px] font-semibold leading-relaxed text-slate-600">
-          Nutrition estimates are AI generated - not medical advice. {FREE_FOOD_SCANS} free audits
-          per session, then the 008AI Total Health Bundle.
+          {t("cal.disclaimer", { free: FREE_FOOD_SCANS })}
         </p>
       </div>
 
