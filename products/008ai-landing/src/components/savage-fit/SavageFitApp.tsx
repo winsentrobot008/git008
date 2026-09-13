@@ -584,7 +584,7 @@ export default function SavageFitApp() {
         </p>
         <p className="mt-1 text-center text-[10px] font-semibold text-slate-500">
           <a href="/savage-cal" className="font-extrabold text-pink-600 hover:text-pink-700">
-            让毒舌卡路里闺蜜审你
+            {t("fit.crossSellCal")}
           </a>{" "}
           - the bestie roasts what you actually ate.
         </p>

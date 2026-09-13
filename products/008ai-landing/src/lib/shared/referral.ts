@@ -17,9 +17,6 @@ export const SAVAGE_FIT_PATH = "/savage-fit";
 /** Value written into `from`; identifies the referring app, not the user. */
 export const REFERRAL_SOURCE = "savage_cal";
 
-/** CTA copy shown on a flagged (yellow/red) audit result. */
-export const ATONEMENT_CTA_LABEL = "🔥 偷吃被发现了吧？让毒舌健美闺蜜带你开练 →";
-
 const MAX_FOOD_CHARS = 60;
 const MAX_CALORIES = 20_000;
 const MAX_SOURCE_CHARS = 40;

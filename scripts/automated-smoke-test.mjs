@@ -9,8 +9,17 @@
  *   node scripts/automated-smoke-test.mjs
  *   SMOKE_BASE_URL=https://<deployment>.vercel.app node scripts/automated-smoke-test.mjs
  *
+ * Since the i18n launch the suite also asserts language integrity: SSR renders
+ * DEFAULT_LANG ("en"), so the rendered payload of each core page must be free of
+ * Chinese characters (ERR_I18N_LEAK), the dictionaries must stay in sync, and no
+ * component may hardcode a string that bypasses them (ERR_I18N_*).
+ *
  * Exit code 0 = every check matched its contract, 1 = at least one mismatch.
  */
+
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { checkI18nIntegrity, formatProblems } from "../products/008ai-landing/scripts/check-i18n-integrity.mjs";
 
 const BASE = (process.env.SMOKE_BASE_URL || "https://008ai.online").replace(/\/$/, "");
 const TIMEOUT_MS = Number(process.env.SMOKE_TIMEOUT_MS || 45000);
@@ -21,6 +30,14 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 // 1x1 transparent PNG, enough to satisfy the base64 image guard.
 const TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
+
+// SSR always emits DEFAULT_LANG ("en") - see src/i18n/config.ts - so every page
+// reachable over HTTP is an English document. Any CJK in that document is a
+// leak: a hardcoded string, or a translated value that skipped the locale switch.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const APP_DIR = path.join(REPO_ROOT, "products", "008ai-landing");
+const CJK = /[\u4e00-\u9fa5]/;
+const I18N_PAGES = ["/", "/savage-cal", "/savage-fit"];
 
 // Both POST probes are gated by a per-session free quota, so a fixed session id
 // exhausts it and surfaces a false 402 PAYWALL_REACHED on repeat runs. Mint a
@@ -87,6 +104,95 @@ async function probe(check) {
 }
 
 console.log("008 AI Factory smoke suite");
+function extractTitle(html) {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return match ? match[1] : "";
+}
+
+/** Text a user actually sees: scripts, styles and tags removed. */
+function visibleBody(html) {
+  const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html);
+  return (body ? body[1] : html)
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z#0-9]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstCjkSample(text) {
+  const match = text.match(new RegExp(".{0,20}" + CJK.source + ".{0,20}"));
+  return match ? match[0].trim() : "";
+}
+
+async function probeI18nPage(pagePath) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(BASE + pagePath, {
+      headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml", cookie: "NEXT_LOCALE=en" },
+      redirect: "follow",
+      signal: controller.signal,
+    });
+    const html = await res.text();
+    return { status: res.status, title: extractTitle(html), body: visibleBody(html) };
+  } catch (error) {
+    return { status: 0, title: "", body: "", error: error?.message || String(error) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runI18nChecks() {
+  const failures = [];
+  const lines = [];
+
+  let staticResult;
+  try {
+    staticResult = checkI18nIntegrity(APP_DIR);
+  } catch (error) {
+    staticResult = {
+      ok: false,
+      problems: [{ code: "ERR_I18N_DICT_PARITY", detail: "static i18n checker crashed: " + (error?.message || error) }],
+      stats: { keys: 0, uiFiles: 0 },
+    };
+  }
+  if (staticResult.ok) {
+    lines.push("PASS  static        dictionaries in sync, no hardcoded CJK in the EN surface (" +
+      staticResult.stats.keys + " keys, " + staticResult.stats.uiFiles + " UI files)");
+  } else {
+    for (const problem of formatProblems(staticResult.problems)) {
+      lines.push("FAIL  static        " + problem);
+      failures.push(problem);
+    }
+  }
+
+  for (const pagePath of I18N_PAGES) {
+    const result = await probeI18nPage(pagePath);
+    if (result.error) {
+      const message = "ERR_I18N_LEAK: " + pagePath + " could not be fetched (" + result.error + ")";
+      lines.push("FAIL  " + pagePath.padEnd(14) + message);
+      failures.push(message);
+      continue;
+    }
+    const titleLeak = CJK.test(result.title);
+    const bodyLeak = CJK.test(result.body);
+    if (!titleLeak && !bodyLeak) {
+      lines.push("PASS  " + pagePath.padEnd(14) + "no CJK in the EN title/body");
+      continue;
+    }
+    const where = [titleLeak ? "title" : null, bodyLeak ? "body" : null].filter(Boolean).join(" + ");
+    const sample = firstCjkSample(titleLeak ? result.title : result.body);
+    const message = "ERR_I18N_LEAK: Chinese characters found in EN locale view (" + pagePath + " " + where + "): " + JSON.stringify(sample);
+    lines.push("FAIL  " + pagePath.padEnd(14) + message);
+    failures.push(message);
+  }
+
+  return { failures, lines };
+}
+
 console.log("base: " + BASE);
 console.log("");
 
@@ -117,4 +223,14 @@ for (const r of results.filter((x) => !x.ok || x.code)) {
   if (r.detail) console.log("- " + r.check.id + " [" + r.status + "] " + r.code + ": " + r.detail);
 }
 
-process.exit(passed === results.length ? 0 : 1);
+const i18n = await runI18nChecks();
+console.log("");
+console.log("i18n integrity");
+for (const line of i18n.lines) console.log(line);
+console.log("");
+console.log(
+  "endpoints " + passed + "/" + results.length +
+  " | i18n " + (i18n.failures.length === 0 ? "clean" : i18n.failures.length + " violation(s)")
+);
+
+process.exit(passed === results.length && i18n.failures.length === 0 ? 0 : 1);

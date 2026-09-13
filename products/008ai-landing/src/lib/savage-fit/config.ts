@@ -16,7 +16,10 @@ export const APP_NAME = "Savage Fit AI";
 export const APP_NAME_ZH = "毒舌健美闺蜜";
 
 /** Series tagline, shown in the header and the share copy. */
-export const BRAND_TAGLINE = "毒舌健美闺蜜 AI · You slacked, I burn it";
+export const BRAND_TAGLINE = "You slacked, I burn it";
+
+/** Chinese counterpart of BRAND_TAGLINE, for zh-locale surfaces. */
+export const BRAND_TAGLINE_ZH = "毒舌健美闺蜜 AI · 你偷懒，我来烧脂";
 
 export const BRAND_SHORT = "Savage Fit";
 export const BRAND_DOMAIN = "008ai.online";

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import SavageCalApp from "@/components/savage-cal/SavageCalApp";
-import { APP_NAME, APP_NAME_ZH, BRAND_TAGLINE } from "@/lib/savage-cal/config";
+import { APP_NAME, BRAND_TAGLINE } from "@/lib/savage-cal/config";
 
 /**
  * /savage-cal - Savage Cal AI, App 1 of the Savage Bestie Health Series.
@@ -12,21 +12,20 @@ import { APP_NAME, APP_NAME_ZH, BRAND_TAGLINE } from "@/lib/savage-cal/config";
  */
 
 export const metadata: Metadata = {
-  title: `${APP_NAME} ${APP_NAME_ZH} - 毒舌卡路里审计 | 008AI`,
+  title: `${APP_NAME} - Savage Calorie Audit | 008AI`,
   description:
-    "毒舌卡路里闺蜜 AI：拍一张照片，她当场审你的热量并给出红黄绿评级；被标红就直接交给毒舌健美闺蜜开练。2 次免费识别，之后解锁 008AI Total Health Bundle。",
+    "Savage Cal AI: snap a plate and the bestie audits the damage on the spot, grades it red / amber / green, then hands a flagged meal to Savage Fit AI to burn off. 2 free scans, then the 008AI Total Health Bundle.",
   metadataBase: new URL("https://008ai.online"),
   keywords: [
     "Savage Cal AI",
-    "毒舌卡路里闺蜜",
-    "AI 热量识别",
-    "拍照识别热量",
     "AI calorie counter",
+    "photo calorie estimate",
+    "meal audit",
     "008AI",
   ],
   alternates: { canonical: "/savage-cal" },
   openGraph: {
-    title: `${APP_NAME} ${APP_NAME_ZH}`,
+    title: APP_NAME,
     description: BRAND_TAGLINE,
     url: "https://008ai.online/savage-cal",
     siteName: "008AI",
@@ -34,8 +33,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `${APP_NAME} ${APP_NAME_ZH}`,
-    description: "拍下这一餐，让毒舌闺蜜审你。008ai.online",
+    title: APP_NAME,
+    description: "Snap the plate and let the bestie audit it. 008ai.online",
   },
 };
 

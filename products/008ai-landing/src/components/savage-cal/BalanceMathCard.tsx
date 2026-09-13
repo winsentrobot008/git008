@@ -14,6 +14,7 @@
 import { Activity, Timer } from "lucide-react";
 import { BALANCE_MODEL, describeBalance, formatPlankHold } from "@/lib/savage-cal/balance";
 import type { BalanceMath } from "@/types/health-bus";
+import { useLang } from "@/i18n/LanguageProvider";
 
 export interface BalanceMathCardProps {
   math: BalanceMath;
@@ -57,12 +58,13 @@ function Equivalent({
 
 export default function BalanceMathCard({ math }: BalanceMathCardProps) {
   const overBudget = !math.balanced;
+  const { t } = useLang();
 
   return (
     <section className="mt-3 rounded-3xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
-          Balance 摄入/消耗差额
+          {t("cal.balanceTitle")}
         </p>
         <span
           className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${
@@ -71,15 +73,17 @@ export default function BalanceMathCard({ math }: BalanceMathCardProps) {
               : "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
           }`}
         >
-          {overBudget ? `+${math.targetBurnCalories} kcal to burn` : "In balance"}
+          {overBudget
+            ? t("cal.balanceToBurn", { kcal: math.targetBurnCalories })
+            : t("cal.balanceInBalance")}
         </span>
       </div>
 
       <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <Stat label="This meal" value={String(math.caloriesConsumed)} unit="kcal" />
-        <Stat label="Allowance" value={String(math.mealBudgetKcal)} unit="kcal" />
+        <Stat label={t("cal.statThisMeal")} value={String(math.caloriesConsumed)} unit="kcal" />
+        <Stat label={t("cal.statAllowance")} value={String(math.mealBudgetKcal)} unit="kcal" />
         <Stat
-          label="Burned today"
+          label={t("cal.statBurnedToday")}
           value={math.activeCaloriesBurned > 0 ? String(math.activeCaloriesBurned) : "-"}
           unit={math.activeCaloriesBurned > 0 ? "kcal" : ""}
         />
@@ -89,13 +93,13 @@ export default function BalanceMathCard({ math }: BalanceMathCardProps) {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Equivalent
             icon={Timer}
-            label="Plank hold"
+            label={t("cal.equivPlankHold")}
             value={formatPlankHold(math.suggestedPlankSeconds)}
             hint={`${math.plankKcalPerSecond} kcal/s`}
           />
           <Equivalent
             icon={Activity}
-            label="Slow jog"
+            label={t("cal.equivSlowJog")}
             value={`${math.suggestedRunMinutes} min`}
             hint={`${math.jogKcalPerMinute} kcal/min`}
           />
@@ -111,9 +115,11 @@ export default function BalanceMathCard({ math }: BalanceMathCardProps) {
       </p>
 
       <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-500">
-        MET model (plank {BALANCE_MODEL.plankMet.toFixed(1)} / slow jog{" "}
-        {BALANCE_MODEL.jogMet.toFixed(1)}) at a {BALANCE_MODEL.referenceWeightKg} kg reference mass.
-        Estimate only - not medical advice.
+        {t("cal.balanceFootnote", {
+          plankMet: BALANCE_MODEL.plankMet.toFixed(1),
+          jogMet: BALANCE_MODEL.jogMet.toFixed(1),
+          weightKg: BALANCE_MODEL.referenceWeightKg,
+        })}
       </p>
     </section>
   );

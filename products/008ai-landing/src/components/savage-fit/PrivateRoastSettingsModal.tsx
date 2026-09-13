@@ -31,13 +31,14 @@ import {
   type RoastIntensity,
 } from "@/lib/shared/roast-db";
 import { hasTotalHealthPass } from "@/lib/shared/health-bus";
+import { useLang } from "@/i18n/LanguageProvider";
 
-const INTENSITY_STEPS: { value: RoastIntensity; zh: string; en: string }[] = [
-  { value: 1, zh: "傲娇微毒", en: "Mildly savage - teasing, never mean." },
-  { value: 2, zh: "毒舌上线", en: "Snarky - the eyebrows go up." },
-  { value: 3, zh: "标准毒舌", en: "Standard bestie - honest with a smirk." },
-  { value: 4, zh: "暴击预警", en: "Heavy - she says the quiet part out loud." },
-  { value: 5, zh: "Max 级暴击", en: "Full Max Black. Seatbelt on." },
+const INTENSITY_STEPS: { value: RoastIntensity; zh: string; en: string; enShort: string }[] = [
+  { value: 1, zh: "傲娇微毒", en: "Mildly savage - teasing, never mean.", enShort: "Mildly savage" },
+  { value: 2, zh: "毒舌上线", en: "Snarky - the eyebrows go up.", enShort: "Snarky" },
+  { value: 3, zh: "标准毒舌", en: "Standard bestie - honest with a smirk.", enShort: "Standard bestie" },
+  { value: 4, zh: "暴击预警", en: "Heavy - she says the quiet part out loud.", enShort: "Heavy" },
+  { value: 5, zh: "Max 级暴击", en: "Full Max Black. Seatbelt on.", enShort: "Max blast" },
 ];
 
 export interface PrivateRoastSettingsModalProps {
@@ -138,6 +139,7 @@ export default function PrivateRoastSettingsModal({
   const [mutes, setMutes] = useState<string[]>([]);
   const [lines, setLines] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { t, lang } = useLang();
 
   // Seed from the session's config every time the drawer opens.
   useEffect(() => {
@@ -237,6 +239,9 @@ export default function PrivateRoastSettingsModal({
   }
 
   const step = INTENSITY_STEPS.find((item) => item.value === intensity) ?? INTENSITY_STEPS[2];
+  const shortStep = lang === "zh" ? step.zh : step.enShort;
+  const rangeLow = lang === "zh" ? INTENSITY_STEPS[0].zh : INTENSITY_STEPS[0].enShort;
+  const rangeHigh = lang === "zh" ? INTENSITY_STEPS[4].zh : INTENSITY_STEPS[4].enShort;
 
   return (
     <div
@@ -274,7 +279,7 @@ export default function PrivateRoastSettingsModal({
               value={nickname}
               onChange={(event) => setNickname(event.target.value)}
               maxLength={MAX_NICKNAME_CHARS}
-              placeholder="Lily, Babe, 姐妹..."
+              placeholder={t("fit.nicknamePlaceholder")}
               className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-pink-400"
             />
           </div>
@@ -283,7 +288,7 @@ export default function PrivateRoastSettingsModal({
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-extrabold text-slate-700">Roast intensity</span>
               <span className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-2 py-0.5 text-[10px] font-extrabold text-white">
-                {intensity} · {step.zh}
+                {intensity} · {shortStep}
               </span>
             </div>
             <input
@@ -297,8 +302,8 @@ export default function PrivateRoastSettingsModal({
               className="mt-2 h-2 w-full cursor-pointer accent-pink-500"
             />
             <div className="mt-1 flex justify-between text-[9px] font-bold text-slate-400">
-              <span>1 · 傲娇微毒</span>
-              <span>5 · Max 级暴击</span>
+              <span>1 · {rangeLow}</span>
+              <span>5 · {rangeHigh}</span>
             </div>
             <p className="mt-1 text-[10px] font-semibold text-slate-500">{step.en}</p>
           </div>

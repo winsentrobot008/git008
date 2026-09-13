@@ -6,11 +6,12 @@
 ## 1. 生产状态（Production State）
 
 - Savage Bestie MVP 代码已合入 `main`：commit `4319a30`（feat(savage-bestie): complete dual-app MVP with private roast engine, balance math, and hermetic fonts，2026-09-13）。
-- 当前 `main` HEAD：`72d54e0`（feat(i18n): add auto-detect language context and header language switcher）。
+- 当前 `main` 提交：`test(i18n): upgrade smoke suite with automated language integrity and leak detection`（i18n 完整性断言 + EN 界面泄漏修复，2026-09-13）；上一条为 `0bc4bd5`（smoke 改用动态 sessionId），再上为 `72d54e0`（i18n 首次上线）。
 - 生产域名：`https://008ai.online`（同源别名 `www.008ai.online`）。
-- 最近一次生产部署：`dpl_HLNZ2FcVmH7voSddy2NB75su7Gve`，状态 `READY`，`008ai.online` 与 `www.008ai.online` 别名已重绑（部署地址 `https://008ai-landing-gftf2s7q9-git008.vercel.app`，2026-09-13）。
-- 该次发布已包含 i18n 语言系统（commit `72d54e0`：auto-detect language context + header language switcher），**i18n 已正式上线**：`https://008ai.online/` 的 SSR HTML 含 `aria-label`，其值为 `Switch language`（来源 `src/components/LanguageSwitcher.tsx:81`），且与源站输出一致，证明别名已切到含 i18n 的新构建。
-- 该次发布同时写入 `CALORIE_AI_API_URL`（生产环境变量 10 → 11 个），**校准了 CalorieAI 桥接**：`/api/savage-cal/recognize` 的应用层响应由 `503 RECOGNITION_NOT_CONFIGURED` 变为 `502 UPSTREAM_ERROR`（配置缺口已闭合，剩余为上游不可用，详见 7.3）。
+- 最近一次生产部署：`dpl_HSArzzDXcHQuAewGS9MMTfnHiqMo`，状态 `READY`，`008ai.online` 与 `www.008ai.online` 别名已重绑（部署地址 `https://008ai-landing-jcytxrxdh-git008.vercel.app`，2026-09-13）。发布流程在执行 `scripts/vercel-api-deploy.mjs` 时通过了新增的 i18n 门禁（`runI18nGate()`，静态检查 0 违规）。
+- 该次发布修复 **EN 界面中文泄漏**：`/savage-cal`、`/savage-fit` 的 `<title>`/描述/OG/Twitter 元数据、`BalanceMathCard` 差额卡（`Balance 摄入/消耗差额`）与 `PrivateRoastSettingsModal` 强度档位（`1 · 傲娇微毒`、`5 · Max 级暴击`）原先硬编码 CJK，现全部由 `src/i18n/locales/*.json` 提供；字典 94 键，en/zh 键集合与语义对齐。
+- 发布后实测：`/`、`/savage-cal`、`/savage-fit` 在 `NEXT_LOCALE=en` 下的 SSR HTML **零 CJK**（title 与正文均通过，见 2.1、6）。
+- 上一次发布：`dpl_HLNZ2FcVmH7voSddy2NB75su7Gve`，**i18n 语言系统首次上线**（commit `72d54e0`：auto-detect language context + header language switcher）；该次同时写入 `CALORIE_AI_API_URL`（生产环境变量 10 → 11 个），**校准了 CalorieAI 桥接**：`/api/savage-cal/recognize` 的应用层响应由 `503 RECOGNITION_NOT_CONFIGURED` 变为 `502 UPSTREAM_ERROR`（配置缺口已闭合，剩余为上游不可用，详见 7.3）。
 - Vercel 项目：`008ai-landing`，framework `nextjs`，rootDirectory `products/008ai-landing`，team `team_yziFzTtkDBBAkujUR0JQOpRk`。
 
 ## 2. 冒烟基线（Smoke Baseline）
@@ -23,6 +24,21 @@
 | `POST /api/savage-cal/recognize` | 200/400/503 | 502 `UPSTREAM_ERROR`（已接线，转发后带回上游 CalorieAI 的 502） |
 
 - 应用自带 WAF（`checkUserAgent`）会拒绝 curl 默认 UA 并返回 403 BLOCKED_BY_WAF，冒烟须携带浏览器 UA。
+
+### 2.1 i18n 完整性断言（i18n Integrity Assertions）
+
+套件自 2026-09-13 起同时断言语言完整性：静态检查器 `products/008ai-landing/scripts/check-i18n-integrity.mjs`（可独立运行 `npm run check:i18n`），动态部分由 `scripts/automated-smoke-test.mjs` 对生产页面实测。
+
+| i18n 检查 | 期望 | 最近实测 |
+| --- | --- | --- |
+| 静态：en/zh 键集合一致，`MUST_TRANSLATE` 键在 zh 侧有真实中文（非英文残留） | 0 违规 | PASS（94 键 / 35 个 UI 文件 / 94 处键引用） |
+| 静态：UI 源码不得硬编码 CJK、页面元数据不得泄漏 CJK | 0 违规 | PASS |
+| 静态：关键 UI 块仍由字典驱动（餐次选择器、状态卡、赎罪 CTA、语音状态徽标、交叉销售标签、运动消耗明细） | 0 违规 | PASS |
+| 动态：`/`、`/savage-cal`、`/savage-fit` 在 `NEXT_LOCALE=en` 下 title + 正文无 CJK | 0 泄漏 | PASS ×3 |
+
+- 断言口径：SSR 恒以 `DEFAULT_LANG`（`en`，见 `src/i18n/config.ts`）渲染，故任何经 HTTP 取回的页面都是英文文档 —— 其中出现 Unicode `\u4e00-\u9fa5` 即为泄漏（硬编码，或翻译值绕过了 locale 切换）。例外仅限显式登记的动态/用户生成内容白名单（`ALLOWED_UI_SNIPPETS`，目前为空）与设计上的双语数据行。
+- 诊断码（任一违规 → `exit 1`）：动态 `ERR_I18N_LEAK`（`ERR_I18N_LEAK: Chinese characters found in EN locale view`）；静态 `ERR_I18N_DICT_PARITY`、`ERR_I18N_DICT_LEAK`、`ERR_I18N_DICT_UNTRANSLATED`、`ERR_I18N_MISSING_KEY`、`ERR_I18N_CRITICAL_KEY`、`ERR_I18N_HARDCODED`、`ERR_I18N_METADATA_LEAK`。
+- 门禁接线：`npm run verify`（`npx tsc --noEmit && npm run check:i18n`）为本地构建前门禁；`npm run build` 前置 `npm run check:i18n`；`scripts/vercel-api-deploy.mjs` 在阶段 3 与阶段 4 之间执行 `runI18nGate()` —— 静态检查非 0 即中止，**不进入源码上传与构建**。
 
 ## 3. 部署瓶颈（Deployment Bottleneck）
 
@@ -49,10 +65,12 @@
 ```powershell
 cd products/008ai-landing
 npx tsc --noEmit                      # 构建门禁：提交/发布前必须通过
+npm run check:i18n                    # i18n 静态门禁：字典一致性 + EN 面无硬编码 CJK
+npm run verify                        # 组合门禁：等价于上面两条
 $env:VERCEL_TOKEN = "<injected>"      # 仅环境变量注入，禁止落盘
-node scripts/vercel-api-deploy.mjs    # 生产发布（唯一通道）
+node scripts/vercel-api-deploy.mjs    # 生产发布（唯一通道，内置 i18n 门禁）
 cd ../..
-node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过率）
+node scripts/automated-smoke-test.mjs # 生产冒烟审计（端点 5 项 + i18n 完整性，只读）
 ```
 
 ## 6. 活跃运行日志（Active Runtime Log）
@@ -87,10 +105,15 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 - 2026-09-13 —— 冒烟套件修复：`scripts/automated-smoke-test.mjs` 不再复用固定 `sessionId: "smoke-audit"`，改为每次运行生成 `smoke-audit-<Date.now()>`（可用 `SMOKE_SESSION_ID` 固定以便复现），两个 POST 探针共用同一运行 ID。根因：`recognize` 与 `chat` 都按 `resolveGateKey(sessionId, ip)` 计免费额度（`HEALTH_LIMITS.foodScans` / 语音轮次），固定 ID 会让复跑打到配额上限并返回 402 `PAYWALL_REACHED`，污染通过率。
 - 2026-09-13 —— 修复后连续 4 次冒烟（base `https://008ai.online`）：**未再出现任何 402**；结果为 4/5、4/5、3/5、4/5（80.0% / 80.0% / 60.0% / 80.0%），可达率均 5/5。唯一波动项是 `chat` 的 502 `UPSTREAM_ERROR`（Gemini 上游间歇性 503），属真实上游故障而非套件副作用；`recognize` 稳定 502（CalorieAI 侧不可用）。
 
+- 2026-09-13 —— **冒烟套件升级为 i18n 完整性套件**：新增静态检查器 `products/008ai-landing/scripts/check-i18n-integrity.mjs`（字典 en/zh 对齐、`MUST_TRANSLATE` 语义校验、UI 源码 CJK 硬编码扫描、关键 UI 块字典引用校验、页面元数据扫描）；`scripts/automated-smoke-test.mjs` 追加动态断言 —— 以 `cookie: NEXT_LOCALE=en` 取回 `/`、`/savage-cal`、`/savage-fit` 的 SSR HTML，解析 `<title>` 与可见正文，命中 `\u4e00-\u9fa5` 即报 `ERR_I18N_LEAK: Chinese characters found in EN locale view`。汇总行同步扩展为 `endpoints X/5 | i18n clean|N violation(s)`（详见 2.1）。
+- 2026-09-13 —— **门禁接线**：`npm run check:i18n`、`npm run verify`（`npx tsc --noEmit && npm run check:i18n`）作为本地构建门禁，`npm run build` 前置 i18n 检查，`scripts/vercel-api-deploy.mjs` 在阶段 3 与阶段 4 之间执行 `runI18nGate()`（静态检查非 0 即中止发布，不上传源码）。
+- 2026-09-13 —— **先红后绿（守卫有效性实证）**：修复前的旧构建上实测 `endpoints 4/5 | i18n 2 violation(s)`，断言精确定位 `/savage-cal`（title：`Savage Cal AI 毒舌卡路里闺蜜 - 毒舌卡路里审计 | 008AI`）与 `/savage-fit`（title + 正文：`Savage Fit AI 毒舌健美闺蜜 …` / `让毒舌卡路里闺蜜审你`）；修复并发布后复跑为 `endpoints 4/5 | i18n clean`（三页 PASS + 静态 PASS），证明断言能真实捕获回归而非空转。
+- 2026-09-13 —— **EN 界面中文泄漏修复 + 生产发布**：泄漏点包括两个 app 的 `<title>`/description/keywords/OG/Twitter 元数据、`BalanceMathCard` 差额卡（`Balance 摄入/消耗差额`）、`PrivateRoastSettingsModal` 强度档位（`1 · 傲娇微毒` / `5 · Max 级暴击`）；修复方式为把文案全部收敛进 `src/i18n/locales/{en,zh}.json`（94 键）并清理 `APP_NAME_ZH`/`BRAND_TAGLINE`/`ATONEMENT_CTA_LABEL` 等硬编码常量残留。发布结果：`dpl_HSArzzDXcHQuAewGS9MMTfnHiqMo`，`READY`，源站 `https://008ai-landing-jcytxrxdh-git008.vercel.app`，`008ai.online` / `www.008ai.online` 别名已重绑；发布脚本 83 个源码文件上传、i18n 门禁通过。发布后审计 **4/5 = 80.0%**（可达 5/5）：三个页面均 200、`chat` 200 通过、`recognize` 仍为上游 502（CalorieAI 侧不可用）。
+
 ## 7. AI 工厂 008 系统审计报告
 
 > 审计时间：2026-09-13 ｜ 审计工具：`scripts/automated-smoke-test.mjs`（本次新建，只读）｜ 目标：`https://008ai.online`
-> 基线锚定部署：`dpl_aDT58NWLAAxGsyk5FMeShoeQ6h8q`（源站 `008ai-landing-8i0yb844e-git008.vercel.app`）；部署后复测锚定 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`（源站 `008ai-landing-4j3yeag9n-git008.vercel.app`）；最新锚定 `dpl_HLNZ2FcVmH7voSddy2NB75su7Gve`（源站 `008ai-landing-gftf2s7q9-git008.vercel.app`）
+> 基线锚定部署：`dpl_aDT58NWLAAxGsyk5FMeShoeQ6h8q`（源站 `008ai-landing-8i0yb844e-git008.vercel.app`）；部署后复测锚定 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`（源站 `008ai-landing-4j3yeag9n-git008.vercel.app`）；i18n 首次上线锚定 `dpl_HLNZ2FcVmH7voSddy2NB75su7Gve`（源站 `008ai-landing-gftf2s7q9-git008.vercel.app`）；**i18n 泄漏修复与断言上线锚定 `dpl_HSArzzDXcHQuAewGS9MMTfnHiqMo`（源站 `008ai-landing-jcytxrxdh-git008.vercel.app`）**
 
 ### 7.1 端点状态（Endpoint Status）
 
@@ -105,6 +128,7 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 - 通过率（动态 sessionId 修复后）：连续 4 次运行 **4/5、4/5、3/5、4/5**（80.0% / 80.0% / 60.0% / 80.0%），可达率均 **5/5**；**402 `PAYWALL_REACHED` 已彻底消失**，波动仅来自 `chat` 的真实上游 502。历史：修复前定稿复跑曾因固定 sessionId 掉到 3/5 并出现 402。
 - 目标达成情况：`recognize` **已脱离 503**（配置缺口闭合），但因 CalorieAI 自身上游不可用而落在 502，非可用响应（7.3）；`chat` 余下的 FAIL 为 Gemini 上游间歇性 503 映射的 502，非套件缺陷。
 - 应用层 `code` 仅在直连源站时可见（Cloudflare 会把 502 替换为边缘错误页）；三个 base 的解释力不同，故一并记录。
+- i18n 完整性（2026-09-13 新增，独立于上表 5 项端点检查）：静态断言 PASS（94 键 / 35 个 UI 文件 / 94 处引用），动态断言 3/3 PASS —— `dpl_HSArzzDXcHQuAewGS9MMTfnHiqMo` 之后，`/`、`/savage-cal`、`/savage-fit` 在 `NEXT_LOCALE=en` 下的 title 与正文均无 CJK；同一断言在该部署之前实测 2 处泄漏（两个 app 的 `<title>`），已修复清零。
 
 ### 7.2 密钥健康（Key Health）
 
@@ -148,5 +172,6 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
   1. 修复 CalorieAI 自身上游（`calorie-ai-seven.vercel.app` 现返回 502 `AI_SERVICE_UNAVAILABLE`）—— 这是 recognize 目前唯一的剩余阻塞。
   2. `/api/savage-fit/chat` 继续观察 Gemini 上游波动；若持续 503，考虑切换模型或增加备用供应商。
   3. ~~修正 `scripts/automated-smoke-test.mjs` 复用固定 `sessionId`~~ → **已完成（2026-09-13）**：改为每次运行生成 `smoke-audit-<Date.now()>`，复跑不再命中 402。
-  4. 补齐 `TTS_SUBSCRIPTION_KEY` / `TTS_REGION` 以恢复语音能力。
-  5. `VERCEL_TOKEN` 已恢复且发布通道可用；轮换后须重新注入（仅环境变量，禁止落盘）。
+  4. ~~为 UI 增加语言完整性回归守卫~~ → **已完成（2026-09-13）**：静态检查器 `check-i18n-integrity.mjs` + 动态 SSR 断言（`ERR_I18N_LEAK`）已接入本地构建门禁与发布门禁，构成自动化语言完整性/泄漏检测；EN 界面残留中文已修复并随 `dpl_HSArzzDXcHQuAewGS9MMTfnHiqMo` 上线。
+  5. 补齐 `TTS_SUBSCRIPTION_KEY` / `TTS_REGION` 以恢复语音能力。
+  6. `VERCEL_TOKEN` 已恢复且发布通道可用；轮换后须重新注入（仅环境变量，禁止落盘）。

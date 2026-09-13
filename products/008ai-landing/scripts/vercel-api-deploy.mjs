@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 
 const TOKEN = process.env.VERCEL_TOKEN || "";
 const TEAM_ID = process.env.VERCEL_TEAM_ID || "team_yziFzTtkDBBAkujUR0JQOpRk";
@@ -144,6 +145,23 @@ async function assignAliases(deployment) {
   }
 }
 
+/**
+ * Pre-deployment gate. A hardcoded or drifted i18n string only reveals itself
+ * after a locale switch in the browser, so it must never reach production: run
+ * the project's static checker and abort the release on any ERR_I18N_*.
+ */
+function runI18nGate() {
+  const result = spawnSync(process.execPath, ["scripts/check-i18n-integrity.mjs"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    console.error((result.stdout || "").trim() || (result.stderr || "").trim());
+    throw new Error("i18n 完整性门禁未通过（ERR_I18N_*）；发布已中止，请修复后重试");
+  }
+  console.log("  ✅ i18n 完整性通过：字典一致，EN 界面无硬编码 CJK");
+}
+
 async function main() {
   if (!TOKEN) throw new Error("缺少 VERCEL_TOKEN");
   console.log("▶ 阶段 1/4：创建 / 关联项目");
@@ -154,6 +172,9 @@ async function main() {
 
   console.log("▶ 阶段 3/4：设置构建参数");
   await setProjectSettings();
+
+  console.log("▶ 门禁：i18n 完整性（ERR_I18N_*）");
+  runI18nGate();
 
   console.log("▶ 阶段 4/4：上传源码并触发生产构建");
   const PREFIX = "products/008ai-landing";

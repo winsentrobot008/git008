@@ -28,7 +28,6 @@ import { trackSavageEvent } from "@/lib/shared/analytics";
 import { buildRoastBriefing, setPendingBriefing } from "@/lib/shared/health-bus";
 import { useHealthBus, useHealthGate } from "@/lib/shared/health-hooks";
 import {
-  ATONEMENT_CTA_LABEL,
   buildAtonementHref,
   REFERRAL_SOURCE,
 } from "@/lib/shared/referral";
@@ -442,7 +441,7 @@ export default function SavageCalApp() {
             onClick={handleAtonementClick}
             className="mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-rose-500 px-4 py-2 text-center text-[13px] font-extrabold leading-snug text-white shadow-lg shadow-rose-500/25 transition hover:brightness-105"
           >
-            {ATONEMENT_CTA_LABEL}
+            {t("cal.atonementCta")}
           </a>
         ) : null}
 

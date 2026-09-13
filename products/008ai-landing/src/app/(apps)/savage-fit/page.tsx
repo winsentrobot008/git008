@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import SavageFitApp from "@/components/savage-fit/SavageFitApp";
-import { APP_NAME, APP_NAME_ZH, BRAND_TAGLINE } from "@/lib/savage-fit/config";
+import { APP_NAME, BRAND_TAGLINE } from "@/lib/savage-fit/config";
 
 /**
  * /savage-fit - Savage Fit AI, App 2 of the Savage Bestie Health Series.
@@ -12,21 +12,20 @@ import { APP_NAME, APP_NAME_ZH, BRAND_TAGLINE } from "@/lib/savage-fit/config";
  */
 
 export const metadata: Metadata = {
-  title: `${APP_NAME} ${APP_NAME_ZH} - 毒舌健身闺蜜语音教练 | 008AI`,
+  title: `${APP_NAME} - Hands-free Voice Workout Coach | 008AI`,
   description:
-    "毒舌健美闺蜜 AI 语音教练：选闺蜜人格、开口说话，把偷吃的账当场练回来，并导出 9:16 竖屏短片。3 轮免费语音，之后解锁 008ai.online Pass。",
+    "Savage Fit AI voice coach: pick a bestie persona, talk out loud, burn off what you ate on the spot, and export a 9:16 clip. 3 free voice turns, then the 008ai.online Pass.",
   metadataBase: new URL("https://008ai.online"),
   keywords: [
     "Savage Fit AI",
-    "毒舌健美闺蜜",
-    "AI 健身教练",
-    "语音健身教练",
+    "AI workout coach",
+    "voice fitness coach",
     "hands-free workout coach",
     "008AI",
   ],
   alternates: { canonical: "/savage-fit" },
   openGraph: {
-    title: `${APP_NAME} ${APP_NAME_ZH}`,
+    title: APP_NAME,
     description: BRAND_TAGLINE,
     url: "https://008ai.online/savage-fit",
     siteName: "008AI",
@@ -34,8 +33,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `${APP_NAME} ${APP_NAME_ZH}`,
-    description: "毒舌健美闺蜜，3 种人格，9:16 短片导出。008ai.online",
+    title: APP_NAME,
+    description: "Bestie personas, hands-free coaching, 9:16 clip export. 008ai.online",
   },
 };
 

@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "build": "npm run check:i18n && next build",
+    "start": "next start",
+    "check:i18n": "node scripts/check-i18n-integrity.mjs",
+    "verify": "npx tsc --noEmit && npm run check:i18n"
   },
   "dependencies": {
     "lucide-react": "^1.26.0",
