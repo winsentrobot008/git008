@@ -8,9 +8,9 @@
 - Savage Bestie MVP 代码已合入 `main`：commit `4319a30`（feat(savage-bestie): complete dual-app MVP with private roast engine, balance math, and hermetic fonts，2026-09-13）。
 - 当前 `main` HEAD：`72d54e0`（feat(i18n): add auto-detect language context and header language switcher）。
 - 生产域名：`https://008ai.online`（同源别名 `www.008ai.online`）。
-- 最近一次生产部署：`dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`，状态 `READY`，别名已重绑（部署地址 `https://008ai-landing-4j3yeag9n-git008.vercel.app`，2026-09-13）。
-- 本次发布尝试（2026-09-13）**未产生新部署**：`VERCEL_TOKEN` 未被有效注入，发布在鉴权阶段即终止，故线上版本仍为 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`（证据见第 3、6 节）。
-- i18n 语言系统（commit `72d54e0`：auto-detect language context + header language switcher）**已合入 `main` 但尚未上线**：其生效依赖本节的发布通道，而该通道仍被无效的 `VERCEL_TOKEN` 阻塞；线上运行的是 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY` 对应的构建，早于 `72d54e0`。
+- 最近一次生产部署：`dpl_HLNZ2FcVmH7voSddy2NB75su7Gve`，状态 `READY`，`008ai.online` 与 `www.008ai.online` 别名已重绑（部署地址 `https://008ai-landing-gftf2s7q9-git008.vercel.app`，2026-09-13）。
+- 该次发布已包含 i18n 语言系统（commit `72d54e0`：auto-detect language context + header language switcher），**i18n 已正式上线**：`https://008ai.online/` 的 SSR HTML 含 `aria-label`，其值为 `Switch language`（来源 `src/components/LanguageSwitcher.tsx:81`），且与源站输出一致，证明别名已切到含 i18n 的新构建。
+- 该次发布同时写入 `CALORIE_AI_API_URL`（生产环境变量 10 → 11 个），**校准了 CalorieAI 桥接**：`/api/savage-cal/recognize` 的应用层响应由 `503 RECOGNITION_NOT_CONFIGURED` 变为 `502 UPSTREAM_ERROR`（配置缺口已闭合，剩余为上游不可用，详见 7.3）。
 - Vercel 项目：`008ai-landing`，framework `nextjs`，rootDirectory `products/008ai-landing`，team `team_yziFzTtkDBBAkujUR0JQOpRk`。
 
 ## 2. 冒烟基线（Smoke Baseline）
@@ -19,8 +19,8 @@
 | --- | --- | --- |
 | `HEAD /savage-cal` | 200 | 200 通过 |
 | `HEAD /savage-fit` | 200 | 200 通过 |
-| `POST /api/savage-fit/chat` | 400/503（非 404） | 502 复现（Cloudflare 边缘体，上游再次不可用） |
-| `POST /api/savage-cal/recognize` | 200/400/503 | 503 仍为未接线（`CALORIE_AI_API_URL` 缺失） |
+| `POST /api/savage-fit/chat` | 200/400/503（非 404） | 部署后首次复测 200 通过；随后同 sessionId 复测转为 402 `PAYWALL_REACHED`（免费额度耗尽，见 6、7.1） |
+| `POST /api/savage-cal/recognize` | 200/400/503 | 502 `UPSTREAM_ERROR`（已接线，转发后带回上游 CalorieAI 的 502） |
 
 - 应用自带 WAF（`checkUserAgent`）会拒绝 curl 默认 UA 并返回 403 BLOCKED_BY_WAF，冒烟须携带浏览器 UA。
 
@@ -31,8 +31,8 @@
 - 阻塞变化：`/api/savage-fit/chat` 的上游 Gemini 已恢复，部署后复测为 200（详见 7.4）；当前唯一未打通的 AI 接口是 `/api/savage-cal/recognize`，卡在 `CALORIE_AI_API_URL` 未配置。
 - 构建/超时修复已提交：`products/008ai-landing/vercel.json` 与三个路由文件（`savage-fit/chat`、`savage-fit/tts`、`savage-cal/recognize`）的 `maxDuration` 声明已随 commit `511c903` 合入 `main`；`vercel.json` 的 `functions` 块已移除，超时预算改由路由级 `export const maxDuration` 声明。
 - 工作区状态：已无待提交的构建修复；仅剩 `coding-tools-mcp`、`products/Confession`、`products/fireworkbloom` 三个子模块指针变更（属有意保留，不提交）。
-- **发布通道当前不可用（2026-09-13 实测）**：`VERCEL_TOKEN` 的用户级环境变量为 16 字符中文占位符，**不是有效密钥**，且未继承进进程环境（`Process` 作用域长度 0）。证据：`GET https://api.vercel.com/v2/user` 返回 `403`；`node scripts/vercel-api-deploy.mjs` 在构造 `Authorization` 头时即抛错退出（阶段 1/4，未触及文件上传与构建）。
-- 影响：在 `VERCEL_TOKEN` 修复前，「向生产写入 `CALORIE_AI_API_URL`」与「重新发布使环境变量生效」两步均无法执行，`/api/savage-cal/recognize` 只能维持 503 契约值。
+- **发布通道已于 2026-09-13 解除阻塞**：注入有效 `VERCEL_TOKEN`（对应 Vercel 用户 `winsentrobot`）后核对通过（`GET /v2/user` → 200），发布脚本一次走完 4 个阶段（82 个源文件全部上传成功）。此前的连续失败根因是用户级变量为 16 字符中文占位符，现已纠正；密钥值仍仅以环境变量注入，不落盘、不登记。
+- 残留风险：发布仍是人工单点；用户级变量与当前进程环境可能不同步（进程须重新继承才能直接读到该键），轮换后须重新注入。
 
 ## 4. 子项目地图（Subproject Map）
 
@@ -72,10 +72,22 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 
 - 2026-09-13 —— 发布复核（i18n + CalorieAI 桥接）：环境与上一轮完全一致 —— `VERCEL_TOKEN` 仍未进入进程环境（`Process` 作用域长度 0，`Get-ChildItem Env:` 中无该键），用户级值仍是同一个中文字面占位符（字符编码与上一轮逐字相同）；发布脚本仍在阶段 1/4 以同一 ByteString 错误退出，故**未产生新部署 ID**。`npx tsc --noEmit` 通过（exit 0）。冒烟复测 **4/5 = 80.0%**（recognize 503 `RECOGNITION_NOT_CONFIGURED`、chat 502），CalorieAI 上游复测仍为 502 `AI_SERVICE_UNAVAILABLE`；三项交付（写入 `CALORIE_AI_API_URL`、生产部署、桥接转 active）**均未推进**。
 
+- 2026-09-13 —— 第四次发布（Final：i18n + CalorieAI 桥接）**成功**，逐项证据如下：
+  - 凭据：`GET https://api.vercel.com/v2/user` → `200`，用户 `winsentrobot`（id `yHuW2Cx5yLO8nhATswnDOlgY`）；团队 `team_yziFzTtkDBBAkujUR0JQOpRk`、项目 `008ai-landing`（`prj_w2mXmODnvOhIvfXBOdk7tkjSJzyM`，framework `nextjs`）可达。
+  - 环境变量：向生产写入 `CALORIE_AI_API_URL=https://calorie-ai-seven.vercel.app/api/v1/meals/analyze-image`（env id `rxAdNwGnHZis9Rhd`，target=production，type=plain）；生产键数 10 → 11。
+  - 部署：`dpl_HLNZ2FcVmH7voSddy2NB75su7Gve`，`readyState=READY`，`target=production`，源站 `https://008ai-landing-gftf2s7q9-git008.vercel.app`；部署对象的 `alias` 字段含 `008ai.online`、`www.008ai.online`（别名重绑完成）。
+  - 构建门禁：部署前后各执行一次 `npx tsc --noEmit`，均通过（exit 0）。
+  - i18n 上线验证：别名与源站的 `/` 均返回 200，SSR HTML 含 `Switch language` 标记（`x-vercel-cache: HIT`），两处一致。
+- 2026-09-13 —— 部署后冒烟（首次，base `https://008ai.online`）：**4/5 = 80.0%**，可达率 5/5；`/`、`/savage-cal`、`/savage-fit` 均 200；`/api/savage-fit/chat` **200 通过**（上游恢复）；`/api/savage-cal/recognize` 由 503 变为 **502**，即配置缺口已闭合。
+- 2026-09-13 —— 同轮直连源站冒烟（base 源站）：**3/5 = 60.0%**，应用层 `code` 得以显形 —— `recognize` → `502 UPSTREAM_ERROR: Recognition backend error 502`（桥接已真实转发，CalorieAI 侧 502）；`chat` → `502 UPSTREAM_ERROR: Model error 503`。
+- 2026-09-13 —— `chat` 稳定性刻画（源站与别名各 3 次、间隔 1.5s、固定 sessionId `smoke-audit`）：源站 `502 / 200 / 502`；别名 `200 / 200 / 402 PAYWALL_REACHED`。结论：Gemini 上游仍**间歇性** UNAVAILABLE（非代码缺陷）；`402` 则是**冒烟自身的副作用** —— 套件固定复用 sessionId `smoke-audit`，反复调用耗尽了「免费 3 轮」配额。
+- 2026-09-13 —— 部署后冒烟（复跑一次用于定稿）：**3/5 = 60.0%**，可达率 5/5；`/api/savage-fit/chat` 因上述配额耗尽返回 **402 `PAYWALL_REACHED`**（提示 Free sessions include 3 voice turns），`/api/savage-cal/recognize` 维持 502。**评定口径**：本轮唯一真实回归项是 recognize 的上游 502（CalorieAI 侧）；chat 的 402 属冒烟重复调用所致，非生产缺陷，首次复测为 200。
+- 发布判定（按 `products/008ai-landing/.clinerules`）：脚本输出 `✅ 生产部署完成`、状态 `READY`、别名已重绑 → **本次发布判定为成功**。
+
 ## 7. AI 工厂 008 系统审计报告
 
 > 审计时间：2026-09-13 ｜ 审计工具：`scripts/automated-smoke-test.mjs`（本次新建，只读）｜ 目标：`https://008ai.online`
-> 基线锚定部署：`dpl_aDT58NWLAAxGsyk5FMeShoeQ6h8q`（源站 `008ai-landing-8i0yb844e-git008.vercel.app`）；部署后复测锚定 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`（源站 `008ai-landing-4j3yeag9n-git008.vercel.app`）
+> 基线锚定部署：`dpl_aDT58NWLAAxGsyk5FMeShoeQ6h8q`（源站 `008ai-landing-8i0yb844e-git008.vercel.app`）；部署后复测锚定 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY`（源站 `008ai-landing-4j3yeag9n-git008.vercel.app`）；最新锚定 `dpl_HLNZ2FcVmH7voSddy2NB75su7Gve`（源站 `008ai-landing-gftf2s7q9-git008.vercel.app`）
 
 ### 7.1 端点状态（Endpoint Status）
 
@@ -84,28 +96,28 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 | 1 | `/` | GET | 200 | — | 200 | 通过 |
 | 2 | `/savage-cal` | GET | 200 | — | 200 | 通过 |
 | 3 | `/savage-fit` | GET | 200 | — | 200 | 通过 |
-| 4 | `/api/savage-cal/recognize` | POST | 503 | `RECOGNITION_NOT_CONFIGURED` | 200/400/503 | 契约通过，仍为未接线 |
-| 5 | `/api/savage-fit/chat` | POST | 502 | （经 Cloudflare 网关替换，直连源站可见 `UPSTREAM_ERROR`） | 200/400/503 | **不通过（上游再次不可用）** |
+| 4 | `/api/savage-cal/recognize` | POST | 502 | `UPSTREAM_ERROR`（源站直读） | 200/400/503 | **不通过（接线已完成，上游不可用）** |
+| 5 | `/api/savage-fit/chat` | POST | 402 | `PAYWALL_REACHED`（首次复测为 200） | 200/400/503 | 首次通过；复跑受冒烟配额影响 |
 
-- 通过率 **4/5 = 80.0%**（2026-09-13 本次发布尝试前后复测）；可达率 **5/5**（无 404，全部路由存在）。上一轮（`dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY` 部署后）为 5/5 = 100.0%，本次回退由 `/api/savage-fit/chat` 引起。
-- 注意：本套件把 recognize 的 503 计入「契约通过」，故 80% 会掩盖该接口的实际缺口。本次任务目标中「recognize 不再返回 503」**未达成** —— 它取决于 `CALORIE_AI_API_URL` 是否配置，而非代码修复；而该配置的写入又依赖有效的 `VERCEL_TOKEN`。
-- 直连源站复测结果一致；`/api/savage-fit/chat` 的应用层 code 仅在直连源站时可见，经 Cloudflare 的 502 响应体会被网关错误页替换。
+- 通过率：部署后首次 **4/5 = 80.0%**（`chat` 200）；定稿复跑 **3/5 = 60.0%**（`chat` 402 `PAYWALL_REACHED`、`recognize` 502）；可达率两次均 **5/5**（无 404，全部路由存在）。历史：`dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY` 部署后为 5/5 = 100.0%。
+- 目标达成情况：`recognize` **已脱离 503**（配置缺口闭合），但因 CalorieAI 自身上游不可用而落在 502，非可用响应（7.3）；`chat` 首次复测 200，其后因冒烟固定 sessionId 的免费额度耗尽变为 402，属**套件副作用**而非生产回归。
+- 应用层 `code` 仅在直连源站时可见（Cloudflare 会把 502 替换为边缘错误页）；三个 base 的解释力不同，故一并记录。
 
 ### 7.2 密钥健康（Key Health）
 
 | 键 | 生产环境 | 影响 |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | 已配置 | 存在但上游返回 503（见 7.4） |
-| `VERCEL_TOKEN` | **无效（中文字面占位符）** | 发布通道在鉴权处失败：无法写入 `CALORIE_AI_API_URL`，也无法重新部署 |
-| `CALORIE_AI_API_URL` | 缺失（本次未能写入生产） | `/api/savage-cal/recognize` 短路返回 503 |
+| `GEMINI_API_KEY` | 已配置 | 存在，但上游间歇性 503（见 7.4） |
+| `VERCEL_TOKEN` | **已修复（有效）** | 2026-09-13 注入有效密钥后发布通道恢复；值不落盘、不登记 |
+| `CALORIE_AI_API_URL` | **已配置**（2026-09-13 写入生产，env id `rxAdNwGnHZis9Rhd`） | recognize 不再短路 503，转发上游后返回其 502 |
 | `TTS_SUBSCRIPTION_KEY` / `TTS_REGION` | 缺失 | `/api/savage-fit/tts` 返回 503 TTS_UNAVAILABLE |
 | `STRIPE_SECRET_KEY`、`PAYPAL_*`、`ADMIN_KEY`、`REDIS_URL`、`DEEPSEEK_API_KEY`、`OPENROUTER_API_KEY` | 已配置 | 正常 |
 
-- 生产环境变量共 10 个；`NEXT_PUBLIC_SITE_URL` 未显式配置（代码回退 `https://008ai.online`，无影响）。
+- 生产环境变量共 **11** 个（2026-09-13 新增 `CALORIE_AI_API_URL`）。键名：`ADMIN_KEY`、`CALORIE_AI_API_URL`、`DEEPSEEK_API_KEY`、`GEMINI_API_KEY`、`NEXT_PUBLIC_PAYPAL_CLIENT_ID`、`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`、`OPENROUTER_API_KEY`、`PAYPAL_API_URL`、`PAYPAL_CLIENT_SECRET`、`REDIS_URL`、`STRIPE_SECRET_KEY`。`NEXT_PUBLIC_SITE_URL` 未显式配置（代码回退 `https://008ai.online`，无影响）。
 
 ### 7.3 食物识别接线缺口（CALORIE_AI_API_URL）
 
-- 现状：该键在生产环境**仍然缺失**，`savage-cal/recognize/route.ts:132-142` 会在任何上游调用之前直接返回 503。部署 `dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY` 已包含 `ed68ec7` 的 multipart 修复，但部署后复测仍为 503 `RECOGNITION_NOT_CONFIGURED`，实证了「只修协议不足以清除该报错」。
+- 现状（2026-09-13 更新）：该键**已写入生产并随 `dpl_HLNZ2FcVmH7voSddy2NB75su7Gve` 生效**，`savage-cal/recognize/route.ts:132-142` 的配置短路不再触发；接口现返回 **502 `UPSTREAM_ERROR: Recognition backend error 502`**，即请求已真实转发到 CalorieAI 并带回其上游错误。历史：`dpl_83bGjuvgvEa1j74gXU7mo3tgSRFY` 已含 `ed68ec7` 的 multipart 修复，但因该键缺失仍为 503 `RECOGNITION_NOT_CONFIGURED`，实证了「只修协议不足以清除该报错」。
 - 目标后端已存在且在线：Vercel 项目 `calorie-ai`，域名 `calorie-ai-seven.vercel.app`，路径 `/api/v1/meals/analyze-image`（实测 `x-matched-path` 命中，非 404）。
 - 建议接线值：`CALORIE_AI_API_URL=https://calorie-ai-seven.vercel.app/api/v1/meals/analyze-image`。
 - **协议不匹配 —— 已修复（commit `ed68ec7`）**：原实现以 `application/json` 发送 `{ image, mime_type, meal_type }`，而 CalorieAI 只读取 `await request.formData()`，JSON 请求体被判为缺少文件并返回 400 `请上传图片文件`，桥接再将其放大为 `502 UPSTREAM_ERROR`。
@@ -113,7 +125,7 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
   - 实测对照（直连 `calorie-ai-seven.vercel.app`）：新形态 multipart + data URI 被正常解析并进入 AI 调用，返回 502 `AI_SERVICE_UNAVAILABLE`（该后端自身上游不可用）；旧形态 `application/json` 返回 400 `请上传图片文件`。
   - 响应侧兼容：CalorieAI 返回 `records[]`，桥接 `normalizeItems` 已兼容 `items/records/foods`，无需改动。
 - 剩余阻塞（接线前须一并评估）：
-  1. `CALORIE_AI_API_URL` 未配置 → 即使协议已修好，接口仍会在配置检查处短路为 503。
+  1. ~~`CALORIE_AI_API_URL` 未配置~~ → **已解除（2026-09-13 写入生产）**，接口不再在配置检查处短路为 503。
   2. CalorieAI 自身上游仍不可用：部署后复测仍返回 502 `AI_SERVICE_UNAVAILABLE`；**2026-09-13 本次复测再次确认**（浏览器 UA + multipart tiny-PNG 探针，`x-matched-path: /api/v1/meals/analyze-image` 命中，响应体 `code=AI_SERVICE_UNAVAILABLE`，error=`AI 服务暂时不可用，请稍后再试`）。因此即使修好密钥并立刻接线，recognize 也只会从 503 变为 502，**不会**得到任务所期望的「active upstream response」。
   3. CalorieAI 对 inline base64 有 ≤200KB 上限（请求体上限 4MB），桥接允许的 4MB 图片可能在对方侧被判 `IMAGE_TOO_LARGE`。
   4. CalorieAI 自带反爬虫 `checkAntiCrawler` 会拦截空 UA 与 bot/CLI UA（`node-fetch`、`axios`、`curl` 等），接线后须确认服务端 fetch 的 UA 未被拦截。
@@ -123,15 +135,15 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（只读，含通过�
 - 现象：路由可达（`x-matched-path` 命中，非 404），上游返回 503，应用在 `chat/route.ts:343-348` 映射为 `502 UPSTREAM_ERROR: Model error 503`。该路由无备用供应商，直接调用 Gemini（默认 `gemini-3.7-flash`）。
 - 对照实验：向 `generativelanguage.googleapis.com` 发送无效密钥，返回 `400 API_KEY_INVALID`。即鉴权类失败为 400、配额类失败为 429，而实测为 503。
 - 结论：证据**不支持**「key/quota 失效」的判断；503 指向 Gemini 侧 UNAVAILABLE（服务过载/不可用），属临时性供应商故障。
-- 最新状态（2026-09-13 部署后复测）：`/api/savage-fit/chat` 已返回 **200**，上游自行恢复，无需改动代码；若后续再现 502，先按临时性供应商故障处理并复测。
+- 最新状态（2026-09-13 部署后复测）：`/api/savage-fit/chat` 首次复测 **200**；同轮源站直连与后续复跑交替出现 `502 UPSTREAM_ERROR: Model error 503`，并在免费额度耗尽后返回 `402 PAYWALL_REACHED`。可判定 Gemini 侧仍**间歇性** UNAVAILABLE，属供应商波动，无需改动代码。
 - 取证据路径：路由会在服务端打印 `[savage-fit] upstream 503: <body>`，需在 Vercel 控制台运行时日志或日志 Drain 中查看；公开 API 不暴露运行时日志。
 
 ### 7.5 结论与待办
 
-- 结论（2026-09-13 本次复测更新）：站点与三个页面全部 200；`/api/savage-fit/chat` **再次回落到 502**（上游 Gemini 不可用，与 7.4 同因）；`/api/savage-cal/recognize` 仍为 503 `RECOGNITION_NOT_CONFIGURED`，成因是配置缺失（`CALORIE_AI_API_URL`），非路由或构建缺陷。
+- 结论（2026-09-13 定稿）：站点与三个页面全部 200；`/api/savage-cal/recognize` 的**配置缺口已闭合**（`CALORIE_AI_API_URL` 已在生产生效），接口由 503 `RECOGNITION_NOT_CONFIGURED` 前移至 502 `UPSTREAM_ERROR` —— 剩余阻塞完全落在 CalorieAI 自身不可用；`/api/savage-fit/chat` 上游间歇性不可用，且冒烟固定 sessionId 的免费额度已耗尽（402），均非代码缺陷。
 - 待办（按优先级）：
-  1. **注入有效的 `VERCEL_TOKEN`**（当前用户级值为中文占位符，`/v2/user` 返回 403，且未继承进进程环境）—— 这是本次「配置 + 发布 + 接线」全部无法推进的唯一根因，必须最先解除。
-  2. 接线 `CALORIE_AI_API_URL=https://calorie-ai-seven.vercel.app/api/v1/meals/analyze-image`（协议不匹配已随 `ed68ec7` 修复并部署，仅剩环境变量未写入生产）。
-  3. 重新执行 `node scripts/vercel-api-deploy.mjs` 使新环境变量生效，并复测 recognize 是否由 503 转为上游真实响应（注意 7.3 记录的 CalorieAI 自身上游 502 风险）。
-  4. `/api/savage-fit/chat` 本次为 502 `UPSTREAM_ERROR`（经 Cloudflare 边缘体），属 Gemini 上游不可用；继续观察并复测，勿改代码。
-  5. 补齐 `TTS_SUBSCRIPTION_KEY` / `TTS_REGION` 以恢复语音能力。
+  1. 修复 CalorieAI 自身上游（`calorie-ai-seven.vercel.app` 现返回 502 `AI_SERVICE_UNAVAILABLE`）—— 这是 recognize 目前唯一的剩余阻塞。
+  2. `/api/savage-fit/chat` 继续观察 Gemini 上游波动；若持续 503，考虑切换模型或增加备用供应商。
+  3. 修正 `scripts/automated-smoke-test.mjs` 复用固定 `sessionId` 的做法（建议每次随机），避免复跑时命中 402 `PAYWALL_REACHED` 污染通过率。
+  4. 补齐 `TTS_SUBSCRIPTION_KEY` / `TTS_REGION` 以恢复语音能力。
+  5. `VERCEL_TOKEN` 已恢复且发布通道可用；轮换后须重新注入（仅环境变量，禁止落盘）。
