@@ -162,7 +162,62 @@ function runI18nGate() {
   console.log("  ✅ i18n 完整性通过：字典一致，EN 界面无硬编码 CJK");
 }
 
+const PREFIX = "products/008ai-landing";
+
+/**
+ * 部署前置检查（两道）：
+ *  1. 工作目录 —— 脚本以 process.cwd() 作为上传根，再为每个文件拼接
+ *     products/008ai-landing/ 前缀；若在仓库根目录执行，前缀会重复拼错。
+ *  2. VERCEL_TOKEN —— 必须能放进 HTTP 头（ASCII），占位符会让 fetch 抛出
+ *     难懂的 ByteString 错误，这里提前拦下并给出可执行的提示。
+ */
+function preflight() {
+  let pkg = null;
+  try {
+    pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  } catch {}
+  if (!pkg || pkg.name !== "008ai-landing") {
+    throw new Error(
+      `ERR_WRONG_CWD：请在子项目目录内执行 —— cd products/008ai-landing（当前工作目录: ${ROOT}）`
+    );
+  }
+  if (!TOKEN) throw new Error("ERR_TOKEN_MISSING：缺少 VERCEL_TOKEN");
+  const badIndex = Array.from(TOKEN).findIndex((ch) => ch.codePointAt(0) > 255);
+  if (badIndex !== -1) {
+    throw new Error(
+      `ERR_TOKEN_INVALID：VERCEL_TOKEN 第 ${badIndex + 1} 位是非 ASCII 字符，无法用于 Authorization 头（疑似占位符）；请注入真实 Vercel Token`
+    );
+  }
+  if (/\s/.test(TOKEN)) throw new Error("ERR_TOKEN_INVALID：VERCEL_TOKEN 含空白字符");
+  if (TOKEN.length < 20) console.warn("  ⚠️  VERCEL_TOKEN 长度偏短，若鉴权失败请确认是否被截断");
+  console.log(`  📁 上传根目录: ${ROOT}`);
+}
+
+/** 读取上传根目录并生成带 products/008ai-landing/ 前缀的文件清单。 */
+function collectFiles() {
+  return walk(ROOT).map((f) => {
+    let buf = fs.readFileSync(f.abs);
+    if (path.basename(f.rel) === "vercel.json") {
+      try {
+        const cfg = JSON.parse(buf.toString("utf8"));
+        delete cfg.rootDirectory;
+        buf = Buffer.from(JSON.stringify(cfg, null, 2), "utf8");
+      } catch {}
+    }
+    return { ...f, rel: `${PREFIX}/${f.rel}`, sha: sha1(buf), buf };
+  });
+}
+
 async function main() {
+  const dryRun = process.argv.includes("--dry-run");
+  preflight();
+  if (dryRun) {
+    const files = collectFiles();
+    console.log(`  🧪 dry-run：解析到 ${files.length} 个源文件，前缀 ${PREFIX}/`);
+    console.log(`  ℹ️  示例: ${files[0]?.rel ?? "-"}`);
+    console.log("  ✅ dry-run 通过：路径映射就绪，注入真实 VERCEL_TOKEN 即可发布");
+    return;
+  }
   if (!TOKEN) throw new Error("缺少 VERCEL_TOKEN");
   console.log("▶ 阶段 1/4：创建 / 关联项目");
   await ensureProject();
@@ -179,18 +234,7 @@ async function main() {
   console.log("▶ 阶段 4/4：上传源码并触发生产构建");
   const PREFIX = "products/008ai-landing";
   
-  const files = walk(ROOT).map((f) => {
-    let buf = fs.readFileSync(f.abs);
-    if (path.basename(f.rel) === "vercel.json") {
-      try {
-        const cfg = JSON.parse(buf.toString("utf8"));
-        delete cfg.rootDirectory;
-        buf = Buffer.from(JSON.stringify(cfg, null, 2), "utf8");
-      } catch {}
-    }
-    const rel = `${PREFIX}/${f.rel}`;
-    return { ...f, rel, sha: sha1(buf), buf };
-  });
+  const files = collectFiles();
 
   console.log(`  源码文件: ${files.length} 个`);
   await uploadFilesToStore(files);

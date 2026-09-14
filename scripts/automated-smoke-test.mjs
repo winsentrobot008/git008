@@ -196,6 +196,15 @@ async function runI18nChecks() {
       failures.push(message);
       continue;
     }
+    // A non-200 page renders the not-found shell, which is CJK-free by
+    // construction: asserting "no leak" against it would be a false green
+    // (a missing /calaura silently passed the i18n half of this suite).
+    if (result.status !== 200) {
+      const message = "ERR_I18N_UNREACHABLE: " + pagePath + " returned " + result.status + ", so the EN CJK assertion is not meaningful";
+      lines.push("FAIL  " + pagePath.padEnd(14) + message);
+      failures.push(message);
+      continue;
+    }
     const titleLeak = CJK.test(result.title);
     const bodyLeak = CJK.test(result.body);
     if (!titleLeak && !bodyLeak) {
