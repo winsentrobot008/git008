@@ -5,26 +5,26 @@
   },
   "menu": {
     "label": "更多选项",
-    "auraFit": "知己轻体 · 双闺蜜闭环",
+    "calauraFit": "CALauraAI · 双闺蜜闭环",
     "buyPass": "购买终身通行证",
     "login": "登录 / 账户",
     "terms": "服务条款",
     "privacy": "隐私政策"
   },
   "banner": {
-    "mvp": "💗 知己轻体已上线 —— 两位闺蜜，一个温柔闭环"
+    "mvp": "💗 CALauraAI已上线 —— 两位闺蜜，一个温柔闭环"
   },
   "hero": {
     "headline": "一张通行证。解锁全部 AI 应用。",
-    "subhead": "一次买断终身解锁知己轻体、Runify，以及我们后续推出的每一个 AI 工具。"
+    "subhead": "一次买断终身解锁CALauraAI、Runify，以及我们后续推出的每一个 AI 工具。"
   },
   "apps": {
     "live": "已上线",
     "soon": "即将上线",
     "launch": "启动应用",
     "waitlist": "加入候补名单",
-    "auraFitTitle": "知己轻体",
-    "auraFitTagline": "卡路里知己 + 运动知己，一条温柔的闭环",
+    "calauraFitTitle": "CALauraAI",
+    "calauraFitTagline": "一个娃娃形象，两位闺蜜：摄入与消耗同走一条温柔闭环",
     "runifyTitle": "Runify",
     "runifyTagline": "智能路线生成"
   },
@@ -37,7 +37,7 @@
     "earlyBird": "早鸟价",
     "passName": "008ai.online 通行证",
     "priceNote": "一次性买断 · 终身",
-    "unlocks": "解锁知己轻体（轻食闺蜜 + 塑形闺蜜）、Runify 以及完整的 008AI 套件。仅限前 90 个名额。",
+    "unlocks": "解锁CALauraAI（轻食闺蜜 + 塑形闺蜜）、Runify 以及完整的 008AI 套件。仅限前 90 个名额。",
     "checkoutDescription": "008AI 早鸟终身通行证"
   },
   "terms": {
@@ -51,9 +51,9 @@
   "footer": {
     "rights": "© {year} 008AI · 008ai.online · 保留所有权利。· 构建版本 {stamp}"
   },
-  "aura": {
-    "brand": "知己轻体",
-    "brandFull": "知己轻体 · Aura Fit",
+  "calaura": {
+    "brand": "CALauraAI",
+    "brandFull": "CALauraAI · 轻体美学计划",
     "heroLine": "两位闺蜜，一个温柔闭环",
     "heroBody": "记录你享用的一切，再用一小段优雅的运动收束今天。这里只有鼓励，没有警告。",
     "switcherLabel": "选择你的闺蜜",
@@ -82,7 +82,7 @@
     "sculptFootnote": "摄入与运动的温柔可视化 —— 不是分数，更不是警告。仅为估算，不构成医疗建议。"
   },
   "cal": {
-    "series": "知己轻体",
+    "series": "CALauraAI",
     "productName": "轻食闺蜜",
     "tagline": "你好好吃饭，我温柔记账",
     "unlimited": "无限次记录",
@@ -119,10 +119,10 @@
     "statusEmpty": "记录一餐来开始吧 —— 闺蜜是来帮忙的，从不说教。",
     "statusLogged": "{bestie} 已经温柔记下。来看看今天正在如何成形。",
     "statusInvite": "{bestie} 建议在你舒服的时候，加上 {kcal} 千卡的温柔运动。",
-    "disclaimer": "营养估算由 AI 生成，不构成医疗建议。每次会话提供 {free} 次免费记录，之后需 008AI 知己轻体套装。"
+    "disclaimer": "营养估算由 AI 生成，不构成医疗建议。每次会话提供 {free} 次免费记录，之后需 008AI CALauraAI套装。"
   },
   "fit": {
-    "series": "知己轻体",
+    "series": "CALauraAI",
     "productName": "塑形闺蜜",
     "tagline": "优雅塑形，循序渐进的能量闭环",
     "passRequired": "需要通行证",
@@ -160,5 +160,28 @@
     "presetDance": "跳舞",
     "presetStrength": "力量训练",
     "backToCalorie": "和轻食闺蜜一起平衡今天的饮食"
+  }
+,
+  "stage": {
+    "avatarName": "露米",
+    "avatarAlt": "露米，你的 CALauraAI 闺蜜 —— 今天理想线条已完成 {percent}%",
+    "intro": "我在。今天想先记录一餐，还是记录一次运动？",
+    "composerPlaceholder": "告诉我你吃了什么，或者今天怎么动的…",
+    "send": "发送",
+    "micStart": "和露米说话",
+    "micStop": "停止聆听",
+    "photo": "上传照片",
+    "hint": "文字、语音或照片都可以 —— 露米会让摄入与消耗始终同步",
+    "askIntakeKcal": "好棒。大概多少呢？点一张卡片，或者直接输入数字。",
+    "askMovementKcal": "{label} 太棒了。大概消耗多少 kcal？点一张卡片，或者直接输入数字。",
+    "needNumber": "给我一个数字，我马上帮你记上。",
+    "kcalLight": "轻盈",
+    "kcalBalanced": "均衡",
+    "kcalGenerous": "丰盛",
+    "loggedIntake": "已记录 {label}，约 {kcal} kcal。做得很好。",
+    "loggedMovement": "已记录 {label}，约 {kcal} kcal。优雅的一次。",
+    "detailsOpen": "微调今天的计划",
+    "detailsClose": "收起微调面板",
+    "unlocked": "已解锁 —— 我们可以继续一起走。"
   }
 }

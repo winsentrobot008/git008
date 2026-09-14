@@ -26,10 +26,10 @@ import { useLang } from "@/i18n/LanguageProvider";
 const APPS = [
   {
     icon: ScanLine,
-    titleKey: "apps.auraFitTitle",
-    taglineKey: "apps.auraFitTagline",
+    titleKey: "apps.calauraFitTitle",
+    taglineKey: "apps.calauraFitTagline",
     live: true,
-    href: "/aura-fit",
+    href: "/calaura",
     ctaKey: "apps.launch",
   },
   {

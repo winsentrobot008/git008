@@ -47,8 +47,9 @@
 ### products/008ai-landing
 
 - Next.js 16 + Tailwind v4 产品站，生产域名为 `https://008ai.online`。
-- 承载两个子应用：Savage Cal AI（`src/app/(apps)/savage-cal`）与 Savage Fit AI（`src/app/(apps)/savage-fit`）。
-- API 路由位于 `src/app/api/**`（`savage-fit/chat`、`savage-fit/tts`、`savage-cal/recognize`、`paypal/*`、`stripe/*`、`admin/*`）。
+- 承载单一产品 **CALauraAI**（`src/app/(apps)/calaura`）：外层是一个沉浸式 AI 娃娃（Lumi）+ 毛玻璃输入条的极简表面，内里是摄入（Calorie Bestie）与消耗（Fit Bestie）双 AI 交叉闭环。
+- API 路由位于 `src/app/api/**`（`calaura/chat`、`calaura/tts`、`calaura/entitlement`、`calaura/recognize`、`paypal/*`、`stripe/*`、`admin/*`）；`savage-fit/*`、`savage-cal/recognize` 为保留的旧别名 shim（同实现 re-export，不得 404）。
+- 旧页面路由 `/savage-cal`、`/savage-fit` 保留为别名（各预选一半闭环），`/calaura` 为 canonical；全站品牌与文案一律使用 **CALauraAI**。
 - 食物识别桥接子项目 `products/calorieai`；项目级规则见 `products/008ai-landing/.clinerules`。
 
 ## Build Gates
@@ -62,7 +63,7 @@
 - 【唯一发布通道】生产发布必须执行 `node scripts/vercel-api-deploy.mjs`，工作目录固定为 `products/008ai-landing`。
 - 【凭据注入】脚本依赖 `VERCEL_TOKEN` 环境变量注入，严禁写入仓库或提交历史；仓库无 CI（无 `.github/workflows`），发布由人工触发。
 - 【成功判定】部署状态为 `READY` 且 `008ai.online` 别名重新绑定后，方可判定发布成功。
-- 【发布后冒烟】`/savage-cal` 与 `/savage-fit` 返回 200；`/api/savage-fit/chat` 返回应用层错误（400/503）而非 404。
+- 【发布后冒烟】`/calaura`（及别名 `/savage-cal`、`/savage-fit`）返回 200 且 EN 视图无 CJK；`/api/calaura/chat`（及别名 `/api/savage-fit/chat`）返回应用层错误（400/503）而非 404。
 
 ## Required Environment Keys
 

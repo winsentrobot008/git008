@@ -5,7 +5,7 @@
  *
  * Hydration contract: SSR and the first client render both emit DEFAULT_LANG
  * ("en"), and the stored / detected locale is applied in an effect. That is the
- * same pattern use-session-quota and AuraFitApp use, and it is what keeps the
+ * same pattern use-session-quota and CalauraApp use, and it is what keeps the
  * markup byte-identical across the boundary (React #418 protection).
  */
 

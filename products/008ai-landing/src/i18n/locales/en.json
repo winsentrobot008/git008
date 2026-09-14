@@ -5,26 +5,26 @@
   },
   "menu": {
     "label": "More options",
-    "auraFit": "Aura Fit · Dual Bestie Loop",
+    "calauraFit": "CALauraAI · Dual Bestie Loop",
     "buyPass": "Buy the lifetime pass",
     "login": "Log in / Account",
     "terms": "Terms of Service",
     "privacy": "Privacy Policy"
   },
   "banner": {
-    "mvp": "💗 Aura Fit is live — two besties, one gentle loop"
+    "mvp": "💗 CALauraAI is live — two besties, one gentle loop"
   },
   "hero": {
     "headline": "One pass. Every AI app.",
-    "subhead": "One lifetime pass unlocks Aura Fit, Runify, and every AI tool we ship."
+    "subhead": "One lifetime pass unlocks CALauraAI, Runify, and every AI tool we ship."
   },
   "apps": {
     "live": "Live",
     "soon": "Coming Soon",
     "launch": "Launch App",
     "waitlist": "Join Waitlist",
-    "auraFitTitle": "Aura Fit",
-    "auraFitTagline": "Calorie Bestie + Fit Bestie in one gentle loop",
+    "calauraFitTitle": "CALauraAI",
+    "calauraFitTagline": "One avatar, two besties: intake and movement in a single gentle loop",
     "runifyTitle": "Runify",
     "runifyTagline": "Smart Route Generation"
   },
@@ -37,7 +37,7 @@
     "earlyBird": "Early Bird",
     "passName": "008ai.online Pass",
     "priceNote": "one-time · lifetime",
-    "unlocks": "Unlocks Aura Fit (Calorie Bestie + Fit Bestie), Runify, and the full 008AI Suite. Limited to the first 90 slots.",
+    "unlocks": "Unlocks CALauraAI (Calorie Bestie + Fit Bestie), Runify, and the full 008AI Suite. Limited to the first 90 slots.",
     "checkoutDescription": "008AI Early Bird Lifetime Pass"
   },
   "terms": {
@@ -51,9 +51,9 @@
   "footer": {
     "rights": "© {year} 008AI · 008ai.online · All rights reserved. · Build {stamp}"
   },
-  "aura": {
-    "brand": "Aura Fit",
-    "brandFull": "Aura Fit · Radiant You",
+  "calaura": {
+    "brand": "CALauraAI",
+    "brandFull": "CALauraAI · Radiant You",
     "heroLine": "Two besties, one gentle loop",
     "heroBody": "Log what you enjoyed, then let a short, graceful session shape the day. Everything is encouragement — never a warning.",
     "switcherLabel": "Choose your bestie",
@@ -82,7 +82,7 @@
     "sculptFootnote": "A gentle visual of intake versus movement — not a score, and never a warning. Estimates only, not medical advice."
   },
   "cal": {
-    "series": "Aura Fit",
+    "series": "CALauraAI",
     "productName": "Calorie Bestie",
     "tagline": "You enjoyed it, we simply log it",
     "unlimited": "Unlimited logs",
@@ -119,10 +119,10 @@
     "statusEmpty": "Log a meal to begin — your bestie is here to help, never to judge.",
     "statusLogged": "{bestie} logged it beautifully. Here is how the day is shaping up.",
     "statusInvite": "{bestie} invites a gentle {kcal} kcal of movement whenever it feels good.",
-    "disclaimer": "Nutrition estimates are AI generated - not medical advice. {free} free logs per session, then the 008AI Aura Fit Bundle."
+    "disclaimer": "Nutrition estimates are AI generated - not medical advice. {free} free logs per session, then the 008AI CALauraAI Bundle."
   },
   "fit": {
-    "series": "Aura Fit",
+    "series": "CALauraAI",
     "productName": "Fit Bestie",
     "tagline": "Elegant strength, one gentle loop at a time",
     "passRequired": "Pass required",
@@ -160,5 +160,28 @@
     "presetDance": "Dance",
     "presetStrength": "Strength",
     "backToCalorie": "Balance today's meals with Calorie Bestie"
+  }
+,
+  "stage": {
+    "avatarName": "Lumi",
+    "avatarAlt": "Lumi, your CALauraAI bestie - {percent} percent of today's ideal line shaped",
+    "intro": "I am here. Shall we log a meal first, or a movement?",
+    "composerPlaceholder": "Tell me what you ate, or how you moved...",
+    "send": "Send",
+    "micStart": "Talk to Lumi",
+    "micStop": "Stop listening",
+    "photo": "Add a photo",
+    "hint": "Text, voice or a photo - Lumi keeps both halves of the loop in step",
+    "askIntakeKcal": "Lovely. Roughly how much was it? Pick a card, or type the number.",
+    "askMovementKcal": "Beautiful work on {label}. How many kcal did it earn? Pick a card, or type the number.",
+    "needNumber": "Give me a number and I will log it straight away.",
+    "kcalLight": "Light",
+    "kcalBalanced": "Balanced",
+    "kcalGenerous": "Generous",
+    "loggedIntake": "Logged {label} at {kcal} kcal. Beautifully done.",
+    "loggedMovement": "Logged {label} at {kcal} kcal. Elegant work.",
+    "detailsOpen": "Fine-tune today",
+    "detailsClose": "Close the fine-tune panel",
+    "unlocked": "Unlocked - we can keep going together."
   }
 }

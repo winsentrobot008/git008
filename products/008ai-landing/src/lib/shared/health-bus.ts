@@ -1,13 +1,13 @@
 /**
  * health-bus - the unified HealthEvent bus + hard-paywall gate for
- * Aura Fit (知己轻体), the merged 008ai.online wellbeing product.
+ * CALauraAI, the merged 008ai.online wellbeing product.
  *
  * Responsibilities
  *   1. Session/local persistence of HealthEvents (the loop's shared memory).
  *   2. The single client-side owner of the paywall counters: 2 food scans and
  *      3 real-time voice turns, with the lifetime/total-health entitlement.
  *   3. Hydration safety: nothing is read from storage during render - SSR markup
- *      and the first client render always agree (Aura Fit hydration discipline).
+ *      and the first client render always agree (CALauraAI hydration discipline).
  *
  * Shared by both halves of the loop (Calorie Bestie and Fit Bestie): they write
  * into the same key namespace, which is what makes the intake -> movement
@@ -49,7 +49,7 @@ export const HEALTH_LIMITS = {
 } as const;
 
 export const TOTAL_HEALTH_BUNDLE: TotalHealthBundle = {
-  label: "008AI Aura Fit Bundle",
+  label: "008AI CALauraAI Bundle",
   currency: "USD",
   monthly: 19.99,
   annual: 149.99,
@@ -74,7 +74,7 @@ export const TOTAL_HEALTH_BUNDLE: TotalHealthBundle = {
 //     "2 scans / 3 turns per session" keeps meaning a session,
 //   - the entitlement flag is a local cache of a server-verified pass.
 
-export const HEALTH_EVENT_KEY = "aura_fit_health_event";
+export const HEALTH_EVENT_KEY = "calaura_health_event";
 
 /** The unified bus record itself. */
 const EVENTS_KEY = HEALTH_EVENT_KEY;

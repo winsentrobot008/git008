@@ -37,7 +37,7 @@ const TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP_DIR = path.join(REPO_ROOT, "products", "008ai-landing");
 const CJK = /[\u4e00-\u9fa5]/;
-const I18N_PAGES = ["/", "/savage-cal", "/savage-fit"];
+const I18N_PAGES = ["/", "/calaura", "/savage-cal", "/savage-fit"];
 
 // Both POST probes are gated by a per-session free quota, so a fixed session id
 // exhausts it and surfaces a false 402 PAYWALL_REACHED on repeat runs. Mint a
@@ -46,13 +46,14 @@ const SESSION_ID = process.env.SMOKE_SESSION_ID || "smoke-audit-" + Date.now();
 
 const CHECKS = [
   { id: "landing", label: "Landing page", method: "GET", path: "/", expect: [200] },
-  { id: "savage-cal-page", label: "Savage Cal AI page", method: "GET", path: "/savage-cal", expect: [200] },
-  { id: "savage-fit-page", label: "Savage Fit AI page", method: "GET", path: "/savage-fit", expect: [200] },
+  { id: "calaura-page", label: "CALauraAI stage page", method: "GET", path: "/calaura", expect: [200] },
+  { id: "savage-cal-page", label: "Legacy calorie alias page", method: "GET", path: "/savage-cal", expect: [200] },
+  { id: "savage-fit-page", label: "Legacy fit alias page", method: "GET", path: "/savage-fit", expect: [200] },
   {
-    id: "savage-cal-recognize",
-    label: "Savage Cal AI recognize",
+    id: "calaura-recognize",
+    label: "CALauraAI recognize (canonical)",
     method: "POST",
-    path: "/api/savage-cal/recognize",
+    path: "/api/calaura/recognize",
     body: { image: TINY_PNG, mimeType: "image/png", sessionId: SESSION_ID },
     // 503 RECOGNITION_NOT_CONFIGURED is the documented contract while the
     // CalorieAI bridge is unwired; it is flagged separately as a wiring gap.
@@ -60,8 +61,26 @@ const CHECKS = [
     keyDependent: "CALORIE_AI_API_URL",
   },
   {
+    id: "calaura-chat",
+    label: "CALauraAI chat (canonical)",
+    method: "POST",
+    path: "/api/calaura/chat",
+    body: { transcript: "hello coach", personaId: "coach", mode: "reply", sessionId: SESSION_ID },
+    expect: [200, 400, 503],
+    keyDependent: "GEMINI_API_KEY",
+  },
+  {
+    id: "savage-cal-recognize",
+    label: "Legacy calorie alias recognize",
+    method: "POST",
+    path: "/api/savage-cal/recognize",
+    body: { image: TINY_PNG, mimeType: "image/png", sessionId: SESSION_ID },
+    expect: [200, 400, 503],
+    keyDependent: "CALORIE_AI_API_URL",
+  },
+  {
     id: "savage-fit-chat",
-    label: "Savage Fit AI chat",
+    label: "Legacy fit alias chat",
     method: "POST",
     path: "/api/savage-fit/chat",
     body: { transcript: "hello coach", personaId: "coach", mode: "reply", sessionId: SESSION_ID },

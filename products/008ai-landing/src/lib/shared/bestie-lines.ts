@@ -1,5 +1,5 @@
 /**
- * bestie-lines - the warm encouragement bank behind the Aura Fit note cards.
+ * bestie-lines - the warm encouragement bank behind the CALauraAI note cards.
  *
  * One small, operator-run catalogue per moment in the loop. Every line is
  * positive and habit-focused: it lifts the choice, then points at the next

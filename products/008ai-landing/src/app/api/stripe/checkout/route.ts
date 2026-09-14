@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
             currency: "usd",
             product_data: {
               name: "008AI Early Bird Lifetime Pass",
-              description: "Aura Fit (Calorie Bestie + Fit Bestie) + Runify + 008AI Suite - one-time $19.99, lifetime access",
+              description: "CALauraAI (Calorie Bestie + Fit Bestie) + Runify + 008AI Suite - one-time $19.99, lifetime access",
             },
             unit_amount: Math.round(PASS_PRICE_USD * 100),
           },

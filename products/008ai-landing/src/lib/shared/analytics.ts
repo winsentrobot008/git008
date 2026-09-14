@@ -1,47 +1,47 @@
 /**
- * analytics - the dependency-free conversion-funnel tracker for Aura Fit.
+ * analytics - the dependency-free conversion-funnel tracker for CALauraAI.
  *
- * One function, no SDK: `trackAuraEvent` fans every funnel step out to whatever
+ * One function, no SDK: `trackCalauraEvent` fans every funnel step out to whatever
  * the page already loads (a GTM dataLayer, a Meta pixel) and keeps a small
  * in-memory ring buffer for debugging. It never throws and never touches the
  * network on its own, so a build with no analytics keys still ships and a missing
  * tag manager degrades to a no-op.
  *
  * Events cover the whole dual-bestie loop:
- *   intake  -> aura_intake_logged        (Calorie Bestie logs a meal)
- *           -> aura_intake_handoff       (Calorie Bestie -> Fit Bestie)
- *   movement-> aura_movement_logged      (Fit Bestie logs a session)
- *           -> aura_movement_handoff     (Fit Bestie -> Calorie Bestie)
- *   voice   -> aura_fit_turn_completed   (the 3 free turns)
- *           -> aura_fit_paywall_triggered (turn 4, HTTP 402)
- *   clip    -> aura_snippet_exported     (9:16 reel)
+ *   intake  -> calaura_intake_logged        (Calorie Bestie logs a meal)
+ *           -> calaura_intake_handoff       (Calorie Bestie -> Fit Bestie)
+ *   movement-> calaura_movement_logged      (Fit Bestie logs a session)
+ *           -> calaura_movement_handoff     (Fit Bestie -> Calorie Bestie)
+ *   voice   -> calaura_turn_completed   (the 3 free turns)
+ *           -> calaura_paywall_triggered (turn 4, HTTP 402)
+ *   clip    -> calaura_snippet_exported     (9:16 reel)
  *
  * Client-only by design: on the server every call is a no-op, so a component can
  * import the tracker without breaking the static prerender.
  */
 
 /** The funnel steps of the dual-bestie loop. */
-export type AuraEventName =
-  | "aura_intake_logged"
-  | "aura_intake_handoff"
-  | "aura_movement_logged"
-  | "aura_movement_handoff"
-  | "aura_fit_turn_completed"
-  | "aura_fit_paywall_triggered"
-  | "aura_snippet_exported";
+export type CalauraEventName =
+  | "calaura_intake_logged"
+  | "calaura_intake_handoff"
+  | "calaura_movement_logged"
+  | "calaura_movement_handoff"
+  | "calaura_turn_completed"
+  | "calaura_paywall_triggered"
+  | "calaura_snippet_exported";
 
 /** Every registered funnel step, for tests and admin tooling. */
-export const AURA_EVENT_NAMES: readonly AuraEventName[] = [
-  "aura_intake_logged",
-  "aura_intake_handoff",
-  "aura_movement_logged",
-  "aura_movement_handoff",
-  "aura_fit_turn_completed",
-  "aura_fit_paywall_triggered",
-  "aura_snippet_exported",
+export const CALAURA_EVENT_NAMES: readonly CalauraEventName[] = [
+  "calaura_intake_logged",
+  "calaura_intake_handoff",
+  "calaura_movement_logged",
+  "calaura_movement_handoff",
+  "calaura_turn_completed",
+  "calaura_paywall_triggered",
+  "calaura_snippet_exported",
 ];
 
-export interface AuraEvent {
+export interface CalauraEvent {
   name: string;
   payload: Record<string, unknown>;
   /** Epoch ms, captured at track time. */
@@ -51,20 +51,20 @@ export interface AuraEvent {
 /** Bounds the debug buffer: a long session must never leak memory. */
 const MAX_BUFFERED_EVENTS = 60;
 
-const buffer: AuraEvent[] = [];
+const buffer: CalauraEvent[] = [];
 
 /**
  * The optional analytics globals a page may already have loaded. Both are
  * feature-detected so the tracker stays dependency-free.
  */
-interface AuraAnalyticsScope {
+interface CalauraAnalyticsScope {
   dataLayer?: Record<string, unknown>[];
   fbq?: (command: string, eventName: string, payload?: Record<string, unknown>) => void;
 }
 
-function analyticsScope(): AuraAnalyticsScope | null {
+function analyticsScope(): CalauraAnalyticsScope | null {
   if (typeof window === "undefined") return null;
-  return window as unknown as AuraAnalyticsScope;
+  return window as unknown as CalauraAnalyticsScope;
 }
 
 /**
@@ -74,11 +74,11 @@ function analyticsScope(): AuraAnalyticsScope | null {
  * object without the tracker retaining a reference to it. Returns silently when
  * there is no browser (SSR) - the caller never has to guard.
  */
-export function trackAuraEvent(eventName: string, payload?: Record<string, any>): void {
+export function trackCalauraEvent(eventName: string, payload?: Record<string, any>): void {
   const scope = analyticsScope();
   if (!scope) return;
 
-  const record: AuraEvent = {
+  const record: CalauraEvent = {
     name: eventName,
     payload: { ...(payload ?? {}) },
     at: Date.now(),
@@ -103,11 +103,11 @@ export function trackAuraEvent(eventName: string, payload?: Record<string, any>)
 
   // Dev breadcrumb only: production stays silent (no console noise, no PII).
   if (process.env.NODE_ENV !== "production") {
-    console.debug(`[aura-analytics] ${eventName}`, record.payload);
+    console.debug(`[calaura-analytics] ${eventName}`, record.payload);
   }
 }
 
 /** The in-memory funnel buffer (most recent last). Debug/aid only. */
-export function readAuraEvents(): readonly AuraEvent[] {
+export function readCalauraEvents(): readonly CalauraEvent[] {
   return buffer;
 }

@@ -27,7 +27,7 @@ export const CJK = /[\u4e00-\u9fa5]/;
 /** Namespaces that identify an i18n key literal in source. */
 const NAMESPACES = [
   "common", "menu", "banner", "hero", "apps", "trust",
-  "pricing", "terms", "privacy", "footer", "aura", "cal", "fit",
+  "pricing", "terms", "privacy", "footer", "calaura", "stage", "cal", "fit",
 ];
 const KEY_LITERAL = new RegExp(`\\b((?:${NAMESPACES.join("|")})\\.[A-Za-z0-9_]+)\\b`, "g");
 
@@ -39,44 +39,44 @@ const KEY_LITERAL = new RegExp(`\\b((?:${NAMESPACES.join("|")})\\.[A-Za-z0-9_]+)
 const CRITICAL_BLOCKS = [
   {
     id: "meal-type-selector",
-    file: "src/components/aura-fit/CalorieBestiePanel.tsx",
+    file: "src/components/calaura/CalorieBestiePanel.tsx",
     keys: ["cal.mealBreakfast", "cal.mealLunch", "cal.mealDinner", "cal.mealSnack", "cal.mealUnknown"],
   },
   {
     id: "intake-status-card",
-    file: "src/components/aura-fit/CalorieBestiePanel.tsx",
+    file: "src/components/calaura/CalorieBestiePanel.tsx",
     keys: ["cal.statusEmpty", "cal.statusLogged", "cal.statusInvite"],
   },
   {
     id: "cross-loop-handoff",
-    file: "src/components/aura-fit/BestieHandoffCard.tsx",
+    file: "src/components/calaura/BestieHandoffCard.tsx",
     keys: [
-      "aura.handoffEyebrow",
-      "aura.handoffToFitTitle", "aura.handoffToFitBody", "aura.handoffToFitCta",
-      "aura.handoffToCalorieTitle", "aura.handoffToCalorieBody", "aura.handoffToCalorieCta",
+      "calaura.handoffEyebrow",
+      "calaura.handoffToFitTitle", "calaura.handoffToFitBody", "calaura.handoffToFitCta",
+      "calaura.handoffToCalorieTitle", "calaura.handoffToCalorieBody", "calaura.handoffToCalorieCta",
     ],
   },
   {
     id: "voice-status-badge",
-    file: "src/components/aura-fit/VoiceStage.tsx",
+    file: "src/components/calaura/VoiceStage.tsx",
     keys: ["fit.statusIdle", "fit.statusListening", "fit.statusThinking", "fit.statusSpeaking", "fit.statusError"],
   },
   {
     id: "movement-log",
-    file: "src/components/aura-fit/FitBestiePanel.tsx",
+    file: "src/components/calaura/FitBestiePanel.tsx",
     keys: ["fit.burnTitle", "fit.burnSubmit", "fit.burnLogged", "fit.burnInvalid", "fit.briefingQueued", "fit.briefingTarget"],
   },
   {
     id: "sculpt-dashboard",
-    file: "src/components/aura-fit/SculptProgressCard.tsx",
+    file: "src/components/calaura/SculptProgressCard.tsx",
     keys: [
-      "aura.sculptTitle", "aura.sculptStateRadiant", "aura.sculptStateAligned",
-      "aura.sculptStateShaping", "aura.sculptConsumed", "aura.sculptBurned", "aura.sculptIdeal",
+      "calaura.sculptTitle", "calaura.sculptStateRadiant", "calaura.sculptStateAligned",
+      "calaura.sculptStateShaping", "calaura.sculptConsumed", "calaura.sculptBurned", "calaura.sculptIdeal",
     ],
   },
   {
     id: "exercise-breakdown",
-    file: "src/components/aura-fit/SculptBalanceCard.tsx",
+    file: "src/components/calaura/SculptBalanceCard.tsx",
     keys: [
       "cal.balanceTitle", "cal.balanceInBalance", "cal.balanceToBurn",
       "cal.balanceNoteCovered", "cal.balanceNoteInBalance", "cal.balanceNoteShaping",
@@ -85,9 +85,19 @@ const CRITICAL_BLOCKS = [
     ],
   },
   {
+    id: "immersive-stage",
+    file: "src/components/calaura/CalauraStage.tsx",
+    keys: [
+      "stage.avatarName", "stage.intro", "stage.askIntakeKcal", "stage.askMovementKcal",
+      "stage.loggedIntake", "stage.loggedMovement", "stage.needNumber", "stage.unlocked",
+      "calaura.sculptTitle", "calaura.handoffToFitBody", "calaura.handoffToCalorieBody",
+      "stage.composerPlaceholder", "stage.send", "stage.micStart", "stage.micStop", "stage.photo",
+    ],
+  },
+  {
     id: "bestie-switcher",
-    file: "src/components/aura-fit/BestieSwitcher.tsx",
-    keys: ["aura.switcherLabel"],
+    file: "src/components/calaura/BestieSwitcher.tsx",
+    keys: ["calaura.switcherLabel"],
   },
 ];
 
@@ -98,9 +108,11 @@ const MUST_TRANSLATE = [
   "cal.statusEmpty", "cal.statusLogged", "cal.statusInvite",
   "cal.balanceNoteCovered", "cal.balanceNoteInBalance", "cal.balanceNoteShaping",
   "fit.statusIdle", "fit.statusListening", "fit.statusThinking", "fit.statusSpeaking", "fit.statusError",
-  "aura.switcherLabel", "aura.handoffToFitBody", "aura.handoffToCalorieBody",
-  "aura.sculptStateRadiant", "aura.sculptStateAligned", "aura.sculptStateShaping",
+  "calaura.switcherLabel", "calaura.handoffToFitBody", "calaura.handoffToCalorieBody",
+  "calaura.sculptStateRadiant", "calaura.sculptStateAligned", "calaura.sculptStateShaping",
   "fit.burnTitle", "fit.burnSubmit",
+  "stage.composerPlaceholder", "stage.intro", "stage.askIntakeKcal", "stage.needNumber",
+  "stage.loggedIntake", "stage.loggedMovement", "stage.detailsOpen", "stage.unlocked",
 ];
 
 /**
@@ -181,7 +193,7 @@ function isUiSurface(rel) {
   if (EXCLUDED.some((rule) => rule.re.test(rel))) return false;
   if (/^src\/app\/.*\/(page|layout)\.tsx$/.test(rel)) return true;
   if (/^src\/components\//.test(rel)) return true;
-  if (/^src\/lib\/(aura-fit|shared)\//.test(rel)) return true;
+  if (/^src\/lib\/(calaura|shared)\//.test(rel)) return true;
   return false;
 }
 

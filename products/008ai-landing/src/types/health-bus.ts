@@ -48,7 +48,7 @@ export interface FoodScanItem {
 }
 
 /**
- * Intake/movement ledger for one logged meal, produced by lib/aura-fit/balance.ts.
+ * Intake/movement ledger for one logged meal, produced by lib/calaura/balance.ts.
  * It travels with the FoodScanEvent so the balance card, the loop briefing and
  * the voice coach all quote the same workout target.
  */
@@ -88,7 +88,7 @@ export interface FoodScanEvent extends HealthEventBase {
   balanceMath?: BalanceMath;
 }
 
-/** Payload accepted by POST /api/aura-cal/recognize. */
+/** Payload accepted by POST /api/calaura/recognize. */
 export interface FoodImageRequest {
   /** data:image/...;base64,... or a bare base64 payload. */
   image: string;

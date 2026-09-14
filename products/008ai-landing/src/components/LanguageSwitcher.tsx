@@ -2,10 +2,10 @@
 
 /**
  * LanguageSwitcher - the one language control for every header on the site
- * (landing and /aura-fit). It reads and writes the shared language
+ * (landing and /calaura). It reads and writes the shared language
  * state, so a choice made in any sub-app is the choice the others boot with.
  *
- * `variant` only changes the palette: the landing and Aura Fit headers sit on
+ * `variant` only changes the palette: the landing and CALauraAI headers sit on
  * the pink glass surface ("light"), the legacy intake surface sits on the deeper
  * ("dark").
  */

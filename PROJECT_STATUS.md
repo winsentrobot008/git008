@@ -5,10 +5,10 @@
 
 ## 1. 生产状态（Production State）
 
-> **2026-09-14 产品合并（Aura Fit）**：`savage-cal` + `savage-fit` → 单一产品 **Aura Fit（知己轻体）**，双 AI 知己（Calorie Bestie / Fit Bestie）交叉闭环 + Barbie 莫兰迪粉视觉。Canonical 路由 `/aura-fit`，旧路由与旧 API 命名空间保留为别名以满足发布冒烟契约；字典重写为 `aura.*` 命名空间（136 键）。详见 §4、§6。
+> **2026-09-14 品牌统一 + 沉浸式体验重构（CALauraAI）**：`savage-cal` + `savage-fit` 合并为单一产品 **CALauraAI**。旧品牌名（Savage Cal / Savage Fit / Aura Fit）已从配置、i18n、页面标题与元数据、路由及文档中清除，路径 / 存储键 / 事件名统一为 `calaura`（无特殊符号）。前端重构为极简沉浸舞台：梦幻社区背景 + AI 娃娃 Lumi（动态微表情）+ 底部毛玻璃输入条（文字 / 实时语音 / 识图）；后台仍是摄入 ⇄ 消耗双 AI 交叉闭环。字典 `calaura.*` + `stage.*`，共 156 键，en/zh 100% 对齐。详见 §4、§6。
 > **部署状态**：本次合并**尚未发布**，生产仍在跑上一版 Savage 品牌构建；发布需人工执行 `node scripts/vercel-api-deploy.mjs`。
 - Savage Bestie MVP 代码已合入 `main`：commit `4319a30`（feat(savage-bestie): complete dual-app MVP with private roast engine, balance math, and hermetic fonts，2026-09-13）。
-- 当前 `main` 提交：`feat(core): merge savage series into Aura Fit with dual-AI bestie cross-loop and Barbie aesthetic`（2026-09-14，哈希见 `git log -1`）；上一条为 `test(i18n): upgrade smoke suite with automated language integrity and leak detection`（i18n 完整性断言 + EN 界面泄漏修复，2026-09-13），再上为 `0bc4bd5`（smoke 改用动态 sessionId）与 `72d54e0`（i18n 首次上线）。
+- 当前 `main` 提交：`feat(calaura): rebrand Aura Fit to CALauraAI with immersive avatar stage and glass composer`（2026-09-14，哈希见 `git log -1`）；上一条为 `1a35b92`（`feat(core): merge savage series into Aura Fit with dual-AI bestie cross-loop and Barbie aesthetic`，即产品合并），再上为 `test(i18n): upgrade smoke suite with automated language integrity and leak detection` 与 `0bc4bd5`（2026-09-13）。
 - 生产域名：`https://008ai.online`（同源别名 `www.008ai.online`）。
 - 最近一次生产部署：`dpl_HSArzzDXcHQuAewGS9MMTfnHiqMo`，状态 `READY`，`008ai.online` 与 `www.008ai.online` 别名已重绑（部署地址 `https://008ai-landing-jcytxrxdh-git008.vercel.app`，2026-09-13）。发布流程在执行 `scripts/vercel-api-deploy.mjs` 时通过了新增的 i18n 门禁（`runI18nGate()`，静态检查 0 违规）。
 - 该次发布修复 **EN 界面中文泄漏**：`/savage-cal`、`/savage-fit` 的 `<title>`/描述/OG/Twitter 元数据、`BalanceMathCard` 差额卡（`Balance 摄入/消耗差额`）与 `PrivateRoastSettingsModal` 强度档位（`1 · 傲娇微毒`、`5 · Max 级暴击`）原先硬编码 CJK，现全部由 `src/i18n/locales/*.json` 提供；字典 94 键，en/zh 键集合与语义对齐。
@@ -21,8 +21,9 @@
 | 检查 | 期望 | 最近实测 |
 | --- | --- | --- |
 | `HEAD /savage-cal` | 200 | 200 通过 |
-| `HEAD /savage-fit` | 200 | 200 通过（合并后为 Aura Fit 别名，预选 Fit Bestie） |
-| `HEAD /aura-fit` | 200 | 合并后新增的 canonical 路由；尚未部署，本地构建与门禁通过 |
+| `HEAD /savage-fit` | 200 | 200 通过（合并后为 CALauraAI 别名，预选 Fit Bestie） |
+| `HEAD /calaura` | 200 | canonical 路由；本地生产构建 + `next start` 实测 200 且 EN 视图 CJK = 0（尚未部署） |
+| `POST /api/calaura/chat` | 200/400/503（非 404） | 本地实测 503 `AI_KEY_MISSING`（未注入 `GEMINI_API_KEY` 时的契约行为） |
 | `POST /api/savage-fit/chat` | 200/400/503（非 404） | 200 通过（冒烟改用动态 sessionId 后，复跑不再出现 402，见 6、7.1） |
 | `POST /api/savage-cal/recognize` | 200/400/503 | 502 `UPSTREAM_ERROR`（已接线，转发后带回上游 CalorieAI 的 502） |
 
@@ -37,7 +38,7 @@
 | 静态：en/zh 键集合一致，`MUST_TRANSLATE` 键在 zh 侧有真实中文（非英文残留） | 0 违规 | PASS（136 键 / 37 个 UI 文件 / 136 处键引用） |
 | 静态：UI 源码不得硬编码 CJK、页面元数据不得泄漏 CJK | 0 违规 | PASS |
 | 静态：关键 UI 块仍由字典驱动（餐次选择器、状态卡、双知己交接卡、语音状态徽标、剪影进度盘、运动消耗明细） | 0 违规 | PASS |
-| 动态：`/`、`/aura-fit`（含 `/savage-cal`、`/savage-fit` 别名）在 `NEXT_LOCALE=en` 下 title + 正文无 CJK | 0 泄漏 | PASS ×3（合并后待随下次发布复测 `/aura-fit`） |
+| 动态：`/`、`/calaura`（含 `/savage-cal`、`/savage-fit` 别名）在 `NEXT_LOCALE=en` 下 title + 正文无 CJK | 0 泄漏 | 本次本地实测 4/4 PASS（CJK = 0，含 `og:title` 元数据）；待随下次发布复测生产 |
 
 - 断言口径：SSR 恒以 `DEFAULT_LANG`（`en`，见 `src/i18n/config.ts`）渲染，故任何经 HTTP 取回的页面都是英文文档 —— 其中出现 Unicode `\u4e00-\u9fa5` 即为泄漏（硬编码，或翻译值绕过了 locale 切换）。例外仅限显式登记的动态/用户生成内容白名单（`ALLOWED_UI_SNIPPETS`，目前为空）与设计上的双语数据行。
 - 诊断码（任一违规 → `exit 1`）：动态 `ERR_I18N_LEAK`（`ERR_I18N_LEAK: Chinese characters found in EN locale view`）；静态 `ERR_I18N_DICT_PARITY`、`ERR_I18N_DICT_LEAK`、`ERR_I18N_DICT_UNTRANSLATED`、`ERR_I18N_MISSING_KEY`、`ERR_I18N_CRITICAL_KEY`、`ERR_I18N_HARDCODED`、`ERR_I18N_METADATA_LEAK`。
@@ -55,12 +56,13 @@
 
 ## 4. 子项目地图（Subproject Map）
 
-- `products/008ai-landing` —— **Aura Fit（知己轻体）** 产品站（Next.js 16 + Tailwind v4），生产域名 008ai.online。
+- `products/008ai-landing` —— **CALauraAI** 产品站（Next.js 16 + Tailwind v4），生产域名 008ai.online。
   - 双 AI 知己交叉闭环：**Calorie Bestie**（拍照记录一餐、平衡账单）与 **Fit Bestie**（语音陪练、运动记录），共享一条健康总线并互相交接。
-  - Canonical 页面 `src/app/(apps)/aura-fit`；`src/app/(apps)/savage-cal`、`src/app/(apps)/savage-fit` 为别名路由（各预选对应知己，保住发布冒烟契约）。
-  - 领域代码 `src/lib/aura-fit/`（`config` / `besties` / `balance` / `rating` / `loop`）、UI `src/components/aura-fit/`（`AuraFitApp` / `CalorieBestiePanel` / `FitBestiePanel` / `SculptProgressCard` / `BestieHandoffCard` / `BestieSwitcher` / `BestieNoteCard` / `SculptBalanceCard` / `PaywallModal` / `VoiceStage` / `SnippetStudio`）。
-  - 接口：对话 `/api/savage-fit/chat`、语音 `/api/savage-fit/tts`、权益 `/api/savage-fit/entitlement`、识别 `/api/savage-cal/recognize` 为既有实现；`/api/aura-fit/{chat,tts,entitlement}`、`/api/aura-cal/recognize` 为同实现的 re-export 别名。识别路由桥接 `CALORIE_AI_API_URL`。
-  - 付费墙：唯一订阅出口 `components/aura-fit/PaywallModal.tsx`（`gate` 切换语音/拍照文案），主推 008AI Total Health Bundle，保留 008ai.online Pass 与邮箱找回。
+  - Canonical 页面 `src/app/(apps)/calaura`；`src/app/(apps)/savage-cal`、`src/app/(apps)/savage-fit` 为别名路由（各预选对应知己，保住发布冒烟契约）。
+  - 沉浸表面 `src/components/calaura/`：`CalauraStage`（舞台 + 意图路由）、`DreamDistrict`（纯 SVG 梦幻社区背景）、`LumiAvatar`（娃娃微表情 + 塑形光环）、`GlassComposer`（毛玻璃输入条：文字 / 实时语音 / 识图）、`CalauraApp`（外壳 + 按需挂载的微调抽屉）；抽屉内为 `CalorieBestiePanel` / `FitBestiePanel` / `SculptProgressCard` / `SculptBalanceCard` / `BestieHandoffCard` / `BestieNoteCard` / `BestieSwitcher` / `VoiceStage` / `SnippetStudio` / `PaywallModal`。
+  - 领域代码 `src/lib/calaura/`（`config` / `besties` / `balance` / `rating` / `loop` / `intent` / `quota` / `server-quota` / `guard` / `captions` / `types`）；`intent.ts` 负责一句话归属哪一半闭环，并导出两半的快捷卡片预设。
+  - 接口：实现位于 `/api/calaura/{chat,tts,entitlement,recognize}`；`/api/savage-fit/*` 与 `/api/savage-cal/recognize` 为同实现的 re-export 别名（旧链接与冒烟契约继续成立，永不 404）。识别路由桥接 `CALORIE_AI_API_URL`。
+  - 付费墙：唯一订阅出口 `components/calaura/PaywallModal.tsx`（`gate` 切换语音/拍照文案），主推 008AI Total Health Bundle，保留 008ai.online Pass 与邮箱找回。
   - 项目级规则：`products/008ai-landing/.clinerules`；发布脚本：`products/008ai-landing/scripts/vercel-api-deploy.mjs`。
 - `products/calorieai` —— 食物识别后端，被 008ai-landing 的 recognize 路由调用。
 - 其他产品：`products/` 下另有 RoastBro、Confession、fireworkbloom、InnerSage、TimeTraveler 等独立子项目。
@@ -81,7 +83,9 @@ node scripts/automated-smoke-test.mjs # 生产冒烟审计（端点 5 项 + i18n
 
 ## 6. 活跃运行日志（Active Runtime Log）
 
-- 2026-09-14 —— **Savage 系列合并为 Aura Fit（知己轻体）**：`savage-cal` + `savage-fit` 合并为单一产品，双 AI 知己交叉闭环 + Barbie / 莫兰迪粉高阶视觉；全量清除「毒舌 / 赎罪 / 审计」negative persona 文案，改为温暖目标导向的双知己对话。commit `feat(core): merge savage series into Aura Fit with dual-AI bestie cross-loop and Barbie aesthetic`，已推送 `origin/main`（哈希见 `git log -1`）。**尚未部署**：生产仍在跑上一版 Savage 品牌构建，需按发布通道执行 `node scripts/vercel-api-deploy.mjs` 后复测。
+- 2026-09-14 —— **品牌统一为 CALauraAI + 沉浸式前端重构**：全库清除旧名（Savage Cal / Savage Fit / Aura Fit），路径与键名统一为 `calaura`（无特殊符号）：`src/{lib,components}/aura-fit` → `calaura`、页面 `/aura-fit` → `/calaura`、API 实现迁至 `/api/calaura/*`（旧路径保留 shim）。新增沉浸舞台 `CalauraStage` / `DreamDistrict` / `LumiAvatar` / `GlassComposer` 与意图路由 `lib/calaura/intent.ts`；Lumi 是双 AI 闺蜜的统一化身，底部输入条同时支持文字、实时语音与识图。commit `feat(calaura): rebrand Aura Fit to CALauraAI with immersive avatar stage and glass composer`，已推送 `origin/main`。**尚未部署**。
+- 2026-09-14 —— 本地验证（工作目录 `products/008ai-landing`）：`npx tsc --noEmit` 退出码 0；`node scripts/check-i18n-integrity.mjs` PASS（156 键 / 42 个 UI 文件 / 152 处引用，EN 面无 CJK）；`npm run build` 成功，`/calaura`、`/savage-cal`、`/savage-fit` 均为静态预渲染；`next start` 实测 `/`、`/calaura`、`/savage-cal`、`/savage-fit` 全部 200 且 EN 视图 CJK = 0；`POST /api/calaura/chat` 与别名 `POST /api/savage-fit/chat` 均返回 503 `AI_KEY_MISSING`（应用层错误，非 404）。
+- 2026-09-14 —— **Savage 系列合并为 CALauraAI**：`savage-cal` + `savage-fit` 合并为单一产品，双 AI 知己交叉闭环 + Barbie / 莫兰迪粉高阶视觉；全量清除「毒舌 / 赎罪 / 审计」negative persona 文案，改为温暖目标导向的双知己对话。commit `1a35b92`（`feat(core): merge savage series into Aura Fit with dual-AI bestie cross-loop and Barbie aesthetic`），已推送 `origin/main`。**尚未部署**：生产仍在跑上一版 Savage 品牌构建，需按发布通道执行 `node scripts/vercel-api-deploy.mjs` 后复测。
 - 2026-09-14 —— 门禁实测（工作目录 `products/008ai-landing`）：`npx tsc --noEmit` 退出码 0；`node scripts/check-i18n-integrity.mjs` PASS（136 键 / 37 个 UI 文件 / 136 处引用，EN 面零 CJK、en/zh 全对齐）；`npm run build` 通过 Turbopack 编译阶段（TypeScript 阶段在沙箱内因 `spawn EPERM` 受限，非代码问题）。
 - 2026-09-13 —— 生产部署成功：`dpl_aDT58NWLAAxGsyk5FMeShoeQ6h8q` 状态 `READY`，`008ai.online` 别名已重绑，主页 `/savage-cal`、`/savage-fit` 均返回 200。
 - 2026-09-13 —— `/api/savage-fit/chat` 返回 `502 UPSTREAM_ERROR`：路由本身可达且非 404（`x-matched-path: /api/savage-fit/chat`），错误来自上游模型调用，响应体为 `{"code":"UPSTREAM_ERROR","detail":"Model error 503"}`。
