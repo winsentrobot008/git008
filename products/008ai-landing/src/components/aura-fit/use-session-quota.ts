@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { FREE_VOICE_TURNS } from "@/lib/savage-fit/config";
+import { FREE_VOICE_TURNS } from "@/lib/aura-fit/config";
 import {
   buildQuotaState,
   consumeTurn,
@@ -18,8 +18,8 @@ import {
   lockQuota,
   refundTurn,
   resetQuota,
-} from "@/lib/savage-fit/quota";
-import type { QuotaState } from "@/lib/savage-fit/types";
+} from "@/lib/aura-fit/quota";
+import type { QuotaState } from "@/lib/aura-fit/types";
 
 const OPTIMISTIC: QuotaState = {
   used: 0,

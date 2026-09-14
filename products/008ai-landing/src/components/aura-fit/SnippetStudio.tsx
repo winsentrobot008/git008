@@ -23,7 +23,7 @@ import {
   SNIPPET_HEIGHT,
   SNIPPET_MAX_SECONDS,
   SNIPPET_WIDTH,
-} from "@/lib/savage-fit/config";
+} from "@/lib/aura-fit/config";
 import {
   buildCaptionCues,
   cueIndexAt,
@@ -32,9 +32,9 @@ import {
   syntheticLevels,
   truncateWords,
   waveformBuckets,
-} from "@/lib/savage-fit/captions";
-import type { Persona } from "@/lib/savage-fit/personas";
-import type { SnippetCopy, VoiceUtterance } from "@/lib/savage-fit/types";
+} from "@/lib/aura-fit/captions";
+import type { Bestie } from "@/lib/aura-fit/besties";
+import type { SnippetCopy, VoiceUtterance } from "@/lib/aura-fit/types";
 import {
   downloadClip,
   exportVerticalClip,
@@ -42,7 +42,7 @@ import {
   revokeClip,
   type ExportedClip,
 } from "@/lib/video-exporter";
-import { trackSavageEvent } from "@/lib/shared/analytics";
+import { trackAuraEvent } from "@/lib/shared/analytics";
 import { getHealthBus } from "@/lib/shared/health-bus";
 
 const CAPTION_FONT_SIZE = 56;
@@ -52,7 +52,7 @@ const FOOTER_FONT_SIZE = 26;
 export interface SnippetStudioProps {
   open: boolean;
   onClose: () => void;
-  persona: Persona;
+  bestie: Bestie;
   utterance: VoiceUtterance | null;
   coachReply: string;
 }
@@ -87,7 +87,7 @@ function wrapLines(
 export default function SnippetStudio({
   open,
   onClose,
-  persona,
+  bestie,
   utterance,
   coachReply,
 }: SnippetStudioProps) {
@@ -130,11 +130,11 @@ export default function SnippetStudio({
       setCopy(null);
       return;
     }
-    setCopy(localSnippetCopy(transcript, persona, BRAND_HANDLE));
+    setCopy(localSnippetCopy(transcript, bestie, BRAND_HANDLE));
     setExportUrl(null);
     setStatus(null);
     setError(null);
-  }, [persona, transcript, utterance]);
+  }, [bestie, transcript, utterance]);
 
   // ── Renderer ───────────────────────────────────────────────────────────
 
@@ -150,13 +150,13 @@ export default function SnippetStudio({
       const progress = clipSeconds > 0 ? t / clipSeconds : 0;
 
       const background = ctx.createLinearGradient(0, 0, width * 0.4, height);
-      background.addColorStop(0, persona.accent.canvasTop);
-      background.addColorStop(1, persona.accent.canvasBottom);
+      background.addColorStop(0, bestie.accent.canvasTop);
+      background.addColorStop(1, bestie.accent.canvasBottom);
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, width, height);
 
       const glow = ctx.createRadialGradient(width / 2, height * 0.32, 40, width / 2, height * 0.32, width * 0.95);
-      glow.addColorStop(0, `${persona.accent.canvasAccent}44`);
+      glow.addColorStop(0, `${bestie.accent.canvasAccent}44`);
       glow.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, width, height);
@@ -166,14 +166,14 @@ export default function SnippetStudio({
       ctx.lineWidth = 3;
       ctx.strokeRect(28, 28, width - 56, height - 56);
 
-      // Header: brand + persona
+      // Header: brand + bestie
       ctx.font = `800 ${BRAND_FONT_SIZE}px sans-serif`;
       ctx.fillStyle = "rgba(255,255,255,0.92)";
       ctx.textAlign = "left";
       ctx.fillText(truncateWords(headerText || APP_NAME, 8).toUpperCase(), 56, 108);
       ctx.font = `600 ${BRAND_FONT_SIZE - 4}px sans-serif`;
       ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.fillText(`${persona.emoji} ${persona.name}`, 56, 148);
+      ctx.fillText(`${bestie.emoji} ${bestie.name}`, 56, 148);
 
       // Subtitles (karaoke word highlight on the active cue)
       const index = cueIndexAt(cues, t);
@@ -215,7 +215,7 @@ export default function SnippetStudio({
             const isSpoken = globalIndex < spoken;
             const isActiveWord = globalIndex === spoken - 1;
             ctx.fillStyle = isActiveWord
-              ? persona.accent.canvasAccent
+              ? bestie.accent.canvasAccent
               : isSpoken
                 ? "rgba(255,255,255,0.96)"
                 : "rgba(255,255,255,0.5)";
@@ -245,7 +245,7 @@ export default function SnippetStudio({
         const x = 80 + barIndex * barWidth;
         const y = waveTop + (waveHeight - barHeight) / 2;
         const playedBar = barIndex <= playedBars;
-        ctx.fillStyle = playedBar ? persona.accent.canvasAccent : "rgba(255,255,255,0.24)";
+        ctx.fillStyle = playedBar ? bestie.accent.canvasAccent : "rgba(255,255,255,0.24)";
         ctx.beginPath();
         if (typeof ctx.roundRect === "function") {
           ctx.roundRect(x, y, Math.max(3, barWidth - 4), barHeight, 4);
@@ -268,14 +268,14 @@ export default function SnippetStudio({
       // Progress + footer
       ctx.fillStyle = "rgba(255,255,255,0.22)";
       ctx.fillRect(80, height - 150, width - 160, 10);
-      ctx.fillStyle = persona.accent.canvasAccent;
+      ctx.fillStyle = bestie.accent.canvasAccent;
       ctx.fillRect(80, height - 150, (width - 160) * progress, 10);
       ctx.textAlign = "center";
       ctx.font = `700 ${FOOTER_FONT_SIZE}px sans-serif`;
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.fillText(`${APP_NAME} ${BRAND_HANDLE}`, width / 2, height - 92);
     },
-    [bars, clipSeconds, coachReply, cues, headerText, persona, showReply]
+    [bars, clipSeconds, coachReply, cues, headerText, bestie, showReply]
   );
 
   // Static frame whenever inputs change.
@@ -342,12 +342,12 @@ export default function SnippetStudio({
     setGenerating(true);
     setError(null);
     try {
-      const response = await fetch("/api/savage-fit/chat", {
+      const response = await fetch("/api/aura-fit/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "snippet",
-          personaId: persona.id,
+          bestieId: bestie.id,
           transcript,
           language: /[\u4e00-\u9fa5]/.test(transcript) ? "zh" : "en",
         }),
@@ -364,7 +364,7 @@ export default function SnippetStudio({
     } finally {
       setGenerating(false);
     }
-  }, [persona.id, transcript]);
+  }, [bestie.id, transcript]);
 
   const shareCopy = useCallback(async () => {
     if (!copy) return;
@@ -406,8 +406,8 @@ export default function SnippetStudio({
       lastClipRef.current = clip;
       setExportUrl(clip.url);
       setStatus(`Clip ready (${(clip.bytes / 1024 / 1024).toFixed(1)} MB, ${clip.extension})`);
-      downloadClip(clip, `savagefit-${persona.id}-${Date.now().toString(36)}`);
-      // Hop 4 of the loop: the export closes the audit -> roast -> workout ->
+      downloadClip(clip, `aurafit-${bestie.id}-${Date.now().toString(36)}`);
+      // Hop 4 of the loop: the export closes the intake -> note -> movement ->
       // reel circuit, so it belongs on the bus even before anything reads it.
       getHealthBus().publish({
         kind: "video.exported",
@@ -418,8 +418,8 @@ export default function SnippetStudio({
         bytes: clip.bytes,
       });
       // Funnel hop 4: the exported 9:16 reel that closes (and shares) the loop.
-      trackSavageEvent("savage_fit_snippet_exported", {
-        personaId: persona.id,
+      trackAuraEvent("aura_snippet_exported", {
+        bestieId: bestie.id,
         width: clip.width,
         height: clip.height,
         durationSeconds: Math.round(clip.durationSeconds * 100) / 100,
@@ -436,7 +436,7 @@ export default function SnippetStudio({
       setExporting(false);
       setProgress(0);
     }
-  }, [clipSeconds, persona.id, utterance?.audioUrl]);
+  }, [clipSeconds, bestie.id, utterance?.audioUrl]);
 
   if (!open) return null;
 
@@ -547,7 +547,7 @@ export default function SnippetStudio({
           {exportUrl && (
             <a
               href={exportUrl}
-              download="savagefit-reel.webm"
+              download="aurafit-reel.webm"
               className="mt-2 block text-center text-[11px] font-bold text-pink-600 underline decoration-dotted"
             >
               Download again

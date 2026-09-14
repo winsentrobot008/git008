@@ -27,7 +27,7 @@ export const CJK = /[\u4e00-\u9fa5]/;
 /** Namespaces that identify an i18n key literal in source. */
 const NAMESPACES = [
   "common", "menu", "banner", "hero", "apps", "trust",
-  "pricing", "terms", "privacy", "footer", "cal", "fit",
+  "pricing", "terms", "privacy", "footer", "aura", "cal", "fit",
 ];
 const KEY_LITERAL = new RegExp(`\\b((?:${NAMESPACES.join("|")})\\.[A-Za-z0-9_]+)\\b`, "g");
 
@@ -39,37 +39,55 @@ const KEY_LITERAL = new RegExp(`\\b((?:${NAMESPACES.join("|")})\\.[A-Za-z0-9_]+)
 const CRITICAL_BLOCKS = [
   {
     id: "meal-type-selector",
-    file: "src/components/savage-cal/SavageCalApp.tsx",
+    file: "src/components/aura-fit/CalorieBestiePanel.tsx",
     keys: ["cal.mealBreakfast", "cal.mealLunch", "cal.mealDinner", "cal.mealSnack", "cal.mealUnknown"],
   },
   {
-    id: "audit-status-card",
-    file: "src/components/savage-cal/SavageCalApp.tsx",
-    keys: ["cal.statusEmpty", "cal.statusApproved", "cal.statusAtonement"],
+    id: "intake-status-card",
+    file: "src/components/aura-fit/CalorieBestiePanel.tsx",
+    keys: ["cal.statusEmpty", "cal.statusLogged", "cal.statusInvite"],
   },
   {
-    id: "atonement-cta",
-    file: "src/components/savage-cal/SavageCalApp.tsx",
-    keys: ["cal.atonementCta"],
+    id: "cross-loop-handoff",
+    file: "src/components/aura-fit/BestieHandoffCard.tsx",
+    keys: [
+      "aura.handoffEyebrow",
+      "aura.handoffToFitTitle", "aura.handoffToFitBody", "aura.handoffToFitCta",
+      "aura.handoffToCalorieTitle", "aura.handoffToCalorieBody", "aura.handoffToCalorieCta",
+    ],
   },
   {
     id: "voice-status-badge",
-    file: "src/components/savage-fit/VoiceStage.tsx",
+    file: "src/components/aura-fit/VoiceStage.tsx",
     keys: ["fit.statusIdle", "fit.statusListening", "fit.statusThinking", "fit.statusSpeaking", "fit.statusError"],
   },
   {
-    id: "cross-sell-label",
-    file: "src/components/savage-fit/SavageFitApp.tsx",
-    keys: ["fit.crossSellCal"],
+    id: "movement-log",
+    file: "src/components/aura-fit/FitBestiePanel.tsx",
+    keys: ["fit.burnTitle", "fit.burnSubmit", "fit.burnLogged", "fit.burnInvalid", "fit.briefingQueued", "fit.briefingTarget"],
+  },
+  {
+    id: "sculpt-dashboard",
+    file: "src/components/aura-fit/SculptProgressCard.tsx",
+    keys: [
+      "aura.sculptTitle", "aura.sculptStateRadiant", "aura.sculptStateAligned",
+      "aura.sculptStateShaping", "aura.sculptConsumed", "aura.sculptBurned", "aura.sculptIdeal",
+    ],
   },
   {
     id: "exercise-breakdown",
-    file: "src/components/savage-cal/BalanceMathCard.tsx",
+    file: "src/components/aura-fit/SculptBalanceCard.tsx",
     keys: [
       "cal.balanceTitle", "cal.balanceInBalance", "cal.balanceToBurn",
+      "cal.balanceNoteCovered", "cal.balanceNoteInBalance", "cal.balanceNoteShaping",
       "cal.statThisMeal", "cal.statAllowance", "cal.statBurnedToday",
       "cal.equivPlankHold", "cal.equivSlowJog", "cal.balanceFootnote",
     ],
+  },
+  {
+    id: "bestie-switcher",
+    file: "src/components/aura-fit/BestieSwitcher.tsx",
+    keys: ["aura.switcherLabel"],
   },
 ];
 
@@ -77,9 +95,12 @@ const CRITICAL_BLOCKS = [
 const MUST_TRANSLATE = [
   "common.switchLanguage", "menu.label",
   "cal.mealBreakfast", "cal.mealLunch", "cal.mealDinner", "cal.mealSnack", "cal.mealUnknown",
-  "cal.statusEmpty", "cal.statusApproved", "cal.statusAtonement", "cal.atonementCta",
-  "fit.statusIdle", "fit.statusListening", "fit.statusThinking", "fit.statusSpeaking",
-  "fit.statusError", "fit.crossSellCal",
+  "cal.statusEmpty", "cal.statusLogged", "cal.statusInvite",
+  "cal.balanceNoteCovered", "cal.balanceNoteInBalance", "cal.balanceNoteShaping",
+  "fit.statusIdle", "fit.statusListening", "fit.statusThinking", "fit.statusSpeaking", "fit.statusError",
+  "aura.switcherLabel", "aura.handoffToFitBody", "aura.handoffToCalorieBody",
+  "aura.sculptStateRadiant", "aura.sculptStateAligned", "aura.sculptStateShaping",
+  "fit.burnTitle", "fit.burnSubmit",
 ];
 
 /**
@@ -160,7 +181,7 @@ function isUiSurface(rel) {
   if (EXCLUDED.some((rule) => rule.re.test(rel))) return false;
   if (/^src\/app\/.*\/(page|layout)\.tsx$/.test(rel)) return true;
   if (/^src\/components\//.test(rel)) return true;
-  if (/^src\/lib\/(savage-cal|savage-fit|shared)\//.test(rel)) return true;
+  if (/^src\/lib\/(aura-fit|shared)\//.test(rel)) return true;
   return false;
 }
 
@@ -285,3 +306,5 @@ if (isDirectRun()) {
   }
   process.exit(result.ok ? 0 : 1);
 }
+
+

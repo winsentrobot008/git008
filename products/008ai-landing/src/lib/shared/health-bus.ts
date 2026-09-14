@@ -1,16 +1,16 @@
 /**
- * health-bus - the unified HealthEvent bus + hard-paywall gate for the
- * Savage Bestie Health Series (008ai.online).
+ * health-bus - the unified HealthEvent bus + hard-paywall gate for
+ * Aura Fit (知己轻体), the merged 008ai.online wellbeing product.
  *
  * Responsibilities
  *   1. Session/local persistence of HealthEvents (the loop's shared memory).
  *   2. The single client-side owner of the paywall counters: 2 food scans and
  *      3 real-time voice turns, with the lifetime/total-health entitlement.
  *   3. Hydration safety: nothing is read from storage during render - SSR markup
- *      and the first client render always agree (Savage Bestie series discipline).
+ *      and the first client render always agree (Aura Fit hydration discipline).
  *
- * Shared by both apps of the series (Savage Cal AI and Savage Fit AI): they write
- * into the same key namespace, which is what makes the food audit -> roast
+ * Shared by both halves of the loop (Calorie Bestie and Fit Bestie): they write
+ * into the same key namespace, which is what makes the intake -> movement
  * hand-off work without a server round trip.
  *
  * React-free on purpose: the constants, storage helpers and bus singleton are
@@ -29,7 +29,7 @@ import {
   type HealthGateState,
   type HealthSessionState,
   type IsoTimestamp,
-  type RoastBriefing,
+  type LoopBriefing,
   type TotalHealthBundle,
   type WearableAggregate,
   type WearableMetric,
@@ -49,16 +49,16 @@ export const HEALTH_LIMITS = {
 } as const;
 
 export const TOTAL_HEALTH_BUNDLE: TotalHealthBundle = {
-  label: "008AI Total Health Bundle",
+  label: "008AI Aura Fit Bundle",
   currency: "USD",
   monthly: 19.99,
   annual: 149.99,
   annualBadge: "Save 37%",
   includes: [
-    "Savage Cal AI photo audits (unlimited)",
-    "Savage Fit AI real-time voice coaching",
-    "Toxic coach personas + atonement workouts",
-    "9:16 viral clip exporter",
+    "Calorie Bestie photo check-ins (unlimited)",
+    "Fit Bestie voice coaching + movement log",
+    "Dual-bestie cross-loop + gentle shaping dashboard",
+    "9:16 clip exporter",
     "Wearable sync when it lands (Apple Watch / Garmin)",
   ],
 };
@@ -68,13 +68,13 @@ export const TOTAL_HEALTH_BUNDLE: TotalHealthBundle = {
 // The series shares ONE key: HEALTH_EVENT_KEY is the unified health-bus record
 // and every sibling below is derived from it, so no module invents its own key.
 // The tier of each record is deliberate:
-//   - the event log + roast briefing live in localStorage, so the audit survives
-//     a reload or a new tab (Savage Cal -> Savage Fit navigation),
+//   - the event log + loop briefing live in localStorage, so the loop survives
+//     a reload or a new tab (Calorie Bestie -> Fit Bestie navigation),
 //   - the paywall counters and the anonymous session id stay in sessionStorage so
 //     "2 scans / 3 turns per session" keeps meaning a session,
 //   - the entitlement flag is a local cache of a server-verified pass.
 
-export const HEALTH_EVENT_KEY = "savage_bestie_health_event";
+export const HEALTH_EVENT_KEY = "aura_fit_health_event";
 
 /** The unified bus record itself. */
 const EVENTS_KEY = HEALTH_EVENT_KEY;
@@ -318,17 +318,17 @@ export function resetHealthSession(): void {
   }
 }
 
-// ── Roast briefing: the hand-off from the food audit to the coach ───────────
+// ── Loop briefing: the hand-off from the Calorie Bestie to the Fit Bestie ───
 
-export function buildRoastBriefing(scan: FoodScanEvent, extraNote?: string): RoastBriefing {
+export function buildLoopBriefing(scan: FoodScanEvent, extraNote?: string): LoopBriefing {
   const items = scan.items.map((item) => item.name).filter(Boolean).slice(0, 6);
   const minutesAgo = Math.max(
     0,
     Math.round((Date.now() - new Date(scan.at).getTime()) / 60_000)
   );
   const itemList = items.length > 0 ? items.join(", ") : "an unlogged meal";
-  // The optional note is app-owned copy: Savage Cal hands over its intake/burn
-  // ledger line so the coach orders the same workout the user just read. The
+  // The optional note is app-owned copy: the Calorie Bestie hands over its
+  // ledger line so the Fit Bestie offers the same movement the user just read.
   // shared bus stays ignorant of any one app's domain and appends it verbatim.
   const note = extraNote && extraNote.trim() ? ` ${extraNote.trim()}` : "";
   return {
@@ -342,24 +342,24 @@ export function buildRoastBriefing(scan: FoodScanEvent, extraNote?: string): Roa
           suggestedRunMinutes: scan.balanceMath.suggestedRunMinutes,
         }
       : {}),
-    text: `Latest food audit: ${Math.round(scan.totalCalories)} kcal from ${itemList} (logged ${minutesAgo} minute(s) ago).${note}`,
+    text: `Latest intake log: ${Math.round(scan.totalCalories)} kcal from ${itemList} (logged ${minutesAgo} minute(s) ago).${note}`,
   };
 }
 
-let memoryBriefing: RoastBriefing | null = null;
+let memoryBriefing: LoopBriefing | null = null;
 
-export function setPendingBriefing(briefing: RoastBriefing): void {
+export function setPendingBriefing(briefing: LoopBriefing): void {
   const store = safeLocal();
   if (store) writeJson(store, BRIEFING_KEY, briefing);
   else memoryBriefing = briefing;
 }
 
-export function peekPendingBriefing(): RoastBriefing | null {
+export function peekPendingBriefing(): LoopBriefing | null {
   const store = safeLocal();
-  return store ? readJson<RoastBriefing>(store, BRIEFING_KEY) : memoryBriefing;
+  return store ? readJson<LoopBriefing>(store, BRIEFING_KEY) : memoryBriefing;
 }
 
-export function takePendingBriefing(): RoastBriefing | null {
+export function takePendingBriefing(): LoopBriefing | null {
   const briefing = peekPendingBriefing();
   const store = safeLocal();
   try {

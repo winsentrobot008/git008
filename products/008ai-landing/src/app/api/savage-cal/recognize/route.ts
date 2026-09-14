@@ -1,5 +1,5 @@
 /**
- * POST /api/savage-cal/recognize
+ * POST /api/aura-cal/recognize
  *
  * Vision recognition endpoint for the in-app CalorieAI surface of 008ai.online.
  *
@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { HEALTH_LIMITS } from "@/lib/shared/health-bus";
 import { consumeServerGate, releaseServerGate, resolveGateKey } from "@/lib/shared/health-gate";
-import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/savage-fit/guard";
+import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/aura-fit/guard";
 import { listEntitlements } from "@/lib/orders-store";
 import type { FoodScanItem, MealType } from "@/types/health-bus";
 
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const email = String(body.email || request.headers.get("x-savage-email") || "");
+  const email = String(body.email || request.headers.get("x-aura-email") || "");
   const entitled = isPassHolder(email);
   const gateKey = resolveGateKey(body.sessionId, ip);
 

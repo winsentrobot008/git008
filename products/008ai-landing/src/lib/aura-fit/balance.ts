@@ -1,19 +1,20 @@
 /**
- * balance - the intake/burn ledger behind the Savage Cal AI verdict.
+ * balance - the intake/movement ledger behind Aura Fit (知己轻体).
  *
- * The audit answers "what did that cost". This module answers the only question
- * the bestie cares about next: "so how much movement does that cost you?"
+ * The intake log answers "what did that cost". This module answers the only
+ * question the two besties care about next: "so how do we shape the rest of the
+ * day, gracefully?"
  *
  * Energy model: the standard MET formula, kcal/min = MET x 3.5 x kg / 200.
  *   - plank hold (isometric core work):  MET 4.0
- *   - slow jog (what an atonement order actually prescribes): MET 7.0
+ *   - slow jog (a gentle movement prescription): MET 7.0
  * A 70 kg reference mass lets the maths run before the user ever steps on a
  * scale; every constant is exported so a profile screen can override it later
- * without touching the card, the event log or the roast hand-off.
+ * without touching the card, the event log or the hand-off.
  *
- * Pure, React-free and storage-free: components/savage-cal/BalanceMathCard.tsx,
+ * Pure, React-free and storage-free: components/aura-fit/SculptProgressCard.tsx,
  * the FoodScanEvent balanceMath payload (types/health-bus.ts) and the briefing
- * that opens Savage Fit AI all quote these same numbers.
+ * that opens the Fit Bestie all quote these same numbers.
  */
 
 import type { BalanceMath } from "@/types/health-bus";
@@ -23,6 +24,8 @@ export const BALANCE_MODEL = {
   referenceWeightKg: 70,
   /** One meal's fair share of a 2,100 kcal maintenance day. */
   mealBudgetKcal: 700,
+  /** The day's ideal energy line shown on the shaping dashboard. */
+  sculptIdealKcal: 2100,
   /** Metabolic equivalents: isometric plank hold vs. slow jog. */
   plankMet: 4.0,
   jogMet: 7.0,
@@ -31,12 +34,12 @@ export const BALANCE_MODEL = {
 } as const;
 
 export interface BalanceInput {
-  /** kcal the audited meal contained. */
+  /** kcal the logged meal contained. */
   caloriesConsumed: number;
   /**
-   * Wearable credit already earned today (Apple Watch / Garmin active energy).
-   * Credited against the meal before any debt is declared, so a user who has
-   * already trained is not told to train twice for the same calories.
+   * Movement energy already logged today (voice coach session / wearable).
+   * Credited against the meal before any gap is declared, so a user who has
+   * already trained is never nudged to train twice for the same calories.
    */
   activeCaloriesBurned?: number;
   /** Override for the meal's kcal allowance. */
@@ -77,12 +80,12 @@ export function jogKcalPerMinute(weightKg?: number): number {
 }
 
 /**
- * The audit's balance sheet.
+ * The meal's balance sheet.
  *
  *   net = consumed - mealBudget - activeCaloriesBurned
  *
- * Anything still positive is the debt the atonement workout has to settle; it is
- * then expressed in the two currencies the bestie shouts at people.
+ * Anything still positive is the gap a short movement session closes; it is then
+ * expressed in the two gentle currencies the Fit Bestie offers.
  */
 export function computeBalance(input: BalanceInput): BalanceMath {
   const caloriesConsumed = Math.round(nonNegative(input.caloriesConsumed));
@@ -126,26 +129,74 @@ export function formatPlankHold(seconds: number): string {
   return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`;
 }
 
-/** One-line verdict printed under the audit total. */
-export function describeBalance(math: BalanceMath): string {
-  if (math.balanced) {
-    return math.activeCaloriesBurned > 0
-      ? `Nothing to burn - the ${math.activeCaloriesBurned} kcal you already moved today covers this one.`
-      : "Nothing to burn. This one stays inside the meal budget, so enjoy it quietly.";
-  }
-  return `${math.targetBurnCalories} kcal over budget - that is ${formatPlankHold(
-    math.suggestedPlankSeconds
-  )} of planking, or ${math.suggestedRunMinutes} min of slow jog, to square it.`;
+// ── Ideal-proportion shaping dashboard ───────────────────────────────────────
+
+/** The day's shaping state, framed as progress - never as an error. */
+export type SculptState = "radiant" | "aligned" | "shaping";
+
+export interface SculptProgress {
+  /** 0..1 fill for the silhouette gauge (1 = the ideal line is reached). */
+  progress: number;
+  /** Graceful day state, used to pick the dashboard copy. */
+  state: SculptState;
+  /** kcal consumed today. */
+  consumedKcal: number;
+  /** Movement kcal logged today. */
+  burnedKcal: number;
+  /** kcal the day's silhouette is aiming for. */
+  idealKcal: number;
+  /** consumed - burned - ideal; positive means the shape still has room to settle. */
+  gapKcal: number;
+  /** Gentle movement minutes that bring the silhouette back to its ideal line. */
+  movementMinutes: number;
 }
 
 /**
- * The line folded into the roast briefing, so the voice coach quotes the same
- * workout target Savage Cal showed on screen. Kept short: the server caps the
- * untrusted briefing at HEALTH_CONTEXT_MAX_CHARS (320).
+ * The Barbie-silhouette dashboard metric.
+ *
+ * A day is ALIGNED when net intake lands within 15% of the ideal line, RADIANT
+ * when it is lighter than that (the silhouette is already sleek), and SHAPING
+ * when a little movement would settle it. There is no "error" state: being over
+ * the line is simply more shaping to do, and the card says so kindly.
+ */
+export function computeSculpt(
+  consumedKcal: number,
+  burnedKcal: number = 0,
+  idealKcal: number = BALANCE_MODEL.sculptIdealKcal,
+  weightKg?: number
+): SculptProgress {
+  const consumed = Math.round(nonNegative(consumedKcal));
+  const burned = Math.round(nonNegative(burnedKcal));
+  const ideal = Math.round(positive(Number(idealKcal), BALANCE_MODEL.sculptIdealKcal));
+  const net = consumed - burned;
+  const ratio = net / ideal;
+
+  const progress = Math.min(1, Math.max(0, ratio));
+  const state: SculptState =
+    Math.abs(ratio - 1) <= 0.15 ? "aligned" : ratio < 1 ? "radiant" : "shaping";
+  const gapKcal = Math.round(net - ideal);
+  const movementMinutes =
+    gapKcal <= 0 ? 0 : Math.max(1, Math.ceil(gapKcal / jogKcalPerMinute(weightKg)));
+
+  return {
+    progress: Math.round(progress * 1000) / 1000,
+    state,
+    consumedKcal: consumed,
+    burnedKcal: burned,
+    idealKcal: ideal,
+    gapKcal,
+    movementMinutes,
+  };
+}
+
+/**
+ * The line folded into the hand-off briefing, so the voice coach quotes the same
+ * movement target the Calorie Bestie showed on screen. Kept short: the server
+ * caps the untrusted briefing at HEALTH_CONTEXT_MAX_CHARS (320).
  */
 export function balanceBriefingLine(math: BalanceMath): string {
-  if (math.balanced) return "Atonement burn target: 0 kcal - already squared.";
-  return `Atonement burn target: ${math.targetBurnCalories} kcal (${formatPlankHold(
+  if (math.balanced) return "Movement invite: nothing to chase - the day is already in balance.";
+  return `Movement invite: ${math.targetBurnCalories} kcal above the meal line (${formatPlankHold(
     math.suggestedPlankSeconds
-  )} plank / ${math.suggestedRunMinutes} min slow jog equivalents).`;
+  )} plank / ${math.suggestedRunMinutes} min easy jog).`;
 }

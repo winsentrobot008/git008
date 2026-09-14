@@ -1,13 +1,13 @@
 /**
- * GET /api/savage-fit/entitlement?email=...
+ * GET /api/aura-fit/entitlement?email=...
  *
  * Verifies an 008ai.online Pass against the landing page entitlement store so a
- * paying user can restore access inside Savage Fit AI. Rate limited to keep the
+ * paying user can restore access inside Aura Fit. Rate limited to keep the
  * endpoint from being used to enumerate emails.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, clientIp } from "@/lib/savage-fit/guard";
+import { checkRateLimit, clientIp } from "@/lib/aura-fit/guard";
 import { listEntitlements } from "@/lib/orders-store";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
-  const limit = checkRateLimit(`savage-fit:entitlement:${ip}`, 12, 60_000);
+  const limit = checkRateLimit(`aura-fit:entitlement:${ip}`, 12, 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
       { detail: "Too many attempts, try again shortly", retry_after: limit.retryAfterSeconds },

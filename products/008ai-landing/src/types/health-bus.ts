@@ -1,7 +1,7 @@
 /**
  * health-bus - unified data contracts for the 008AI Total Health loop.
  *
- *   Food Intake Audit -> Sarcastic Roast -> Atonement Workout -> Viral Video Export
+ *   Meal Intake (Calorie Bestie) -> Movement (Fit Bestie) -> Gentle shaping progress
  *
  * This file is deliberately dependency-free and importable from both the client
  * (localStorage/sessionStorage bus) and route handlers (webhook payload
@@ -31,7 +31,7 @@ export interface HealthEventBase {
   sessionId: string;
 }
 
-// ── Food intake audit ────────────────────────────────────────────────────────
+// ── Food intake log ──────────────────────────────────────────────────────────
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snack" | "unknown";
 
@@ -48,20 +48,20 @@ export interface FoodScanItem {
 }
 
 /**
- * Intake/burn ledger for one audited meal, produced by lib/savage-cal/balance.ts.
- * It travels with the FoodScanEvent so the audit card, the roast briefing and
+ * Intake/movement ledger for one logged meal, produced by lib/aura-fit/balance.ts.
+ * It travels with the FoodScanEvent so the balance card, the loop briefing and
  * the voice coach all quote the same workout target.
  */
 export interface BalanceMath {
-  /** kcal the audited meal contained. */
+  /** kcal the logged meal contained. */
   caloriesConsumed: number;
   /** Wearable active energy credited against the meal (0 without a device). */
   activeCaloriesBurned: number;
   /** kcal this meal was allowed to use. */
   mealBudgetKcal: number;
-  /** consumed - mealBudget - burned; negative means the audit is in credit. */
+  /** consumed - mealBudget - burned; negative means the day is in credit. */
   netCalories: number;
-  /** kcal that still has to be burned to square the audit (0 when balanced). */
+  /** kcal that still has to be moved to balance the day (0 when balanced). */
   targetBurnCalories: number;
   /** true when nothing has to be burned. */
   balanced: boolean;
@@ -84,11 +84,11 @@ export interface FoodScanEvent extends HealthEventBase {
   /** Recognition backend that produced the numbers (never a mock label). */
   provider: string;
   model?: string;
-  /** Intake/burn balance computed by whoever ran the audit. */
+  /** Intake/burn balance computed by whoever logged the meal. */
   balanceMath?: BalanceMath;
 }
 
-/** Payload accepted by POST /api/savage-cal/recognize. */
+/** Payload accepted by POST /api/aura-cal/recognize. */
 export interface FoodImageRequest {
   /** data:image/...;base64,... or a bare base64 payload. */
   image: string;
@@ -109,7 +109,7 @@ export interface RecognizeResponse {
 
 export interface CoachTurnEvent extends HealthEventBase {
   kind: "coach.turn";
-  personaId: string;
+  bestieId: string;
   transcript: string;
   reply: string;
   /** true when the paywall cut the spoken reply short on the final free turn. */
@@ -118,10 +118,14 @@ export interface CoachTurnEvent extends HealthEventBase {
 
 export interface WorkoutCompletedEvent extends HealthEventBase {
   kind: "workout.completed";
-  personaId: string;
+  bestieId: string;
   durationSeconds: number;
-  /** Links an atonement session back to the meal that triggered it. */
-  atonementForScanId?: string;
+  /** kcal the logged movement earned; absent when the user did not enter one. */
+  caloriesBurned?: number;
+  /** Short label the user recognised the session by (e.g. "Pilates"). */
+  label?: string;
+  /** Links a movement session back to the meal that invited it. */
+  invitedByScanId?: string;
 }
 
 export interface VideoExportedEvent extends HealthEventBase {
@@ -287,15 +291,15 @@ export interface TotalHealthBundle {
   includes: string[];
 }
 
-/** Briefing handed from the calorie audit to the coach (the roast trigger). */
-export interface RoastBriefing {
+/** Briefing handed from the Calorie Bestie to the Fit Bestie (the loop trigger). */
+export interface LoopBriefing {
   scanId: string;
   totalCalories: number;
   items: string[];
   minutesAgo: number;
-  /** kcal the audit left to burn (mirrors BalanceMath.targetBurnCalories). */
+  /** kcal the meal left to chase (mirrors BalanceMath.targetBurnCalories). */
   targetBurnCalories?: number;
-  /** Slow-jog equivalent of that target (mirrors BalanceMath.suggestedRunMinutes). */
+  /** Easy-jog equivalent of that target (mirrors BalanceMath.suggestedRunMinutes). */
   suggestedRunMinutes?: number;
   /** Pre-rendered, truncated, untrusted-context line for the system prompt. */
   text: string;

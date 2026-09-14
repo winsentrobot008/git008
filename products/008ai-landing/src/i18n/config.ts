@@ -1,6 +1,6 @@
 /**
  * i18n config - locale registry and the persistence contract shared by every
- * surface of 008ai.online (landing, /savage-cal, /savage-fit).
+ * surface of 008ai.online (landing, /aura-fit, and its /savage-cal + /savage-fit aliases).
  *
  * English is the default: the app must render identically to the pre-i18n build
  * for a first-time visitor, so DEFAULT_LANG is what SSR emits and what the first
@@ -22,7 +22,7 @@ export const DEFAULT_LANG: Lang = "en";
 export const LANG_STORAGE_KEY = "app_lang";
 
 /**
- * Legacy per-app key (Savage Fit shipped its own toggle before the global
+ * Legacy per-app key (Aura Fit shipped its own toggle before the global
  * switcher existed). Read once as a migration fallback, never written again.
  */
 export const LANG_LEGACY_STORAGE_KEY = "savage-fit:language:v1";

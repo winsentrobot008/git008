@@ -1,5 +1,5 @@
 /**
- * server-quota - Savage Fit AI view of the unified server-side gate.
+ * server-quota - Fit Bestie view of the unified server-side gate.
  *
  * The authoritative implementation moved to `lib/health-gate.ts` so the food
  * scan route and the voice route share one limiter. These wrappers keep the

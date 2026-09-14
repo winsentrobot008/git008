@@ -11,7 +11,6 @@
 
 import {
   ScanLine,
-  HeartPulse,
   Route,
   CreditCard,
   Lock,
@@ -27,18 +26,10 @@ import { useLang } from "@/i18n/LanguageProvider";
 const APPS = [
   {
     icon: ScanLine,
-    titleKey: "apps.savageCalTitle",
-    taglineKey: "apps.savageCalTagline",
+    titleKey: "apps.auraFitTitle",
+    taglineKey: "apps.auraFitTagline",
     live: true,
-    href: "/savage-cal",
-    ctaKey: "apps.launch",
-  },
-  {
-    icon: HeartPulse,
-    titleKey: "apps.savageFitTitle",
-    taglineKey: "apps.savageFitTagline",
-    live: true,
-    href: "/savage-fit",
+    href: "/aura-fit",
     ctaKey: "apps.launch",
   },
   {

@@ -10,8 +10,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Keyboard, Mic, MicOff, Send, Square } from "lucide-react";
-import type { Persona } from "@/lib/savage-fit/personas";
-import type { DialogueTurn, QuotaState } from "@/lib/savage-fit/types";
+import type { Bestie } from "@/lib/aura-fit/besties";
+import type { DialogueTurn, QuotaState } from "@/lib/aura-fit/types";
 import { unlockAudioContext, type VoiceStatus } from "./use-voice-engine";
 import { useLang } from "@/i18n/LanguageProvider";
 
@@ -26,7 +26,7 @@ const STATUS_LABEL_KEY: Record<VoiceStatus, string> = {
 const METER_BARS = 24;
 
 export interface VoiceStageProps {
-  persona: Persona;
+  bestie: Bestie;
   status: VoiceStatus;
   interim: string;
   level: number;
@@ -42,7 +42,7 @@ export interface VoiceStageProps {
 }
 
 export default function VoiceStage({
-  persona,
+  bestie,
   status,
   interim,
   level,
@@ -105,10 +105,10 @@ export default function VoiceStage({
         {turns.length === 0 && (
           <div className="rounded-3xl border border-white/70 bg-white/60 p-4 backdrop-blur-md">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
-              {persona.name} is ready
+              {bestie.name} is ready
             </p>
             <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-800">
-              {persona.opener}
+              {bestie.opener}
             </p>
           </div>
         )}
@@ -121,7 +121,7 @@ export default function VoiceStage({
               className={[
                 "max-w-[86%] rounded-3xl px-4 py-3 text-sm font-semibold leading-relaxed shadow-sm backdrop-blur-md",
                 turn.role === "coach"
-                  ? `border border-white/70 bg-gradient-to-br ${persona.accent.from} ${persona.accent.to} text-white`
+                  ? `border border-white/70 bg-gradient-to-br ${bestie.accent.from} ${bestie.accent.to} text-white`
                   : "border border-white/80 bg-white/80 text-slate-800",
               ].join(" ")}
             >
@@ -166,7 +166,7 @@ export default function VoiceStage({
                 ? "bg-slate-400 shadow-slate-300/50"
                 : listening
                   ? "bg-rose-500 shadow-rose-500/40 ring-4 ring-rose-200"
-                  : `bg-gradient-to-br ${persona.accent.from} ${persona.accent.to} shadow-pink-500/40`,
+                  : `bg-gradient-to-br ${bestie.accent.from} ${bestie.accent.to} shadow-pink-500/40`,
             ].join(" ")}
           >
             {listening ? <Square className="h-6 w-6" /> : locked ? <MicOff className="h-6 w-6" /> : <Mic className="h-7 w-7" />}

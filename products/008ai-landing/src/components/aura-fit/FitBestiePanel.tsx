@@ -1,49 +1,53 @@
 "use client";
 
 /**
- * SavageFitApp - the 9:16 vertical voice companion shell.
+ * FitBestiePanel - the movement half of the Aura Fit dual-bestie loop.
  *
- * Wires the four product pillars together:
+ * Wires the movement pillars together:
  *   1. voice dialogue + hands-free streaming loop  (use-voice-engine)
- *   2. persona switcher (3 prompt templates)       (PersonaSwitcher)
- *   3. hard paywall at 3 free turns                (use-session-quota + PaywallModal)
+ *   2. hard paywall at 3 free turns                (use-session-quota + PaywallModal)
+ *   3. movement log -> WorkoutCompletedEvent       (the burn the day gets credit for)
  *   4. 9:16 dialogue clip generator                (SnippetStudio)
  *
- * Entry contract: /savage-fit?food=..&calories=..&from=savage_cal arrives from
- * Savage Cal AI and makes the bestie speak first (opening roast) instead of
- * waiting for a microphone tap.
+ * Cross-loop entry: arriving from the Calorie Bestie (entry prop or ?food=&calories=
+ * query) makes the Fit Bestie speak first - a warm, specific opening about the meal
+ * that was just logged. Logging a movement then offers the graceful hand-off back
+ * to the Calorie Bestie ("what did you enjoy eating today?").
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Film, Flame, Hand, Infinity as InfinityIcon, Lock, Sparkles, Volume2 } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  Film,
+  Flame,
+  Hand,
+  Infinity as InfinityIcon,
+  Lock,
+  Sparkles,
+  Volume2,
+} from "lucide-react";
 import {
   FREE_VOICE_TURNS,
+  MAX_TURN_CHARS,
   resolveLanguage,
   type LanguageOption,
-} from "@/lib/savage-fit/config";
+} from "@/lib/aura-fit/config";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLang } from "@/i18n/LanguageProvider";
-import { DEFAULT_PERSONA_ID, getPersona, type Persona } from "@/lib/savage-fit/personas";
-import { trackSavageEvent } from "@/lib/shared/analytics";
-import { readPrivateRoastConfig, type PrivateRoastConfig } from "@/lib/shared/roast-db";
+import { BESTIES } from "@/lib/aura-fit/besties";
+import { trackAuraEvent } from "@/lib/shared/analytics";
 import { getHealthBus, HEALTH_LIMITS, takePendingBriefing } from "@/lib/shared/health-bus";
-import {
-  entryOpeningLine,
-  parseEntryContext,
-  type SavageEntryContext,
-} from "@/lib/shared/referral";
-import { getSessionId, markLifetimePass } from "@/lib/savage-fit/quota";
-import { CoachApiError, type DialogueTurn, type VoiceUtterance } from "@/lib/savage-fit/types";
-import type { RoastBriefing } from "@/types/health-bus";
+import { buildIntakeHandoffHref, entryOpeningLine, parseLoopContext, type LoopContext, type LoopLog } from "@/lib/aura-fit/loop";
+import { getSessionId, markLifetimePass } from "@/lib/aura-fit/quota";
+import { CoachApiError, type DialogueTurn, type VoiceUtterance } from "@/lib/aura-fit/types";
+import type { LoopBriefing } from "@/types/health-bus";
+import BestieHandoffCard from "./BestieHandoffCard";
 import PaywallModal from "./PaywallModal";
-import PersonaSwitcher from "./PersonaSwitcher";
-import PrivateRoastSettingsModal from "./PrivateRoastSettingsModal";
 import SnippetStudio from "./SnippetStudio";
 import VoiceStage from "./VoiceStage";
 import { useSessionQuota } from "./use-session-quota";
 import { useVoiceEngine } from "./use-voice-engine";
-
-const PERSONA_KEY = "savage-fit:persona:v1";
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -57,93 +61,77 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   }
 }
 
-export default function SavageFitApp() {
+/** Quick movement presets: label key + the energy a typical session earns. */
+const MOVEMENT_PRESETS = [
+  { labelKey: "fit.presetWalk", kcal: 90 },
+  { labelKey: "fit.presetPilates", kcal: 150 },
+  { labelKey: "fit.presetDance", kcal: 210 },
+  { labelKey: "fit.presetStrength", kcal: 240 },
+] as const;
+
+export interface FitBestiePanelProps {
+  /** Cross-loop context: the meal the Calorie Bestie just handed over. */
+  entry?: LoopContext | null;
+  /** Called when the user accepts the hand-off back to the Calorie Bestie. */
+  onHandoff?: (log: LoopLog) => void;
+}
+
+export default function FitBestiePanel({ entry: entryProp = null, onHandoff }: FitBestiePanelProps) {
   const { lang, t } = useLang();
-  const [persona, setPersona] = useState<Persona>(() => getPersona(DEFAULT_PERSONA_ID));
+  const bestie = BESTIES.fit;
   const [handsFree, setHandsFree] = useState(false);
   const [turns, setTurns] = useState<DialogueTurn[]>([]);
   const [coachReply, setCoachReply] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [roastConfig, setRoastConfig] = useState<PrivateRoastConfig | null>(null);
+  const [burnLabel, setBurnLabel] = useState("");
+  const [burnKcal, setBurnKcal] = useState("");
+  const [burnNote, setBurnNote] = useState<string | null>(null);
+  const [burnError, setBurnError] = useState<string | null>(null);
 
-  // The voice engine still speaks one language at a time; it now follows the
+  // The voice engine still speaks one language at a time; it follows the
   // site-wide choice instead of a second, app-local toggle.
   const language = resolveLanguage(lang);
 
-  const { quota, ready, entitled, consume, refund, lock } = useSessionQuota();
-  const [briefing, setBriefing] = useState<RoastBriefing | null>(null);
-  const [entry, setEntry] = useState<SavageEntryContext | null>(null);
-  const briefingRef = useRef<RoastBriefing | null>(null);
+  const { quota, ready, consume, refund, lock } = useSessionQuota();
+  const [briefing, setBriefing] = useState<LoopBriefing | null>(null);
+  const [entry, setEntry] = useState<LoopContext | null>(entryProp);
+  const briefingRef = useRef<LoopBriefing | null>(null);
   const autoOpenRef = useRef(false);
   const paywallLoggedRef = useRef(false);
   const turnsRef = useRef<DialogueTurn[]>([]);
   const quotaLockedRef = useRef(false);
-  const personaRef = useRef<Persona>(persona);
   const languageRef = useRef<LanguageOption>(language);
-  const roastConfigRef = useRef<PrivateRoastConfig | null>(null);
   const modalDismissedRef = useRef(false);
 
   turnsRef.current = turns;
   quotaLockedRef.current = quota.locked;
-  personaRef.current = persona;
   languageRef.current = language;
-  roastConfigRef.current = roastConfig;
 
-  // Persisted preferences (read in an effect: SSR markup stays default).
+  // The intake half leaves a briefing behind: consumed once here (never during
+  // render) so the first spoken turn can reference the meal that invited it.
   useEffect(() => {
-    try {
-      const storedPersona = window.localStorage.getItem(PERSONA_KEY);
-      if (storedPersona) setPersona(getPersona(storedPersona));
-    } catch {
-      /* private mode */
-    }
-    // The food audit leaves a roast briefing behind: consume it once here (never
-    // during render) so the first spoken turn can call out the meal that
-    // triggered the atonement workout.
     const pending = takePendingBriefing();
     if (pending) {
       briefingRef.current = pending;
       setBriefing(pending);
     }
-
-    // Referral entry: the query string is the contract, so it wins over any stale
-    // bus briefing. Parsed from window.location.search in an effect (never during
-    // render) so this route stays statically prerendered.
-    const fromUrl = parseEntryContext(window.location.search);
-    if (fromUrl) {
-      const kcalLabel = fromUrl.calories > 0 ? `${fromUrl.calories} kcal` : "unknown calories";
-      const opened: RoastBriefing = {
-        scanId: `entry-${Date.now().toString(36)}`,
-        totalCalories: fromUrl.calories,
-        items: fromUrl.food ? [fromUrl.food] : [],
-        minutesAgo: 0,
-        text: `Latest food audit: ${kcalLabel} from ${fromUrl.food || "an unlogged meal"} (logged 0 minute(s) ago).`,
-      };
-      briefingRef.current = opened;
-      setBriefing(opened);
-      setEntry(fromUrl);
-      autoOpenRef.current = true;
-    }
   }, []);
 
-  // Paid tier: load the private roast bank as soon as the pass state is known,
-  // so every turn sends it from session state instead of re-reading storage.
+  // Referral entry: a hand-off prop from the merged shell wins; on the legacy
+  // route we parse window.location.search in an effect so the page stays static.
   useEffect(() => {
-    if (!ready || !entitled) return;
-    setRoastConfig(readPrivateRoastConfig());
-  }, [entitled, ready]);
-
-  const selectPersona = useCallback((next: Persona) => {
-    setPersona(next);
-    try {
-      window.localStorage.setItem(PERSONA_KEY, next.id);
-    } catch {
-      /* ignore */
+    if (entryProp) {
+      setEntry(entryProp);
+      autoOpenRef.current = true;
+      return;
     }
-  }, []);
+    const fromUrl = parseLoopContext(window.location.search);
+    if (!fromUrl || fromUrl.bestie !== "fit") return;
+    setEntry(fromUrl);
+    autoOpenRef.current = true;
+  }, [entryProp]);
 
   const openPaywall = useCallback(() => {
     modalDismissedRef.current = false;
@@ -160,25 +148,16 @@ export default function SavageFitApp() {
         limit: HEALTH_LIMITS.voiceTurns,
       });
       // Funnel hop 3: turn 4 is refused - the free tier is spent (HTTP 402).
-      trackSavageEvent("savage_fit_paywall_triggered", {
+      trackAuraEvent("aura_fit_paywall_triggered", {
         status: 402,
         gate: "voiceTurns",
         turn: used + 1,
         used: cappedUsed,
         limit: HEALTH_LIMITS.voiceTurns,
-        personaId: personaRef.current.id,
+        bestieId: bestie.id,
       });
     }
-  }, []);
-
-  /** Pass holders open the customization drawer; everyone else gets the offer. */
-  const openSettings = useCallback(() => {
-    if (!entitled) {
-      openPaywall();
-      return;
-    }
-    setSettingsOpen(true);
-  }, [entitled, openPaywall]);
+  }, [bestie.id]);
 
   /**
    * One dialogue turn: paywall -> stream -> transcript.
@@ -199,30 +178,26 @@ export default function SavageFitApp() {
           id: makeId("user"),
           role: "user",
           text: utterance.text,
-          personaId: personaRef.current.id,
+          bestieId: bestie.id,
           at: Date.now(),
         },
       ]);
 
       const next = consume();
       const history = turnsRef.current.slice(-8).map((turn) => ({ role: turn.role, text: turn.text }));
-      // Session context: the private bank saved from the settings drawer. Null
-      // for free users, and the route re-verifies entitlement before using it.
-      const activeRoast = roastConfigRef.current;
 
       try {
-        const response = await fetch("/api/savage-fit/chat", {
+        const response = await fetch("/api/aura-fit/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             mode: "reply",
-            personaId: personaRef.current.id,
+            bestieId: bestie.id,
             transcript: utterance.text,
             history,
             language: languageRef.current.id,
             sessionId: getSessionId(),
             healthContext: briefingRef.current?.text,
-            ...(activeRoast ? { roastConfig: activeRoast } : {}),
           }),
         });
 
@@ -241,7 +216,9 @@ export default function SavageFitApp() {
           const data = await readJson(response);
           const code = typeof data.code === "string" ? data.code : "UPSTREAM_ERROR";
           const detail =
-            typeof data.detail === "string" ? data.detail : `Coaching model error (${response.status})`;
+            typeof data.detail === "string"
+              ? data.detail
+              : `Coaching model error (${response.status})`;
           if (code === "AI_KEY_MISSING") {
             refund();
           }
@@ -269,7 +246,7 @@ export default function SavageFitApp() {
         const reply = full.trim();
         if (!reply) {
           refund();
-          throw new CoachApiError("UPSTREAM_ERROR", "The coach had nothing to say - try again", 502);
+          throw new CoachApiError("UPSTREAM_ERROR", "The bestie had nothing to say - try again", 502);
         }
 
         setTurns((previous) => [
@@ -278,27 +255,27 @@ export default function SavageFitApp() {
             id: makeId("coach"),
             role: "coach",
             text: reply,
-            personaId: personaRef.current.id,
+            bestieId: bestie.id,
             at: Date.now(),
           },
         ]);
         setCoachReply(reply);
         getHealthBus().publish({
           kind: "coach.turn",
-          personaId: personaRef.current.id,
+          bestieId: bestie.id,
           transcript: utterance.text,
           reply,
           haltedByPaywall: next.locked,
         });
         // Funnel hop 2: one completed voice turn (1..3 inside the free tier).
-        trackSavageEvent("savage_fit_turn_completed", {
+        trackAuraEvent("aura_fit_turn_completed", {
           turn: next.used,
-          personaId: personaRef.current.id,
+          bestieId: bestie.id,
           locked: next.locked,
         });
 
         if (next.locked) {
-          // Third free turn just finished: surface the paywall once the coach
+          // Third free turn just finished: surface the paywall once the bestie
           // stops speaking (handled by the effect below).
           quotaLockedRef.current = true;
         }
@@ -312,14 +289,14 @@ export default function SavageFitApp() {
         throw cause;
       }
     },
-    [consume, lock, openPaywall, refund]
+    [bestie.id, consume, lock, openPaywall, refund]
   );
 
   const sendTurnRef = useRef(sendTurn);
   sendTurnRef.current = sendTurn;
 
   const engine = useVoiceEngine({
-    persona,
+    bestie,
     language,
     enabled: !quota.locked,
     handsFree,
@@ -341,7 +318,7 @@ export default function SavageFitApp() {
         mimeType: "",
         durationMs: 0,
         levels: [],
-        personaId: personaRef.current.id,
+        bestieId: bestie.id,
         at: Date.now(),
       };
       try {
@@ -351,14 +328,14 @@ export default function SavageFitApp() {
         /* errors already surfaced by sendTurn */
       }
     },
-    [speakText]
+    [bestie.id, speakText]
   );
 
   /**
-   * Opening roast. Arriving from the food audit means the bestie talks first: the
-   * referral line is sent as the opening user turn, so the first thing the visitor
-   * hears is the roast they clicked for. Waits for the paywall state to be read,
-   * so a locked session never auto-spends a turn.
+   * Opening turn. Arriving from the intake half means the bestie talks first: the
+   * hand-off line is sent as the opening user turn, so the first thing the visitor
+   * hears is about the meal they just logged. Waits for the paywall state to be
+   * read, so a locked session never auto-spends a turn.
    */
   useEffect(() => {
     if (!ready || !entry || !autoOpenRef.current) return;
@@ -367,12 +344,12 @@ export default function SavageFitApp() {
 
     const utterance: VoiceUtterance = {
       id: makeId("entry"),
-      text: entryOpeningLine(entry),
+      text: entryOpeningLine({ ...entry, bestie: "fit" }),
       audioUrl: "",
       mimeType: "",
       durationMs: 0,
       levels: [],
-      personaId: personaRef.current.id,
+      bestieId: bestie.id,
       at: Date.now(),
     };
     void (async () => {
@@ -383,7 +360,7 @@ export default function SavageFitApp() {
         /* errors already surfaced by sendTurn */
       }
     })();
-  }, [entry, quota.locked, ready, speakText]);
+  }, [bestie.id, entry, quota.locked, ready, speakText]);
 
   const toggleRecord = useCallback(() => {
     if (quota.locked) {
@@ -406,8 +383,8 @@ export default function SavageFitApp() {
     });
   }, [abortAll, openPaywall, quota.locked]);
 
-  // Stop the hands-free loop once the paywall engages. The engine keeps the
-  // final reply alive until it has finished speaking, then idles out.
+  // Stop the hands-free loop once the paywall engages. The engine keeps the final
+  // reply alive until it has finished speaking, then idles out.
   useEffect(() => {
     if (quota.locked && handsFree) setHandsFree(false);
   }, [handsFree, quota.locked]);
@@ -433,50 +410,57 @@ export default function SavageFitApp() {
     setError(null);
   }, []);
 
+  /** Log the movement the user just did, then offer the Calorie hand-off. */
+  const logMovement = useCallback(() => {
+    const label = burnLabel.trim().slice(0, MAX_TURN_CHARS);
+    const kcal = Math.round(Number.parseFloat(burnKcal));
+    if (!label || !Number.isFinite(kcal) || kcal <= 0) {
+      setBurnError(t("fit.burnInvalid"));
+      return;
+    }
+    setBurnError(null);
+    getHealthBus().publish({
+      kind: "workout.completed",
+      bestieId: bestie.id,
+      durationSeconds: 0,
+      caloriesBurned: kcal,
+      label,
+    });
+    trackAuraEvent("aura_movement_logged", { label, caloriesBurned: kcal, bestieId: bestie.id });
+    setBurnNote(t("fit.burnLogged", { kcal, label }));
+  }, [bestie.id, burnKcal, burnLabel, t]);
+
+  const handoffToCalorie = useCallback(() => {
+    const kcal = Math.round(Number.parseFloat(burnKcal));
+    const label = burnLabel.trim();
+    trackAuraEvent("aura_movement_handoff", { label, calories: kcal, from: "fit_bestie" });
+    onHandoff?.({ label, calories: Number.isFinite(kcal) ? kcal : 0 });
+  }, [burnKcal, burnLabel, onHandoff]);
+
   const turnsUsed = useMemo(() => turns.filter((turn) => turn.role === "user").length, [turns]);
   const remainingLabel = quota.locked
     ? t("fit.passRequired")
     : t("fit.freeLeft", { remaining: Math.max(0, quota.limit - quota.used) });
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-gradient-to-br from-[#ffd6e8] via-[#fff0f6] to-[#e8d5ff] px-3 pb-4 pt-3 font-sans text-slate-800">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-pink-400/25 blur-[80px]" />
-        <div className="absolute -right-16 bottom-24 h-64 w-64 rounded-full bg-purple-400/25 blur-[90px]" />
-      </div>
-
-      <div className="relative mx-auto flex min-h-[calc(100dvh-28px)] w-full max-w-[430px] flex-col">
+    <div className="font-sans">
+      <div className="mx-auto flex w-full max-w-[460px] flex-col">
         <header className="flex items-center justify-between gap-2">
           <a
             href="/"
-            className="flex h-9 items-center gap-1.5 rounded-full border border-white/70 bg-white/60 px-3 text-[11px] font-bold text-slate-600 backdrop-blur transition hover:border-pink-300 hover:text-pink-600"
+            className="flex h-9 items-center gap-1.5 rounded-full border border-morandi-pink/70 bg-white/70 px-3 text-[11px] font-bold text-ink-soft backdrop-blur transition hover:border-brand/60 hover:text-brand"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             008AI
           </a>
           <div className="text-center">
-            <p className="text-[10px] font-extrabold tracking-[0.18em] text-pink-600">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-mauve">
               {t("fit.series")}
             </p>
-            <h1 className="text-base font-black leading-tight text-slate-900">
-              {t("fit.productName")}
-            </h1>
+            <h1 className="text-base font-black leading-tight text-ink">{t("fit.productName")}</h1>
           </div>
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={openSettings}
-              aria-label={t("fit.settings")}
-              title={t("fit.settings")}
-              className={`flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition ${
-                entitled
-                  ? "border-pink-300 bg-pink-500/90 text-white"
-                  : "border-white/70 bg-white/60 text-slate-400 hover:border-pink-300"
-              }`}
-            >
-              {entitled ? <Sparkles className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-            </button>
-            <LanguageSwitcher compact />
+            <LanguageSwitcher variant="light" compact />
             <button
               type="button"
               onClick={toggleHandsFree}
@@ -485,7 +469,7 @@ export default function SavageFitApp() {
               className={`flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition ${
                 handsFree
                   ? "border-emerald-300 bg-emerald-400/90 text-white"
-                  : "border-white/70 bg-white/60 text-slate-600 hover:border-pink-300"
+                  : "border-morandi-pink/70 bg-white/70 text-ink-soft hover:border-brand/50"
               }`}
             >
               <Hand className="h-4 w-4" />
@@ -493,22 +477,16 @@ export default function SavageFitApp() {
           </div>
         </header>
 
-        <p className="mt-2 text-center text-[10px] font-semibold text-slate-500">
-          {t("fit.tagline")}
-        </p>
+        <p className="mt-2 text-center text-[10px] font-semibold text-ink-faint">{t("fit.tagline")}</p>
 
-        <div className="mt-3">
-          <PersonaSwitcher activeId={persona.id} onSelect={selectPersona} />
-        </div>
-
-        <div className="mt-2 flex items-center justify-between px-1">
-          <p className="text-[10px] font-bold text-slate-500">
-            {persona.emoji} {language.id === "zh" ? persona.nameZh : persona.name} -{" "}
-            {language.id === "zh" ? persona.taglineZh : persona.tagline}
+        <div className="mt-3 flex items-center justify-between px-1">
+          <p className="text-[10px] font-bold text-ink-soft">
+            {bestie.emoji} {language.id === "zh" ? bestie.nameZh : bestie.name} -{" "}
+            {language.id === "zh" ? bestie.taglineZh : bestie.tagline}
           </p>
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-              quota.locked ? "bg-rose-100 text-rose-600" : "bg-white/70 text-slate-600"
+              quota.locked ? "bg-rose-100 text-rose-500" : "bg-white/70 text-ink-soft"
             }`}
           >
             {quota.locked ? <Lock className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
@@ -517,17 +495,19 @@ export default function SavageFitApp() {
         </div>
 
         {briefing ? (
-          <div className="mt-2 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2 backdrop-blur">
-            <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-            <p className="text-[10px] font-bold leading-snug text-amber-800">
-              Atonement queued: {Math.round(briefing.totalCalories)} kcal
-              {briefing.items.length > 0
-                ? ` from ${briefing.items.slice(0, 3).join(", ")}`
-                : ""}{" "}
+          <div className="mt-2 flex items-start gap-2 rounded-2xl border border-morandi-pink/70 bg-white/70 px-3 py-2 backdrop-blur">
+            <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
+            <p className="text-[10px] font-bold leading-snug text-ink-soft">
+              {t("fit.briefingQueued", {
+                kcal: Math.round(briefing.totalCalories),
+                items: briefing.items.slice(0, 3).join(", "),
+              })}{" "}
               {(briefing.targetBurnCalories ?? 0) > 0
-                ? `- ${briefing.targetBurnCalories} kcal to burn (~${briefing.suggestedRunMinutes ?? 0} min slow jog). `
-                : "-"}{" "}
-              {persona.name} has thoughts.
+                ? t("fit.briefingTarget", {
+                    kcal: briefing.targetBurnCalories ?? 0,
+                    minutes: briefing.suggestedRunMinutes ?? 0,
+                  })
+                : ""}
             </p>
             <button
               type="button"
@@ -535,15 +515,15 @@ export default function SavageFitApp() {
                 briefingRef.current = null;
                 setBriefing(null);
               }}
-              className="ml-auto shrink-0 text-[10px] font-extrabold text-amber-600 transition hover:text-amber-800"
+              className="ml-auto shrink-0 text-[10px] font-extrabold text-mauve transition hover:text-brand"
             >
-              Dismiss
+              {t("fit.dismiss")}
             </button>
           </div>
         ) : null}
 
         <VoiceStage
-          persona={persona}
+          bestie={bestie}
           status={status}
           interim={interim}
           level={level}
@@ -563,52 +543,107 @@ export default function SavageFitApp() {
             type="button"
             onClick={() => setStudioOpen(true)}
             disabled={!lastUtterance}
-            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/80 bg-white/70 text-xs font-extrabold text-slate-700 backdrop-blur transition hover:border-pink-300 hover:text-pink-600 disabled:opacity-50"
+            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-morandi-pink/70 bg-white/70 text-xs font-extrabold text-ink-soft backdrop-blur transition hover:border-brand/50 hover:text-brand disabled:opacity-50"
           >
             <Film className="h-4 w-4" />
-            Create 9:16 reel from last turn
+            {t("fit.reelCta")}
           </button>
           <button
             type="button"
             onClick={() => setStudioOpen(true)}
-            className="flex h-11 items-center justify-center gap-1.5 rounded-2xl bg-slate-900 px-4 text-xs font-extrabold text-white transition hover:bg-slate-800"
+            className="flex h-11 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-fuchsia-300 to-pink-500 px-4 text-xs font-extrabold text-white shadow-lg shadow-morandi-pink/50 transition hover:brightness-105"
           >
             <InfinityIcon className="h-4 w-4" />
             {turnsUsed}/{FREE_VOICE_TURNS}
           </button>
         </div>
 
-        <p className="mt-2 text-center text-[10px] font-semibold text-slate-500">
-          Coach replies are AI generated and spoken aloud. Fitness guidance only - not medical
-          advice.
+        <section className="aura-card mt-4 rounded-[28px] p-5">
+          <p className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-mauve">
+            <Activity className="h-3 w-3 text-brand" />
+            {t("fit.burnTitle")}
+          </p>
+          <p className="mt-1 text-[11px] font-semibold leading-relaxed text-ink-soft">
+            {t("fit.burnHint")}
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {MOVEMENT_PRESETS.map((preset) => (
+              <button
+                key={preset.labelKey}
+                type="button"
+                onClick={() => {
+                  setBurnLabel(t(preset.labelKey));
+                  setBurnKcal(String(preset.kcal));
+                  setBurnError(null);
+                }}
+                className="rounded-full border border-morandi-pink/60 bg-white/70 px-3 py-1.5 text-[11px] font-bold text-ink-soft transition hover:border-brand/50 hover:text-brand"
+              >
+                {t(preset.labelKey)} · {preset.kcal}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              value={burnLabel}
+              onChange={(event) => setBurnLabel(event.target.value)}
+              placeholder={t("fit.burnLabelPlaceholder")}
+              className="h-11 min-w-0 flex-1 rounded-2xl border border-morandi-pink/70 bg-white/80 px-3 text-xs font-semibold text-ink outline-none transition placeholder:text-ink-faint focus:border-brand/60"
+            />
+            <input
+              value={burnKcal}
+              onChange={(event) => setBurnKcal(event.target.value.replace(/[^0-9]/g, ""))}
+              inputMode="numeric"
+              placeholder={t("fit.burnKcalPlaceholder")}
+              className="h-11 w-24 rounded-2xl border border-morandi-pink/70 bg-white/80 px-3 text-center text-xs font-semibold text-ink outline-none transition placeholder:text-ink-faint focus:border-brand/60"
+            />
+          </div>
+
+          {burnError ? (
+            <p className="mt-2 text-[11px] font-bold text-rose-500">{burnError}</p>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={logMovement}
+            className="mt-3 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-300 to-pink-500 px-4 text-sm font-extrabold text-white shadow-lg shadow-morandi-pink/50 transition hover:brightness-105"
+          >
+            <Sparkles className="h-4 w-4" />
+            {t("fit.burnSubmit")}
+          </button>
+
+          {burnNote ? (
+            <p className="mt-2 text-center text-[11px] font-bold text-mauve">{burnNote}</p>
+          ) : null}
+        </section>
+
+        {burnNote && onHandoff ? (
+          <BestieHandoffCard direction="movement-to-intake" onHandoff={handoffToCalorie} />
+        ) : null}
+
+        <p className="mt-3 text-center text-[10px] font-semibold leading-relaxed text-ink-faint">
+          {t("fit.disclaimer")}
         </p>
-        <p className="mt-1 text-center text-[10px] font-semibold text-slate-500">
-          <a href="/savage-cal" className="font-extrabold text-pink-600 hover:text-pink-700">
-            {t("fit.crossSellCal")}
-          </a>{" "}
-          - the bestie roasts what you actually ate.
+        <p className="mt-1 text-center text-[10px] font-semibold text-ink-faint">
+          <a href={buildIntakeHandoffHref({ label: burnLabel || "today", calories: Number.parseInt(burnKcal, 10) || 0 })} className="font-extrabold text-brand hover:opacity-80">
+            {t("fit.backToCalorie")}
+          </a>
         </p>
       </div>
 
       <SnippetStudio
         open={studioOpen}
         onClose={() => setStudioOpen(false)}
-        persona={persona}
+        bestie={bestie}
         utterance={lastUtterance}
         coachReply={coachReply}
-      />
-
-      <PrivateRoastSettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        initialConfig={roastConfig}
-        onSaved={setRoastConfig}
       />
 
       <PaywallModal
         open={modalOpen}
         onClose={closePaywall}
-        persona={persona}
+        bestie={bestie}
         used={quota.used}
         limit={quota.limit}
         onUnlocked={handleUnlocked}

@@ -23,9 +23,9 @@ import {
   SILENCE_END_MS,
   SPEECH_RMS_THRESHOLD,
   type LanguageOption,
-} from "@/lib/savage-fit/config";
-import type { Persona } from "@/lib/savage-fit/personas";
-import type { VoiceUtterance } from "@/lib/savage-fit/types";
+} from "@/lib/aura-fit/config";
+import type { Bestie } from "@/lib/aura-fit/besties";
+import type { VoiceUtterance } from "@/lib/aura-fit/types";
 
 // ── Minimal Web Speech typings (lib.dom does not ship SpeechRecognition) ──
 
@@ -112,14 +112,14 @@ function drainSentences(buffer: string): { sentences: string[]; rest: string } {
 
 function pickVoice(
   voices: SpeechSynthesisVoice[],
-  persona: Persona,
+  bestie: Bestie,
   lang: string
 ): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null;
   const short = lang.slice(0, 2).toLowerCase();
   const localized = voices.filter((voice) => (voice.lang || "").toLowerCase().startsWith(short));
   const pool = localized.length > 0 ? localized : voices;
-  for (const hint of persona.voice.hints) {
+  for (const hint of bestie.voice.hints) {
     const found = pool.find((voice) => voice.name.toLowerCase().includes(hint.toLowerCase()));
     if (found) return found;
   }
@@ -156,7 +156,7 @@ export function unlockAudioContext(): AudioContext | null {
 export type VoiceStatus = "idle" | "listening" | "thinking" | "speaking" | "error";
 
 export interface VoiceEngineOptions {
-  persona: Persona;
+  bestie: Bestie;
   language: LanguageOption;
   /** false while the paywall is locked - the engine tears everything down. */
   enabled: boolean;
@@ -188,7 +188,7 @@ export interface VoiceEngine {
 
 export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
   const {
-    persona,
+    bestie,
     language,
     enabled,
     handsFree,
@@ -229,7 +229,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
   const mountedRef = useRef(true);
   const handsFreeRef = useRef(handsFree);
   const enabledRef = useRef(enabled);
-  const personaRef = useRef(persona);
+  const bestieRef = useRef(bestie);
   const languageRef = useRef(language);
   const onUtteranceRef = useRef(onUtterance);
   const onCoachReplyRef = useRef(onCoachReply);
@@ -238,7 +238,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
 
   handsFreeRef.current = handsFree;
   enabledRef.current = enabled;
-  personaRef.current = persona;
+  bestieRef.current = bestie;
   languageRef.current = language;
   onUtteranceRef.current = onUtterance;
   onCoachReplyRef.current = onCoachReply;
@@ -274,21 +274,21 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     resolve?.();
   }, []);
 
-  /** Queue one utterance; the persona voice/rate/pitch shape the delivery. */
+  /** Queue one utterance; the bestie voice/rate/pitch shape the delivery. */
   /**
-   * Server TTS tier (route: /api/savage-fit/tts). Used when the platform has no
+   * Server TTS tier (route: /api/aura-fit/tts). Used when the platform has no
    * browser speech engine, so every device still gets a voice.
    */
   const queueSpeakServer = useCallback(
     async (text: string) => {
       speakQueueRef.current += 1;
       try {
-        const response = await fetch("/api/savage-fit/tts", {
+        const response = await fetch("/api/aura-fit/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             text,
-            personaId: personaRef.current.id,
+            bestieId: bestieRef.current.id,
             language: languageRef.current.id,
           }),
         });
@@ -306,7 +306,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
         });
         URL.revokeObjectURL(url);
       } catch (error) {
-        console.warn("[savage-fit] server TTS unavailable:", error);
+        console.warn("[aura-fit] server TTS unavailable:", error);
       } finally {
         serverAudioRef.current = null;
         speakQueueRef.current = Math.max(0, speakQueueRef.current - 1);
@@ -326,7 +326,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       }
       const synth = window.speechSynthesis;
       const utterance = new SpeechSynthesisUtterance(clean);
-      const active = personaRef.current;
+      const active = bestieRef.current;
       const voice = pickVoice(voiceCacheRef.current, active, languageRef.current.speech);
       if (voice) utterance.voice = voice;
       utterance.lang = voice?.lang || languageRef.current.speech;
@@ -467,7 +467,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
       mimeType: blob?.type || mimeType,
       durationMs,
       levels,
-      personaId: personaRef.current.id,
+      bestieId: bestieRef.current.id,
       at: Date.now(),
     };
     if (mountedRef.current) setLastUtterance(utterance);
@@ -476,7 +476,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
     pendingSentenceRef.current = "";
     let fillerTimer: number | null = null;
     if (handsFreeRef.current && ttsSupported) {
-      const fillers = personaRef.current.fillers;
+      const fillers = bestieRef.current.fillers;
       const filler = fillers[Math.floor(Math.random() * fillers.length)];
       fillerTimer = window.setTimeout(() => {
         if (statusRef.current === "thinking") queueSpeak(filler);
@@ -573,7 +573,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
         recorderRef.current = recorder;
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
-        console.warn("[savage-fit] recorder unavailable:", message);
+        console.warn("[aura-fit] recorder unavailable:", message);
       }
     }
 
@@ -633,7 +633,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
         rafRef.current = requestAnimationFrame(loop);
       }
     } catch (cause) {
-      console.warn("[savage-fit] metering unavailable:", cause);
+      console.warn("[aura-fit] metering unavailable:", cause);
     }
 
     // Speech recognition supplies the transcript.
@@ -676,7 +676,7 @@ export function useVoiceEngine(options: VoiceEngineOptions): VoiceEngine {
         recognition.start();
         recognitionRef.current = recognition;
       } catch (cause) {
-        console.warn("[savage-fit] recognition unavailable:", cause);
+        console.warn("[aura-fit] recognition unavailable:", cause);
       }
     }
 

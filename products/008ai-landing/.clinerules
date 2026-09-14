@@ -8,7 +8,7 @@
 # ============================================
 - 【唯一发布通道】生产发布必须执行 `node scripts/vercel-api-deploy.mjs`，工作目录固定为 products/008ai-landing。禁止使用 Vercel CLI、Git 自动部署或其他脚本作为生产发布手段。
 - 【发布成功判定】仅当脚本输出 `✅ 生产部署完成`、部署状态为 `READY`、且 `008ai.online` 别名已重新绑定到该次部署时，方可判定发布成功。
-- 【发布后冒烟】发布完成后须校验 `/savage-cal` 与 `/savage-fit` 返回 200，且 `/api/savage-fit/chat` 返回应用层错误（400/503 等）而非 404。
+- 【发布后冒烟】发布完成后须校验 `/savage-cal` 与 `/savage-fit`（Aura Fit 的别名路由）返回 200，且 `/api/savage-fit/chat` 返回应用层错误（400/503 等）而非 404。
 - 【别名显式更新】生产域名别名只由该脚本在部署 READY 之后显式更新，禁止在其他流程中隐式改动。
 
 # ============================================
@@ -23,8 +23,8 @@
 # ============================================
 - 【必需键清单】以下键必须存在于运行环境或 Vercel 生产环境：
   - `VERCEL_TOKEN` —— 部署脚本鉴权，仅通过环境变量注入。
-  - `GEMINI_API_KEY` —— Savage Fit AI 教练模型；缺失时 `/api/savage-fit/chat` 返回 503 AI_KEY_MISSING。
-  - `CALORIE_AI_API_URL` —— Savage Cal 食物识别桥接端点；缺失时 `/api/savage-cal/recognize` 返回 503。
+  - `GEMINI_API_KEY` —— Aura Fit 双知己（Fit Bestie 语音陪练）教练模型；缺失时 `/api/savage-fit/chat` 返回 503 AI_KEY_MISSING。
+  - `CALORIE_AI_API_URL` —— Aura Fit（Calorie Bestie 食物识别）桥接端点；缺失时 `/api/savage-cal/recognize` 返回 503。
   - `STRIPE_SECRET_KEY` —— 支付下单，且为部署脚本的必需校验项之一。
 - 【密钥禁令】仅登记键名，严禁把真实密钥值写入仓库、提交历史、日志或本文件。
 

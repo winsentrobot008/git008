@@ -1,17 +1,17 @@
 /**
- * POST /api/savage-fit/chat
+ * POST /api/aura-fit/chat
  *
- * Gemini 3.7 Flash coaching endpoint for Savage Fit AI.
+ * Gemini 3.7 Flash coaching endpoint for the Aura Fit besties.
  *
  * Body: {
  *   mode: "reply" | "snippet",   // snippet = social copy for the 9:16 studio
- *   personaId: "savage" | "soft" | "hype",  // default savage
+ *   bestieId: "calorie" | "fit",           // default calorie
  *   transcript: string,          // the freshly recorded user turn
  *   history?: { role: "user" | "coach", text: string }[],
  *   language?: "en" | "zh",
  *   sessionId?: string,          // unified gate bucket (lib/health-gate)
  *   email?: string,              // optional 008ai.online Pass entitlement
- *   healthContext?: string       // untrusted roast briefing from the food audit
+ *   healthContext?: string       // untrusted loop briefing from the intake audit
  * }
  *
  * Response (mode=reply): text/plain stream of spoken-ready sentences.
@@ -35,12 +35,11 @@ import {
   geminiModel,
   resolveLanguage,
   resolveVoiceTokenPolicy,
-} from "@/lib/savage-fit/config";
-import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/savage-fit/guard";
-import { getPersona } from "@/lib/savage-fit/personas";
-import { consumeServerTurn, releaseServerTurn, resolveQuotaKey } from "@/lib/savage-fit/server-quota";
+} from "@/lib/aura-fit/config";
+import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/aura-fit/guard";
+import { getBestie } from "@/lib/aura-fit/besties";
+import { consumeServerTurn, releaseServerTurn, resolveQuotaKey } from "@/lib/aura-fit/server-quota";
 import { listEntitlements } from "@/lib/orders-store";
-import { sanitizePrivateRoastConfig } from "@/lib/shared/roast-db";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -61,7 +60,7 @@ interface GeminiTurn {
 
 interface CoachRequestBody {
   mode?: string;
-  personaId?: string;
+  bestieId?: string;
   transcript?: string;
   text?: string;
   history?: unknown;
@@ -69,7 +68,6 @@ interface CoachRequestBody {
   sessionId?: string;
   email?: string;
   healthContext?: string;
-  roastConfig?: unknown;
 }
 
 function jsonError(code: string, detail: string, status: number, extra: Record<string, unknown> = {}) {
@@ -108,7 +106,7 @@ const SNIPPET_INSTRUCTION = [
   '{"title": string, "hook": string, "hashtags": string[]}',
   "- title: at most 7 words, the clip headline, no hashtags, no emoji.",
   "- hook: one sentence, at most 14 words, written as an opening line for the caption.",
-  "- hashtags: 4 to 6 entries, each starting with #, lowercase, no spaces, including one persona tag and #008ai.",
+  "- hashtags: 4 to 6 entries, each starting with #, lowercase, no spaces, including one bestie tag and #008ai.",
   "Do not add commentary, markdown fences, or any text outside the JSON object.",
 ].join("\n");
 
@@ -138,14 +136,14 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Rate limits: burst then daily ──
-  const burst = checkRateLimit(`savage-fit:min:${ip}`, RATE_LIMIT_PER_MINUTE, MINUTE_MS);
+  const burst = checkRateLimit(`aura-fit:min:${ip}`, RATE_LIMIT_PER_MINUTE, MINUTE_MS);
   if (!burst.allowed) {
     return NextResponse.json(
       { code: "RATE_LIMITED", detail: "Too many requests, slow down", retry_after: burst.retryAfterSeconds },
       { status: 429, headers: { "Retry-After": String(burst.retryAfterSeconds) } }
     );
   }
-  const daily = checkRateLimit(`savage-fit:day:${ip}`, DAILY_LIMIT, DAY_MS);
+  const daily = checkRateLimit(`aura-fit:day:${ip}`, DAILY_LIMIT, DAY_MS);
   if (!daily.allowed) {
     return NextResponse.json(
       { code: "RATE_LIMITED", detail: "Daily limit reached", retry_after: daily.retryAfterSeconds },
@@ -161,7 +159,7 @@ export async function POST(request: NextRequest) {
   }
 
   const mode: Mode = body.mode === "snippet" ? "snippet" : "reply";
-  const persona = getPersona(body.personaId);
+  const bestie = getBestie(body.bestieId);
   const language = resolveLanguage(body.language);
   const transcript = String(body.transcript ?? body.text ?? "").trim();
 
@@ -172,7 +170,7 @@ export async function POST(request: NextRequest) {
     return jsonError("INVALID_REQUEST", `transcript must be <= ${MAX_TURN_CHARS} characters`, 400);
   }
 
-  // Untrusted roast briefing handed over by the food audit (never instructions).
+  // Untrusted loop briefing handed over by the intake log (never instructions).
   const healthContext = String(body.healthContext || "")
     .replace(/\s+/g, " ")
     .trim()
@@ -188,12 +186,11 @@ export async function POST(request: NextRequest) {
   }
 
   const history = normalizeHistory(body.history);
-  const email = String(body.email || request.headers.get("x-savage-email") || "");
+  const email = String(body.email || request.headers.get("x-aura-email") || "");
   const entitled = isPassHolder(email);
-  // The private roast bank is a paid feature: it is only accepted from a caller
-  // whose pass was just verified against the order store, and it is sanitised
-  // before any of it can reach the system prompt.
-  const privateRoast = entitled ? sanitizePrivateRoastConfig(body.roastConfig) : null;
+  // The loop briefing is untrusted input: it is sanitised before any of it can
+  // reach the system prompt, and it only ever arrives from a pass holder whose
+  // entitlement was verified against the order store.
   const quotaKey = resolveQuotaKey(body.sessionId, ip);
 
   // ── Hard paywall (server lock, independent from the client counter) ──
@@ -219,17 +216,16 @@ export async function POST(request: NextRequest) {
   }
 
   const model = geminiModel();
-  const policy = resolveVoiceTokenPolicy(persona.temperature);
+  const policy = resolveVoiceTokenPolicy(bestie.temperature);
   const promptContext = {
     language: language.prompt,
     turnIndex: history.length,
     healthContext,
-    ...(privateRoast ? { privateRoast } : {}),
   };
   const systemInstruction =
     mode === "snippet"
-      ? `${persona.systemPrompt(promptContext)}\n\n${SNIPPET_INSTRUCTION}`
-      : persona.systemPrompt(promptContext);
+      ? `${bestie.systemPrompt(promptContext)}\n\n${SNIPPET_INSTRUCTION}`
+      : bestie.systemPrompt(promptContext);
 
   const contents: GeminiTurn[] = [
     ...history,
@@ -239,7 +235,7 @@ export async function POST(request: NextRequest) {
         {
           text:
             mode === "snippet"
-              ? `Write the 9:16 clip copy for this coaching moment.\nPersona: ${persona.name}.\nUser said: ${transcript}`
+              ? `Write the 9:16 clip copy for this coaching moment.\nPersona: ${bestie.name}.\nUser said: ${transcript}`
               : transcript,
         },
       ],
@@ -266,7 +262,7 @@ export async function POST(request: NextRequest) {
 
   const endpoint = buildGeminiEndpoint(model, mode === "reply");
   console.log(
-    `[savage-fit] mode=${mode} model=${model} persona=${persona.id} policy=${policy.label} quota=${entitled ? "pass" : "free"} ip=${ip}`
+    `[aura-fit] mode=${mode} model=${model} bestie=${bestie.id} policy=${policy.label} quota=${entitled ? "pass" : "free"} ip=${ip}`
   );
 
   const payload = {
@@ -291,7 +287,7 @@ export async function POST(request: NextRequest) {
       });
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[savage-fit] snippet upstream ${response.status}: ${errorText.slice(0, 200)}`);
+        console.error(`[aura-fit] snippet upstream ${response.status}: ${errorText.slice(0, 200)}`);
         return jsonError("UPSTREAM_ERROR", `Model error ${response.status}`, 502);
       }
       const data = (await response.json()) as {
@@ -309,9 +305,9 @@ export async function POST(request: NextRequest) {
         : [];
       return NextResponse.json({
         copy: {
-          title: String(parsed.title ?? persona.name).slice(0, 80),
-          hook: String(parsed.hook ?? persona.tagline).slice(0, 160),
-          hashtags: hashtags.length > 0 ? hashtags : [`#${persona.id}`, "#008ai"],
+          title: String(parsed.title ?? bestie.name).slice(0, 80),
+          hook: String(parsed.hook ?? bestie.tagline).slice(0, 160),
+          hashtags: hashtags.length > 0 ? hashtags : [`#${bestie.id}`, "#008ai"],
         },
         source: "model",
         model,
@@ -319,7 +315,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("[savage-fit] snippet call failed:", message);
+      console.error("[aura-fit] snippet call failed:", message);
       return jsonError("UPSTREAM_ERROR", message, 502);
     }
   }
@@ -335,14 +331,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[savage-fit] upstream unreachable:", message);
+    console.error("[aura-fit] upstream unreachable:", message);
     if (quotaConsumed) releaseServerTurn(quotaKey);
     return jsonError("UPSTREAM_ERROR", message, 502);
   }
 
   if (!upstream.ok || !upstream.body) {
     const errorText = await upstream.text().catch(() => "");
-    console.error(`[savage-fit] upstream ${upstream.status}: ${errorText.slice(0, 200)}`);
+    console.error(`[aura-fit] upstream ${upstream.status}: ${errorText.slice(0, 200)}`);
     if (quotaConsumed) releaseServerTurn(quotaKey);
     return jsonError("UPSTREAM_ERROR", `Model error ${upstream.status}`, 502);
   }
@@ -400,9 +396,9 @@ export async function POST(request: NextRequest) {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store, no-transform",
       "X-Accel-Buffering": "no",
-      "X-Savage-Model": model,
-      "X-Savage-Persona": persona.id,
-      "X-Savage-Remaining": entitled ? "unlimited" : String(quotaRemaining),
+      "X-Aura-Model": model,
+      "X-Aura-Bestie": bestie.id,
+      "X-Aura-Remaining": entitled ? "unlimited" : String(quotaRemaining),
     },
   });
 }

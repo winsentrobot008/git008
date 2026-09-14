@@ -5,8 +5,7 @@ import { MoreVertical } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
 
 const MENU_ITEMS = [
-  { key: "menu.savageCal", href: "/savage-cal" },
-  { key: "menu.savageFit", href: "/savage-fit" },
+  { key: "menu.auraFit", href: "/aura-fit" },
   { key: "menu.buyPass", href: "#pricing" },
   { key: "menu.login", href: "/admin" },
   { key: "menu.terms", href: "#terms" },

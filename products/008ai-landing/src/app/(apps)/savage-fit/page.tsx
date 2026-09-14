@@ -1,47 +1,35 @@
 import type { Metadata } from "next";
-import SavageFitApp from "@/components/savage-fit/SavageFitApp";
-import { APP_NAME, BRAND_TAGLINE } from "@/lib/savage-fit/config";
+import AuraFitApp from "@/components/aura-fit/AuraFitApp";
+import { APP_NAME, BRAND_TAGLINE } from "@/lib/aura-fit/config";
 
 /**
- * /savage-fit - Savage Fit AI, App 2 of the Savage Bestie Health Series.
+ * /savage-fit - legacy alias of the merged product.
  *
- * Server component: metadata plus the client shell, so nothing browser-specific
- * runs during SSR. Entry context (?food=&calories=&from=savage_cal) is parsed in
- * the client from window.location.search, which is what keeps this route
- * statically prerendered while still opening a roast on arrival.
+ * Kept alive (and returning 200) for the release smoke contract; it opens the
+ * unified Aura Fit shell on the Fit Bestie half and still reads the cross-loop
+ * query string (?bestie=&food=&calories=&from=). /aura-fit is canonical.
  */
 
 export const metadata: Metadata = {
-  title: `${APP_NAME} - Hands-free Voice Workout Coach | 008AI`,
+  title: `${APP_NAME} - Fit Bestie Voice Coach | 008AI`,
   description:
-    "Savage Fit AI voice coach: pick a bestie persona, talk out loud, burn off what you ate on the spot, and export a 9:16 clip. 3 free voice turns, then the 008ai.online Pass.",
+    "Fit Bestie, the movement half of Aura Fit: talk out loud, let a short graceful session shape the day, and log the burn for the Calorie Bestie. 3 free voice turns, then the 008ai.online Pass.",
   metadataBase: new URL("https://008ai.online"),
-  keywords: [
-    "Savage Fit AI",
-    "AI workout coach",
-    "voice fitness coach",
-    "hands-free workout coach",
-    "008AI",
-  ],
-  alternates: { canonical: "/savage-fit" },
+  keywords: ["Aura Fit", "Fit Bestie", "AI workout coach", "voice fitness coach", "008AI"],
+  alternates: { canonical: "/aura-fit" },
   openGraph: {
-    title: APP_NAME,
+    title: `${APP_NAME} - Fit Bestie`,
     description: BRAND_TAGLINE,
-    url: "https://008ai.online/savage-fit",
+    url: "https://008ai.online/aura-fit",
     siteName: "008AI",
     type: "website",
   },
-  twitter: {
-    card: "summary_large_image",
-    title: APP_NAME,
-    description: "Bestie personas, hands-free coaching, 9:16 clip export. 008ai.online",
-  },
 };
 
-export default function SavageFitPage() {
+export default function SavageFitAliasPage() {
   return (
     <main className="min-h-[100dvh] w-full">
-      <SavageFitApp />
+      <AuraFitApp initialBestie="fit" />
     </main>
   );
 }

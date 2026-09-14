@@ -1,35 +1,52 @@
 /**
- * config - Savage Fit AI application config (Savage Bestie Health Series).
+ * config - Aura Fit (知己轻体) application config.
  *
- * Clone contract (see TEMPLATE_APP.md): App-ID / brand / prompts / palette live in
- * this folder and nowhere else. The API route, the paywall and the 9:16 snippet
- * renderer all read from here, so a reskin stays a 3-file change.
+ * The merged product ships ONE config for both halves of the loop:
+ *   - the Calorie Bestie half: a photo intake log -> FoodScanEvent
+ *   - the Fit Bestie half:     spoken coaching + a burn log -> WorkoutEvent
+ *
+ * Brand identity, the dual-bestie registry, the free-tier limits, the Gemini
+ * helpers and the 9:16 snippet geometry live here and nowhere else, so a reskin
+ * stays a small, local change.
  */
 
 import { HEALTH_LIMITS } from "@/lib/shared/health-bus";
 
 /** Stable App-ID used for storage keys, quota buckets and log labels. */
-export const APP_ID = "savage-fit";
+export const APP_ID = "aura-fit";
 
 /** Product name (bilingual: EN label + the Chinese name used in the UI). */
-export const APP_NAME = "Savage Fit AI";
-export const APP_NAME_ZH = "毒舌健美闺蜜";
+export const APP_NAME = "Aura Fit";
+export const APP_NAME_ZH = "\u77e5\u5df1\u8f7b\u4f53";
 
-/** Series tagline, shown in the header and the share copy. */
-export const BRAND_TAGLINE = "You slacked, I burn it";
+/** Brand tagline: the promise the two besties make together. */
+export const BRAND_TAGLINE = "Two besties, one gentle loop";
 
 /** Chinese counterpart of BRAND_TAGLINE, for zh-locale surfaces. */
-export const BRAND_TAGLINE_ZH = "毒舌健美闺蜜 AI · 你偷懒，我来烧脂";
+export const BRAND_TAGLINE_ZH = "知己轻体 · 轻食闺蜜与塑形闺蜜的温柔闭环";
 
-export const BRAND_SHORT = "Savage Fit";
+export const BRAND_SHORT = "Aura Fit";
 export const BRAND_DOMAIN = "008ai.online";
 export const BRAND_ORIGIN = "https://008ai.online";
 export const BRAND_HANDLE = "@008ai.online";
 export const BRAND_PASS_LABEL = "008ai.online Pass";
 
+/** Canonical route of the merged product (legacy routes stay as aliases). */
+export const APP_PATH = "/aura-fit";
+
+/**
+ * Hard paywall: unpaid visitors get exactly this many photo scans per session.
+ * Re-exported from the shared bus so both halves of the loop share one free tier.
+ */
+export const FREE_FOOD_SCANS = HEALTH_LIMITS.foodScans;
+
+/** Mirrors the recognition route cap so a huge upload never leaves the browser. */
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
 /**
  * Hard paywall: unpaid visitors get exactly this many voice interactions per
- * session. Re-exported from the shared bus so both apps share one free tier.
+ * session. Re-exported from the shared bus so both halves of the loop share one
+ * free tier.
  */
 export const FREE_VOICE_TURNS = HEALTH_LIMITS.voiceTurns;
 
@@ -37,7 +54,7 @@ export const FREE_VOICE_TURNS = HEALTH_LIMITS.voiceTurns;
 export const MAX_TURN_CHARS = 500;
 export const MAX_HISTORY_TURNS = 8;
 
-/** Cap for the untrusted roast briefing handed over from the food audit. */
+/** Cap for the untrusted briefing handed over from the intake log. */
 export const HEALTH_CONTEXT_MAX_CHARS = 320;
 export const MAX_TURNS_PER_SESSION = 60;
 export const MAX_TURN_MS = 20_000;

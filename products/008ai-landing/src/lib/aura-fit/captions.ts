@@ -10,7 +10,7 @@
  */
 
 import { SNIPPET_BARS } from "./config";
-import type { Persona, PersonaId } from "./personas";
+import type { Bestie, BestieId } from "./besties";
 import type { CaptionCue, SnippetCopy } from "./types";
 
 /** Sentence-ish splitter (no lookbehind - Safari < 16.4 would fail to parse it). */
@@ -134,22 +134,21 @@ export function truncateWords(text: string, maxWords: number): string {
   return `${words.slice(0, maxWords).join(" ")}\u2026`;
 }
 
-const PERSONA_HOOKS: Record<PersonaId, string> = {
-  savage: "Tough love, zero excuses.",
-  soft: "Breathe first, then move.",
-  hype: "This is your training arc.",
+const BESTIE_HOOKS: Record<BestieId, string> = {
+  calorie: "Logged with love, balanced with ease.",
+  fit: "Graceful strength, one loop at a time.",
 };
 
 /**
  * Deterministic fallback copy derived from the user's own transcript.
  * Marked `source: "local"` so it is never presented as model output.
  */
-export function localSnippetCopy(text: string, persona: Persona, handle: string): SnippetCopy {
-  const title = truncateWords(text || persona.tagline, 7) || persona.tagline;
+export function localSnippetCopy(text: string, bestie: Bestie, handle: string): SnippetCopy {
+  const title = truncateWords(text || bestie.tagline, 7) || bestie.tagline;
   return {
     title,
-    hook: PERSONA_HOOKS[persona.id] || persona.tagline,
-    hashtags: [persona.id === "soft" ? "#yoga" : "#fitness", "#mindset", `#${persona.id}`, handle],
+    hook: BESTIE_HOOKS[bestie.id] || bestie.tagline,
+    hashtags: [bestie.id === "calorie" ? "#healthyfood" : "#pilates", "#wellness", `#${bestie.id}`, handle],
     source: "local",
   };
 }

@@ -3,7 +3,7 @@
 /**
  * PaywallModal - the unified 008AI Total Health Bundle modal.
  *
- * Shared by both gates of the loop: the Savage Fit AI voice tier (3 free turns -
+ * Shared by both gates of the loop: the Fit Bestie voice tier (3 free turns -
  * fired the moment the last free turn finishes speaking, playback halts) and
  * the CalorieAI photo tier (2 free scans). `gate` only swaps the wording, so the
  * product keeps exactly one subscription surface. The headline offer is the 008AI Total Health Bundle
@@ -16,8 +16,8 @@
 import { useEffect, useState } from "react";
 import { BadgeCheck, Check, Loader2, Lock, Sparkles, X } from "lucide-react";
 import { HEALTH_LIMITS, TOTAL_HEALTH_BUNDLE } from "@/lib/shared/health-bus";
-import { BRAND_PASS_LABEL } from "@/lib/savage-fit/config";
-import type { Persona } from "@/lib/savage-fit/personas";
+import { BRAND_PASS_LABEL } from "@/lib/aura-fit/config";
+import type { Bestie } from "@/lib/aura-fit/besties";
 
 interface PlanOption {
   id: string;
@@ -39,7 +39,7 @@ const PLANS: PlanOption[] = [
     label: `${BUNDLE.label} · Monthly`,
     price: `$${BUNDLE.monthly.toFixed(2)}`,
     cadence: "/ month",
-    note: "The whole loop: food audit, voice coach, reel exporter",
+    note: "The whole loop: food check-in, voice coach, reel exporter",
   },
   {
     id: "annual",
@@ -61,7 +61,7 @@ const PLANS: PlanOption[] = [
 export interface PaywallModalProps {
   open: boolean;
   onClose: () => void;
-  persona: Persona;
+  bestie: Bestie;
   /** Which free tier ran out - drives the badge and headline wording. */
   gate?: "voiceTurns" | "foodScans";
   used: number;
@@ -73,7 +73,7 @@ export interface PaywallModalProps {
 export default function PaywallModal({
   open,
   onClose,
-  persona,
+  bestie,
   gate = "voiceTurns",
   used,
   limit,
@@ -104,7 +104,7 @@ export default function PaywallModal({
   const selected = PLANS.find((item) => item.id === plan) ?? PLANS[1];
   const gateLabel = gate === "foodScans" ? "food scans" : "voice interactions";
   const heading =
-    gate === "foodScans" ? "Unlock unlimited food scans" : `Keep ${persona.name} in your ear`;
+    gate === "foodScans" ? "Unlock unlimited food scans" : `Keep ${bestie.name} in your ear`;
 
   async function restore() {
     const target = email.trim();
@@ -116,7 +116,7 @@ export default function PaywallModal({
     setRestoreError(null);
     try {
       const response = await fetch(
-        `/api/savage-fit/entitlement?email=${encodeURIComponent(target)}`,
+        `/api/aura-fit/entitlement?email=${encodeURIComponent(target)}`,
         { headers: { accept: "application/json" } }
       );
       const data = (await response.json()) as { entitled?: boolean; detail?: string };
@@ -142,10 +142,10 @@ export default function PaywallModal({
       className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-md sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
-      aria-label="Unlock Savage Fit AI"
+      aria-label="Unlock Aura Fit"
     >
       <div className="relative max-h-[100dvh] w-full max-w-[420px] overflow-y-auto rounded-t-[28px] border border-white/70 bg-white/85 shadow-[0_-10px_60px_rgba(236,72,153,0.35)] backdrop-blur-2xl sm:rounded-[28px]">
-        <div className={`relative bg-gradient-to-br ${persona.accent.from} ${persona.accent.to} px-6 pb-6 pt-7 text-white`}>
+        <div className={`relative bg-gradient-to-br ${bestie.accent.from} ${bestie.accent.to} px-6 pb-6 pt-7 text-white`}>
           <button
             type="button"
             aria-label="Close"
@@ -160,7 +160,7 @@ export default function PaywallModal({
           <h2 className="mt-3 text-2xl font-black leading-tight">{heading}</h2>
           <p className="mt-1.5 text-xs font-medium leading-relaxed text-white/90">
             You used all {limit} free {gateLabel} in this session. The {BUNDLE.label} unlocks the
-            whole loop: audit the meal, take the roast, work it off, post the clip.
+            whole loop: log the meal, take the note, move gently, post the clip.
           </p>
           <p className="mt-2 text-[10px] font-semibold text-white/75">
             Free tier: {HEALTH_LIMITS.voiceTurns} voice turns + {HEALTH_LIMITS.foodScans} photo

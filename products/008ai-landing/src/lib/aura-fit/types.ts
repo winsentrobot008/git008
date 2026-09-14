@@ -1,8 +1,8 @@
 /**
- * types - shared contracts for the Savage Fit AI voice loop, paywall and snippet studio.
+ * types - shared contracts for the Aura Fit voice loop, paywall and snippet studio.
  */
 
-import type { PersonaId } from "./personas";
+import type { BestieId } from "./besties";
 
 export type TurnRole = "user" | "coach";
 
@@ -10,7 +10,7 @@ export interface DialogueTurn {
   id: string;
   role: TurnRole;
   text: string;
-  personaId: PersonaId;
+  bestieId: BestieId;
   at: number;
 }
 
@@ -24,7 +24,7 @@ export interface VoiceUtterance {
   durationMs: number;
   /** Per-frame RMS samples (0..1) captured while recording. */
   levels: number[];
-  personaId: PersonaId;
+  bestieId: BestieId;
   at: number;
 }
 

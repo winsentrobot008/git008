@@ -1,11 +1,11 @@
 /**
- * POST /api/savage-fit/tts
+ * POST /api/aura-fit/tts
  *
  * Real-time TTS chunk endpoint for the Pingo-style voice engine.
  *
  * Body: {
  *   text: string,                       // <= 1000 chars
- *   personaId?: "savage" | "soft" | "hype", // default savage
+ *   bestieId?: "calorie" | "fit", // default calorie
  *   language?: "en" | "zh",
  *   mode?: "single" | "chunked",        // chunked = NDJSON audio frames per sentence
  *   voice?: string                      // explicit Azure/Edge voice override
@@ -22,9 +22,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { resolveLanguage } from "@/lib/savage-fit/config";
-import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/savage-fit/guard";
-import { getPersona, type PersonaId } from "@/lib/savage-fit/personas";
+import { resolveLanguage } from "@/lib/aura-fit/config";
+import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/aura-fit/guard";
+import { getBestie, type BestieId } from "@/lib/aura-fit/besties";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -34,11 +34,10 @@ const MAX_TTS_CHARS = 1000;
 const MAX_CHUNK_CHARS = 220;
 const RATE_LIMIT_PER_MINUTE = 60;
 
-/** Persona -> voice map (Azure/Edge neural voices). */
-const VOICES: Record<PersonaId, { en: string; zh: string }> = {
-  savage: { en: "en-US-AriaNeural", zh: "zh-CN-XiaoyiNeural" },
-  soft: { en: "en-US-JennyNeural", zh: "zh-CN-XiaoxiaoNeural" },
-  hype: { en: "en-US-GuyNeural", zh: "zh-CN-YunxiNeural" },
+/** Bestie -> voice map (Azure/Edge neural voices). */
+const VOICES: Record<BestieId, { en: string; zh: string }> = {
+  calorie: { en: "en-US-JennyNeural", zh: "zh-CN-XiaoxiaoNeural" },
+  fit: { en: "en-US-AriaNeural", zh: "zh-CN-XiaoyiNeural" },
 };
 
 const VOICE_LOCALES: Record<string, string> = { en: "en-US", zh: "zh-CN" };
@@ -96,7 +95,7 @@ async function synthesize(text: string, voice: string, locale: string): Promise<
         "Content-Type": "application/ssml+xml",
         "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
         "Ocp-Apim-Subscription-Key": ttsKey(),
-        "User-Agent": "008AI-Savage Fit",
+        "User-Agent": "008AI-Aura Fit",
       },
       body: ssml,
       signal: AbortSignal.timeout(15_000),
@@ -116,7 +115,7 @@ export async function POST(request: NextRequest) {
   if (waf.blocked) {
     return NextResponse.json({ code: "BLOCKED_BY_WAF", detail: "Request blocked" }, { status: 403 });
   }
-  const limit = checkRateLimit(`savage-fit:tts:${ip}`, RATE_LIMIT_PER_MINUTE, 60_000);
+  const limit = checkRateLimit(`aura-fit:tts:${ip}`, RATE_LIMIT_PER_MINUTE, 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
       { code: "RATE_LIMITED", detail: "Too many TTS requests", retry_after: limit.retryAfterSeconds },
@@ -124,7 +123,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { text?: string; personaId?: string; language?: string; mode?: string; voice?: string };
+  let body: { text?: string; bestieId?: string; language?: string; mode?: string; voice?: string };
   try {
     body = await request.json();
   } catch {
@@ -153,10 +152,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const persona = getPersona(body.personaId);
+  const bestie = getBestie(body.bestieId);
   const language = resolveLanguage(body.language);
   const locale = VOICE_LOCALES[language.id] ?? "en-US";
-  const voice = String(body.voice || VOICES[persona.id][language.id] || VOICES.soft.en);
+  const voice = String(body.voice || VOICES[bestie.id][language.id] || VOICES.calorie.en);
 
   // ── Single shot ──
   if (body.mode !== "chunked") {
@@ -168,12 +167,12 @@ export async function POST(request: NextRequest) {
           "Content-Length": String(audio.byteLength),
           "Cache-Control": "no-store",
           "X-TTS-Voice": voice,
-          "X-TTS-Persona": persona.id,
+          "X-TTS-Bestie": bestie.id,
         },
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("[savage-fit] tts failed:", message);
+      console.error("[aura-fit] tts failed:", message);
       return NextResponse.json({ code: "TTS_UPSTREAM_ERROR", detail: message }, { status: 502 });
     }
   }
@@ -206,7 +205,7 @@ export async function POST(request: NextRequest) {
       "Cache-Control": "no-store, no-transform",
       "X-Accel-Buffering": "no",
       "X-TTS-Voice": voice,
-      "X-TTS-Persona": persona.id,
+      "X-TTS-Bestie": bestie.id,
     },
   });
 }

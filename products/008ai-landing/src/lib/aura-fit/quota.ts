@@ -1,5 +1,5 @@
 /**
- * quota - Savage Fit AI view of the unified health gate.
+ * quota - Fit Bestie view of the unified health gate.
  *
  * The authoritative counters now live in `lib/shared/health-bus.ts` (one bus, two
  * gates: 2 free food scans and 3 free voice turns). This module is the thin

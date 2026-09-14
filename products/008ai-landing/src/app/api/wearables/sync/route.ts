@@ -22,7 +22,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/savage-fit/guard";
+import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/aura-fit/guard";
 import {
   HEALTH_BUS_VERSION,
   WEARABLE_METRIC_UNITS,
