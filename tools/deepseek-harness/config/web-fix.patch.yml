@@ -1,0 +1,6 @@
+# 修复 deepseek-harness-runtime-bin 0.1.5rc1 的 web profile 打包缺口：
+# 内置的 @deepseek-ai/dsh-session-title-first-prompt-llm 依赖
+# @deepseek-ai/dsh-session-title-llm，而该包未随 wheel 发布，导致 web profile 启动即失败。
+# 这里关闭「首轮提示词自动生成会话标题」这一可选行，使原生 Web UI 能正常启动。
+- id: session-title-llm
+  disabled: true

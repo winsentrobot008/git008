@@ -1,0 +1,30 @@
+# --- 子项目本地隔离（运行时体重禁止提交） ---
+venv/
+.venv/
+
+# --- Python 缓存与构建产物 ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- 临时/缓存：源码快照压缩包与解包中转目录 ---
+.cache/
+*.zip
+*.tmp
+*.log
+
+# --- 本地临时配置（仅保留 .env.example 模板） ---
+.env
+.env.local
+.env.*.local
+
+# --- 运行时 Harness home（profile/会话/凭据，禁止提交） ---
+config/dsh-home/*
+
+# --- 路由配置（含密钥，禁止提交）---
+config/route.env
+
+# --- 上游 vendor 快照（113 MB / 14004 文件；可复现，不纳入 git）---
+# 复现方式见 README「源码来源」：codeload zip @ 4878cdabd87d4041bdaff61d04c966883b9fd07a
+upstream/

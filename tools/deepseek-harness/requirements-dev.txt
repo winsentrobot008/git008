@@ -1,0 +1,4 @@
+# 开发/验证依赖：仅用于运行上游 SDK 自带测试
+-r requirements.txt
+
+pytest>=8.0

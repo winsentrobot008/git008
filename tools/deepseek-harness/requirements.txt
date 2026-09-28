@@ -1,0 +1,13 @@
+# DeepSeek Harness - Python 侧依赖（子项目隔离：仅安装到本目录 venv）
+#
+# deepseek-harness-sdk wheel 会按同版本自动拉取 deepseek-harness-runtime-bin；
+# 该运行时 wheel 内置 dsh CLI 可执行文件（含 Node 依赖树），
+# 因此本子项目无需系统级 Node.js / pnpm。
+#
+# 注意：上游源码树内 python/sdk/pyproject.toml 声明依赖
+# deepseek-harness-runtime-bin==0.0.0.dev0（仅供源码内开发），无法从 PyPI 解析，
+# 故此处固定使用已发布的版本化 wheel。
+deepseek-harness-sdk==0.1.5rc1
+
+# SDK 直接依赖（显式登记，便于审计与复现）
+pydantic>=2.12,<3

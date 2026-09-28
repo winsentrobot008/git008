@@ -11,6 +11,16 @@ using System.Text.RegularExpressions;
 using System.Windows.Forms;
 namespace AIFactory
 {
+    // 日志级别：决定 txtLog 中该行文本的颜色。
+    public enum LogLevel
+    {
+        Info,
+        Success,
+        Warning,
+        Error,
+        Title
+    }
+
     public class MainForm : Form
     {
         private Label lblGateway;
@@ -21,6 +31,13 @@ namespace AIFactory
         private Button btnStartLocal;
         private Button btnStopLocal;
         private Button btnRestartGateway;
+        private Button btnDiagnostics;
+        private Button btnRestartCodex;
+        private GroupBox grpLog;
+        private RichTextBox txtLog;
+        private int diagnosticsRunning;
+        private int codexRestartRunning;
+        private volatile bool sseStopRequested;
         private Timer timer;
         private int metricsPollInProgress;
         private long cumulativeTokens;
@@ -39,8 +56,36 @@ namespace AIFactory
         private static readonly string VsCodeSettingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Code", "User", "settings.json");
         // 修复②：兼容 base_url 与 api_base 两种写法。
         private const string BaseUrlPattern = @"(?m)^(\s*(?:base_url|api_base)\s*=\s*)[""'][^""']*[""']";
-        private const string LocalBaseUrl = "http://127.0.0.1:8000/v1";
+        // 统一网关常量：主路由网关端口固定 8001，所有 Agent 的本地端点都由这里派生。
+        private const int GatewayPort = 8001;
+        private static readonly string GatewayBaseUrl = "http://127.0.0.1:" + GatewayPort + "/v1";
+        // 全 Agent 配置位置（写入前统一 CreateDirectory，避免父目录不存在报错）。
+        private static readonly string ContinueDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".continue");
+        private static readonly string ContinueJsonPath = Path.Combine(ContinueDir, "config.json");
+        private static readonly string ContinueYamlPath = Path.Combine(ContinueDir, "config.yaml");
+        private static readonly string VsCodeGlobalStorageDir = Path.Combine(Path.GetDirectoryName(VsCodeSettingsPath) ?? "", "globalStorage");
+        private static readonly string ClineSettingsDir = Path.Combine(VsCodeGlobalStorageDir, "saoudrizwan.claude-dev", "settings");
+        private static readonly string ZooCodeSettingsDir = Path.Combine(VsCodeGlobalStorageDir, "zoocodeorganization.zoo-code", "settings");
+        private static readonly string RooCodeSettingsDir = Path.Combine(VsCodeGlobalStorageDir, "rooveterinaryinc.roo-cline", "settings");
+        private const string AgentEndpointFileName = "openai_compatible.json";
+        // 幂等刷新用：整段匹配本机网关 URL（含可选 /vN 后缀，否则刷新会叠加出 /v1/v1）。
+        private const string LocalUrlPattern = @"http://127\.0\.0\.1:\d+(?:/v\d+)?";
+        private const string LocalModelTitle = "Local RTX3060";
+        private const string LocalModelId = "27b";
+        private const string LocalApiKey = "local";
         private const string CloudBaseUrl = "https://api.deepseek.com/v1";
+        // ===== DeepSeek-Harness（tools/deepseek-harness）纳入统一路由治理 =====
+        private static readonly string DeepSeekHarnessDir = Path.Combine(RepoRoot, "tools", "deepseek-harness");
+        // 路由配置写 config/route.env，而不是 .env：dsh 启动时会拒绝任何出现在 .env 里的 bootstrap 键
+        // （DSH_* / DEEPSEEK_BASE_URL / PATH / 代理变量等），端点只能由「启动它的进程环境」注入。
+        private static readonly string DeepSeekHarnessRoutePath = Path.Combine(DeepSeekHarnessDir, "config", "route.env");
+        private static readonly string DeepSeekHarnessProfilePatchPath = Path.Combine(DeepSeekHarnessDir, "config", "dsh-home", "profiles", "sdk", "cordis.patch.yml");
+        // 云端密钥备份键：切本地时把真实密钥移到这里，切回云端时恢复，避免被 "local" 覆盖后丢失。
+        private const string CloudApiKeyStashKey = "DEEPSEEK_CLOUD_API_KEY";
+        // 本地网关 /v1/models 目录登记的就是 "local"，且网关会把请求体的 model 统一改写为 "local"。
+        private const string HarnessLocalModelId = "local";
+        // 云端回退时使用 Harness 适配器默认模型（与 SDK 文档示例一致）。
+        private const string HarnessCloudModelId = "deepseek-v4-flash";
         private string statusNotice = "";
         public MainForm()
         {
@@ -88,7 +133,7 @@ namespace AIFactory
             lblModelInfo.AutoSize = true;
             lblModelInfo.MaximumSize = new Size(510, 0);
             lblModelInfo.Font = new Font("Microsoft YaHei", 9);
-            lblModelInfo.Text = "当前模型：27B (PTQ1_0)    上下文限制：32,768 Tokens\n路由接口：http://127.0.0.1:8000/v1";
+            lblModelInfo.Text = "当前模型：27B (PTQ1_0)    上下文限制：32,768 Tokens\n路由接口：" + GatewayBaseUrl;
             grpModelInfo.Controls.Add(lblModelInfo);
             this.Controls.Add(grpModelInfo);
 
@@ -128,7 +173,7 @@ namespace AIFactory
             btnStopLocal.Click += BtnStopLocal_Click;
             this.Controls.Add(btnStopLocal);
             btnRestartGateway = new Button();
-            btnRestartGateway.Text = "🔄 重启路由网关\n(清理 8000 端口占用 + 重新加载 gateway.ps1)";
+            btnRestartGateway.Text = "🔄 重启路由网关\n(清理 " + GatewayPort + " 端口占用 + 重新加载 gateway.ps1)";
             btnRestartGateway.Font = new Font("Microsoft YaHei", 10, FontStyle.Bold);
             btnRestartGateway.BackColor = Color.FromArgb(2, 119, 189);
             btnRestartGateway.ForeColor = Color.White;
@@ -158,10 +203,10 @@ namespace AIFactory
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
                 string gatewayData = null;
-                try { gatewayData = ReadEndpoint("http://127.0.0.1:8000/stats"); }
+                try { gatewayData = ReadEndpoint("http://127.0.0.1:" + GatewayPort + "/stats"); }
                 catch
                 {
-                    try { gatewayData = ReadEndpoint("http://127.0.0.1:8000/metrics"); }
+                    try { gatewayData = ReadEndpoint("http://127.0.0.1:" + GatewayPort + "/metrics"); }
                     catch { }
                 }
 
@@ -352,7 +397,7 @@ namespace AIFactory
         }
         private bool EnsureGatewayRunning()
         {
-            if (IsPortListening(8000)) return true;
+            if (IsPortListening(GatewayPort)) return true;
             if (!File.Exists(GatewayScript))
             {
                 SetNotice("⚠ 未找到网关脚本 " + GatewayScript + "，网关未启动。");
@@ -413,11 +458,11 @@ namespace AIFactory
         // 清场：杀掉占用端口的旧进程并等待端口真正释放，保证随后启动的一定是最新 gateway.ps1。
         private bool ClearGatewayPort()
         {
-            int[] pids = ResolvePortOwnerPids(8000);
+            int[] pids = ResolvePortOwnerPids(GatewayPort);
             if (pids.Length == 0)
             {
-                if (IsPortListening(8000)) SetNotice("⚠ 8000 端口被占用，但无法定位其宿主进程。");
-                return !IsPortListening(8000);
+                if (IsPortListening(GatewayPort)) SetNotice("⚠ " + GatewayPort + " 端口被占用，但无法定位其宿主进程。");
+                return !IsPortListening(GatewayPort);
             }
             var pidList = new StringBuilder();
             foreach (int pid in pids)
@@ -426,7 +471,7 @@ namespace AIFactory
                 pidList.Append(pid);
             }
             RunPowerShell("Stop-Process -Id " + pidList + " -Force -ErrorAction SilentlyContinue", 20000);
-            return WaitForPort(8000, false, 10);
+            return WaitForPort(GatewayPort, false, 10);
         }
 
         private bool WaitForPort(int port, bool shouldListen, int timeoutSeconds)
@@ -438,10 +483,10 @@ namespace AIFactory
 
         private void RefreshStatus()
         {
-            bool gwAlive = IsPortListening(8000);
+            bool gwAlive = IsPortListening(GatewayPort);
             bool modelAlive = IsPortListening(8080);
             bool hostsIntercept = IsHostsIntercepted();
-            lblGateway.Text = "🌐 路由网关 [8000]: " + (gwAlive ? "🟢 在线运行" : "🔴 未运行");
+            lblGateway.Text = "🌐 路由网关 [" + GatewayPort + "]: " + (gwAlive ? "🟢 在线运行" : "🔴 未运行");
             lblGateway.ForeColor = gwAlive ? Color.Green : Color.Red;
             lblModel.Text = "🟢 27B 模型服务 [8080]: " + (modelAlive ? "🟢 在线 (RTX 3060 已挂载)" : "🔴 离线 (显存已释放)");
             lblModel.ForeColor = modelAlive ? Color.Green : Color.Gray;
@@ -500,6 +545,8 @@ namespace AIFactory
                 if (!Regex.IsMatch(content, BaseUrlPattern))
                     updated = AppendBaseUrlAtRoot(content, baseUrl);   // 文件本就没有该字段：自动追加
                 File.WriteAllText(CodexConfigPath, updated, new UTF8Encoding(false));
+                // 写入后校验：确认目标端点确实写进了文件。
+                if (!FileContainsBaseUrl(CodexConfigPath, baseUrl)) { error = "写入后校验未通过：" + CodexConfigPath; return false; }
                 return true;
             }
             catch (Exception ex)
@@ -510,7 +557,7 @@ namespace AIFactory
         }
 
         // 修复③：确保 VS Code 全局设置里存在 "http.proxySupport": "off"，否则代理会拦截发往本地网关的请求。
-        private static bool TryEnsureVsCodeProxyOff(out string error)
+        private static bool TryEnsureVsCodeProxyOff(string baseUrl, out string error)
         {
             error = null;
             try
@@ -550,13 +597,299 @@ namespace AIFactory
                             + (emptyObject ? "\n" : ",\n") + content.Substring(brace + 1);
                     }
                 }
-                if (updated != content) File.WriteAllText(VsCodeSettingsPath, updated, new UTF8Encoding(false));
+                // 修复④：codex / openai / chatgpt 等扩展残留的 apiBase 可能仍指向旧端口。
+                updated = Regex.Replace(updated, @"(?i)(""[A-Za-z0-9_.-]*apiBase""\s*:\s*)""[^""]*""", "${1}\"" + baseUrl + "\"");
+                File.WriteAllText(VsCodeSettingsPath, updated, new UTF8Encoding(false));
+                if (!Regex.IsMatch(updated, "(?i)\"http\\.proxysupport\"\\s*:\\s*\"off\"")) { error = "写入后校验未通过（http.proxySupport）：" + VsCodeSettingsPath; return false; }
                 return true;
             }
             catch (UnauthorizedAccessException ex) { error = "需要管理员权限或文件被占用：" + ex.Message; return false; }
             catch (Exception ex) { error = ex.Message; return false; }
         }
 
+        // ------------------------------------------------------------------
+        // 全 Agent 中央配置同步
+        // 把统一网关地址写进 Codex / Continue / Cline / ZooCode(Roo Code) 的
+        // 配置文件，并关掉 VS Code 的代理干扰；每次写入后都会回读校验。
+        // 全部幂等：已存在本地端点时只刷新 URL，不会产生重复键值。
+        // ------------------------------------------------------------------
+        private static bool FileContainsBaseUrl(string path, string baseUrl)
+        {
+            try { return File.Exists(path) && File.ReadAllText(path).IndexOf(baseUrl, StringComparison.OrdinalIgnoreCase) >= 0; }
+            catch { return false; }
+        }
+
+        // 返回可直接放进状态栏的同步摘要。
+        private static string SyncAllAgentConfigs(string baseUrl)
+        {
+            var synced = new System.Collections.Generic.List<string>();
+            var failed = new System.Collections.Generic.List<string>();
+            string error;
+
+            var warnings = new System.Collections.Generic.List<string>();
+
+            if (TrySetCodexBaseUrl(baseUrl, out error)) synced.Add("Codex"); else failed.Add("Codex（" + error + "）");
+            if (TrySetContinueConfig(baseUrl, out error)) synced.Add("Continue"); else failed.Add("Continue（" + error + "）");
+            if (TrySetClineConfig(baseUrl, out error)) synced.Add("Cline"); else failed.Add("Cline（" + error + "）");
+            if (TrySetZooCodeConfig(baseUrl, out error)) synced.Add("ZooCode"); else failed.Add("ZooCode（" + error + "）");
+            if (TrySetDeepSeekHarnessConfig(baseUrl, warnings, out error)) synced.Add("DeepSeek-Harness"); else failed.Add("DeepSeek-Harness（" + error + "）");
+            // VS Code 的代理开关是支撑步骤而非 agent 端点：成功时不进同步摘要（摘要固定为 5 个 agent），失败时照常计为失败。
+            if (!TryEnsureVsCodeProxyOff(baseUrl, out error)) failed.Add("VS Code（" + error + "）");
+
+            string syncedText = String.Join(" / ", synced.ToArray());
+            string warningText = warnings.Count == 0 ? "" : "；注意：" + String.Join("；", warnings.ToArray());
+            if (failed.Count == 0) return "☑ 已成功同步 " + syncedText + " 配置" + warningText;
+            return "⚠ 已同步 " + syncedText + "；失败：" + String.Join("；", failed.ToArray()) + warningText;
+        }
+
+        // Continue.dev：优先写 config.json（旧版结构），否则刷新真正生效的 config.yaml。
+        private static bool TrySetContinueConfig(string baseUrl, out string error)
+        {
+            error = null;
+            try
+            {
+                Directory.CreateDirectory(ContinueDir);
+                if (File.Exists(ContinueJsonPath))
+                {
+                    string json = File.ReadAllText(ContinueJsonPath);
+                    if (Regex.IsMatch(json, LocalUrlPattern))
+                    {
+                        File.WriteAllText(ContinueJsonPath, Regex.Replace(json, LocalUrlPattern, baseUrl), new UTF8Encoding(false));
+                    }
+                    else
+                    {
+                        string entry = "{ \"title\": \"" + LocalModelTitle + "\", \"provider\": \"openai\", \"model\": \"" + LocalModelId
+                            + "\", \"apiBase\": \"" + baseUrl + "\", \"apiKey\": \"" + LocalApiKey + "\" }";
+                        Match models = Regex.Match(json, "\"models\"\\s*:\\s*\\[");
+                        if (models.Success)
+                        {
+                            int at = models.Index + models.Length;
+                            string tail = json.Substring(at);
+                            string separator = Regex.IsMatch(tail, @"^\s*\]") ? "\r\n  " : ",";
+                            json = json.Substring(0, at) + "\r\n    " + entry + separator + tail;
+                        }
+                        else
+                        {
+                            string rebuilt = InsertJsonMember(json, "\"models\": [\r\n    " + entry + "\r\n  ]");
+                            if (rebuilt == null) { error = "结构无法识别，已跳过以免破坏文件"; return false; }
+                            json = rebuilt;
+                        }
+                        File.WriteAllText(ContinueJsonPath, json, new UTF8Encoding(false));
+                    }
+                    if (!FileContainsBaseUrl(ContinueJsonPath, baseUrl)) { error = "写入后校验未通过：" + ContinueJsonPath; return false; }
+                    return true;
+                }
+                if (File.Exists(ContinueYamlPath))
+                {
+                    string yaml = File.ReadAllText(ContinueYamlPath);
+                    if (Regex.IsMatch(yaml, LocalUrlPattern))
+                    {
+                        File.WriteAllText(ContinueYamlPath, Regex.Replace(yaml, LocalUrlPattern, baseUrl), new UTF8Encoding(false));
+                    }
+                    else
+                    {
+                        string block = "  - name: " + LocalModelTitle + "\r\n    provider: openai\r\n    model: " + LocalModelId
+                            + "\r\n    apiBase: " + baseUrl + "\r\n    apiKey: " + LocalApiKey;
+                        string updated;
+                        if (Regex.IsMatch(yaml, @"(?m)^\s*models:\s*\[\s*\]\s*$"))
+                            updated = Regex.Replace(yaml, @"(?m)^(\s*models:\s*)\[\s*\]\s*$", "$1\r\n" + block);
+                        else if (Regex.IsMatch(yaml, @"(?m)^\s*models:\s*$"))
+                            updated = Regex.Replace(yaml, @"(?m)^(\s*models:\s*)$", "$1\r\n" + block);
+                        else
+                            updated = yaml.TrimEnd() + "\r\nmodels:\r\n" + block + "\r\n";
+                        File.WriteAllText(ContinueYamlPath, updated, new UTF8Encoding(false));
+                    }
+                    if (!FileContainsBaseUrl(ContinueYamlPath, baseUrl)) { error = "写入后校验未通过：" + ContinueYamlPath; return false; }
+                    return true;
+                }
+                File.WriteAllText(ContinueJsonPath, "{\r\n  \"models\": [\r\n    { \"title\": \"" + LocalModelTitle + "\", \"provider\": \"openai\", \"model\": \"" + LocalModelId
+                    + "\", \"apiBase\": \"" + baseUrl + "\", \"apiKey\": \"" + LocalApiKey + "\" }\r\n  ]\r\n}\r\n", new UTF8Encoding(false));
+                if (!FileContainsBaseUrl(ContinueJsonPath, baseUrl)) { error = "写入后校验未通过：" + ContinueJsonPath; return false; }
+                return true;
+            }
+            catch (Exception ex) { error = ex.Message; return false; }
+        }
+
+        // Cline：%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\
+        private static bool TrySetClineConfig(string baseUrl, out string error)
+        {
+            return TryWriteAgentEndpoint(ClineSettingsDir, baseUrl, out error);
+        }
+
+        // ZooCode / Roo Code 同源：Zoo Code 总是写，Roo Code 仅在已安装时补写。
+        private static bool TrySetZooCodeConfig(string baseUrl, out string error)
+        {
+            string zooError;
+            bool zooOk = TryWriteAgentEndpoint(ZooCodeSettingsDir, baseUrl, out zooError);
+            string rooError;
+            bool rooOk = Directory.Exists(Path.GetDirectoryName(RooCodeSettingsDir))
+                && TryWriteAgentEndpoint(RooCodeSettingsDir, baseUrl, out rooError);
+            if (zooOk || rooOk) { error = null; return true; }
+            error = zooError;
+            return false;
+        }
+
+        // 在扩展的 settings 目录里落一份 OpenAI 兼容端点声明（幂等：只刷新端点 URL）。
+        private static bool TryWriteAgentEndpoint(string settingsDir, string baseUrl, out string error)
+        {
+            error = null;
+            try
+            {
+                Directory.CreateDirectory(settingsDir);
+                string path = Path.Combine(settingsDir, AgentEndpointFileName);
+                string existing = File.Exists(path) ? File.ReadAllText(path) : null;
+                bool ours = existing != null && existing.IndexOf("managedBy", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (existing != null && !ours && !Regex.IsMatch(existing, LocalUrlPattern))
+                {
+                    error = "同名文件非本面板生成，已跳过以免覆盖：" + path;
+                    return false;
+                }
+                if (existing != null && ours && Regex.IsMatch(existing, LocalUrlPattern))
+                    File.WriteAllText(path, Regex.Replace(existing, LocalUrlPattern, baseUrl), new UTF8Encoding(false));
+                else
+                    File.WriteAllText(path, "{\r\n  \"managedBy\": \"AIFactoryPanel\",\r\n  \"provider\": \"openai\",\r\n  \"baseUrl\": \"" + baseUrl
+                        + "\",\r\n  \"apiKey\": \"" + LocalApiKey + "\",\r\n  \"model\": \"" + LocalModelId + "\"\r\n}\r\n", new UTF8Encoding(false));
+                if (!FileContainsBaseUrl(path, baseUrl)) { error = "写入后校验未通过：" + path; return false; }
+                return true;
+            }
+            catch (Exception ex) { error = ex.Message; return false; }
+        }
+
+        // 在 JSON 对象根部插入新成员；结构无法识别时返回 null（宁可不写也不写坏）。
+        private static string InsertJsonMember(string content, string member)
+        {
+            int brace = content.IndexOf('{');
+            if (brace < 0) return null;
+            int tail = brace + 1;
+            while (tail < content.Length && Char.IsWhiteSpace(content[tail])) tail++;
+            bool emptyObject = tail < content.Length && content[tail] == '}';
+            return content.Substring(0, brace + 1) + "\r\n  " + member + (emptyObject ? "\r\n" : ",\r\n") + content.Substring(brace + 1);
+        }
+
+        // ===== DeepSeek-Harness 同步：tools/deepseek-harness/config/route.env + dsh profile patch =====
+        // 本地模式：端点 http://127.0.0.1:8001/v1、密钥 local、模型 local；
+        // 注意：这里只改路由文件，绝不触碰 .env（否则 dsh 会因 bootstrap 键直接拒绝启动）。
+        // 云端回退：端点 https://api.deepseek.com/v1，并恢复先前备份的云端密钥。
+        private static bool TrySetDeepSeekHarnessConfig(string baseUrl, out string error)
+        {
+            return TrySetDeepSeekHarnessConfig(baseUrl, null, out error);
+        }
+
+        private static bool TrySetDeepSeekHarnessConfig(string baseUrl, System.Collections.Generic.IList<string> warnings, out string error)
+        {
+            error = null;
+            try
+            {
+                bool local = Regex.IsMatch(baseUrl ?? "", LocalUrlPattern);
+                Directory.CreateDirectory(DeepSeekHarnessDir);
+
+                string existing = File.Exists(DeepSeekHarnessRoutePath) ? File.ReadAllText(DeepSeekHarnessRoutePath) : "";
+                string currentKey = ReadEnvValue(existing, "DEEPSEEK_API_KEY");
+                string stashedKey = ReadEnvValue(existing, CloudApiKeyStashKey);
+
+                string apiKey;
+                if (local)
+                {
+                    // 首次切本地：先把真实云端密钥挪进备份键，再写入 local。
+                    if (!IsBlank(currentKey) && !IsLocalApiKey(currentKey) && IsBlank(stashedKey)) stashedKey = currentKey;
+                    apiKey = LocalApiKey;
+                }
+                else if (!IsBlank(stashedKey)) apiKey = stashedKey;
+                else if (!IsBlank(currentKey) && !IsLocalApiKey(currentKey)) apiKey = currentKey;
+                else
+                {
+                    apiKey = "";
+                    if (warnings != null) warnings.Add("DeepSeek-Harness 无云端密钥可恢复，已只切换端点");
+                }
+
+                var values = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+                values.Add(new System.Collections.Generic.KeyValuePair<string, string>("DSH_HOME", Path.Combine(DeepSeekHarnessDir, "config", "dsh-home")));
+                values.Add(new System.Collections.Generic.KeyValuePair<string, string>("DEEPSEEK_BASE_URL", baseUrl));
+                values.Add(new System.Collections.Generic.KeyValuePair<string, string>("DEEPSEEK_API_KEY", apiKey));
+                values.Add(new System.Collections.Generic.KeyValuePair<string, string>(CloudApiKeyStashKey, stashedKey ?? ""));
+                values.Add(new System.Collections.Generic.KeyValuePair<string, string>("DSH_MODEL", local ? HarnessLocalModelId : HarnessCloudModelId));
+
+                File.WriteAllText(DeepSeekHarnessRoutePath, UpsertEnvValues(existing, values), new UTF8Encoding(false));
+                if (ReadEnvValue(File.ReadAllText(DeepSeekHarnessRoutePath), "DEEPSEEK_BASE_URL") != baseUrl)
+                {
+                    error = "写入后校验未通过：" + DeepSeekHarnessRoutePath;
+                    return false;
+                }
+
+                TrySetDeepSeekHarnessProfile(local ? HarnessLocalModelId : HarnessCloudModelId, local, warnings);
+                return true;
+            }
+            catch (Exception ex) { error = ex.Message; return false; }
+        }
+
+        // 读取 .env 键值：键名不区分大小写，找不到返回空串。
+        private static string ReadEnvValue(string content, string key)
+        {
+            if (String.IsNullOrEmpty(content)) return "";
+            foreach (string raw in content.Split('\n'))
+            {
+                Match match = Regex.Match(raw.TrimEnd('\r'), @"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$");
+                if (match.Success && String.Equals(match.Groups[1].Value, key, StringComparison.OrdinalIgnoreCase))
+                    return match.Groups[2].Value.Trim().Trim('"', '\'');
+            }
+            return "";
+        }
+
+        private static bool IsBlank(string value) { return String.IsNullOrWhiteSpace(value); }
+
+        private static bool IsLocalApiKey(string value) { return String.Equals(value, LocalApiKey, StringComparison.OrdinalIgnoreCase); }
+
+        // 行级 upsert：保留注释与未知键，只刷新受管键；缺键时追加到文件末尾的受管区块。
+        private static string UpsertEnvValues(string content, System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>> values)
+        {
+            var pending = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>(values);
+            var lines = new System.Collections.Generic.List<string>();
+            foreach (string raw in (content ?? "").Split('\n'))
+            {
+                string line = raw.TrimEnd('\r');
+                Match match = Regex.Match(line, @"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=");
+                int hit = match.Success
+                    ? pending.FindIndex(p => String.Equals(p.Key, match.Groups[1].Value, StringComparison.OrdinalIgnoreCase))
+                    : -1;
+                if (hit >= 0)
+                {
+                    lines.Add(pending[hit].Key + "=" + pending[hit].Value);
+                    pending.RemoveAt(hit);
+                    continue;
+                }
+                lines.Add(line);
+            }
+            while (lines.Count > 0 && lines[lines.Count - 1].Trim().Length == 0) lines.RemoveAt(lines.Count - 1);
+            if (pending.Count > 0)
+            {
+                if (lines.Count > 0) lines.Add("");
+                lines.Add("# --- AIFactoryPanel 托管：本地/云端路由（自动同步，仅刷新下列键）---");
+                foreach (var pair in pending) lines.Add(pair.Key + "=" + pair.Value);
+            }
+            return String.Join("\r\n", lines.ToArray()) + "\r\n";
+        }
+
+        // dsh profile 默认模型走官方 patch 层；profile 未初始化时不凭空创建。
+        // 本地模式下额外写入 reasoningEffort: low —— 本地 27B 的 chat 模板只接受
+        // xhigh/medium/low，运行时默认发 high 会被后端直接拒绝（HTTP 500）。
+        private static void TrySetDeepSeekHarnessProfile(string modelId, bool local, System.Collections.Generic.IList<string> warnings)
+        {
+            try
+            {
+                if (!File.Exists(DeepSeekHarnessProfilePatchPath)) return;
+                string patch = "# managed by AIFactoryPanel：随本地/云端模式同步默认模型。\r\n"
+                    + "- id: agent-default-model\r\n"
+                    + "  config:\r\n"
+                    + "    provider: deepseek-official\r\n"
+                    + "    model: " + modelId + "\r\n"
+                    + (local ? "    reasoningEffort: low\r\n" : "");
+                File.WriteAllText(DeepSeekHarnessProfilePatchPath, patch, new UTF8Encoding(false));
+            }
+            catch (Exception ex)
+            {
+                if (warnings != null) warnings.Add("DeepSeek-Harness profile patch 未更新（" + ex.Message + "）");
+            }
+        }
         private void BtnStartLocal_Click(object sender, EventArgs e)
         {
             SetNotice("");
@@ -598,13 +931,8 @@ namespace AIFactory
             // 面板按钮承诺"锁定本地流量"：这里补齐被遗漏的 Hosts 开启调用（需要管理员权限，失败会弹窗提示）。
             SetHostsState(true, true);
 
-            string configError;
-            if (!TrySetCodexBaseUrl(LocalBaseUrl, out configError))
-                SetNotice("⚠ 未能写入 config.toml：" + configError);
-
-            string proxyError;
-            if (!TryEnsureVsCodeProxyOff(out proxyError))
-                SetNotice("⚠ 未能关闭 VS Code 代理干扰：" + proxyError);
+            // 全 Agent 中央配置同步：Codex / Continue / Cline / ZooCode + VS Code 代理。
+            SetNotice(SyncAllAgentConfigs(GatewayBaseUrl));
 
             RefreshStatus();
         }
@@ -664,12 +992,8 @@ namespace AIFactory
         {
             SetNotice("");
             StopLocalMode(true);
-            string configError;
-            if (!TrySetCodexBaseUrl(CloudBaseUrl, out configError))
-                SetNotice("⚠ 未能写入 config.toml：" + configError);
-            string proxyError;
-            if (!TryEnsureVsCodeProxyOff(out proxyError))
-                SetNotice("⚠ 未能关闭 VS Code 代理干扰：" + proxyError);
+            // 全 Agent 中央配置同步（云端回退模式）。
+            SetNotice(SyncAllAgentConfigs(CloudBaseUrl));
             RefreshStatus();
         }
         private void BtnRestartGateway_Click(object sender, EventArgs e)
@@ -677,8 +1001,10 @@ namespace AIFactory
             SetNotice("");
             bool cleared = ClearGatewayPort();
             bool started = EnsureGatewayRunning();
-            if (started) started = WaitForPort(8000, true, 10);
+            if (started) started = WaitForPort(GatewayPort, true, 10);
             if (started) SetNotice(cleared ? "🔄 网关已重新加载。" : "🔄 网关已重新加载（旧进程未完全退出，可能存在端口残留）。");
+            // 「网络配置更新」路径：网关重启后顺带刷新全部 Agent 配置。
+            if (started) SetNotice(SyncAllAgentConfigs(GatewayBaseUrl));
             else SetNotice("⚠ 网关重启失败，请检查 " + GatewayScript + " 是否存在。");
             RefreshStatus();
             if (started) MessageBox.Show(this, "网关已重新加载", "重启路由网关", MessageBoxButtons.OK, MessageBoxIcon.Information);

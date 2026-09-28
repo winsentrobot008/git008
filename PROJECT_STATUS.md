@@ -1,9 +1,15 @@
 # git008 项目状态索引（PROJECT_STATUS.md）
 
 > 记录当前生产状态、配置基线与子项目地图，供 AI 会话启动预读时快速建立上下文。
-> 最近更新：2026-09-14
+> 最近更新：2026-09-28
 
 ## 1. 生产状态（Production State）
+
+> **2026-09-28 工具链上线（deepseek-harness，Production Ready）**：`tools/deepseek-harness` 独立子项目及其两套图形界面
+> ——**原生 Web UI**（`启动原生Web.bat`，端口 3080，无需 Node/pnpm）与**轻量 Web UI**（`启动轻量Web.bat` → `web_ui.py`，端口 7860）——
+> 已通过真机冒烟，标记为 **完全上线可用**。路由配置从 `.env` 隔离到 `config/route.env`（由 AI 控制面板同步；
+> `dsh` 拒绝 `.env` 中的 bootstrap 键），本地 27B（RTX 3060 / 8001 网关）实测生成 **13.2 tok/s**，
+> 真机 SDK 冒烟 PASS（tokens 11412 / 204 / 11616）。详见 §4 与 `PROJECT_DESIGN_DOC.md`。
 
 > **2026-09-14 品牌统一 + 沉浸式体验重构（CALauraAI）**：`savage-cal` + `savage-fit` 合并为单一产品 **CALauraAI**。旧品牌名（Savage Cal / Savage Fit / Aura Fit）已从配置、i18n、页面标题与元数据、路由及文档中清除，路径 / 存储键 / 事件名统一为 `calaura`（无特殊符号）。前端重构为极简沉浸舞台：梦幻社区背景 + AI 娃娃 Lumi（动态微表情）+ 底部毛玻璃输入条（文字 / 实时语音 / 识图）；后台仍是摄入 ⇄ 消耗双 AI 交叉闭环。字典 `calaura.*` + `stage.*`，共 156 键，en/zh 100% 对齐。详见 §4、§6。
 > **部署状态**：CALauraAI 品牌与沉浸式舞台**尚未发布**，生产仍在跑上一版 Savage 品牌构建；发布需人工注入 `VERCEL_TOKEN` 后执行 `node scripts/vercel-api-deploy.mjs`（工作目录固定为 `products/008ai-landing`）。
@@ -68,6 +74,16 @@
 - 其他产品：`products/` 下另有 RoastBro、Confession、fireworkbloom、InnerSage、TimeTraveler 等独立子项目。
 - 治理与流水线：`factory_components/`（含治理中心 tools/Cline-anti-freeze）、`factory_core/`、`services/`、`scripts/`、`qa_delivery/`。
 
+- `tools/deepseek-harness` —— **独立工具子项目（2026-09-28 新建）**：DeepSeek Harness（`dsh`）Python 侧安装与隔离部署。
+  - 完全自包含：`venv/`（`deepseek-harness-sdk==0.1.5rc1` + 内置 `dsh` 运行时可执行文件 229 MB）、`upstream/deepseek-harness`（源码快照 `master` @ `4878cdab`，无 `.git`）、`config/dsh-home`（隔离 `DSH_HOME`）。
+  - 自检命令：`cd tools/deepseek-harness; venv\Scripts\python.exe scripts\verify_init.py`（6 项隔离断言；实测 6/6 PASS，`dsh --version` → exit 0 / `0.1.5-rc.1`）。
+  - 路由配置：`config/route.env`（端点/密钥/模型/`DSH_HOME` 的唯一来源，由 AI 控制面板同步；`dsh` 拒绝 `.env` 里的 bootstrap 键，故与 `.env` 分离），解析器 `route_env.py`。
+  - 界面 A（原生 Web，无需 Node/pnpm，wheel 自带前端资产）：双击 `启动原生Web.bat` → `dsh --profile web`，默认端口 3080；实测启动 PASS，UI 无 token 401 / 带 token 200。
+  - 界面 B（轻量 Web）：双击 `启动轻量Web.bat` → `web_ui.py`（Gradio，默认 7860）；实测端到端对话 PASS（真实 27B 回复 + token 计数 70/1583/1653）。早期界面 `启动图形界面.bat`（`webui/app.py`）保留，同用 `config/route.env`。
+  - 界面 C（VS Code 侧边栏）：Cline / Continue / ZooCode 选 `OpenAI Compatible`，填 `http://127.0.0.1:8001/v1` + key `local` + model `local`（挂载指南见子项目 README）。
+  - 冒烟命令：`cd tools/deepseek-harness; venv\Scripts\python.exe scripts\smoke_api.py`（live 实测 PASS：本地 27B / 8001 网关，tokens 11412+204=11616；`--mock` 为无凭据链路自检）。
+  - 边界：真实云端回退需 `DEEPSEEK_API_KEY`，仓库内仅登记键名；工作区其余部分不受影响，删除该目录即可回滚。
+  - **状态：Production Ready（2026-09-28）** —— 原生 Web UI 与轻量 Web UI 均已真机启动验证（鉴权 401/200、端到端对话 + token 计数），控制面板三态路由（本地 / 云端回退 / 再回本地）经反射实调 PASS；`PROJECT_DESIGN_DOC.md` 记录架构与验收证据。
 ## 5. 关键命令（Key Commands）
 
 ```powershell

@@ -1,0 +1,6 @@
+# deepseek-harness 轻量 Web UI（方案 B）依赖
+# 仅安装到本子项目 venv：venv\Scripts\python.exe -m pip install -r requirements-webui.txt
+-r requirements.txt
+
+gradio==6.28.0
+openai==3.20.0
