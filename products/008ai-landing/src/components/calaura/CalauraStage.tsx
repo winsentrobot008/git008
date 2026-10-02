@@ -33,6 +33,7 @@ import {
 } from "@/lib/calaura/intent";
 import { entryOpeningLine, type LoopContext, type LoopLog } from "@/lib/calaura/loop";
 import { getSessionId } from "@/lib/calaura/quota";
+import { readTestKey, testKeyHeaders } from "@/lib/calaura/test-key";
 import { CoachApiError, type VoiceUtterance } from "@/lib/calaura/types";
 import { buildLoopBriefing, setPendingBriefing } from "@/lib/shared/health-bus";
 import { trackCalauraEvent } from "@/lib/shared/analytics";
@@ -358,6 +359,12 @@ export default function CalauraStage({
     openPaywall("voiceTurns");
   }, [openPaywall, voice.status]);
 
+  // Promotes a ?test_key= landing URL into localStorage and drops it from the
+  // address bar, so the QA secret stops travelling with the shared link.
+  useEffect(() => {
+    readTestKey();
+  }, []);
+
   const askCoach = useCallback(
     async (text: string) => {
       const utterance: VoiceUtterance = {
@@ -464,7 +471,7 @@ export default function CalauraStage({
         const image = await readAsDataUrl(file);
         const response = await fetch("/api/calaura/recognize", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...testKeyHeaders() },
           body: JSON.stringify({ image, mealType: "unknown", sessionId: getSessionId() }),
         });
         const data = await readJson(response);

@@ -26,14 +26,9 @@ NEXT_PUBLIC_PAYPAL_CLIENT_ID=...
 PAYPAL_CLIENT_SECRET=...
 PAYPAL_API_URL=https://api-m.sandbox.paypal.com
 
-# 后台控制面板 /admin 登录密钥
-ADMIN_KEY=change-me-008ai-admin
-
 # PayPal Webhook（生产推荐）
 PAYPAL_WEBHOOK_ID=YOUR_PAYPAL_WEBHOOK_ID_HERE
 
-# Hero 演示视频（15s MP4/GIF，可选；不配置显示占位图）
-NEXT_PUBLIC_DEMO_VIDEO_URL=/demo.mp4
 ```
 
 未配置 PayPal 密钥时按钮进入 Demo 模式（显式提示，不伪造真实支付）。
@@ -67,14 +62,16 @@ NEXT_PUBLIC_DEMO_VIDEO_URL=/demo.mp4
 - 权益存储：`src/lib/orders-store.ts`（os.tmpdir 文件 + 内存回退，生产替换为
   Postgres / Vercel KV）。
 
-## Admin 控制面板（/admin）
+### QA 测试暗号（/api/calaura/recognize 特权通道）
 
-- 登录：访问 `/admin` 输入 `ADMIN_KEY`，`POST /api/admin/login` 签发 24h 会话令牌；
-- 数据路由均需 `x-admin-token` 头（`src/lib/admin-auth.ts`）：
-  - `GET /api/admin/stats` → `total_sales / paid_orders / active_passes`
-  - `GET /api/admin/orders` → 订单列表（Order ID / Email / Source / Date / Entitlement）
-  - `GET /api/admin/entitlements` → 活跃 Early Bird Pass 列表
-  - `PATCH /api/admin/entitlements` → 手动切换 `has_lifetime_access` on/off
+- 携带 `x-calaura-test-key` 请求头（或 `?test_key=` 查询参数）且匹配 `CALORIE_TEST_KEY`
+  的请求会被当作运营会话：跳过匿名频控（12/min、80/day）与免费扫描次数限制；
+- 特权请求转发上游时改用 `CALORIE_AI_ADMIN_TOKEN`（未配置回退 `CALORIE_AI_API_KEY`），
+  用于打通 CalorieAI 的付费档识别能力；
+- `CALORIE_TEST_KEY` 未配置时该通道永久关闭（fail-closed，无默认值）；
+- 前端在 `/calaura` 落地时把 `?test_key=` 写入 localStorage 并立即从地址栏抹除，
+  后续扫描自动附带请求头，无需重复输入；
+- 安全提示：URL 参数会进入访问日志与浏览器历史，日常请改用请求头，并使用足够长的随机串。
 
 ## 部署（Vercel 子目录）
 
@@ -87,11 +84,9 @@ NEXT_PUBLIC_DEMO_VIDEO_URL=/demo.mp4
 
    | 变量 | 必需 | 说明 |
    |---|---|-----|
-   | `ADMIN_KEY` | 必需 | `/admin` 登录密钥（未配置回退 `008ai-admin`） |
    | `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | 必需 | PayPal 前端 SDK Client ID（服务端 create/capture 回退读取） |
    | `PAYPAL_CLIENT_SECRET` | 必需 | PayPal 服务端密钥（仅服务端） |
    | `PAYPAL_WEBHOOK_ID` | 必需 | PayPal Webhook ID（签名校验预留；Endpoint: `https://008ai.online/api/paypal/webhook`） |
-   | `NEXT_PUBLIC_DEMO_VIDEO_URL` | 必需 | Hero 演示视频 URL（如 `/demo.mp4`） |
    | `PAYPAL_API_URL` | 可选 | PayPal API 地址（默认 Sandbox；Live 改 `https://api-m.paypal.com`） |
 
 4. 绑定域名 `008ai.online` 并部署即可。
@@ -106,7 +101,7 @@ node scripts/vercel-api-deploy.mjs
 ```
 
 脚本自动完成：从 `calorie-ai` 拉取 production 环境变量导入 `008ai-landing` →
-补全 `ADMIN_KEY` → 设置 Next.js 构建参数 → 文件内容上传到 `/v2/files` 全局存储 →
+设置 Next.js 构建参数 → 文件内容上传到 `/v2/files` 全局存储 →
 以 `builds: [{src:"package.json", use:"@vercel/next"}]` 触发真实构建（轮询至 READY）。
 注意：直传部署要求项目级 Root Directory 为空（文件根即项目根），上传的
 `vercel.json` 会剔除 `rootDirectory` 字段；GitHub 导入部署仍使用仓库内

@@ -132,8 +132,7 @@ const BILINGUAL_LINE = /(?:\b[A-Za-z]+Zh\b\s*[:=])|(?:[{,(]\s*"?zh"?\s*:)|(?:_ZH
 /** Trees that are not part of the public UI surface, each with its reason. */
 const EXCLUDED = [
   { re: /(^|\/)app\/api\//, reason: "server API payloads, never rendered as UI" },
-  { re: /(^|\/)app\/admin\//, reason: "internal admin console" },
-  { re: /(^|\/)lib\/(admin-auth|admin-session|orders-store|paypal)\.ts$/, reason: "server-side internals with operator-facing messages" },
+  { re: /(^|\/)lib\/(orders-store|paypal)\.ts$/, reason: "server-side internals with operator-facing messages" },
 ];
 
 /** Flattens a nested dictionary into dotted keys. */

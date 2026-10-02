@@ -30,7 +30,7 @@ export type CalauraEventName =
   | "calaura_paywall_triggered"
   | "calaura_snippet_exported";
 
-/** Every registered funnel step, for tests and admin tooling. */
+/** Every registered funnel step, for tests and analytics tooling. */
 export const CALAURA_EVENT_NAMES: readonly CalauraEventName[] = [
   "calaura_intake_logged",
   "calaura_intake_handoff",

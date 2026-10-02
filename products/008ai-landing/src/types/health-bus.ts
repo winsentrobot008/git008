@@ -40,6 +40,8 @@ export interface FoodScanItem {
   /** kcal for the whole portion described by `quantity`. */
   calories: number;
   quantity?: string;
+  /** Estimated mass of the whole portion in grams, when the provider reports one. */
+  grams?: number;
   proteinG?: number;
   fatG?: number;
   carbsG?: number;

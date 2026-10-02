@@ -2,7 +2,7 @@
  * orders-store — 008AI Early Bird Pass 订单 / 权益存储
  *
  * 生产环境建议替换为 Postgres / Vercel KV；当前使用文件（os.tmpdir）+ 内存双写回退，
- * 与 PayPal 捕获/Webhook 幂等联动，供 /admin 控制面板读取与手动切换权益。
+ * 与 PayPal 捕获/Webhook 幂等联动，供权益判定与会员状态读取。
  */
 
 import fs from "fs";

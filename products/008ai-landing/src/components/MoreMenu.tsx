@@ -7,7 +7,6 @@ import { useLang } from "@/i18n/LanguageProvider";
 const MENU_ITEMS = [
   { key: "menu.calauraFit", href: "/calaura" },
   { key: "menu.buyPass", href: "#pricing" },
-  { key: "menu.login", href: "/admin" },
   { key: "menu.terms", href: "#terms" },
   { key: "menu.privacy", href: "#privacy" },
 ];

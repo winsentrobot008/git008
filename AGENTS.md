@@ -32,6 +32,7 @@
 - 治理联动仅作用于 git008 工作区（scope: workspace-only）。
 - 任务完成时，治理中心自动提示：`上下文膨胀，请立刻运行 /clear`。
 - 违反禁读目录或 Token 上限时，治理中心自动阻断并弹窗警告。
+- `CONSTITUTION.md` 是共享工程底线；本文件负责工作区边界、项目事实和执行门禁。子项目规则可以加强要求，不得降低宪法要求。
 
 ## Root Architecture
 
@@ -48,11 +49,19 @@
 
 - Next.js 16 + Tailwind v4 产品站，生产域名为 `https://008ai.online`。
 - 承载单一产品 **CALauraAI**（`src/app/(apps)/calaura`）：外层是一个沉浸式 AI 娃娃（Lumi）+ 毛玻璃输入条的极简表面，内里是摄入（Calorie Bestie）与消耗（Fit Bestie）双 AI 交叉闭环。
-- API 路由位于 `src/app/api/**`（`calaura/chat`、`calaura/tts`、`calaura/entitlement`、`calaura/recognize`、`paypal/*`、`stripe/*`、`admin/*`）；`savage-fit/*`、`savage-cal/recognize` 为保留的旧别名 shim（同实现 re-export，不得 404）。
+- API 路由位于 `src/app/api/**`（`calaura/chat`、`calaura/tts`、`calaura/entitlement`、`calaura/recognize`、`paypal/*`、`stripe/*`）；`savage-fit/*`、`savage-cal/recognize` 为保留的旧别名 shim（同实现 re-export，不得 404）。
 - 旧页面路由 `/savage-cal`、`/savage-fit` 保留为别名（各预选一半闭环），`/calaura` 为 canonical；全站品牌与文案一律使用 **CALauraAI**。
 - 食物识别桥接子项目 `products/calorieai`；项目级规则见 `products/008ai-landing/.clinerules`。
 
 ## Build Gates
+
+## Memory and Validation Protocol
+
+- For architecture, security, shared runtime, or cross-product work, read `CONSTITUTION.md`, `memory/README.md`, `memory/ARCHITECTURE_DECISIONS.md`, `.codex/roles/README.md`, and relevant role contracts in `.codex/roles/` before editing.
+- Consult `memory/LESSONS_LEARNED.md` when working in a previously audited area. Update the memory index in the same change when a material decision or reusable lesson is confirmed; never store secrets or `.env` contents.
+- For changes to ComfyUI integration or media runtime, run the applicable smoke checks in `tests/autonomous_smoke.py` when the local services/runtime are available. Record skipped checks and failures; do not claim unrun checks passed.
+- The smoke harness may retry transient checks and use software fallback, but must not automatically rewrite product source code. Any repair must be an explicit, reviewable code change followed by rerunning the relevant check.
+- On a failed check, use the logged exception context to form a root-cause hypothesis, make an explicit patch, and rerun the failed check plus relevant regression checks; the harness reports evidence but does not author repairs.
 
 - 【类型门禁】任何 commit 或 deploy 之前必须先执行 `npx tsc --noEmit`；退出码非 0 时禁止继续。
 - 【子项目内执行】门禁必须在目标子项目目录内执行（如 `products/008ai-landing`），禁止在根目录代跑。
@@ -69,7 +78,7 @@
 
 以下为运行与发布的必需键清单，仅登记键名，严禁登记真实值：
 
-- 发布与后台：`VERCEL_TOKEN`、`ADMIN_KEY`
+- 发布：`VERCEL_TOKEN`
 - AI 能力：`GEMINI_API_KEY`、`CALORIE_AI_API_URL`、`CALORIE_AI_API_KEY`
 - 支付：`STRIPE_SECRET_KEY`、`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`、`NEXT_PUBLIC_PAYPAL_CLIENT_ID`、`PAYPAL_CLIENT_SECRET`、`PAYPAL_WEBHOOK_ID`
 - 语音：`TTS_SUBSCRIPTION_KEY`、`TTS_REGION`

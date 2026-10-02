@@ -12,7 +12,6 @@ const REQUIRED_ENV_KEYS = [
   "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
   "NEXT_PUBLIC_PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",
-  "ADMIN_KEY",
 ];
 const ROOT = path.resolve(process.cwd());
 // Deployment is intentionally self-contained: this script must never read
@@ -232,7 +231,6 @@ async function main() {
   runI18nGate();
 
   console.log("▶ 阶段 4/4：上传源码并触发生产构建");
-  const PREFIX = "products/008ai-landing";
   
   const files = collectFiles();
 

@@ -82,7 +82,7 @@ function AppGrid() {
           <div className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
             <div className="h-[250px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/40 via-fuchsia-400/30 to-purple-500/40 blur-[90px]" />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {APPS.map((app) => {
               const card = (
                 <>

@@ -26,6 +26,7 @@ import { FREE_FOOD_SCANS, MAX_IMAGE_BYTES } from "@/lib/calaura/config";
 import { RATING_META, invitesMovement, rateFood } from "@/lib/calaura/rating";
 import { BESTIES, type Bestie } from "@/lib/calaura/besties";
 import { getSessionId } from "@/lib/calaura/quota";
+import { testKeyHeaders } from "@/lib/calaura/test-key";
 import { buildLoopBriefing, setPendingBriefing } from "@/lib/shared/health-bus";
 import { useHealthBus, useHealthGate } from "@/lib/shared/health-hooks";
 import { LOOP_SOURCE, type LoopLog } from "@/lib/calaura/loop";
@@ -155,7 +156,7 @@ export default function CalorieBestiePanel({
     try {
       const response = await fetch("/api/calaura/recognize", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...testKeyHeaders() },
         body: JSON.stringify({ image: preview, mealType, sessionId: getSessionId() }),
       });
       const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
@@ -384,6 +385,11 @@ export default function CalorieBestiePanel({
                 >
                   <span className="min-w-0 truncate text-xs font-bold text-ink">
                     {item.name}
+                    {item.grams ? (
+                      <span className="ml-1 font-medium text-ink-faint">
+                        {Math.round(item.grams)} g
+                      </span>
+                    ) : null}
                     {item.quantity ? (
                       <span className="ml-1 font-medium text-ink-faint">{item.quantity}</span>
                     ) : null}
