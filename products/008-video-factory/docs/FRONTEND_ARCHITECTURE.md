@@ -90,7 +90,7 @@ products/008-video-factory/
 
 ```yaml
 # deploy/cloudflared.video-factory.yml
-tunnel: 008-video-factory
+tunnel: 008-video
 ingress:
   - hostname: video.008ai.online
     service: http://127.0.0.1:8787
@@ -102,3 +102,6 @@ ingress:
 - 静态资源由 FastAPI 直接托管（`/`、`/css`、`/js`、`/locales`），无需 Nginx。
 - 本机启动：`python scripts/serve_web.py`（或双击 `start_web.bat`）；子路径方案追加 `--base-path /video-factory`。
 - 隧道路由：宿主机 `cloudflared tunnel login` 授权后，运行 `scripts/setup_tunnel.ps1`：自动建隧道、绑 DNS、生成 `deploy/cloudflared.local.yml`（含 tunnel id，已由 .gitignore 覆盖，不入仓）。
+- **已上线实测（2026-10-05）**：隧道 `008-video`（id `8d885dbf-f324-41a0-8355-a9bd44ba6c31`）→ `https://video.008ai.online` 全链路 200：`/`、`/css/app.css`、`/js/app.js`、`/locales/{zh,en}.json`、`/api/health`、`/api/system`、`/api/videos`（14 条）；Chrome 实测引导正常、中英切换正常、无控制台报错。
+- 本机排查提示：若本机解析不到该域名（路由器/上游 DNS 缓存了 NXDOMAIN），用 `curl.exe --resolve video.008ai.online:443:<CF_IP>` 验证或把网卡 DNS 换成 `1.1.1.1`；不影响公网访问。
+- 环境坑位：本机 `$env:ProgramFiles(x86)` 实际指向 `D:\Program Files (x86)`，而 cloudflared 装在 `C:\Program Files (x86)\cloudflared\`，故 `setup_tunnel.ps1` 以显式绝对路径优先定位。

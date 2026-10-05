@@ -9,7 +9,7 @@
 #
 # 本机服务需先起：python scripts/serve_web.py   （默认 127.0.0.1:8787）
 
-tunnel: 008-video-factory
+tunnel: 008-video
 credentials-file: C:\Users\<you>\.cloudflared\<tunnel-id>.json
 
 ingress:
