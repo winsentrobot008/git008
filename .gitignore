@@ -68,7 +68,6 @@ runtime_data/logs/*
 !runtime_data/logs/.gitkeep
 __pycache__/
 *.bak_*
-$null
 
 # --- env 凭证隔离（安全审计：禁止提交任何真实密钥）---
 .env
@@ -86,7 +85,6 @@ runtime_data/logs/*
 !runtime_data/logs/.gitkeep
 __pycache__/
 *.bak_*
-$null
 
 # --- 大型运行时 / 归档产物（体积过大，不入库；可本地重建）---
 runtime_data/
