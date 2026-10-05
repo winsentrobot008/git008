@@ -1,0 +1,685 @@
+"""导演 Skill 适配器（Director Skill Adapter）。
+
+把「短剧导演 Skill」的结构化产出（characters / locations / scenes / shots /
+camera / dialogue）转换成 008-video-factory 渲染管线可直接消费的 storyboard
+JSON 契约（契约定义见 `modules/video_factory/storyboard.py`）。
+
+适配层强制执行两条导演规范：
+
+1. **资产锁定（Asset Lock）**
+   `characters[].locked` / `locations[].locked` 为真时，任何引用该资产的镜头
+   必须直接复用锁定的参考素材（`ref`）作为画面来源，禁止再走 Pexels 随机
+   取材；被引用却缺少 `ref` 视为锁定违规，直接报错。
+2. **180° 轴线（Axis of Action）**
+   同一场内相邻镜头必须停留在轴线的同一侧（`camera.side: left|right`）。
+   越轴必须显式声明 `camera.axis_break: true`，或以中性镜头
+   （`camera.side: neutral`）重建轴线；否则 strict 模式报错，非 strict 模式
+   降级为 warning 记录在 `director_meta.warnings`。
+
+输入（导演分镜，示例见 `templates/director/example_short_drama.json`）：
+
+    {
+      "title": "fridge-2am",
+      "width": 1080, "height": 1920, "fps": 24,
+      "characters": [
+        {"id": "lin", "name": "林岚", "locked": true,
+         "ref": "assets/lin_ref.png",
+         "visual_keywords": ["young woman programmer", "night desk lamp"]}
+      ],
+      "locations": [
+        {"id": "kitchen", "name": "深夜厨房", "locked": true,
+         "ref": "assets/kitchen.png",
+         "visual_keywords": ["modern kitchen at night"]}
+      ],
+      "shots": [
+        {"id": "s1-01", "scene": "s1", "kind": "hook",
+         "text": "凌晨两点，冰箱第三次亮起。",
+         "duration_s": 3,
+         "characters": ["lin"], "location": "kitchen",
+         "camera": {"shot_size": "close", "side": "left", "movement": "push_in"},
+         "dialogue": [{"speaker": "lin", "line": "又是你。"}]}
+      ]
+    }
+
+输出：storyboard JSON（额外带 `voice_script` 供 Stage-2 TTS 配音、`director_meta`
+供质检与审计）。
+
+用法：
+    python products/008-video-factory/src/cli.py video director --input script.json
+    python -m modules.video_factory.director_adapter -i script.json -o storyboard.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+from src.core.paths import REPO_ROOT
+
+from .storyboard import slugify, validate_storyboard
+
+__all__ = [
+    "DirectorAdapterError",
+    "AssetLockError",
+    "AxisRuleError",
+    "adapt_director_script",
+    "adapt_file",
+    "write_storyboard",
+    "main",
+]
+
+# 镜头语汇 → storyboard 场景类型（_SCENE_TYPES 白名单）
+_KIND_TO_SCENE_TYPE = {
+    "hook": "hero_title",
+    "hero": "hero_title",
+    "title": "hero_title",
+    "opening": "hero_title",
+    "cold_open": "hero_title",
+    "narration": "text_card",
+    "voiceover": "text_card",
+    "vo": "text_card",
+    "text": "text_card",
+    "dialogue": "text_card",
+    "beat": "text_card",
+    "value": "text_card",
+    "image": "image",
+    "still": "image",
+    "insert": "image",
+    "photo": "image",
+    "video": "video",
+    "broll": "video",
+    "b_roll": "video",
+    "footage": "video",
+    "clip": "video",
+    "composition": "composition",
+    "chart": "composition",
+    "overlay": "composition",
+    "ui": "composition",
+}
+
+# 场景类型 → 戏剧节拍 style.kind（与 templates/hyperframes 模板一致）
+_TYPE_TO_STYLE_KIND = {
+    "hero_title": "hook",
+    "callout": "cta",
+    "text_card": "value",
+}
+
+_SHOT_SIZE_HINTS = {
+    "extreme_close": "extreme close up detail",
+    "close": "close up",
+    "medium_close": "medium close up",
+    "medium": "medium shot",
+    "wide": "wide establishing shot",
+    "extreme_wide": "aerial wide shot",
+}
+
+_MOVEMENT_HINTS = {
+    "push_in": "slow push in",
+    "pull_out": "slow pull out",
+    "pan": "camera pan",
+    "tilt": "camera tilt",
+    "dolly": "dolly shot",
+    "tracking": "tracking shot",
+    "handheld": "handheld camera",
+    "static": "",
+}
+
+# 兜底通用科技视觉词（与 scripts/agent_reach_bridge.py 的兜底保持一致）
+DEFAULT_VISUAL_FALLBACK = [
+    "technology background",
+    "abstract digital network",
+    "modern office laptop",
+]
+
+_NEUTRAL_SIDES = {"", "neutral", "center", "n/a", "none"}
+
+_VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v", ".mkv"}
+_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
+
+
+PRODUCT_ROOT = Path(__file__).resolve().parents[2]
+_REMOTE_PREFIX = ("http://", "https://", "rtmp://")
+
+
+def _resolve_source(value: str) -> str:
+    """把仓库相对路径解析成绝对路径。
+
+    FFmpeg 预览渲染在独立工作目录里执行，相对路径会直接丢源；资产锁定素材
+    必须落到绝对路径才能稳定复用。
+    """
+    source = _as_str(value)
+    if not source or source.lower().startswith(_REMOTE_PREFIX):
+        return source
+    path = Path(source)
+    if path.is_absolute():
+        return str(path)
+    for base in (REPO_ROOT, PRODUCT_ROOT):
+        candidate = base / source
+        if candidate.exists():
+            return str(candidate)
+    return source
+
+
+def _media_kind_for(source: str) -> str:
+    """按后缀推断媒体类型，供 preview 渲染器直接消费（锁定素材也能真实出画）。"""
+    ext = Path(source).suffix.lower()
+    if ext in _VIDEO_EXT:
+        return "video"
+    if ext in _IMAGE_EXT:
+        return "image"
+    return ""
+
+
+class DirectorAdapterError(ValueError):
+    """导演分镜无法映射到 storyboard 契约。"""
+
+
+class AssetLockError(DirectorAdapterError):
+    """资产锁定违规：被引用的锁定资产缺少参考素材。"""
+
+
+class AxisRuleError(DirectorAdapterError):
+    """180° 轴线违规：越轴镜头未声明 axis_break / 中性重建。"""
+
+
+# --------------------------------------------------------------------------
+# 小工具
+# --------------------------------------------------------------------------
+def _as_list(value: Any) -> list:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [value]
+
+
+def _as_str(value: Any) -> str:
+    return "" if value is None else str(value).strip()
+
+
+def _dedupe(items: Any, limit: int) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in _as_list(items):
+        text = _as_str(raw)
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _index_assets(script: dict, key: str, label: str, warnings: list[str]) -> dict[str, dict]:
+    """把 characters / locations 归一化成 {id/lower-name: asset} 索引。"""
+    index: dict[str, dict] = {}
+    for i, raw in enumerate(_as_list(script.get(key))):
+        if not isinstance(raw, dict):
+            continue
+        ident = _as_str(raw.get("id") or raw.get("name") or f"{key}{i + 1}")
+        asset = {
+            "id": ident,
+            "name": _as_str(raw.get("name") or ident),
+            "locked": bool(raw.get("locked") or raw.get("asset_lock")),
+            "ref": _as_str(raw.get("ref") or raw.get("source") or raw.get("asset")),
+            "visual_keywords": _dedupe(raw.get("visual_keywords") or raw.get("asset_queries"), 3),
+            "origin": _as_str(raw.get("origin") or raw.get("from")),
+        }
+        if asset["locked"] and not asset["ref"]:
+            warnings.append(
+                f"资产锁定：{label} '{asset['name']}' 标记 locked 但未提供 ref，"
+                "若被镜头引用将报错"
+            )
+        for alias in {asset["id"].lower(), asset["name"].lower()}:
+            if alias:
+                index[alias] = asset
+    return index
+
+
+def _lookup(index: dict[str, dict], ident: Any) -> Optional[dict]:
+    key = _as_str(ident).lower()
+    if not key:
+        return None
+    return index.get(key)
+
+
+def _flatten_shots(script: dict) -> list[dict]:
+    """兼容两种写法：平铺 `shots[]`，或 `scenes[].shots[]` 嵌套分镜。"""
+    nested = script.get("scenes")
+    if isinstance(nested, list) and any(
+        isinstance(scene, dict) and scene.get("shots") for scene in nested
+    ):
+        flat: list[dict] = []
+        for i, scene in enumerate(nested):
+            if not isinstance(scene, dict):
+                continue
+            scene_id = _as_str(scene.get("id") or scene.get("scene_id") or f"scene{i + 1}")
+            for j, shot in enumerate(_as_list(scene.get("shots"))):
+                if not isinstance(shot, dict):
+                    continue
+                item = dict(shot)
+                item.setdefault("scene", scene_id)
+                item.setdefault("id", f"{scene_id}-{j + 1}")
+                if not item.get("characters") and scene.get("characters"):
+                    item["characters"] = scene["characters"]
+                if not item.get("location") and scene.get("location"):
+                    item["location"] = scene["location"]
+                flat.append(item)
+        return flat
+    return [dict(shot) for shot in _as_list(script.get("shots")) if isinstance(shot, dict)]
+
+
+def _scene_axis(script: dict, scenes: list[dict]) -> dict[str, dict]:
+    """收集场次级轴线声明（显式 scenes[].axis 或 axis.scenes{}）。"""
+    declared: dict[str, dict] = {}
+    for i, scene in enumerate(scenes):
+        if not isinstance(scene, dict):
+            continue
+        axis = scene.get("axis")
+        if isinstance(axis, dict):
+            scene_id = _as_str(scene.get("id") or scene.get("scene_id") or f"scene{i + 1}")
+            declared[scene_id.lower()] = axis
+    top = script.get("axis")
+    if isinstance(top, dict):
+        per_scene = top.get("scenes")
+        if isinstance(per_scene, dict):
+            for key, value in per_scene.items():
+                if isinstance(value, dict):
+                    declared.setdefault(_as_str(key).lower(), value)
+        line = _as_str(top.get("side") or top.get("line_side"))
+        if line:
+            for key, value in list(declared.items()):
+                value.setdefault("side", line)
+    return declared
+
+
+def _camera_side(shot: dict) -> str:
+    camera = shot.get("camera") if isinstance(shot.get("camera"), dict) else {}
+    side = _as_str(camera.get("side") or shot.get("axis_side") or shot.get("side"))
+    return side.lower()
+
+
+def _camera_hint(shot: dict) -> str:
+    camera = shot.get("camera") if isinstance(shot.get("camera"), dict) else {}
+    parts = [
+        _SHOT_SIZE_HINTS.get(_as_str(camera.get("shot_size")).lower(), ""),
+        _MOVEMENT_HINTS.get(_as_str(camera.get("movement")).lower(), ""),
+    ]
+    return ", ".join(p for p in parts if p)
+
+
+def _estimate_duration(shot: dict, text: str, default_duration: float) -> float:
+    explicit = shot.get("duration_s", shot.get("duration_seconds"))
+    try:
+        if explicit is not None and float(explicit) > 0:
+            return max(0.5, round(float(explicit), 2))
+    except (TypeError, ValueError):
+        pass
+    # 中文旁白 ≈ 4.5 字/秒；英文 ≈ 2.6 词/秒，取折中估算后对齐到 0.5s
+    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    other = len(text) - cjk
+    seconds = cjk / 4.5 + other / 13.0
+    estimate = max(float(default_duration), seconds + 0.6)
+    return round(min(12.0, estimate) * 2) / 2
+
+
+def _scene_type_for(shot: dict, has_source: bool) -> str:
+    explicit = _as_str(shot.get("type") or shot.get("scene_type")).lower()
+    if explicit in set(_KIND_TO_SCENE_TYPE.values()):
+        return explicit
+    kind = _as_str(shot.get("kind") or shot.get("shot") or shot.get("beat")).lower()
+    if kind in _KIND_TO_SCENE_TYPE:
+        return _KIND_TO_SCENE_TYPE[kind]
+    if _as_str(shot.get("text")):
+        return "text_card"
+    if has_source:
+        return "video"
+    return "text_card"
+
+
+def _visual_queries(
+    shot: dict,
+    characters: dict[str, dict],
+    locations: dict[str, dict],
+    *,
+    mapper: Optional[Callable[[list[str], str], list[str]]],
+    text: str,
+) -> list[str]:
+    # 导演显式给出的检索词已是视觉词，尊重原文；映射器只负责把「派生词」转成视觉词
+    explicit = _dedupe(
+        shot.get("asset_queries") or shot.get("visual_keywords") or shot.get("queries"), 3
+    )
+    queries = list(explicit)
+    if not queries:
+        for cid in _as_list(shot.get("characters") or shot.get("cast")):
+            asset = _lookup(characters, cid)
+            if asset:
+                queries += asset["visual_keywords"] or [asset["name"]]
+        location = _lookup(locations, shot.get("location") or shot.get("location_id"))
+        if location:
+            queries += location["visual_keywords"] or [location["name"]]
+        hint = _camera_hint(shot)
+        if hint:
+            queries.append(hint)
+    queries = _dedupe(queries, 3)
+    if mapper is not None and not explicit:
+        try:
+            mapped = mapper(list(queries), text)
+        except Exception:  # noqa: BLE001 - 映射器失败不得阻断出片
+            mapped = None
+        if mapped:
+            queries = _dedupe(mapped, 3)
+    if not queries:
+        queries = list(DEFAULT_VISUAL_FALLBACK)
+    return queries[:3]
+
+
+def _dialogue_lines(shot: dict) -> list[dict]:
+    lines: list[dict] = []
+    for raw in _as_list(shot.get("dialogue") or shot.get("lines")):
+        if isinstance(raw, dict):
+            text = _as_str(raw.get("line") or raw.get("text"))
+            speaker = _as_str(raw.get("speaker") or raw.get("character"))
+        else:
+            text, speaker = _as_str(raw), ""
+        if text:
+            lines.append({"speaker": speaker, "text": text})
+    return lines
+
+
+# --------------------------------------------------------------------------
+# 主适配逻辑
+# --------------------------------------------------------------------------
+def adapt_director_script(
+    script: dict,
+    *,
+    strict_axis: bool = True,
+    default_duration: float = 3.5,
+    visual_mapper: Optional[Callable[[list[str], str], list[str]]] = None,
+    product: Optional[str] = None,
+) -> dict:
+    """导演分镜 → storyboard JSON（dict）。两条导演规范在 strict 模式下强制。"""
+    if not isinstance(script, dict):
+        raise DirectorAdapterError("导演分镜必须是 JSON 对象")
+
+    warnings: list[str] = []
+    characters = _index_assets(script, "characters", "角色", warnings)
+    locations = _index_assets(script, "locations", "场景", warnings)
+    raw_scenes = _as_list(script.get("scenes"))
+    declared_axis = _scene_axis(script, raw_scenes)
+    shots = _flatten_shots(script)
+    if not shots:
+        raise DirectorAdapterError("导演分镜缺少 shots/scenes 列表（至少 1 个镜头）")
+
+    out_scenes: list[dict] = []
+    voice_script: list[dict] = []
+    asset_locks: list[dict] = []
+    violations: list[str] = []
+    axis_state: dict[str, Optional[str]] = {}
+    axis_trace: list[dict] = []
+    cursor = 0.0
+
+    for i, shot in enumerate(shots):
+        shot_id = _as_str(shot.get("id") or f"shot-{i + 1}")
+        scene_id = _as_str(shot.get("scene") or shot.get("scene_id") or "s1")
+        text = _as_str(shot.get("text") or shot.get("subtitle") or shot.get("title"))
+        lines = _dialogue_lines(shot)
+        if not text and lines:
+            text = " ".join(line["text"] for line in lines)
+
+        # --- 资产锁定 ---
+        locked_ref = ""
+        for cid in _as_list(shot.get("characters") or shot.get("cast")):
+            asset = _lookup(characters, cid)
+            if asset and asset["locked"]:
+                if not asset["ref"]:
+                    raise AssetLockError(
+                        f"资产锁定违规：镜头 '{shot_id}' 引用锁定角色 '{asset['name']}'，"
+                        "该角色缺少 ref 参考素材"
+                    )
+                locked_ref = locked_ref or asset["ref"]
+                asset_locks.append({"shot": shot_id, "kind": "character", "id": asset["id"], "ref": asset["ref"]})
+        location = _lookup(locations, shot.get("location") or shot.get("location_id"))
+        if location and location["locked"]:
+            if not location["ref"]:
+                raise AssetLockError(
+                    f"资产锁定违规：镜头 '{shot_id}' 引用锁定场景 '{location['name']}'，"
+                    "该场景缺少 ref 参考素材"
+                )
+            if not locked_ref:
+                locked_ref = location["ref"]
+            asset_locks.append({"shot": shot_id, "kind": "location", "id": location["id"], "ref": location["ref"]})
+
+        source = _as_str(shot.get("source"))
+        if locked_ref:
+            source = locked_ref  # 锁定资产优先：不参与随机取材
+        elif not source:
+            prop = shot.get("asset") if isinstance(shot.get("asset"), dict) else {}
+            source = _as_str(prop.get("ref") or shot.get("asset_ref"))
+        source = _resolve_source(source)
+
+        # --- 180° 轴线 ---
+        side = _camera_side(shot)
+        camera = shot.get("camera") if isinstance(shot.get("camera"), dict) else {}
+        if side not in _NEUTRAL_SIDES:
+            current = axis_state.get(scene_id)
+            declared = _as_str((declared_axis.get(scene_id.lower()) or {}).get("side")).lower()
+            if declared and not current:
+                current = axis_state[scene_id] = declared
+            if current is None:
+                axis_state[scene_id] = side
+            elif side != current:
+                if bool(camera.get("axis_break")):
+                    axis_state[scene_id] = side
+                else:
+                    message = (
+                        f"轴线违规：场 '{scene_id}' 镜头 '{shot_id}' 由 side={current} "
+                        f"越轴到 side={side}，且未声明 camera.axis_break"
+                    )
+                    violations.append(message)
+                    if strict_axis:
+                        raise AxisRuleError(message)
+                    warnings.append(message)
+                    axis_state[scene_id] = side
+        else:
+            axis_state[scene_id] = None  # 中性镜头重建轴线
+        axis_trace.append({"shot": shot_id, "scene": scene_id, "side": side or "neutral"})
+
+        # --- 场景组装 ---
+        scene_type = _scene_type_for(shot, bool(source))
+        duration = _estimate_duration(shot, text, default_duration)
+        style = shot.get("style") if isinstance(shot.get("style"), dict) else {}
+        style_kind = _as_str(style.get("kind")) or _TYPE_TO_STYLE_KIND.get(scene_type, "value")
+        scene: dict[str, Any] = {
+            "type": scene_type,
+            "text": text,
+            "subtitle": _as_str(shot.get("subtitle")),
+            "duration_s": duration,
+            "style": {
+                "kind": style_kind,
+                "align": _as_str(style.get("align")) or "center",
+                "color": _as_str(style.get("color")),
+                "highlight": _as_str(style.get("highlight")),
+            },
+        }
+        scene["style"] = {k: v for k, v in scene["style"].items() if v}
+        scene["asset_queries"] = _visual_queries(
+            shot,
+            characters,
+            locations,
+            mapper=visual_mapper,
+            text=text,
+        )
+        if source:
+            scene["source"] = source
+            media_kind = _media_kind_for(source)
+            if media_kind:
+                scene["_media_kind"] = media_kind
+        if _as_str(shot.get("overlay_kind")) or isinstance(shot.get("overlay"), dict):
+            scene["overlay"] = shot.get("overlay")
+        if locked_ref:
+            scene["_asset_lock"] = True
+        if isinstance(shot.get("composition"), str):
+            scene["_composition"] = shot["composition"]
+        out_scenes.append(scene)
+
+        # --- 配音脚本（Stage-2 TTS 交接） ---
+        for line in lines:
+            spoken = line["text"]
+            spoken_dur = round(max(0.8, len(spoken) / 4.5 + 0.3), 2)
+            voice_script.append(
+                {
+                    "shot_id": shot_id,
+                    "scene": scene_id,
+                    "speaker": line["speaker"],
+                    "text": spoken,
+                    "start_seconds": round(cursor, 2),
+                    "end_seconds": round(cursor + min(spoken_dur, duration), 2),
+                }
+            )
+        if not lines and text and scene_type in ("hero_title", "text_card", "callout"):
+            voice_script.append(
+                {
+                    "shot_id": shot_id,
+                    "scene": scene_id,
+                    "speaker": _as_str(shot.get("narrator") or "narrator"),
+                    "text": text,
+                    "start_seconds": round(cursor, 2),
+                    "end_seconds": round(cursor + duration, 2),
+                }
+            )
+        cursor += duration
+
+    audio = script.get("audio") if isinstance(script.get("audio"), dict) else {}
+    storyboard: dict[str, Any] = {
+        "title": _as_str(script.get("title")) or slugify(str(script.get("name") or "director-cut")),
+        "product": product or _as_str(script.get("product")) or "short-drama",
+        "width": int(script.get("width") or 1080),
+        "height": int(script.get("height") or 1920),
+        "fps": int(script.get("fps") or 24),
+        "scenes": out_scenes,
+        "audio": {
+            "narration": _as_list(audio.get("narration")),
+            "music": audio.get("music") if isinstance(audio.get("music"), dict) else None,
+        },
+        "voice_script": voice_script,
+        "director_meta": {
+            "format": _as_str(script.get("format")) or "short_drama",
+            "shot_count": len(out_scenes),
+            "duration_seconds": round(cursor, 2),
+            "asset_locks": asset_locks,
+            "axis_declared": {k: _as_str(v.get("side")) for k, v in declared_axis.items()},
+            "axis_trace": axis_trace,
+            "violations": violations,
+            "warnings": warnings,
+        },
+    }
+    if isinstance(script.get("theme"), dict):
+        storyboard["theme"] = script["theme"]
+
+    # 契约校验：任何越界类型 / 必填缺失都会在这里暴露
+    try:
+        validate_storyboard({k: v for k, v in storyboard.items() if k in {
+            "title", "product", "width", "height", "fps", "theme", "scenes", "audio"
+        }})
+    except ValueError as exc:
+        raise DirectorAdapterError(f"适配结果不满足 storyboard 契约：{exc}") from exc
+    return storyboard
+
+
+def adapt_file(
+    path: Path | str,
+    *,
+    strict_axis: bool = True,
+    default_duration: float = 3.5,
+    visual_mapper: Optional[Callable[[list[str], str], list[str]]] = None,
+    product: Optional[str] = None,
+) -> dict:
+    """读取导演分镜文件并适配。"""
+    source = Path(path)
+    try:
+        script = json.loads(source.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise DirectorAdapterError(f"导演分镜文件不存在：{source}") from exc
+    except (json.JSONDecodeError, OSError) as exc:
+        raise DirectorAdapterError(f"导演分镜 JSON 读取失败：{exc}") from exc
+    return adapt_director_script(
+        script,
+        strict_axis=strict_axis,
+        default_duration=default_duration,
+        visual_mapper=visual_mapper,
+        product=product,
+    )
+
+
+def write_storyboard(storyboard: dict, path: Path | str) -> Path:
+    """写出 storyboard JSON（UTF-8 无 BOM，供 pipeline 直读）。"""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(storyboard, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return target
+
+
+def _ensure_utf8_stdout() -> None:
+    """Windows 控制台默认 cp936/cp1252，强制 UTF-8 以避免中文输出崩溃。"""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    _ensure_utf8_stdout()
+    parser = argparse.ArgumentParser(
+        prog="director-adapter",
+        description="导演 Skill 结构化分镜 → 008-video-factory storyboard 契约",
+    )
+    parser.add_argument("--input", "-i", required=True, help="导演分镜 JSON 路径")
+    parser.add_argument("--output", "-o", help="输出 storyboard JSON（默认 work/director/<slug>.json）")
+    parser.add_argument("--product", help="归档产品名（默认 short-drama）")
+    parser.add_argument("--default-duration", type=float, default=3.5, help="缺省镜头时长（秒）")
+    parser.add_argument("--no-strict-axis", action="store_true", help="轴线违规仅告警不报错")
+    parser.add_argument("--validate-only", action="store_true", help="只做契约校验，不写文件")
+    parser.add_argument("--quiet", action="store_true", help="不打印摘要 JSON")
+    args = parser.parse_args(argv)
+
+    try:
+        storyboard = adapt_file(
+            args.input,
+            strict_axis=not args.no_strict_axis,
+            default_duration=args.default_duration,
+            product=args.product,
+        )
+    except DirectorAdapterError as exc:
+        print(f"[director] FAILED: {exc}", file=sys.stderr)
+        return 1
+
+    meta = storyboard["director_meta"]
+    summary = {
+        "title": storyboard["title"],
+        "shots": meta["shot_count"],
+        "duration_seconds": meta["duration_seconds"],
+        "asset_locks": len(meta["asset_locks"]),
+        "axis_violations": len(meta["violations"]),
+        "warnings": meta["warnings"],
+    }
+    if not args.validate_only:
+        slug = slugify(storyboard["title"])
+        target = Path(args.output) if args.output else Path("work") / "director" / f"{slug}.storyboard.json"
+        summary["output"] = str(write_storyboard(storyboard, target))
+    if not args.quiet:
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

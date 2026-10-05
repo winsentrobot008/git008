@@ -17,7 +17,7 @@ from pathlib import Path
 from src.core.llm_client import diagnose_llm
 from src.core.paths import OUTPUT_DIR, WORK_DIR, video_factory_dir
 
-from . import hyperframes, preview as video_preview, storyboard
+from . import director_adapter, hyperframes, preview as video_preview, render_backend, storyboard
 from .storyboard import slugify
 
 VIDEO_FACTORY_ROOT = video_factory_dir()
@@ -212,6 +212,98 @@ def cmd_storyboard(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_director(args: argparse.Namespace) -> int:
+    """导演 Skill 分镜 → storyboard 契约；可选 FFmpeg 预览 + ffprobe 门禁 + 封面。"""
+    try:
+        data = director_adapter.adapt_file(
+            args.input,
+            strict_axis=not getattr(args, "no_strict_axis", False),
+            default_duration=float(getattr(args, "default_duration", 3.5) or 3.5),
+        )
+    except director_adapter.DirectorAdapterError as exc:
+        print(f"[video] 导演适配失败：{exc}", file=sys.stderr)
+        return 1
+
+    meta = data["director_meta"]
+    slug = slugify(data["title"])
+    out_path = Path(args.output) if getattr(args, "output", None) else WORK_DIR / "director" / f"{slug}.storyboard.json"
+    director_adapter.write_storyboard(data, out_path)
+    print(
+        f"[video] 导演适配完成：{meta['shot_count']} 镜 / {meta['duration_seconds']}s / "
+        f"锁定资产 {len(meta['asset_locks'])} 项 → {out_path}"
+    )
+    for warning in meta["warnings"]:
+        print(f"[video] WARN {warning}", file=sys.stderr)
+
+    summary = {
+        "mode": "director",
+        "storyboard": str(out_path),
+        "shots": meta["shot_count"],
+        "duration_seconds": meta["duration_seconds"],
+        "asset_locks": meta["asset_locks"],
+        "axis_violations": meta["violations"],
+    }
+    if not getattr(args, "render", False):
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+
+    width, height = _parse_resolution(getattr(args, "resolution", "") or "480x854")
+    decision = render_backend.resolve_backend(getattr(args, "backend", "auto") or "auto")
+    print(f"[video] 渲染后端：{decision['backend']}（{decision['reason']}）")
+    svd_result = None
+    if decision["backend"] == "comfyui":
+        try:
+            svd_result = render_backend.run_comfyui_svd(data, out_dir=WORK_DIR / "svd")
+            print(f"[video] ComfyUI/SVD 输出：{svd_result['outputs']}")
+        except RuntimeError as exc:
+            decision = {
+                **decision,
+                "backend": "ffmpeg",
+                "reason": f"ComfyUI 路由失败，降级为 FFmpeg 预览：{exc}",
+            }
+            print(f"[video] {decision['reason']}", file=sys.stderr)
+
+    if decision["backend"] == "comfyui":
+        summary.update({"backend": "comfyui", "backend_reason": decision["reason"], "svd": svd_result})
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+
+    try:
+        result = video_preview.render_preview(
+            data,
+            width=width,
+            height=height,
+            fps=int(getattr(args, "fps", 24) or 24),
+            use_network=not getattr(args, "no_network", False),
+            inspect=not getattr(args, "no_inspect", False),
+        )
+        if getattr(args, "cover", False):
+            result["cover"] = video_preview.render_cover(
+                Path(result["output"]),
+                output_path=Path(result["output"]).with_name("cover.jpg"),
+                offset_s=float(getattr(args, "cover_offset", 0.5) or 0.5),
+            )
+    except (ValueError, RuntimeError, OSError) as exc:
+        print(f"[video] 导演预览出片失败：{exc}", file=sys.stderr)
+        return 1
+
+    inspection = result.get("inspector") or {}
+    summary.update({
+        "backend": "ffmpeg",
+        "backend_reason": decision["reason"],
+        "output": result["output"],
+        "duration_seconds": result.get("duration_seconds"),
+        "size_mb": result.get("size_mb"),
+        "inspect_ok": inspection.get("ok"),
+        "checks": inspection.get("checks") or {},
+    })
+    if result.get("cover"):
+        summary["cover"] = result["cover"]
+    print(f"[video] 出片：{result['output']}")
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_preview(args: argparse.Namespace) -> int:
     """阻塞式启动 HyperFrames 本地预览。"""
     workspace = Path(args.workspace)
@@ -268,6 +360,26 @@ def cmd_list_targets(args: argparse.Namespace) -> int:
         cwd=str(VIDEO_FACTORY_ROOT),
     )
     return code
+
+
+def cmd_backend_status(args: argparse.Namespace) -> int:
+    """ComfyUI 心跳 + 渲染后端路由（供 GUI/CLI 统一查询）。"""
+    try:
+        decision = render_backend.resolve_backend(
+            getattr(args, "prefer", "auto") or "auto",
+            comfyui_url=getattr(args, "url", None),
+        )
+    except ValueError as exc:
+        print(f"[video] {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        print(json.dumps(decision, ensure_ascii=False, indent=2))
+        return 0
+    comfy = decision["comfyui"]
+    print(f"[video] ComfyUI {comfy['url']} -> {'OK' if comfy['available'] else 'DOWN'}")
+    print(f"[video] SVD ready: {comfy['svd_ready']} / checkpoints: {len(comfy['checkpoints'])}")
+    print(f"[video] 选用后端: {decision['backend']}（{decision['reason']}）")
+    return 0
 
 
 def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -329,6 +441,29 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     render.set_defaults(handler=cmd_render)
 
+    director = sub.add_parser(
+        "director",
+        help="导演 Skill 分镜 JSON → storyboard 契约（可选低清预览 + ffprobe 质检 + 封面）",
+    )
+    director.add_argument("--input", "-i", required=True, help="导演分镜 JSON 路径")
+    director.add_argument("--output", "-o", help="storyboard JSON 输出路径（默认 work/director/<slug>.storyboard.json）")
+    director.add_argument("--render", action="store_true", help="适配后直接走 FFmpeg 低清预览出片")
+    director.add_argument("--resolution", default="480x854", help="预览画幅（默认 480x854）")
+    director.add_argument("--fps", type=int, default=24, help="输出帧率（默认 24）")
+    director.add_argument("--default-duration", type=float, default=3.5, help="缺省镜头时长（秒）")
+    director.add_argument("--no-strict-axis", action="store_true", help="轴线违规仅告警不报错")
+    director.add_argument("--no-network", action="store_true", help="禁用 Pexels/MediaIndexerPro 联网取材")
+    director.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
+    director.add_argument(
+        "--backend",
+        default="auto",
+        choices=list(render_backend.BACKEND_CHOICES),
+        help="渲染后端：auto（ComfyUI 在线走高清，否则 FFmpeg）/ comfyui / ffmpeg",
+    )
+    director.add_argument("--cover", action="store_true", help="出片后同步抽取爆款封面 cover.jpg")
+    director.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒）")
+    director.set_defaults(handler=cmd_director)
+
     storyboard = sub.add_parser("storyboard", help="分镜 JSON → HyperFrames 工作区 + 渲染")
     storyboard.add_argument("--input", "-i", required=True, help="分镜 JSON 路径")
     storyboard.add_argument(
@@ -356,3 +491,9 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
 
     targets = sub.add_parser("list-targets", help="列出 008-video-factory 内置 Hook 模板")
     targets.set_defaults(handler=cmd_list_targets)
+
+    backend = sub.add_parser("backend-status", help="ComfyUI 心跳检测与渲染后端路由建议")
+    backend.add_argument("--prefer", default="auto", choices=list(render_backend.BACKEND_CHOICES))
+    backend.add_argument("--url", help="ComfyUI 地址（默认 127.0.0.1:8188）")
+    backend.add_argument("--json", action="store_true", help="只输出 JSON")
+    backend.set_defaults(handler=cmd_backend_status)

@@ -87,3 +87,8 @@ runtime_data/logs/*
 __pycache__/
 *.bak_*
 $null
+
+# --- 大型运行时 / 归档产物（体积过大，不入库；可本地重建）---
+runtime_data/
+archive/
+products/008ai-landing/qa-logs/
