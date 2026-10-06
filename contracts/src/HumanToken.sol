@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IAIAgentRegistry} from "./AIAgentRegistry.sol";
+
 /// @title HumanToken ($mHUMAN)
-/// @notice One human, one identity, one quota.
+/// @notice One human, one identity, one quota — claimed through a registered AI agent.
 /// @dev Fixed-precision ERC-20. `decimals` is hardcoded to 6, so the smallest amount that can ever
 /// move is 1 Micro-HUMAN; integer arithmetic makes sub-unit amounts unrepresentable. Supply only
 /// grows through {claimHumanQuota}, and never past {MAX_GLOBAL_SUPPLY}.
 contract HumanToken {
+    /// @notice Registry deciding which AI agents may claim for which human.
+    IAIAgentRegistry public immutable agentRegistry;
+
     /// @notice Token name.
     string public constant name = "Micro Human";
 
@@ -39,14 +44,22 @@ contract HumanToken {
 
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
-    event HumanQuotaClaimed(address indexed wallet, bytes32 indexed personhoodId, uint256 amount);
+    event HumanQuotaClaimed(address indexed wallet, address indexed agent, bytes32 indexed personhoodId, uint256 amount);
 
     error EmptyProof();
+    error InvalidAgentRegistry();
     error QuotaAlreadyClaimed(bytes32 personhoodId);
     error GlobalSupplyCapExceeded(uint256 requested, uint256 remaining);
     error InsufficientBalance(address from, uint256 balance, uint256 needed);
     error InsufficientAllowance(address spender, uint256 allowance, uint256 needed);
     error TransferToZeroAddress();
+
+    /// @param agentRegistry_ AI agent registry that authorizes claims. Immutable: there is no admin
+    /// path to redirect claims to a different registry.
+    constructor(address agentRegistry_) {
+        if (agentRegistry_ == address(0)) revert InvalidAgentRegistry();
+        agentRegistry = IAIAgentRegistry(agentRegistry_);
+    }
 
     /// @notice Fixed number of decimals: 6.
     function decimals() external pure returns (uint8) {
@@ -58,13 +71,16 @@ contract HumanToken {
         return (MAX_GLOBAL_SUPPLY - totalSupply) / HUMAN_QUOTA;
     }
 
-    /// @notice Mints exactly one human quota to the caller once their personhood proof is consumed.
-    /// @dev The derived personhood nullifier is written before minting, so a given proof (a given
-    /// person) can trigger this function exactly once, from any wallet.
+    /// @notice Mints one human quota to the wallet the calling agent is authorized for.
+    /// @dev AI-agent native: only a registered agent may call this, and the quota always lands in the
+    /// human wallet that agent was registered for. The derived personhood nullifier is written before
+    /// minting, so a given proof (a given person) can trigger this exactly once.
     /// @param zkProof Personhood proof; its nullifier is the identity handle.
     /// @return minted Amount minted, always {HUMAN_QUOTA}.
     function claimHumanQuota(bytes memory zkProof) external returns (uint256 minted) {
         if (zkProof.length == 0) revert EmptyProof();
+
+        address wallet = agentRegistry.requireAuthorizedAgent(msg.sender);
 
         bytes32 personhoodId = personhoodNullifier(zkProof);
         if (claimedPersonhood[personhoodId]) revert QuotaAlreadyClaimed(personhoodId);
@@ -74,8 +90,8 @@ contract HumanToken {
         uint256 remaining = MAX_GLOBAL_SUPPLY - totalSupply;
         if (minted > remaining) revert GlobalSupplyCapExceeded(minted, remaining);
 
-        _mint(msg.sender, minted);
-        emit HumanQuotaClaimed(msg.sender, personhoodId, minted);
+        _mint(wallet, minted);
+        emit HumanQuotaClaimed(wallet, msg.sender, personhoodId, minted);
     }
 
     /// @notice Derives the single-use identity handle from a personhood proof.

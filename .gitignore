@@ -90,3 +90,10 @@ __pycache__/
 runtime_data/
 archive/
 products/008ai-landing/qa-logs/
+
+# --- MAOTANG protocol artifacts (root contracts/ + frontend/) ---
+/contracts/out/
+/contracts/cache/
+/contracts/broadcast/
+/.next/
+next-env.d.ts
