@@ -9,8 +9,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Optional
 
@@ -29,6 +31,8 @@ __all__ = [
     "OUTPUT_DIR",
     "stage_for_line",
     "parse_cli_result",
+    "active_jobs",
+    "cancel_render",
     "render_job",
     "start_render_thread",
     "build_storyboard_from_idea",
@@ -40,6 +44,91 @@ __all__ = [
 CLI = PRODUCT_ROOT / "src" / "cli.py"
 OUTPUT_DIR = Path(os.environ.get("VF_OUTPUT_DIR") or (PRODUCT_ROOT / "output"))
 WORK_DIR = Path(os.environ.get("VF_WORK_DIR") or (PRODUCT_ROOT / "work" / "studio"))
+
+# --------------------------------------------------------------------------
+# 活动渲染进程表：/api/render/cancel 需要拿到 Popen 才能杀掉整棵进程树
+# --------------------------------------------------------------------------
+_ACTIVE_LOCK = threading.Lock()
+_ACTIVE: dict[str, subprocess.Popen] = {}
+
+
+def register_active(job_id: str, proc: subprocess.Popen) -> None:
+    with _ACTIVE_LOCK:
+        _ACTIVE[job_id] = proc
+
+
+def unregister_active(job_id: str) -> None:
+    with _ACTIVE_LOCK:
+        _ACTIVE.pop(job_id, None)
+
+
+def active_jobs() -> list[str]:
+    """仍在运行的渲染作业 id。"""
+    with _ACTIVE_LOCK:
+        return [jid for jid, proc in _ACTIVE.items() if proc.poll() is None]
+
+
+def active_process(job_id: str) -> Optional[subprocess.Popen]:
+    """取某个作业当前的渲染 Popen（未注册/已回收则 None）。"""
+    with _ACTIVE_LOCK:
+        return _ACTIVE.get(job_id)
+
+
+def _terminate_tree(proc: subprocess.Popen) -> bool:
+    """终止渲染进程及其后代。
+
+    FFmpeg 是渲染线程的子进程、CLI 的孙进程：只杀 CLI 会留下孤儿 FFmpeg，
+    所以 Windows 走 taskkill /T，POSIX 走独立进程组 killpg。
+    """
+    if proc.poll() is not None:
+        return True
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except OSError:
+            proc.terminate()
+    try:
+        proc.wait(timeout=8)
+        return True
+    except subprocess.TimeoutExpired:
+        pass
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except OSError:
+            proc.kill()
+    try:
+        proc.wait(timeout=5)
+        return True
+    except subprocess.TimeoutExpired:
+        return False
+
+
+def cancel_render(job_id: Optional[str] = None) -> list[str]:
+    """强制终止在跑的渲染子进程；job_id 为 None 时取消全部。返回被终止的作业 id。"""
+    with _ACTIVE_LOCK:
+        targets = [
+            (jid, proc)
+            for jid, proc in _ACTIVE.items()
+            if (job_id is None or jid == job_id) and proc.poll() is None
+        ]
+    cancelled: list[str] = []
+    for jid, proc in targets:
+        _terminate_tree(proc)
+        cancelled.append(jid)
+    return cancelled
 
 _STAGE_RULES = (
     (re.compile(r"导演适配|适配完成|适配失败"), "adapting"),
@@ -162,8 +251,14 @@ def render_job(
         cmd = _build_command(script_path, backend=backend, cover=cover, resolution=resolution, fps=fps)
         registry.publish(job, {"type": "log", "line": "[studio] $ " + " ".join(cmd[1:])})
 
+        if job.state == "cancelled":  # 校验/落盘阶段就被终止
+            return
         env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        popen_kwargs: dict[str, Any] = {}
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        else:
+            popen_kwargs["start_new_session"] = True  # 独立进程组，便于整组终止
         proc = subprocess.Popen(
             cmd,
             cwd=str(REPO_ROOT),
@@ -173,19 +268,26 @@ def render_job(
             encoding="utf-8",
             errors="replace",
             env=env,
-            creationflags=flags,
+            **popen_kwargs,
         )
+        register_active(job.id, proc)
         chunks: list[str] = []
         assert proc.stdout is not None
-        for raw in proc.stdout:
-            line = raw.rstrip("\r\n")
-            chunks.append(line)
-            registry.publish(job, {"type": "log", "line": line})
-            nxt = stage_for_line(line, job.stage)
-            if nxt != job.stage:
-                registry.set_stage(job, nxt)
-        proc.wait()
+        try:
+            for raw in proc.stdout:
+                line = raw.rstrip("\r\n")
+                chunks.append(line)
+                registry.publish(job, {"type": "log", "line": line})
+                nxt = stage_for_line(line, job.stage)
+                if nxt != job.stage:
+                    registry.set_stage(job, nxt)
+            proc.wait()
+        finally:
+            unregister_active(job.id)
         output = "\n".join(chunks)
+
+        if job.state == "cancelled":  # 已被用户终止：不再改写终态
+            return
 
         if proc.returncode != 0:
             registry.fail(job, "PIPELINE_ERROR", f"渲染管线退出码 {proc.returncode}", output[-1200:])

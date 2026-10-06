@@ -20,12 +20,14 @@ STAGES = (
     "inspecting",
     "completed",
 )
-_TERMINAL = {"completed", "failed"}
+_TERMINAL = {"completed", "failed", "cancelled"}
 _MAX_LOGS = 600
 
 
 def progress_for_stage(stage: str) -> int:
     """阶段 → 百分比（用于顶栏/进度条）。"""
+    if stage == "cancelled":
+        return 0
     if stage == "failed":
         return 100
     weights = {"queued": 2, "validating": 10, "adapting": 24, "rendering": 72, "inspecting": 92, "completed": 100}
@@ -36,7 +38,7 @@ def progress_for_stage(stage: str) -> int:
 class Job:
     kind: str
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    state: str = "running"          # running | completed | failed
+    state: str = "running"          # running | completed | failed | cancelled
     stage: str = "queued"
     logs: list[dict] = field(default_factory=list)
     result: Optional[dict] = None
@@ -85,6 +87,11 @@ class JobRegistry:
         with self._lock:
             return self._jobs.get(job_id)
 
+    def running_ids(self) -> list[str]:
+        """当前仍处于 running 的作业 id（取消全部时使用）。"""
+        with self._lock:
+            return [j.id for j in self._jobs.values() if j.state == "running"]
+
     def _sweep(self) -> None:
         if not self._jobs:
             return
@@ -118,16 +125,31 @@ class JobRegistry:
         self.publish(job, {"type": "stage", "stage": stage, "progress": job.progress})
 
     def finish(self, job: Job, result: dict) -> None:
+        if job.state == "cancelled":
+            return
         job.result = result
         job.state = "completed"
         job.stage = "completed"
         self.publish(job, {"type": "done", "stage": "completed", "progress": 100, "result": result})
 
     def fail(self, job: Job, code: str, message: str, detail: Any = None) -> None:
+        if job.state == "cancelled":
+            return
         job.error = {"code": code, "message": message, "detail": detail}
         job.state = "failed"
         job.stage = "failed"
         self.publish(job, {"type": "error", "stage": "failed", "progress": 100, "error": job.error})
+
+    def cancel(self, job: Job, message: str = "渲染已取消") -> bool:
+        """用户主动终止：进入 cancelled 终态（区别于 failed，UI 视为回到空闲）。"""
+        if job.state != "running":
+            return False
+        job.state = "cancelled"
+        job.stage = "cancelled"
+        job.result = None
+        job.error = None
+        self.publish(job, {"type": "cancelled", "stage": "cancelled", "progress": 0, "message": message})
+        return True
 
     # -- 订阅 -------------------------------------------------------------
     def subscribe(self, job: Job) -> queue.Queue:

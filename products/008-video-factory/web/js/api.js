@@ -36,13 +36,14 @@ export const api = {
   idea: (payload) => req("/idea", { method: "POST", body: payload, timeout: 180000 }),
   validate: (director_script) => req("/validate", { method: "POST", body: { director_script }, timeout: 30000 }),
   render: (payload) => req("/render", { method: "POST", body: payload, timeout: 30000 }),
+  cancelRender: (job_id) => req("/render/cancel", { method: "POST", body: { job_id: job_id ?? null }, timeout: 20000 }),
   job: (id) => req(`/jobs/${id}`, { timeout: 15000 }),
   videos: () => req("/videos", { timeout: 15000 }),
 };
 
 /**
  * 订阅作业进度。返回 close()。
- * 事件：{type: snapshot|stage|log|done|error|ping}
+ * 事件：{type: snapshot|stage|log|done|error|cancelled|ping}
  */
 export function openJobSocket(jobId, handlers = {}) {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";

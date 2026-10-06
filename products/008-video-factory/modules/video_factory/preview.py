@@ -25,9 +25,30 @@ from . import media, storyboard
 
 _FONT_BOLD = "font_bold.ttf"
 _FONT_REGULAR = "font_regular.ttf"
+# drawtext 不会自动做 CJK 字形回退：字体一旦没有汉字，就渲染成 tofu 方框（□□□□）。
+# 因此这里按「中文 → 拉丁」顺序探测候选字体，命中者被复制进工作目录，
+# drawtext 用相对文件名引用（规避盘符冒号在 filter 语法里的歧义，见 _stage_fonts）。
 _FONT_SOURCES = {
-    _FONT_BOLD: ["C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/segoeuib.ttf"],
-    _FONT_REGULAR: ["C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf"],
+    _FONT_BOLD: [
+        "C:/Windows/Fonts/msyhbd.ttc",   # 微软雅黑 Bold
+        "C:/Windows/Fonts/msyh.ttc",     # 微软雅黑
+        "C:/Windows/Fonts/simhei.ttf",   # 黑体
+        "C:/Windows/Fonts/simsun.ttc",   # 宋体
+        "C:/Windows/Fonts/arialbd.ttf",  # 纯拉丁：最后兜底（无 CJK）
+        "C:/Windows/Fonts/segoeuib.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+    ],
+    _FONT_REGULAR: [
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/simsun.ttc",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeui.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ],
 }
 _TITLE_SCALE = 110.0   # 1080x1920 基准字号
 _SUBTITLE_SCALE = 54.0

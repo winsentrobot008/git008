@@ -48,8 +48,8 @@ export function mount(root, store, { toast }) {
           </label>
         </div>
 
-        <button type="button" class="vf-btn vf-btn--primary" id="vf-render"${!s.script || busy ? " disabled" : ""}>
-          ${esc(busy ? t("inspector.rendering") : t("inspector.render"))}
+        <button type="button" class="vf-btn ${busy ? "vf-btn--danger" : "vf-btn--primary"}" id="vf-render"${!s.script && !busy ? " disabled" : ""}>
+          ${esc(busy ? t("inspector.cancel") : t("inspector.render"))}
         </button>
         ${r.error ? `<p class="vf-error">${esc(r.error.message || r.error)}</p>` : ""}
 
@@ -138,7 +138,7 @@ export function mount(root, store, { toast }) {
     if (cover) cover.addEventListener("change", (e) => store.set({ cover: e.target.checked }));
 
     const btn = root.querySelector("#vf-render");
-    if (btn) btn.addEventListener("click", startRender);
+    if (btn) btn.addEventListener("click", () => (store.get().render?.running ? cancelRender() : startRender()));
   }
 
   async function startRender() {
@@ -163,6 +163,29 @@ export function mount(root, store, { toast }) {
       store.set({ render: { ...store.get().render, running: false, error: err }, busy: false });
       toast(`${t("toast.renderFailed")}: ${err.message}`, "error");
     }
+  }
+
+  async function cancelRender() {
+    const current = store.get().render || {};
+    if (!current.running) return;
+    try {
+      await api.cancelRender(current.jobId || null);
+      toast(t("toast.renderCancelled"), "ok");
+    } catch (err) {
+      toast(`${t("toast.renderFailed")}: ${err.message}`, "error");
+    } finally {
+      resetToIdle(current);
+    }
+  }
+
+  /** 停止本地渲染态：断开作业 socket、清空进度，按钮回到“开始渲染”。 */
+  function resetToIdle(current = {}) {
+    socketClose?.();
+    socketClose = null;
+    store.set({
+      render: { ...current, jobId: null, running: false, stage: "", progress: 0, error: null },
+      busy: false,
+    });
   }
 
   function attachSocket(jobId) {
@@ -190,6 +213,12 @@ export function mount(root, store, { toast }) {
         if (event.type === "error") {
           store.set({ render: { ...current, running: false, stage: "failed", error: event.error }, busy: false });
           toast(`${t("toast.renderFailed")}: ${event.error?.message || ""}`, "error");
+          return;
+        }
+        if (event.type === "cancelled") {
+          if (!current.running) return; // 本地已复位，避免重复提示
+          resetToIdle(current);
+          toast(t("toast.renderCancelled"), "ok");
         }
       },
     });

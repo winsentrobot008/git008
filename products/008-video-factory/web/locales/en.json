@@ -95,6 +95,7 @@
     "someFail": "QC failed — the bad take was quarantined by the gate",
     "render": "Start render",
     "rendering": "Rendering…",
+    "cancel": "Cancel render",
     "coverToggle": "Also generate thumbnail cover",
     "backend": "Backend",
     "resolution": "Resolution",
@@ -109,7 +110,8 @@
       "rendering": "Rendering",
       "inspecting": "ffprobe QC",
       "completed": "Completed",
-      "failed": "Failed"
+      "failed": "Failed",
+      "cancelled": "Cancelled"
     }
   },
   "check": {
@@ -125,6 +127,7 @@
     "failed": "Operation failed",
     "renderStarted": "Render job submitted: {id}",
     "renderDone": "Render finished",
-    "renderFailed": "Render failed"
+    "renderFailed": "Render failed",
+    "renderCancelled": "Render cancelled"
   }
 }

@@ -117,6 +117,10 @@ class RenderReq(BaseModel):
     fps: int = Field(default=24, ge=1, le=60)
 
 
+class CancelReq(BaseModel):
+    job_id: Optional[str] = None
+
+
 # --------------------------------------------------------------------------
 # 基础端点
 # --------------------------------------------------------------------------
@@ -216,6 +220,26 @@ def _release_when_done(job_id: str) -> None:
         pass
 
 
+@app.post("/api/render/cancel")
+def cancel_render(req: Optional[CancelReq] = None) -> dict:
+    """终止进行中的渲染（FFmpeg / ComfyUI 整棵进程树）。
+
+    顺序很重要：先把作业落到 cancelled 终态，再杀进程；否则渲染线程会抢先
+    把非零退出码当成 PIPELINE_ERROR 上报，UI 会闪一次红色错误。
+    """
+    requested = (req.job_id if req else None) or None
+    target_ids = [requested] if requested else REGISTRY.running_ids()
+
+    cancelled_jobs: list[str] = []
+    for jid in target_ids:
+        job = REGISTRY.get(jid)
+        if job is not None and REGISTRY.cancel(job):
+            cancelled_jobs.append(jid)
+
+    stopped = runner.cancel_render(requested)
+    return {"status": "cancelled", "job_ids": sorted(set(cancelled_jobs) | set(stopped))}
+
+
 @app.get("/api/jobs/{job_id}")
 def job_state(job_id: str) -> dict:
     job = REGISTRY.get(job_id)
@@ -251,7 +275,7 @@ async def ws_job(websocket: WebSocket, job_id: str) -> None:
                 await websocket.send_json({"type": "ping", "stage": job.stage, "progress": job.progress})
                 continue
             await websocket.send_json(event)
-            if event.get("type") in ("done", "error"):
+            if event.get("type") in ("done", "error", "cancelled"):
                 break
     except WebSocketDisconnect:
         pass

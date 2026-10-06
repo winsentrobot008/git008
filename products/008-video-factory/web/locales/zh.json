@@ -95,6 +95,7 @@
     "someFail": "质检未通过，坏片已按门禁隔离",
     "render": "开始渲染",
     "rendering": "渲染中…",
+    "cancel": "终止渲染",
     "coverToggle": "同时生成爆款封面",
     "backend": "渲染后端",
     "resolution": "输出画幅",
@@ -109,7 +110,8 @@
       "rendering": "渲染中",
       "inspecting": "ffprobe 质检中",
       "completed": "已完成",
-      "failed": "失败"
+      "failed": "失败",
+      "cancelled": "已终止"
     }
   },
   "check": {
@@ -125,6 +127,7 @@
     "failed": "操作失败",
     "renderStarted": "渲染作业已提交：{id}",
     "renderDone": "渲染完成",
-    "renderFailed": "渲染失败"
+    "renderFailed": "渲染失败",
+    "renderCancelled": "渲染已终止"
   }
 }

@@ -139,6 +139,12 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--vf-accen
   background: linear-gradient(135deg, var(--vf-accent), var(--vf-accent-2)); color: #fff;
   box-shadow: 0 8px 24px -12px rgba(109, 140, 255, 0.85);
 }
+.vf-btn--danger {
+  border-color: transparent; font-weight: 600; width: 100%; margin-top: 4px;
+  background: linear-gradient(135deg, #fb7185, var(--vf-danger)); color: #fff;
+  box-shadow: 0 8px 24px -12px rgba(248, 113, 113, 0.9);
+}
+.vf-btn--danger:hover:not(:disabled) { filter: brightness(1.08); }
 
 /* ---------- 分镜画布 ---------- */
 .vf-canvas { display: grid; gap: 11px; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); }
