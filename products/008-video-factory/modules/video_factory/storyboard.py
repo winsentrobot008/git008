@@ -542,6 +542,7 @@ def resolve_media_for_storyboard(
             scene,
             cache_dir=cache_dir,
             use_network=use_network,
+            allow_cache_reuse=False,
             exclude=used,
         )
         scene["_media_reason"] = outcome.get("reason")
