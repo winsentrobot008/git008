@@ -206,3 +206,25 @@ challenge before any intent runs. `AgentClient.executeIntent(intent)` then maps 
 ("claim my quota", "swap 0.5 ETH for mHUMAN") onto `claimHumanQuota`, `buyTokensOnCurve` and
 `sellTokensOnCurve`, and `getAgentBalance()` reports the human's `$mHUMAN` balance plus the curve
 liquidity position.
+
+
+## 11. Local SLM agent engine
+
+The agent runtime is local-first: intent parsing must not depend on any cloud LLM.
+
+- `agent-client/src/slm/` wraps `llama.cpp` (`node-llama-cpp`, GGUF) and ONNX Runtime
+  (`onnxruntime-node`, INT4 ONNX) behind one `SlmEngine` interface. Both native modules are optional
+  dependencies loaded through a dynamic import, so the package builds and tests without them.
+- The default model is Qwen2.5-0.5B-Instruct INT4 (~397 MiB of weights). A resident-memory estimate
+  adds the fp16 KV cache (`2 * layers * kv_heads * head_dim * 2 * context`) plus runtime overhead and
+  enforces a 500 MiB ceiling; larger models are refused unless `allowOverBudget` is set on purpose.
+- The runtime is local-only by construction: `assertNoCloudDependencies()` rejects any endpoint,
+  base URL, API key or token field, and `mode: "native"` fails loudly instead of degrading to the
+  simulated engine.
+- `agent-client/src/intents/` defines the two strict JSON-Schema tools - `claim_mhuman_quota` and
+  `swap_micro_human` - and renders a ChatML system prompt that instructs the model to emit exactly one
+  tool call. `parseToolCall()` extracts the JSON, rejects unknown tools and validates every argument
+  before a call can reach a wallet.
+- `agent-client/test/local-agent.test.ts` drives the full pipeline in `simulated` mode (a deterministic
+  stand-in for the model) so tool calling is covered in CI, and verifies the native path fails loudly
+  when its runtime is absent.
