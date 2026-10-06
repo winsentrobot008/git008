@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -73,27 +74,89 @@ def _filter_text(value: str) -> str:
     return str(value).replace("\\", "\\\\").replace(":", "\\:").replace("%", "%%")
 
 
+def _is_wide_char(ch: str) -> bool:
+    """全角字符（CJK / 假名 / 全角标点）判定：drawtext 下约占 1 em 宽。"""
+    return unicodedata.east_asian_width(ch) in ("W", "F")
+
+
+def _glyph_width(ch: str, fontsize: float) -> float:
+    """单字符宽度估算：全角 ≈ 1.0 em，拉丁等窄字符 ≈ 0.62 em，空格更窄。"""
+    if ch.isspace():
+        return fontsize * 0.35
+    return fontsize if _is_wide_char(ch) else fontsize * 0.62
+
+
+def _wrap_units(raw: str) -> list[tuple[str, bool]]:
+    """切成断行单元 (unit, is_word)：含全角的串逐字可断，拉丁词保持整体。"""
+    units: list[tuple[str, bool]] = []
+    for chunk in re.findall(r"\s+|\S+", raw):
+        if chunk.isspace():
+            continue
+        if any(_is_wide_char(ch) for ch in chunk):
+            units.extend((ch, False) for ch in chunk)
+        else:
+            units.append((chunk, True))
+    return units
+
+
+def _break_word(word: str, *, fontsize: float, max_width: float) -> list[str]:
+    """把放不下的长词按字硬切成多段，保证每段都不超宽。"""
+    pieces: list[str] = []
+    current = ""
+    current_w = 0.0
+    for ch in word:
+        width = _glyph_width(ch, fontsize)
+        if current and current_w + width > max_width:
+            pieces.append(current)
+            current, current_w = "", 0.0
+        current += ch
+        current_w += width
+    if current:
+        pieces.append(current)
+    return pieces
+
+
+def _wrap_line(raw: str, *, fontsize: float, max_width: float) -> list[str]:
+    """贪心折行：优先在可断点换行，仅当单个词自身超宽时才硬切。"""
+    lines: list[str] = []
+    current = ""
+    current_w = 0.0
+    for unit, is_word in _wrap_units(raw):
+        prefix = " " if (is_word and current) else ""
+        prefix_w = _glyph_width(" ", fontsize) if prefix else 0.0
+        unit_w = sum(_glyph_width(ch, fontsize) for ch in unit)
+        if current and current_w + prefix_w + unit_w > max_width:
+            lines.append(current)
+            current, current_w, prefix, prefix_w = "", 0.0, "", 0.0
+        if prefix_w + unit_w > max_width and len(unit) > 1:
+            pieces = _break_word(unit, fontsize=fontsize, max_width=max_width)
+            lines.extend(pieces[:-1])
+            current = pieces[-1]
+            current_w = sum(_glyph_width(ch, fontsize) for ch in current)
+            continue
+        current += prefix + unit
+        current_w += prefix_w + unit_w
+    if current:
+        lines.append(current)
+    return lines
+
+
 def _wrap_text(value: str, *, fontsize: int, max_width: int) -> str:
-    """按估算宽度把长英文句子折成多行（drawtext 无内置换行）。"""
+    """按估算宽度折行（drawtext 无内置换行）。
+
+    拉丁文本按词断行；中文没有空格，整句会被当成单个 token 而永不换行，
+    因此含全角字符时按字断行，确保长标题不会横向溢出画面。
+    """
     text = str(value)
     if not text or max_width <= 0:
         return text
-    # 保守估算：等宽系数 0.62 × 字号 ≈ 平均字符宽度
-    char_w = max(6.0, fontsize * 0.62)
-    max_chars = max(8, int(max_width / char_w))
-    lines: list[str] = []
+    wrapped: list[str] = []
     for raw in text.splitlines() or [text]:
-        words = raw.split()
-        current = ""
-        for word in words:
-            candidate = f"{current} {word}".strip()
-            if len(candidate) <= max_chars or not current:
-                current = candidate
-            else:
-                lines.append(current)
-                current = word
-        lines.append(current)
-    return "\n".join(lines)
+        if not raw.strip():
+            wrapped.append("")
+            continue
+        wrapped.extend(_wrap_line(raw, fontsize=fontsize, max_width=max_width))
+    return "\n".join(wrapped)
 
 
 def _stage_fonts(workdir: Path) -> None:
@@ -146,7 +209,15 @@ def _write_text(workdir: Path, name: str, lines: list[str]) -> str:
 
 
 def _crop_filter(src_w: int, src_h: int, width: int, height: int) -> str:
-    """9:16 中心裁切（与 src/core/ffmpeg.py compose_vertical 同策略）。"""
+    """按目标画幅中心裁切后缩放（与 src/core/ffmpeg.py compose_vertical 同策略）。
+
+    1:1 目标改用 ffmpeg 表达式 min(iw,ih)：无论输入是 16:9 还是 9:16，都取短边
+    居中裁成正方形（crop 默认居中），因此不会拉伸变形；随后的 scale 把边长
+    归一到目标分辨率。
+    """
+    if width == height:
+        side = "min(iw,ih)"
+        return f"crop='{side}':'{side}',scale={width}:{height},setsar=1"
     target_ratio = width / height
     src_ratio = src_w / src_h
     if target_ratio > src_ratio:

@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[1]
@@ -182,6 +183,94 @@ def test_cjk_font_beats_latin_only() -> None:
         )
 
 
+LONG_CJK_TITLE = "这是一个非常长的中文标题用来测试自动换行是否生效"  # 24 个全角字符
+
+
+def _render_filter(tmp: Path, vf: str, width: int, height: int, out_name: str) -> bytes:
+    """在纯黑画布上套用 filter 链渲一帧，返回灰度裸数据。"""
+    subprocess.run(
+        [_ffmpeg(), "-y", "-v", "error", "-f", "lavfi",
+         "-i", f"color=black:s={width}x{height}", "-vf", vf, "-frames:v", "1", out_name],
+        cwd=tmp, check=True, capture_output=True,
+    )
+    proc = subprocess.run(
+        [_ffmpeg(), "-v", "error", "-i", str(tmp / out_name),
+         "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+        capture_output=True, check=True,
+    )
+    return proc.stdout
+
+
+def _edge_ink(data: bytes, width: int, height: int, margin: int = 2) -> int:
+    """统计最外圈 margin 像素内的墨迹数：>0 说明文字被裁切。"""
+    edges = 0
+    for y in range(height):
+        row = y * width
+        for x in list(range(margin)) + list(range(width - margin, width)):
+            if data[row + x] > 40:
+                edges += 1
+    for y in list(range(margin)) + list(range(height - margin, height)):
+        row = y * width
+        for x in range(width):
+            if data[row + x] > 40:
+                edges += 1
+    return edges
+
+
+def test_long_cjk_title_wraps_within_width() -> None:
+    """长中文标题必须折行，且每行全角字形数不超过画面可容纳上限。"""
+    for width, height in ((480, 854), (1080, 1920)):
+        fontsize = max(28, round(110 * (height / 1920)))
+        max_width = max(120, round(width * 0.85))
+        lines = preview._wrap_text(
+            LONG_CJK_TITLE, fontsize=fontsize, max_width=max_width
+        ).split("\n")
+        check(f"wrap: {width}px 长标题折成多行", len(lines) > 1, f"lines={len(lines)}")
+        limit = max_width / fontsize  # 全角字形 ≈ 1 em，据此推算每行上限
+        widest = max(
+            sum(1 for ch in ln if unicodedata.east_asian_width(ch) in ("W", "F"))
+            for ln in lines
+        )
+        check(
+            f"wrap: {width}px 每行全角字数不超上限",
+            widest <= limit,
+            f"widest={widest} limit={limit:.1f}",
+        )
+
+
+def test_long_cjk_title_not_clipped() -> None:
+    """端到端：长中文标题渲染后不得触碰画面边缘（触碰即被裁切）。"""
+    if not _ffmpeg():
+        skip("e2e: 长中文标题未被裁切", "ffmpeg 不在 PATH")
+        return
+    for width, height in ((480, 854), (1080, 1920)):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            preview._stage_fonts(tmp)
+            scene = {"text": LONG_CJK_TITLE, "duration_s": 1.0, "style": {}}
+            layers = preview._scene_text_layers(scene, tmp, 0, width=width, height=height)
+            data = _render_filter(tmp, ",".join(layers), width, height, "frame.png")
+            check(
+                f"e2e: {width}px 长标题渲染成功",
+                len(data) == width * height,
+                f"bytes={len(data)}",
+            )
+            edges = _edge_ink(data, width, height)
+            check(f"e2e: {width}px 长标题未被裁切", edges == 0, f"edge_ink={edges}")
+
+
+def test_latin_wrapping_keeps_words_intact() -> None:
+    """拉丁文本仍按词断行，不得把单词从中间切开。"""
+    sentence = "this is a fairly long english title for the preview frame"
+    wrapped = preview._wrap_text(sentence, fontsize=49, max_width=408)
+    check("wrap: 拉丁句子折成多行", len(wrapped.split("\n")) > 1, wrapped)
+    check(
+        "wrap: 拉丁单词未被从中间切开",
+        set(sentence.split()) == set(wrapped.replace("\n", " ").split()),
+        wrapped.replace("\n", "|"),
+    )
+
+
 def _run(fn, label: str) -> None:
     try:
         fn()
@@ -194,6 +283,9 @@ def main() -> int:
     _run(test_drawtext_emits_fontfile, "test_drawtext_emits_fontfile 执行异常")
     _run(test_staged_font_renders_real_cjk, "test_staged_font_renders_real_cjk 执行异常")
     _run(test_cjk_font_beats_latin_only, "test_cjk_font_beats_latin_only 执行异常")
+    _run(test_long_cjk_title_wraps_within_width, "test_long_cjk_title_wraps_within_width 执行异常")
+    _run(test_long_cjk_title_not_clipped, "test_long_cjk_title_not_clipped 执行异常")
+    _run(test_latin_wrapping_keeps_words_intact, "test_latin_wrapping_keeps_words_intact 执行异常")
 
     failed = 0
     for name, ok, detail in RESULTS:

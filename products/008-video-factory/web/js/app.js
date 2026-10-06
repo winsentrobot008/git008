@@ -23,7 +23,7 @@ const store = createStore({
   script: null,
   storyboard: null,
   backend: "auto",
-  resolution: "480x854",
+  resolution: "480x480",
   cover: true,
   render: { jobId: null, stage: "", progress: 0, logs: [], result: null, error: null, running: false },
   history: [],

@@ -74,12 +74,12 @@ def cmd_render(args: argparse.Namespace) -> int:
 
 
 def _parse_resolution(resolution: str) -> tuple[int, int]:
-    """解析 'WxH' 分辨率（默认 480x854 预览画幅）。"""
+    """解析 'WxH' 分辨率（默认 480x480 预览画幅）。"""
     try:
         width, height = str(resolution).lower().split("x")
         return int(width), int(height)
     except (ValueError, AttributeError):
-        return 480, 854
+        return 480, 480
 
 
 def _cmd_storyboard_render(args: argparse.Namespace) -> int:
@@ -94,7 +94,7 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
         print(f"[video] 分镜 JSON 读取失败：{exc}", file=sys.stderr)
         return 1
 
-    width, height = _parse_resolution(getattr(args, "resolution", "") or "480x854")
+    width, height = _parse_resolution(getattr(args, "resolution", "") or "480x480")
     fps = int(getattr(args, "fps", 24) or 24)
     use_network = not getattr(args, "no_network", False)
 
@@ -247,7 +247,7 @@ def cmd_director(args: argparse.Namespace) -> int:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
 
-    width, height = _parse_resolution(getattr(args, "resolution", "") or "480x854")
+    width, height = _parse_resolution(getattr(args, "resolution", "") or "480x480")
     decision = render_backend.resolve_backend(getattr(args, "backend", "auto") or "auto")
     print(f"[video] 渲染后端：{decision['backend']}（{decision['reason']}）")
     svd_result = None
@@ -448,7 +448,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     director.add_argument("--input", "-i", required=True, help="导演分镜 JSON 路径")
     director.add_argument("--output", "-o", help="storyboard JSON 输出路径（默认 work/director/<slug>.storyboard.json）")
     director.add_argument("--render", action="store_true", help="适配后直接走 FFmpeg 低清预览出片")
-    director.add_argument("--resolution", default="480x854", help="预览画幅（默认 480x854）")
+    director.add_argument("--resolution", default="480x480", help="预览画幅（默认 480x480）")
     director.add_argument("--fps", type=int, default=24, help="输出帧率（默认 24）")
     director.add_argument("--default-duration", type=float, default=3.5, help="缺省镜头时长（秒）")
     director.add_argument("--no-strict-axis", action="store_true", help="轴线违规仅告警不报错")

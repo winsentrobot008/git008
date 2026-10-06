@@ -113,7 +113,7 @@ class RenderReq(BaseModel):
     director_script: dict
     backend: str = "auto"
     cover: bool = True
-    resolution: str = "480x854"
+    resolution: str = "480x480"
     fps: int = Field(default=24, ge=1, le=60)
 
 

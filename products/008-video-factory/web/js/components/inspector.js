@@ -4,7 +4,7 @@ import { t, onLangChange } from "../i18n.js";
 import { esc, fmtNum } from "../util.js";
 import { api, openJobSocket, BASE } from "../api.js";
 
-const RESOLUTIONS = ["480x854", "1080x1920"];
+const RESOLUTIONS = ["480x480", "480x854", "1080x1080", "1080x1920"];
 let socketClose = null;
 
 export function mount(root, store, { toast }) {
@@ -153,7 +153,7 @@ export function mount(root, store, { toast }) {
         director_script: s.script,
         backend: s.backend || "auto",
         cover: s.cover !== false,
-        resolution: s.resolution || "480x854",
+        resolution: s.resolution || "480x480",
         fps: 24,
       });
       store.set({ render: { ...store.get().render, jobId } });

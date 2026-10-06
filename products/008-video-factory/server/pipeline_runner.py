@@ -226,7 +226,7 @@ def render_job(
     *,
     backend: str = "auto",
     cover: bool = True,
-    resolution: str = "480x854",
+    resolution: str = "480x480",
     fps: int = 24,
 ) -> None:
     """线程目标：校验 → 适配 → 渲染 → 质检，全程广播日志与阶段。"""

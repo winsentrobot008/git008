@@ -114,8 +114,8 @@ def _render_video(data: dict) -> dict:
 
     video_path = Path(result["output"])
     expected = {
-        "width": int(result.get("resolution", "480x854").split("x")[0]),
-        "height": int(result.get("resolution", "480x854").split("x")[1]),
+        "width": int(result.get("resolution", "480x480").split("x")[0]),
+        "height": int(result.get("resolution", "480x480").split("x")[1]),
         "fps": int(result.get("fps") or 24),
     }
     inspection = inspect_video(
