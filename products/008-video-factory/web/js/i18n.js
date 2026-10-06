@@ -4,6 +4,8 @@
  */
 
 const BASE = document.querySelector('meta[name="vf-base-path"]')?.content || "";
+// Asset version injected by server/app.py; used to cache-bust the locale JSON.
+const ASSET_VERSION = document.querySelector('meta[name="vf-asset-version"]')?.content || "";
 const STORAGE_KEY = "vf.lang";
 const DEFAULT_LANG = "zh";
 const LANGS = { zh: "中文", en: "English" };
@@ -18,15 +20,29 @@ function lookup(dict, key) {
   return key.split(".").reduce((acc, part) => (acc && typeof acc === "object" ? acc[part] : undefined), dict);
 }
 
+const missingKeys = new Set();
+
+function humanizeKey(key) {
+  const leaf = String(key).split(".").pop() || String(key);
+  const words = leaf
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : leaf;
+}
+
 export function t(key, vars) {
-  const dict = state.dicts.get(state.lang) || {};
-  let value = lookup(dict, key);
-  if (value === undefined) {
-    const fallback = state.dicts.get("zh") || {};
-    value = lookup(fallback, key);
+  let value = lookup(state.dicts.get(state.lang) || {}, key);
+  if (value === undefined) value = lookup(state.dicts.get("zh") || {}, key);
+  if (value === undefined) value = lookup(state.dicts.get("en") || {}, key);
+  if (value === undefined || typeof value !== "string") {
+    // Graceful degradation: never leak a raw dotted key into the UI.
+    if (!missingKeys.has(key)) {
+      missingKeys.add(key);
+      console.warn(`[i18n] missing key: ${key}`);
+    }
+    return humanizeKey(key);
   }
-  if (value === undefined) return key;
-  if (typeof value !== "string") return key;
   if (!vars) return value;
   return value.replace(/\{(\w+)\}/g, (_, name) => (vars[name] !== undefined ? String(vars[name]) : `{${name}}`));
 }
@@ -41,7 +57,9 @@ export function availableLangs() {
 
 async function loadDict(lang) {
   if (state.dicts.has(lang)) return state.dicts.get(lang);
-  const res = await fetch(`${BASE}/locales/${lang}.json`, { cache: "force-cache" });
+  const query = ASSET_VERSION ? `?v=${encodeURIComponent(ASSET_VERSION)}` : "";
+  // no-store: a stale disk-cached locale JSON is what leaked raw i18n keys into the UI.
+  const res = await fetch(`${BASE}/locales/${lang}.json${query}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`locale ${lang} HTTP ${res.status}`);
   const dict = await res.json();
   state.dicts.set(lang, dict);

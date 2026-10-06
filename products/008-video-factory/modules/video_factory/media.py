@@ -278,8 +278,14 @@ def mediaindexer_search(queries: list[str]) -> list[Path]:
                 path = Path(str(entry.get("path") or ""))
                 if not path.is_absolute():
                     path = REPO_ROOT / "products" / "MediaIndexerPro" / path
-                if path.exists() and path.suffix.lower() in (_VIDEO_EXTENSIONS | _IMAGE_EXTENSIONS):
-                    indexed.append(path)
+                if not path.exists() or path.suffix.lower() not in (_VIDEO_EXTENSIONS | _IMAGE_EXTENSIONS):
+                    continue
+                # Index membership alone is not a match: an unranked index handed
+                # the same unrelated asset (e.g. one laptop still) to every shot.
+                # Keep only entries that actually score against this scene's queries.
+                if _score_path(path, tokens) <= 0:
+                    continue
+                indexed.append(path)
         except (OSError, json.JSONDecodeError):
             pass
     seen = set()
@@ -439,8 +445,8 @@ def first_unused_local(
 ) -> Optional[dict]:
     """下载缓存里最新的、尚未被其它镜头占用的素材（本地产物优于纯渐变背景）。
 
-    没有任何"未占用"素材时才退回复用一件，并把 via 标成 `local-cache-reused`
-    让重复使用在报告里可见。
+    缓存里已无"未占用"素材时返回 None：绝不复用已被其它镜头占用的文件，否则整片
+    会出现同一张画面重复出镜；调用方转而走逐镜独立生成 / 逐镜渐变兜底。
     """
     used = {str(p) for p in (exclude or ())}
     pool = [
@@ -449,10 +455,12 @@ def first_unused_local(
         if str(p) not in used
     ]
     if not pool:
-        pool = local_stock_search(queries, extra_roots=[cache_dir], any_match=True)
-        if not pool:
-            return None
-        return _media_hit(pool[0], "local-cache-reused", (queries or [""])[0])
+        logger.warning(
+            "[media] 缓存内已无未占用素材（queries=%s，已占用 %d 件），交由调用方逐镜兜底",
+            queries,
+            len(used),
+        )
+        return None
     return _media_hit(pool[0], "local-cache", (queries or [""])[0])
 
 

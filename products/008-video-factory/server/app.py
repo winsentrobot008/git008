@@ -41,6 +41,37 @@ WEB_DIR = PRODUCT_ROOT / "web"
 OUTPUT_DIR = runner.OUTPUT_DIR
 _STARTED_AT = time.time()
 
+
+def _compute_asset_version() -> str:
+    """Short content stamp for the web shell (cache busting for /js, /css, /locales).
+
+    Browsers happily keep stale ES modules and locale JSON on disk, so a UI fix
+    (or a new i18n key) never reaches the user. Stamping the entry URLs with a
+    per-build hash forces a refetch after every deploy.
+    """
+    import hashlib
+
+    digest = hashlib.sha1()
+    for root in (WEB_DIR / "js", WEB_DIR / "css", WEB_DIR / "locales"):
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            stat = path.stat()
+            digest.update(str(path.relative_to(WEB_DIR)).encode("utf-8"))
+            digest.update(str(stat.st_size).encode("utf-8"))
+            digest.update(str(int(stat.st_mtime)).encode("utf-8"))
+    return "v" + digest.hexdigest()[:12]
+
+
+ASSET_VERSION = _compute_asset_version()
+_NO_STORE_PREFIXES = ("/js/", "/css/", "/locales/")
+
+
+def _is_web_asset(path: str) -> bool:
+    return any(prefix in f"{path}/" for prefix in _NO_STORE_PREFIXES)
+
 _base_path = (__import__("os").environ.get("VF_BASE_PATH") or "").rstrip("/")
 MAX_CONCURRENT_RENDERS = 2
 _slots = threading.Semaphore(MAX_CONCURRENT_RENDERS)
@@ -53,6 +84,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _no_store_web_assets(request: Request, call_next):
+    """Force revalidation of the shell, its ES modules and the locale JSON.
+
+    Without this the browser serves stale /js/*.js from disk cache, so frontend
+    fixes and newly added i18n keys silently do not reach the user.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith("/") or _is_web_asset(path):
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 # --------------------------------------------------------------------------
@@ -396,13 +442,14 @@ def index() -> HTMLResponse:
     否则挂在 /video-factory 下时 /css、/js 与 /locales 会 404，页面白屏。
     """
     html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    html = html.replace("__ASSET_VERSION__", ASSET_VERSION)
     if _base_path:
         html = (
             html.replace('name="vf-base-path" content=""', f'name="vf-base-path" content="{_base_path}"')
             .replace('href="/css/', f'href="{_base_path}/css/')
             .replace('src="/js/', f'src="{_base_path}/js/')
         )
-    return HTMLResponse(html)
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 if OUTPUT_DIR.exists():

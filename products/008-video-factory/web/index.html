@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- 部署到子路径时改成 /video-factory，前端所有 API/静态请求会自动带上前缀 -->
 <meta name="vf-base-path" content="" />
+<meta name="vf-asset-version" content="__ASSET_VERSION__" />
 <meta name="color-scheme" content="dark" />
 <title>008 Video Factory Studio</title>
-<link rel="stylesheet" href="/css/app.css" />
+<link rel="stylesheet" href="/css/app.css?v=__ASSET_VERSION__" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   // Tailwind Play CDN 配置；离线时 app.css 仍保证核心外观可用。
@@ -44,6 +45,6 @@
     <p style="padding:24px">008 Video Factory Studio 需要启用 JavaScript。</p>
   </noscript>
 
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/app.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

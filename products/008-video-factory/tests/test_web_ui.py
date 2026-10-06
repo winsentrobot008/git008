@@ -129,6 +129,19 @@ def main() -> int:
             check("render: 进入渲染态", True)
             page.wait_for_function("() => (window.__VF_STORE__.get().render||{}).result != null", timeout=240000)
             result = page.evaluate("() => window.__VF_STORE__.get().render.result")
+            # 回归守卫：i18n 缺 key 时界面绝不能裸露 inspector.xxx / toast.xxx
+            button_labels = page.locator("#vf-inspector button").all_inner_texts()
+            check(
+                "i18n: 按钮文案无 key 泄漏",
+                bool(button_labels)
+                and not any(t.startswith(("inspector", "toast", "topbar", "common")) for t in button_labels),
+                str(button_labels),
+            )
+            check(
+                "i18n: 按钮为中文文案",
+                any(("渲染" in t) or ("通过" in t) for t in button_labels),
+                str(button_labels),
+            )
             check("render: 质检通过", result.get("inspect_ok") is True, json.dumps(result.get("checks"), ensure_ascii=False)[:200])
             check("render: 后端标注", result.get("backend") == "ffmpeg", str(result.get("backend")))
             check("render: 阶段完成", page.evaluate("() => window.__VF_STORE__.get().render.stage") == "completed", "")

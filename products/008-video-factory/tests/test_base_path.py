@@ -79,8 +79,9 @@ def main() -> int:
 
         html = fetch(port, f"{BASE_PATH}/")[1]
         check("html: meta 注入 base path", f'content="{BASE_PATH}"' in html, html[:120])
-        check("html: css 前缀", f'href="{BASE_PATH}/css/app.css"' in html)
-        check("html: js 前缀", f'src="{BASE_PATH}/js/app.js"' in html)
+        check("html: css 前缀", f'href="{BASE_PATH}/css/app.css?v=' in html)
+        check("html: js 前缀", f'src="{BASE_PATH}/js/app.js?v=' in html)
+        check("html: 资源版本戳已注入", "__ASSET_VERSION__" not in html)
         check("html: 无裸 /css 引用", 'href="/css/' not in html)
         check("html: 无裸 /js 引用", 'src="/js/' not in html)
 

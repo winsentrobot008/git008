@@ -474,14 +474,22 @@ def _scene_segment(
     colors = [str(c).lstrip("#") for c in bg[:3]]
     while len(colors) < 3:
         colors.append(defaults[len(colors)])
+    # Rotate palette + gradient axis per shot index: identical gradient cards are
+    # indistinguishable in a multi-shot cut and read as "the same image again".
+    shift = index % 3
+    colors = colors[shift:] + colors[:shift]
     c0, c1, c2 = colors
+    if index % 2:
+        gx0, gy0, gx1, gy1 = width, 0, 0, height
+    else:
+        gx0, gy0, gx1, gy1 = 0, 0, width, height
     vf = vf_extra or "null"
     ffmpeg.run(
         "ffmpeg",
         [
             "-y",
             "-f", "lavfi",
-            "-i", f"gradients=s={width}x{height}:d={duration:.3f}:c0=0x{c0}:c1=0x{c1}:c2=0x{c2}:x0=0:y0=0:x1={width}:y1={height}",
+            "-i", f"gradients=s={width}x{height}:d={duration:.3f}:c0=0x{c0}:c1=0x{c1}:c2=0x{c2}:x0={gx0}:y0={gy0}:x1={gx1}:y1={gy1}",
             "-t", f"{duration:.3f}",
             "-vf", vf,
             "-r", str(fps),

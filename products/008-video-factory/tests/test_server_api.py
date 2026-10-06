@@ -39,9 +39,24 @@ def test_health_and_static() -> None:
 
     r = client.get("/")
     check("ui: 首页可服务", r.status_code == 200 and "008 Video Factory Studio" in r.text, str(r.status_code))
+    check(
+        "ui: 入口资源带版本戳（缓存破坏）",
+        'name="vf-asset-version"' in r.text and "app.js?v=" in r.text and "app.css?v=" in r.text,
+        r.text[:200],
+    )
+    check(
+        "ui: 首页 no-store",
+        "no-store" in r.headers.get("cache-control", ""),
+        str(r.headers.get("cache-control")),
+    )
     for asset in ("/css/app.css", "/js/app.js", "/js/i18n.js", "/locales/zh.json", "/locales/en.json"):
         resp = client.get(asset)
         check(f"ui: 静态资源 {asset}", resp.status_code == 200, str(resp.status_code))
+        check(
+            f"ui: 静态资源 no-store {asset}",
+            "no-store" in resp.headers.get("cache-control", ""),
+            str(resp.headers.get("cache-control")),
+        )
 
 
 def test_system() -> None:

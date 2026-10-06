@@ -108,6 +108,38 @@ STOCK_CACHE_DIR = WORK_DIR / "assets" / "cache"
 _MEDIA_FALLBACK = "gradient"
 
 
+def clear_stock_cache(cache_dir: Optional[Path] = None) -> dict:
+    """Purge the per-job asset cache before a fresh render starts.
+
+    Assets written by earlier jobs (downloaded clips, generated frames) otherwise
+    survive and get silently handed to every shot of the next render -- which is
+    how one stale frame ended up repeated across a whole 15s video.
+    """
+    cache = Path(cache_dir or STOCK_CACHE_DIR)
+    report = {"cache_dir": str(cache), "removed": 0, "bytes": 0, "kept": 0}
+    if not cache.exists():
+        return report
+    for path in sorted(cache.rglob("*")):
+        if not path.is_file():
+            continue
+        try:
+            size = path.stat().st_size
+            path.unlink()
+        except OSError as exc:  # noqa: BLE001 - a locked file must not abort a render
+            report["kept"] += 1
+            logger.warning("[cache] 无法清除 %s：%s", path.name, exc)
+            continue
+        report["removed"] += 1
+        report["bytes"] += size
+    logger.warning(
+        "[cache] 渲染前清空 job 缓存：%d 个文件 / %.2f MB（%s）",
+        report["removed"],
+        report["bytes"] / 1024 / 1024,
+        cache,
+    )
+    return report
+
+
 def _scene_probe(scene: dict) -> dict:
     """给 media.resolve_scene_media 提供检索词与文本（优先显式字段）。"""
     keywords = scene.get("search_keywords") or scene.get("asset_queries") or []
@@ -197,6 +229,7 @@ def stage_assets(
     use_comfyui: bool = False,
     image_generator: Any = None,
     comfyui_seed: int = 0,
+    reset_cache: bool = False,
 ) -> dict:
     """按 search_keywords 抓取图库视频/图片到 work/assets/cache。
 
@@ -207,13 +240,16 @@ def stage_assets(
     sb = storyboard.validate_storyboard(storyboard_data)
     cache = Path(cache_dir or STOCK_CACHE_DIR)
     cache.mkdir(parents=True, exist_ok=True)
+    cache_reset = clear_stock_cache(cache) if reset_cache else None
     generator = image_generator or render_backend.generate_comfyui_image
     entries: list[dict] = []
     resolved = 0
     generated = 0
+    duplicate_avoided = 0
     used: set = set()
     for i, scene in enumerate(sb["scenes"]):
         if scene.get("source"):
+            used.add(str(scene["source"]))
             entries.append(
                 {
                     "index": i,
@@ -232,6 +268,10 @@ def stage_assets(
             exclude=used,
         )
         hit = outcome.get("hit")
+        if hit and str(hit["source"]) in used:
+            # One source may never cover two shots: drop it and resolve again.
+            duplicate_avoided += 1
+            hit = None
         if not hit and use_comfyui:
             hit = _generate_comfyui_shot(
                 scene, i, cache, generator, base_seed=comfyui_seed
@@ -247,6 +287,10 @@ def stage_assets(
             )
             if hit:
                 outcome = {**outcome, "reason": hit["via"]}
+        if hit and str(hit["source"]) in used:
+            # last-resort guard: never assign an already-used file twice
+            duplicate_avoided += 1
+            hit = None
         if hit:
             used.add(hit["source"])
             scene["source"] = hit["source"]
@@ -279,10 +323,12 @@ def stage_assets(
     report: dict = {
         "ok": resolved > 0 or total == 0,
         "cache_dir": str(cache),
+        "cache_reset": cache_reset,
         "scenes": total,
         "resolved": resolved,
         "fallback": total - resolved,
         "comfyui_images": generated,
+        "duplicate_avoided": duplicate_avoided,
         "entries": entries,
     }
     if resolved < total:
@@ -375,8 +421,10 @@ def stage_storyboard(
     use_comfyui: bool = False,
     image_generator: Any = None,
     comfyui_seed: int = 0,
+    reset_cache: bool = False,
 ) -> dict:
     """完整 Stage-2 前置：图库取材 → ComfyUI 补帧 → Edge-TTS 旁白 → 可渲染 storyboard。"""
+    # reset_cache purges the previous job's assets so every shot renders unique imagery.
     sb = stage_assets(
         storyboard_data,
         use_network=use_network,
@@ -384,6 +432,7 @@ def stage_storyboard(
         use_comfyui=use_comfyui,
         image_generator=image_generator,
         comfyui_seed=comfyui_seed,
+        reset_cache=reset_cache,
     )
     return stage_narration(
         sb, voice=voice, use_tts=use_tts, synth=synth, cache_dir=cache_dir
@@ -435,6 +484,7 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
         use_tts=not getattr(args, "no_tts", False),
         use_comfyui=not getattr(args, "no_comfyui", False),
         comfyui_seed=int(getattr(args, "seed", 0) or 0),
+        reset_cache=not getattr(args, "keep_assets", False),
     )
 
     try:
@@ -514,6 +564,7 @@ def cmd_text(args: argparse.Namespace) -> int:
             use_tts=not getattr(args, "no_tts", False),
             use_comfyui=not getattr(args, "no_comfyui", False),
             comfyui_seed=int(getattr(args, "seed", 0) or 0),
+            reset_cache=not getattr(args, "keep_assets", False),
         )
     except director_adapter.DirectorAdapterError as exc:
         print(f"[video] 文本转分镜失败：{exc}", file=sys.stderr)
@@ -702,6 +753,7 @@ def cmd_director(args: argparse.Namespace) -> int:
             use_tts=not getattr(args, "no_tts", False),
             use_comfyui=not getattr(args, "no_comfyui", False),
             comfyui_seed=int(getattr(args, "seed", 0) or 0),
+            reset_cache=not getattr(args, "keep_assets", False),
         )
         staged = data.get("staging") or {}
         assets = staged.get("assets") or {}
@@ -893,6 +945,11 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
         help="封面抽取时间点（秒，默认 0.5）",
     )
     render.add_argument(
+        "--keep-assets",
+        action="store_true",
+        help="复用上一轮 job 素材缓存（默认渲染前清空，保证逐镜画面不重复）",
+    )
+    render.add_argument(
         "--no-inspect",
         action="store_true",
         help="跳过 ffprobe 质检门禁（默认开启）",
@@ -914,6 +971,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     director.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面预览）")
     director.add_argument("--no-comfyui", action="store_true", help="禁用 ComfyUI 文生图补帧（缺素材时走渐变背景）")
     director.add_argument("--seed", type=int, default=0, help="ComfyUI 文生图基础种子（第 N 镜用 seed+N）")
+    director.add_argument("--keep-assets", action="store_true", help="复用上一轮 job 素材缓存（默认渲染前清空，保证逐镜画面不重复）")
     director.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
     director.add_argument(
         "--backend",
@@ -943,6 +1001,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     text.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面）")
     text.add_argument("--no-comfyui", action="store_true", help="禁用 ComfyUI 文生图补帧（缺素材时走渐变背景）")
     text.add_argument("--seed", type=int, default=0, help="ComfyUI 文生图基础种子（第 N 镜用 seed+N，保证逐镜画面不同）")
+    text.add_argument("--keep-assets", action="store_true", help="复用上一轮 job 素材缓存（默认渲染前清空，保证逐镜画面不重复）")
     text.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
     text.add_argument("--cover", action="store_true", help="同步抽取爆款封面 cover.jpg")
     text.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒，默认 0.5）")

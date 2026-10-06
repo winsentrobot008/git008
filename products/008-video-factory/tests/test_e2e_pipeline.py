@@ -12,6 +12,7 @@ camera_movement）→ Edge-TTS 旁白时轴 → 图库素材暂存 → 480x480 �
 
 from __future__ import annotations
 
+import argparse
 import shutil
 import sys
 import tempfile
@@ -153,6 +154,8 @@ def test_stock_fetch() -> None:
     cache = WORK / "assets_cache"
     cache.mkdir(parents=True, exist_ok=True)
     _fixture(cache / "fridge_night_kitchen.mp4", "640x360")
+    # 两镜两条命中素材：每镜必须拿到属于自己的文件。
+    _fixture(cache / "kitchen_fridge_night_2.mp4", "640x360")
 
     storyboard = director_adapter.text_to_storyboard(
         TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
@@ -171,7 +174,12 @@ def test_stock_fetch() -> None:
         str(report["entries"]),
     )
     check("stock: 场景写入 source", all(s.get("source") for s in staged["scenes"]))
-    check("stock: 缓存目录契约", report["cache_dir"].endswith("assets_cache"), report["cache_dir"])
+    check("stock: 缓存目录合约", report["cache_dir"].endswith("assets_cache"), report["cache_dir"])
+    check(
+        "stock: 逐镜素材互不重复",
+        len({e["source"] for e in report["entries"]}) == len(report["entries"]),
+        str([e["source"] for e in report["entries"]]),
+    )
 
     miss_cache = WORK / "assets_miss"
     miss_cache.mkdir(parents=True, exist_ok=True)
@@ -190,6 +198,7 @@ def test_text_to_preview_480() -> None:
     cache = WORK / "render_cache"
     cache.mkdir(parents=True, exist_ok=True)
     _fixture(cache / "fridge_night_kitchen.mp4", "640x360")
+    _fixture(cache / "kitchen_fridge_night_2.mp4", "640x360")
     _fixture(cache / "portrait_night_city.mp4", "360x640")
 
     storyboard = director_adapter.text_to_storyboard(
@@ -204,6 +213,11 @@ def test_text_to_preview_480() -> None:
     )
     staging = staged["staging"]
     check("e2e: 素材全部命中", staging["assets"]["resolved"] == 3, str(staging["assets"]["entries"]))
+    check(
+        "e2e: 逐镜素材互不重复",
+        len({s.get("source") for s in staged["scenes"]}) == 3,
+        str([s.get("source") for s in staged["scenes"]]),
+    )
     check("e2e: 旁白轨就绪", staging["narration"]["ok"], str(staging["narration"]))
     check("e2e: audio.narration 已写入", bool(staged["audio"]["narration"]), str(staged["audio"]["narration"]))
 
@@ -250,11 +264,18 @@ def test_asset_priority() -> None:
     sb = director_adapter.text_to_storyboard(
         TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
     )
-    rep = pipeline.stage_assets(sb, use_network=False, cache_dir=hash_cache)["staging"]["assets"]
-    check("media: 哈希名缓存仍被采用（不再纯渐变）", rep["resolved"] == 2, str(rep["entries"]))
+    staged_hash = pipeline.stage_assets(sb, use_network=False, cache_dir=hash_cache)
+    rep = staged_hash["staging"]["assets"]
+    check("media: 哈希名缓存仍被采用（不再纯渐变）", rep["resolved"] == 1, str(rep["entries"]))
     check(
         "media: 采用来源标记为缓存",
-        all(str(e["via"]).startswith("local-cache") for e in rep["entries"]),
+        str(rep["entries"][0]["via"]).startswith("local-cache"),
+        str(rep["entries"]),
+    )
+    check(
+        "media: 单素材不复用给第二镜（逐镜唯一）",
+        rep["entries"][1]["via"] == "gradient"
+        and len([s for s in (sc.get("source") for sc in staged_hash["scenes"]) if s]) == 1,
         str(rep["entries"]),
     )
 
@@ -375,6 +396,54 @@ def test_render_robustness() -> None:
     check("render: 种子 = base_seed + 镜序", seeds == [100, 101, 102], str(seeds))
 
 
+def test_asset_distinctness() -> None:
+    """7) 多镜唯一性：渲染前清空 job 缓存，同一素材绝不复用给第二个镜头。"""
+    purge_cache = WORK / "distinct_purge"
+    purge_cache.mkdir(parents=True, exist_ok=True)
+    (purge_cache / "comfyui_shot_000.png").write_bytes(b"stale-frame-from-previous-job")
+    (purge_cache / "9f2c41ab77de.mp4").write_bytes(b"stale-download")
+    purged = pipeline.clear_stock_cache(purge_cache)
+    check("cache: 渲染前清空 stale job 缓存", purged["removed"] == 2, str(purged))
+    check(
+        "cache: 清理后无残留素材",
+        not [p for p in purge_cache.rglob("*") if p.is_file()],
+        str(list(purge_cache.rglob("*"))),
+    )
+
+    one_cache = WORK / "distinct_single"
+    one_cache.mkdir(parents=True, exist_ok=True)
+    _fixture(one_cache / "fridge_night_kitchen.mp4", "640x360")
+    sb = director_adapter.text_to_storyboard(
+        TEXT, shot_count=3, target_duration=7.5, provider="offline", visual_mapper=_mapper
+    )
+    staged = pipeline.stage_assets(sb, use_network=False, cache_dir=one_cache)
+    rep = staged["staging"]["assets"]
+    sources = [s.get("source") for s in staged["scenes"]]
+    check(
+        "distinct: 单素材只覆盖一个镜头",
+        rep["resolved"] == 1 and rep["fallback"] == 2,
+        str(rep["entries"]),
+    )
+    check(
+        "distinct: 其余镜头不复用同一文件",
+        len([s for s in sources if s]) == 1 and len([s for s in sources if not s]) == 2,
+        str(sources),
+    )
+    check(
+        "distinct: 不再出现 local-cache-reused",
+        all(e["via"] != "local-cache-reused" for e in rep["entries"]),
+        str(rep["entries"]),
+    )
+
+    parser = argparse.ArgumentParser(prog="cli")
+    sub = parser.add_subparsers(dest="command", required=True)
+    pipeline.add_video_parser(sub)
+    opt_in = parser.parse_args(["video", "director", "--input", "x.json", "--render", "--keep-assets"])
+    default = parser.parse_args(["video", "director", "--input", "x.json", "--render"])
+    check("cache: CLI 提供 --keep-assets 逃生门", getattr(opt_in, "keep_assets", False) is True, str(opt_in))
+    check("cache: 默认渲染前清空缓存", getattr(default, "keep_assets", False) is False, str(default))
+
+
 def main() -> int:
     try:
         test_text_to_shots()
@@ -383,6 +452,7 @@ def main() -> int:
         test_asset_priority()
         test_render_robustness()
         test_text_to_preview_480()
+        test_asset_distinctness()
     finally:
         shutil.rmtree(WORK, ignore_errors=True)
 
