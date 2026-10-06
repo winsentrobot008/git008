@@ -124,21 +124,40 @@ def _existing_staging(data: dict) -> dict:
     return dict(staging) if isinstance(staging, dict) else {}
 
 
+_MOVEMENT_PROMPTS = {
+    "push_in": "close-up composition, shallow depth of field",
+    "pull_out": "wide establishing shot, deep focus",
+    "static": "symmetrical medium shot, balanced framing",
+}
+
+
 def _comfyui_image_prompt(scene: dict) -> str:
-    """把英文检索词拼成文生图提示词（主题 + 电影感约束）。"""
+    """把检索词 + 镜头运动 + 本镜专属脚本片段拼成文生图提示词。
+
+    离线 mapper 常给每个镜头同一组检索词，只靠检索词会让整片拿到同一张图。
+    这里额外注入镜头运动与本镜独有的 ASCII 脚本片段（SD1.5 不识别中文，跳过
+    中文台词），保证逐镜提示词互不相同。
+    """
     keywords = scene.get("search_keywords") or scene.get("asset_queries") or []
     if isinstance(keywords, str):
         keywords = [keywords]
     parts = [str(k).strip() for k in keywords if str(k).strip()]
-    fallback = str(scene.get("script_text") or scene.get("text") or "").strip()[:60]
-    subject = ", ".join(parts) or fallback
+    script = str(scene.get("script_text") or scene.get("text") or "").strip()
+    subject = ", ".join(parts) or script[:60]
     if not subject:
         subject = "cinematic still"
-    return f"{subject}, cinematic lighting, cinematic photo, high detail"
+    detail: list[str] = []
+    movement = _MOVEMENT_PROMPTS.get(str(scene.get("camera_movement") or ""))
+    if movement:
+        detail.append(movement)
+    if script and script.isascii():
+        detail.append(script[:60])
+    suffix = f", {', '.join(detail)}" if detail else ""
+    return f"{subject}, cinematic lighting, cinematic photo, high detail{suffix}"
 
 
 def _generate_comfyui_shot(
-    scene: dict, index: int, cache: Path, generator: Any
+    scene: dict, index: int, cache: Path, generator: Any, *, base_seed: int = 0
 ) -> Optional[dict]:
     """抓不到图库素材时用 ComfyUI 文生图补一张真实静帧；失败记日志并返回 None。
 
@@ -147,8 +166,8 @@ def _generate_comfyui_shot(
     out_path = cache / f"comfyui_shot_{index:03d}.png"
     prompt = _comfyui_image_prompt(scene)
     try:
-        # 逐镜换 seed：即便 LLM 给到相同检索词，也不会整片复用同一张生成图。
-        result = generator(prompt, out_path, seed=index)
+        # seed = base_seed + 镜序：即便 LLM 给到相同检索词，也不会整片复用同一张图。
+        result = generator(prompt, out_path, seed=base_seed + index)
     except Exception as exc:  # noqa: BLE001 - 生成失败必须可读降级，不中断出片
         logger.error(
             "[comfyui] 场景 %d 文生图失败：%s: %s（回退渐变背景）",
@@ -177,6 +196,7 @@ def stage_assets(
     cache_dir: Optional[Path] = None,
     use_comfyui: bool = False,
     image_generator: Any = None,
+    comfyui_seed: int = 0,
 ) -> dict:
     """按 search_keywords 抓取图库视频/图片到 work/assets/cache。
 
@@ -213,7 +233,9 @@ def stage_assets(
         )
         hit = outcome.get("hit")
         if not hit and use_comfyui:
-            hit = _generate_comfyui_shot(scene, i, cache, generator)
+            hit = _generate_comfyui_shot(
+                scene, i, cache, generator, base_seed=comfyui_seed
+            )
             if hit:
                 generated += 1
         if not hit:
@@ -352,6 +374,7 @@ def stage_storyboard(
     cache_dir: Optional[Path] = None,
     use_comfyui: bool = False,
     image_generator: Any = None,
+    comfyui_seed: int = 0,
 ) -> dict:
     """完整 Stage-2 前置：图库取材 → ComfyUI 补帧 → Edge-TTS 旁白 → 可渲染 storyboard。"""
     sb = stage_assets(
@@ -360,6 +383,7 @@ def stage_storyboard(
         cache_dir=cache_dir,
         use_comfyui=use_comfyui,
         image_generator=image_generator,
+        comfyui_seed=comfyui_seed,
     )
     return stage_narration(
         sb, voice=voice, use_tts=use_tts, synth=synth, cache_dir=cache_dir
@@ -410,6 +434,7 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
         use_network=use_network,
         use_tts=not getattr(args, "no_tts", False),
         use_comfyui=not getattr(args, "no_comfyui", False),
+        comfyui_seed=int(getattr(args, "seed", 0) or 0),
     )
 
     try:
@@ -488,6 +513,7 @@ def cmd_text(args: argparse.Namespace) -> int:
             use_network=not getattr(args, "no_network", False),
             use_tts=not getattr(args, "no_tts", False),
             use_comfyui=not getattr(args, "no_comfyui", False),
+            comfyui_seed=int(getattr(args, "seed", 0) or 0),
         )
     except director_adapter.DirectorAdapterError as exc:
         print(f"[video] 文本转分镜失败：{exc}", file=sys.stderr)
@@ -675,6 +701,7 @@ def cmd_director(args: argparse.Namespace) -> int:
             use_network=not getattr(args, "no_network", False),
             use_tts=not getattr(args, "no_tts", False),
             use_comfyui=not getattr(args, "no_comfyui", False),
+            comfyui_seed=int(getattr(args, "seed", 0) or 0),
         )
         staged = data.get("staging") or {}
         assets = staged.get("assets") or {}
@@ -849,6 +876,12 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
         help="禁用 ComfyUI 文生图补帧（缺素材时直接走品牌渐变背景）",
     )
     render.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="ComfyUI 文生图基础随机种子（第 N 镜用 seed+N，保证逐镜画面不同）",
+    )
+    render.add_argument(
         "--cover",
         action="store_true",
         help="preview 模式渲染后同步抽取爆款封面 cover.jpg（默认取 Hook 开场卡帧）",
@@ -880,6 +913,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     director.add_argument("--no-network", action="store_true", help="禁用 Pexels/MediaIndexerPro 联网取材")
     director.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面预览）")
     director.add_argument("--no-comfyui", action="store_true", help="禁用 ComfyUI 文生图补帧（缺素材时走渐变背景）")
+    director.add_argument("--seed", type=int, default=0, help="ComfyUI 文生图基础种子（第 N 镜用 seed+N）")
     director.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
     director.add_argument(
         "--backend",
@@ -908,6 +942,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     text.add_argument("--no-network", action="store_true", help="禁用图库联网取材，只用本地素材")
     text.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面）")
     text.add_argument("--no-comfyui", action="store_true", help="禁用 ComfyUI 文生图补帧（缺素材时走渐变背景）")
+    text.add_argument("--seed", type=int, default=0, help="ComfyUI 文生图基础种子（第 N 镜用 seed+N，保证逐镜画面不同）")
     text.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
     text.add_argument("--cover", action="store_true", help="同步抽取爆款封面 cover.jpg")
     text.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒，默认 0.5）")

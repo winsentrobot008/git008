@@ -72,6 +72,20 @@ def _fake_tts(text: str, voice: str, out_path: Path) -> bool:
     return out_path.exists()
 
 
+def _fake_frame(prompt, out_path, seed=0):
+    """确定性文生图替身：单帧测试图案，验证 ComfyUI 接线与降级分支。"""
+    ffmpeg.run(
+        ffmpeg.ffmpeg_bin(),
+        [
+            "-y", "-f", "lavfi", "-t", "1",
+            "-i", "testsrc=size=512x512:rate=1",
+            "-frames:v", "1", "-pix_fmt", "rgb24", str(out_path),
+        ],
+        timeout=120,
+    )
+    return {"ok": True, "elapsed_s": 0.1}
+
+
 def _mapper(keywords, text_summary: str = "", limit: int = 3) -> list[str]:
     """把中文旁白映射成与本地素材文件名一致的英文检索词。"""
     return ["fridge", "night", "kitchen"]
@@ -260,19 +274,6 @@ def test_asset_priority() -> None:
         check("media: 已配置 PEXELS_API_KEY，跳过缺 Key 断言", True, "key present")
         check("media: 已配置 PEXELS_API_KEY，跳过缺 Key 断言（诊断）", True, "key present")
 
-    def _fake_frame(prompt, out_path, seed=0):
-        """确定性文生图替身：单帧测试图案，验证 ComfyUI 接线与降级分支。"""
-        ffmpeg.run(
-            ffmpeg.ffmpeg_bin(),
-            [
-                "-y", "-f", "lavfi", "-t", "1",
-                "-i", "testsrc=size=512x512:rate=1",
-                "-frames:v", "1", "-pix_fmt", "rgb24", str(out_path),
-            ],
-            timeout=120,
-        )
-        return {"ok": True, "elapsed_s": 0.1}
-
     sb2 = director_adapter.text_to_storyboard(
         TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
     )
@@ -316,12 +317,71 @@ def test_asset_priority() -> None:
     )
 
 
+def test_render_robustness() -> None:
+    """6) 渲染健壮性：短旁白不截断成片、逐镜提示词与种子互不相同。"""
+    video = WORK / "robust_v5.mp4"
+    ffmpeg.run(
+        ffmpeg.ffmpeg_bin(),
+        [
+            "-y", "-f", "lavfi", "-t", "5",
+            "-i", "testsrc=size=480x480:rate=24",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(video),
+        ],
+        timeout=120,
+    )
+    short_audio = WORK / "robust_a1_5.m4a"
+    ffmpeg.run(
+        ffmpeg.ffmpeg_bin(),
+        [
+            "-y", "-f", "lavfi", "-t", "1.5",
+            "-i", "sine=frequency=440:sample_rate=24000", "-c:a", "aac", str(short_audio),
+        ],
+        timeout=120,
+    )
+    muxed = WORK / "robust_muxed.mp4"
+    preview._mux_narration(video, short_audio, muxed)
+    muxed_duration = ffmpeg.probe_duration(muxed)
+    check(
+        "render: 短旁白不截断成片（保持画面长度）",
+        abs(muxed_duration - 5.0) <= 0.3,
+        f"{muxed_duration:.2f}s",
+    )
+
+    sb = director_adapter.text_to_storyboard(
+        TEXT, shot_count=3, target_duration=7.5, provider="offline", visual_mapper=_mapper
+    )
+    prompts = [pipeline._comfyui_image_prompt(s) for s in sb["scenes"]]
+    check("render: 逐镜提示词互不相同", len(set(prompts)) == 3, str(prompts))
+
+    seeds: list[int] = []
+
+    def _seed_probe(prompt, out_path, seed=0):
+        seeds.append(seed)
+        return _fake_frame(prompt, out_path, seed=seed)
+
+    seed_cache = WORK / "robust_seed"
+    seed_cache.mkdir(parents=True, exist_ok=True)
+    sb2 = director_adapter.text_to_storyboard(
+        TEXT, shot_count=3, target_duration=7.5, provider="offline", visual_mapper=_mapper
+    )
+    pipeline.stage_assets(
+        sb2,
+        use_network=False,
+        cache_dir=seed_cache,
+        use_comfyui=True,
+        image_generator=_seed_probe,
+        comfyui_seed=100,
+    )
+    check("render: 种子 = base_seed + 镜序", seeds == [100, 101, 102], str(seeds))
+
+
 def main() -> int:
     try:
         test_text_to_shots()
         test_narration_track()
         test_stock_fetch()
         test_asset_priority()
+        test_render_robustness()
         test_text_to_preview_480()
     finally:
         shutil.rmtree(WORK, ignore_errors=True)

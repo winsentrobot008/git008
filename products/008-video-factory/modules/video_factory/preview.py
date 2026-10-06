@@ -499,16 +499,24 @@ def _scene_segment(
 
 
 def _mux_narration(video: Path, audio: Path, out: Path) -> None:
-    """把 Edge-TTS 旁白音轨混入无声预览（视频流直拷，只转音频）。"""
+    """把 Edge-TTS 旁白音轨混入无声预览（视频流直拷，只转音频）。
+
+    对齐策略：`-af apad` 把音轨无限补齐，再由 `-shortest` 以**视频**长度收尾，
+    这样旁白比画面短时不会把成片截短。同时固定 `-nostdin`，避免 FFmpeg 在服务
+    进程里等待标准输入而卡住。
+    """
+    before = ffmpeg.probe_duration(video)
     ffmpeg.run(
         "ffmpeg",
         [
             "-y",
+            "-nostdin",
             "-i", str(video),
             "-i", str(audio),
             "-map", "0:v:0",
             "-map", "1:a:0",
             "-c:v", "copy",
+            "-af", "apad",
             "-c:a", "aac", "-b:a", "128k",
             "-shortest",
             "-movflags", "+faststart",
@@ -516,6 +524,14 @@ def _mux_narration(video: Path, audio: Path, out: Path) -> None:
         ],
         timeout=300,
     )
+    after = ffmpeg.probe_duration(out)
+    if abs(after - before) > 0.5:
+        logger.warning(
+            "[mux] 混轨后时长偏离画面：%.3fs -> %.3fs（旁白 %s）",
+            before,
+            after,
+            audio.name,
+        )
 
 
 def _resolve_narration(sb: dict, narration_path: Optional[Path]) -> Optional[Path]:
