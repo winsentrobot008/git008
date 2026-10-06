@@ -1,0 +1,18 @@
+{
+  "network": {
+    "mode": "fail-closed",
+    "defaultRpcUrl": "http://127.0.0.1:8545",
+    "allowLoopbackRpcOnly": false,
+    "allowedProtocols": ["http:", "https:"],
+    "note": "The ONLY permitted egress is JSON-RPC POST to the configured blockchain node. There is no cloud inference."
+  },
+  "runtime": {
+    "maxMemoryBytes": 524288000,
+    "threadsEnv": "MAOTANG_THREADS",
+    "note": "500 MiB ceiling enforced by @maotang/agent-client before the model is loaded."
+  },
+  "model": {
+    "manifest": "config/model.json",
+    "defaultDir": "models"
+  }
+}

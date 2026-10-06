@@ -1,0 +1,27 @@
+{
+  "name": "@maotang/agent-manager",
+  "version": "0.1.0",
+  "description": "Offline-first MAOTANG agent manager: local 0.5B SLM intent parsing, fail-closed egress policy, JSON-RPC only.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "main": "./src/agent-manager.mjs",
+  "bin": {
+    "maotang-agent": "./src/agent-manager.mjs"
+  },
+  "scripts": {
+    "setup": "node ./src/agent-manager.mjs --check-rpc",
+    "start": "node ./src/agent-manager.mjs",
+    "test": "node --test test/",
+    "test:offline": "python test/offline_first_e2e.py"
+  },
+  "dependencies": {
+    "@maotang/agent-client": "file:../agent-client"
+  },
+  "devDependencies": {
+    "@types/node": "^20"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
