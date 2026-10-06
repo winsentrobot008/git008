@@ -15,9 +15,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import subprocess
 import sys
+import time
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -28,8 +31,13 @@ __all__ = [
     "probe_comfyui",
     "resolve_backend",
     "run_comfyui_svd",
+    "build_txt2img_graph",
+    "generate_comfyui_image",
+    "pick_txt2img_checkpoint",
     "main",
 ]
+
+logger = logging.getLogger(__name__)
 
 COMFYUI_URL = COMFYUI_SERVER_URL
 SVD_RUNNER = REPO_ROOT / "008" / "run_svd.py"
@@ -108,6 +116,185 @@ def _first_image_source(storyboard: dict) -> Optional[Path]:
         if source and Path(source).suffix.lower() in _IMAGE_EXT and Path(source).exists():
             return Path(source)
     return None
+
+
+def _comfyui_post(base: str, path: str, payload: dict, timeout: float) -> dict:
+    import urllib.request
+
+    request = urllib.request.Request(
+        f"{base}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - 本地固定地址
+        return json.loads(response.read().decode("utf-8", errors="replace") or "{}")
+
+
+def _comfyui_bytes(base: str, path: str, timeout: float) -> bytes:
+    import urllib.request
+
+    with urllib.request.urlopen(f"{base}{path}", timeout=timeout) as response:  # noqa: S310 - 本地固定地址
+        return response.read()
+
+
+def pick_txt2img_checkpoint(checkpoints: list) -> Optional[str]:
+    """从 ComfyUI checkpoint 列表挑一个可做文生图的 SD1.5 权重（排除 SVD）。"""
+    names = [str(name) for name in checkpoints or []]
+    sd_hints = ("v1-5", "sd15", "sd_15", "sd-v1-5", "v1-5-pruned")
+    for name in names:
+        low = name.lower()
+        if "svd" in low:
+            continue
+        if any(hint in low for hint in sd_hints):
+            return name
+    for name in names:
+        if "svd" not in name.lower():
+            return name
+    return None
+
+
+def build_txt2img_graph(
+    prompt: str,
+    *,
+    checkpoint: str,
+    width: int = 512,
+    height: int = 512,
+    steps: int = 6,
+    cfg: float = 7.0,
+    seed: int = 0,
+    negative: str = "blurry, low quality, watermark, text, deformed",
+) -> dict:
+    """最小 SD1.5 文生图图（ComfyUI /prompt API 格式）。"""
+    return {
+        "3": {
+            "class_type": "KSampler",
+            "inputs": {
+                "seed": int(seed),
+                "steps": int(steps),
+                "cfg": float(cfg),
+                "sampler_name": "euler",
+                "scheduler": "normal",
+                "denoise": 1.0,
+                "model": ["4", 0],
+                "positive": ["6", 0],
+                "negative": ["7", 0],
+                "latent_image": ["5", 0],
+            },
+        },
+        "4": {
+            "class_type": "CheckpointLoaderSimple",
+            "inputs": {"ckpt_name": checkpoint},
+        },
+        "5": {
+            "class_type": "EmptyLatentImage",
+            "inputs": {"width": int(width), "height": int(height), "batch_size": 1},
+        },
+        "6": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": str(prompt), "clip": ["4", 1]},
+        },
+        "7": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": str(negative), "clip": ["4", 1]},
+        },
+        "8": {
+            "class_type": "VAEDecode",
+            "inputs": {"samples": ["3", 0], "vae": ["4", 2]},
+        },
+        "9": {
+            "class_type": "SaveImage",
+            "inputs": {"filename_prefix": "vf_shot", "images": ["8", 0]},
+        },
+    }
+
+
+def generate_comfyui_image(
+    prompt: str,
+    out_path: Path,
+    *,
+    width: int = 512,
+    height: int = 512,
+    steps: int = 6,
+    seed: int = 0,
+    checkpoint: Optional[str] = None,
+    url: Optional[str] = None,
+    timeout: float = 300.0,
+    poll_interval: float = 1.0,
+) -> dict:
+    """用 ComfyUI 文生图产出一张静帧——分镜抓不到图库素材时的真实画面兜底。
+
+    失败一律抛 ``RuntimeError``（带 ComfyUI 原始拒绝原因），由调用方记录并决定
+    是否继续降级；本函数绝不静默产出空帧。
+    """
+    base = (url or COMFYUI_URL).rstrip("/")
+    probe = probe_comfyui(base, timeout=5.0)
+    if not probe["available"]:
+        raise RuntimeError(f"ComfyUI 不可达（{base}）：{probe.get('error') or '心跳失败'}")
+    ckpt = checkpoint or pick_txt2img_checkpoint(probe["checkpoints"])
+    if not ckpt:
+        raise RuntimeError(f"ComfyUI 无可用文生图 checkpoint：{probe['checkpoints']}")
+
+    graph = build_txt2img_graph(
+        prompt, checkpoint=ckpt, width=width, height=height, steps=steps, seed=seed
+    )
+    started = time.time()
+    try:
+        queued = _comfyui_post(base, "/prompt", {"prompt": graph}, timeout=30.0)
+    except Exception as exc:  # noqa: BLE001 - 统一转成可读 RuntimeError
+        raise RuntimeError(f"ComfyUI /prompt 提交失败：{type(exc).__name__}: {exc}") from exc
+    prompt_id = str(queued.get("prompt_id") or "")
+    if not prompt_id:
+        raise RuntimeError(f"ComfyUI /prompt 未返回 prompt_id：{queued}")
+
+    images: list = []
+    while time.time() - started < timeout:
+        try:
+            history = _http_json(f"{base}/history/{prompt_id}", 10.0)
+        except Exception as exc:  # noqa: BLE001 - 历史查询失败按未完成处理
+            logger.warning("[comfyui] /history 查询失败：%s: %s", type(exc).__name__, exc)
+            history = {}
+        entry = history.get(prompt_id)
+        if entry:
+            status = entry.get("status") or {}
+            if status.get("status_str") == "error" or status.get("completed") is False:
+                detail = ""
+                for message in status.get("messages") or []:
+                    if message and str(message[0]).startswith("execution_"):
+                        detail = json.dumps(message[1], ensure_ascii=False)[:600]
+                        break
+                raise RuntimeError(f"ComfyUI 执行失败（prompt_id={prompt_id}）：{detail or status}")
+            found = (entry.get("outputs") or {}).get("9", {}).get("images") or []
+            images = [item for item in found if item.get("filename")]
+            if images:
+                break
+        time.sleep(poll_interval)
+    if not images:
+        raise RuntimeError(f"ComfyUI 文生图超时（>{timeout:.0f}s）：prompt_id={prompt_id}")
+
+    meta = images[0]
+    query = urllib.parse.urlencode(
+        {
+            "filename": meta.get("filename"),
+            "subfolder": meta.get("subfolder", ""),
+            "type": meta.get("type", "output"),
+        }
+    )
+    data = _comfyui_bytes(base, f"/view?{query}", 30.0)
+    if not data:
+        raise RuntimeError(f"ComfyUI /view 返回空数据（prompt_id={prompt_id}）")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(data)
+    elapsed = round(time.time() - started, 2)
+    logger.info("[comfyui] 文生图完成 %.1fs → %s", elapsed, out_path.name)
+    return {
+        "ok": True,
+        "output": str(out_path),
+        "prompt_id": prompt_id,
+        "checkpoint": ckpt,
+        "seed": int(seed),
+        "bytes": len(data),
+        "elapsed_s": elapsed,
+    }
 
 
 def run_comfyui_svd(

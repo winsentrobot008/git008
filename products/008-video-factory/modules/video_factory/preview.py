@@ -5,13 +5,14 @@
 
 - 视频素材：9:16 中心裁切（经 src/core/ffmpeg.py 探测）后缩放目标画幅；
 - 图片素材：Ken Burns 平移缩放（zoompan）；
-- 无素材：lavfi 品牌渐变背景；
+- 无素材：ComfyUI 文生图补帧（staging 阶段）→ lavfi 品牌渐变背景兜底；
 - 文字卡：drawtext 大标题 / 副标题；
 - overlay：营养卡（Instant Macros + P/F/C 行）、App Store 徽章。
 """
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import unicodedata
@@ -23,6 +24,8 @@ from src.core.inspector import inspect_video
 from src.core.paths import OUTPUT_DIR, WORK_DIR
 
 from . import media, storyboard
+
+logger = logging.getLogger(__name__)
 
 _FONT_BOLD = "font_bold.ttf"
 _FONT_REGULAR = "font_regular.ttf"
@@ -553,11 +556,25 @@ def render_preview(
     _stage_fonts(workdir)
 
     segments: list[Path] = []
+    render_diagnostics: list[dict] = []
     for i, scene in enumerate(sb["scenes"]):
-        if scene.get("_media_via"):
+        if scene.get("source"):
             print(
-                f"[media] scene {i + 1} <- {scene['_media_via']} "
+                f"[media] scene {i + 1} <- {scene.get('_media_via') or 'preset'} "
                 f"({scene.get('_media_kind')}): {Path(scene['source']).name}"
+            )
+        else:
+            detail = scene.get("_media_diagnostics")
+            reason = str(scene.get("_media_reason") or "no_stock_match")
+            # 无素材兜底分支：把「为什么没用上真实素材」写清楚，避免只看到一片纯渐变。
+            logger.warning(
+                "[media] scene %d 回退品牌渐变背景：reason=%s queries=%s",
+                i + 1,
+                reason,
+                detail.get("queries") if isinstance(detail, dict) else None,
+            )
+            render_diagnostics.append(
+                {"index": i, "reason": reason, "diagnostics": detail}
             )
         seg = _scene_segment(
             scene,
@@ -635,6 +652,7 @@ def render_preview(
         "size_mb": size_mb,
         "scenes": len(segments),
         "narration_track": str(narration) if narration else None,
+        "render_diagnostics": render_diagnostics,
         "inspector": inspection,
     }
 

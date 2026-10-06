@@ -27,7 +27,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from src.core import ffmpeg  # noqa: E402
-from modules.video_factory import director_adapter, narration, pipeline, preview  # noqa: E402
+from modules.video_factory import director_adapter, media, narration, pipeline, preview  # noqa: E402
 
 RESULTS: list[tuple[str, bool, str]] = []
 TEXT = (
@@ -147,8 +147,13 @@ def test_stock_fetch() -> None:
     report = staged["staging"]["assets"]
     check("stock: 命中本地关键字素材", report["resolved"] == 2, str(report["entries"]))
     check(
+        "stock: 首镜优先关键字命中（local）",
+        report["entries"][0]["via"] == "local",
+        str(report["entries"][0]),
+    )
+    check(
         "stock: 记录来源与类型",
-        all(e["via"] == "local" and e["kind"] == "video" for e in report["entries"]),
+        all(str(e["via"]).startswith("local") and e["kind"] == "video" for e in report["entries"]),
         str(report["entries"]),
     )
     check("stock: 场景写入 source", all(s.get("source") for s in staged["scenes"]))
@@ -215,11 +220,108 @@ def test_text_to_preview_480() -> None:
     check("e2e: 封面抽取", Path(cover["output"]).exists() and cover["size_mb"] > 0, str(cover))
 
 
+def test_asset_priority() -> None:
+    """5) 素材优先级：search_keywords 生效 → 本地缓存 → ComfyUI 补帧 → 渐变兜底。"""
+    scene = {"search_keywords": ["fridge", "night", "kitchen"], "script_text": "凌晨两点的冰箱"}
+    check(
+        "media: 采纳 search_keywords",
+        media.extract_queries(scene) == ["fridge", "night", "kitchen"],
+        str(media.extract_queries(scene)),
+    )
+
+    # 图库下载常见哈希文件名：关键字打分为 0，但仍必须优先于纯渐变背景
+    hash_cache = WORK / "hash_cache"
+    hash_cache.mkdir(parents=True, exist_ok=True)
+    _fixture(hash_cache / "9f2c41ab77de.mp4", "640x360")
+    sb = director_adapter.text_to_storyboard(
+        TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
+    )
+    rep = pipeline.stage_assets(sb, use_network=False, cache_dir=hash_cache)["staging"]["assets"]
+    check("media: 哈希名缓存仍被采用（不再纯渐变）", rep["resolved"] == 2, str(rep["entries"]))
+    check(
+        "media: 采用来源标记为缓存",
+        all(str(e["via"]).startswith("local-cache") for e in rep["entries"]),
+        str(rep["entries"]),
+    )
+
+    # 缺 Key 属配置问题：如实上报 no_api_key，而不是把整个会话谎报成网络熔断
+    empty = WORK / "empty_cache"
+    empty.mkdir(parents=True, exist_ok=True)
+    if not media.has_pexels_key():
+        outcome = media.resolve_scene_media_ex(scene, cache_dir=empty, use_network=True)
+        reasons = (outcome["diagnostics"] or {}).get("reasons") or []
+        check(
+            "media: 无素材如实上报 no_stock_match",
+            outcome["hit"] is None and outcome["reason"] == "no_stock_match",
+            str(outcome)[:200],
+        )
+        check("media: 缺 Key 上报 no_api_key", "no_api_key" in reasons, str(reasons))
+    else:
+        check("media: 已配置 PEXELS_API_KEY，跳过缺 Key 断言", True, "key present")
+        check("media: 已配置 PEXELS_API_KEY，跳过缺 Key 断言（诊断）", True, "key present")
+
+    def _fake_frame(prompt, out_path, seed=0):
+        """确定性文生图替身：单帧测试图案，验证 ComfyUI 接线与降级分支。"""
+        ffmpeg.run(
+            ffmpeg.ffmpeg_bin(),
+            [
+                "-y", "-f", "lavfi", "-t", "1",
+                "-i", "testsrc=size=512x512:rate=1",
+                "-frames:v", "1", "-pix_fmt", "rgb24", str(out_path),
+            ],
+            timeout=120,
+        )
+        return {"ok": True, "elapsed_s": 0.1}
+
+    sb2 = director_adapter.text_to_storyboard(
+        TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
+    )
+    comfy_cache = WORK / "comfy_cache"
+    comfy_cache.mkdir(parents=True, exist_ok=True)
+    rep2 = pipeline.stage_assets(
+        sb2,
+        use_network=False,
+        cache_dir=comfy_cache,
+        use_comfyui=True,
+        image_generator=_fake_frame,
+    )["staging"]["assets"]
+    check("media: ComfyUI 在线时逐镜补帧", rep2["comfyui_images"] == 2, str(rep2["entries"]))
+    check(
+        "media: 每镜拿到独立生成帧",
+        len({e["source"] for e in rep2["entries"]}) == 2
+        and all(e["via"] == "comfyui-image" for e in rep2["entries"]),
+        str(rep2["entries"]),
+    )
+
+    def _boom(prompt, out_path, seed=0):
+        raise RuntimeError("ComfyUI 执行失败：node 3 KSampler 缺少 model 输入")
+
+    sb3 = director_adapter.text_to_storyboard(
+        TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
+    )
+    fail_cache = WORK / "comfy_fail"
+    fail_cache.mkdir(parents=True, exist_ok=True)
+    rep3 = pipeline.stage_assets(
+        sb3,
+        use_network=False,
+        cache_dir=fail_cache,
+        use_comfyui=True,
+        image_generator=_boom,
+    )["staging"]["assets"]
+    check("media: ComfyUI 生成失败降级渐变", rep3["fallback"] == 2, str(rep3["entries"]))
+    check(
+        "media: 降级后仍保留可读原因",
+        all(e["via"] == "gradient" and e["reason"] == "no_stock_match" for e in rep3["entries"]),
+        str(rep3["entries"]),
+    )
+
+
 def main() -> int:
     try:
         test_text_to_shots()
         test_narration_track()
         test_stock_fetch()
+        test_asset_priority()
         test_text_to_preview_480()
     finally:
         shutil.rmtree(WORK, ignore_errors=True)

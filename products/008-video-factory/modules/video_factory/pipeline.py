@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,23 @@ from .storyboard import slugify
 
 VIDEO_FACTORY_ROOT = video_factory_dir()
 NODE_CLI = VIDEO_FACTORY_ROOT / "src" / "index.mjs"
+
+logger = logging.getLogger(__name__)
+
+
+def _ensure_logging() -> None:
+    """把 staging 诊断（缺 Key / ComfyUI 拒绝 / 渐变回退原因）打到 stdout。
+
+    只在没有任何外部 handler 时安装，库调用与测试不受影响。
+    """
+    package = logging.getLogger("modules.video_factory")
+    if package.handlers or logging.getLogger().handlers:
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    package.addHandler(handler)
+    package.setLevel(logging.WARNING)
+    package.propagate = False
 
 
 def _run_node(node_args: list[str]) -> int:
@@ -106,22 +124,74 @@ def _existing_staging(data: dict) -> dict:
     return dict(staging) if isinstance(staging, dict) else {}
 
 
+def _comfyui_image_prompt(scene: dict) -> str:
+    """把英文检索词拼成文生图提示词（主题 + 电影感约束）。"""
+    keywords = scene.get("search_keywords") or scene.get("asset_queries") or []
+    if isinstance(keywords, str):
+        keywords = [keywords]
+    parts = [str(k).strip() for k in keywords if str(k).strip()]
+    fallback = str(scene.get("script_text") or scene.get("text") or "").strip()[:60]
+    subject = ", ".join(parts) or fallback
+    if not subject:
+        subject = "cinematic still"
+    return f"{subject}, cinematic lighting, cinematic photo, high detail"
+
+
+def _generate_comfyui_shot(
+    scene: dict, index: int, cache: Path, generator: Any
+) -> Optional[dict]:
+    """抓不到图库素材时用 ComfyUI 文生图补一张真实静帧；失败记日志并返回 None。
+
+    `generator` 契约：`generator(prompt, out_path, seed=<int>) -> dict`。
+    """
+    out_path = cache / f"comfyui_shot_{index:03d}.png"
+    prompt = _comfyui_image_prompt(scene)
+    try:
+        # 逐镜换 seed：即便 LLM 给到相同检索词，也不会整片复用同一张生成图。
+        result = generator(prompt, out_path, seed=index)
+    except Exception as exc:  # noqa: BLE001 - 生成失败必须可读降级，不中断出片
+        logger.error(
+            "[comfyui] 场景 %d 文生图失败：%s: %s（回退渐变背景）",
+            index + 1,
+            type(exc).__name__,
+            exc,
+        )
+        return None
+    if not out_path.exists() or out_path.stat().st_size <= 0:
+        logger.error("[comfyui] 场景 %d 文生图未产出文件：%s（回退渐变背景）", index + 1, out_path)
+        return None
+    logger.warning("[comfyui] 场景 %d 无图库素材，改用 ComfyUI 生成帧：%s", index + 1, out_path.name)
+    return {
+        "source": str(out_path),
+        "kind": "image",
+        "via": "comfyui-image",
+        "query": prompt,
+        "elapsed_s": (result or {}).get("elapsed_s"),
+    }
+
+
 def stage_assets(
     storyboard_data: dict,
     *,
     use_network: bool = True,
     cache_dir: Optional[Path] = None,
+    use_comfyui: bool = False,
+    image_generator: Any = None,
 ) -> dict:
     """按 search_keywords 抓取图库视频/图片到 work/assets/cache。
 
-    返回改写后的 storyboard 副本，每镜记录 `_media_via` 来源；无匹配的镜头标记
-    为 gradient 回退，交由渲染器（ComfyUI 后端或品牌渐变背景）兜底。
+    返回改写后的 storyboard 副本，每镜记录 `_media_via` 来源；无匹配的镜头按
+    ComfyUI 文生图 → 品牌渐变背景 兜底，并把真实失败原因写进 staging 报告。
     """
+    _ensure_logging()
     sb = storyboard.validate_storyboard(storyboard_data)
     cache = Path(cache_dir or STOCK_CACHE_DIR)
     cache.mkdir(parents=True, exist_ok=True)
+    generator = image_generator or render_backend.generate_comfyui_image
     entries: list[dict] = []
     resolved = 0
+    generated = 0
+    used: set = set()
     for i, scene in enumerate(sb["scenes"]):
         if scene.get("source"):
             entries.append(
@@ -134,10 +204,29 @@ def stage_assets(
             )
             resolved += 1
             continue
-        hit = media.resolve_scene_media(
-            _scene_probe(scene), cache_dir=cache, use_network=use_network
+        outcome = media.resolve_scene_media_ex(
+            _scene_probe(scene),
+            cache_dir=cache,
+            use_network=use_network,
+            allow_cache_reuse=False,
+            exclude=used,
         )
+        hit = outcome.get("hit")
+        if not hit and use_comfyui:
+            hit = _generate_comfyui_shot(scene, i, cache, generator)
+            if hit:
+                generated += 1
+        if not hit:
+            # 兜底顺序：ComfyUI 生成 → 下载缓存复用 → 品牌渐变背景
+            hit = media.first_unused_local(
+                _scene_probe(scene).get("asset_queries") or [],
+                cache_dir=cache,
+                exclude=used,
+            )
+            if hit:
+                outcome = {**outcome, "reason": hit["via"]}
         if hit:
+            used.add(hit["source"])
             scene["source"] = hit["source"]
             scene["_media_kind"] = hit["kind"]
             scene["_media_via"] = hit["via"]
@@ -148,6 +237,7 @@ def stage_assets(
                     "kind": hit["kind"],
                     "source": hit["source"],
                     "query": hit.get("query"),
+                    "reason": outcome.get("reason"),
                 }
             )
             resolved += 1
@@ -159,7 +249,8 @@ def stage_assets(
                     "via": _MEDIA_FALLBACK,
                     "kind": None,
                     "source": None,
-                    "reason": "no_stock_match",
+                    "reason": outcome.get("reason") or "no_stock_match",
+                    "diagnostics": outcome.get("diagnostics"),
                 }
             )
     total = len(sb["scenes"])
@@ -169,6 +260,7 @@ def stage_assets(
         "scenes": total,
         "resolved": resolved,
         "fallback": total - resolved,
+        "comfyui_images": generated,
         "entries": entries,
     }
     if resolved < total:
@@ -258,9 +350,17 @@ def stage_storyboard(
     voice: Optional[str] = None,
     synth: Any = None,
     cache_dir: Optional[Path] = None,
+    use_comfyui: bool = False,
+    image_generator: Any = None,
 ) -> dict:
-    """完整 Stage-2 前置：图库取材 → Edge-TTS 旁白 → 可直接渲染的 storyboard。"""
-    sb = stage_assets(storyboard_data, use_network=use_network, cache_dir=cache_dir)
+    """完整 Stage-2 前置：图库取材 → ComfyUI 补帧 → Edge-TTS 旁白 → 可渲染 storyboard。"""
+    sb = stage_assets(
+        storyboard_data,
+        use_network=use_network,
+        cache_dir=cache_dir,
+        use_comfyui=use_comfyui,
+        image_generator=image_generator,
+    )
     return stage_narration(
         sb, voice=voice, use_tts=use_tts, synth=synth, cache_dir=cache_dir
     )
@@ -309,6 +409,7 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
         data,
         use_network=use_network,
         use_tts=not getattr(args, "no_tts", False),
+        use_comfyui=not getattr(args, "no_comfyui", False),
     )
 
     try:
@@ -386,6 +487,7 @@ def cmd_text(args: argparse.Namespace) -> int:
             data,
             use_network=not getattr(args, "no_network", False),
             use_tts=not getattr(args, "no_tts", False),
+            use_comfyui=not getattr(args, "no_comfyui", False),
         )
     except director_adapter.DirectorAdapterError as exc:
         print(f"[video] 文本转分镜失败：{exc}", file=sys.stderr)
@@ -572,6 +674,7 @@ def cmd_director(args: argparse.Namespace) -> int:
             data,
             use_network=not getattr(args, "no_network", False),
             use_tts=not getattr(args, "no_tts", False),
+            use_comfyui=not getattr(args, "no_comfyui", False),
         )
         staged = data.get("staging") or {}
         assets = staged.get("assets") or {}
@@ -741,6 +844,11 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
         help="跳过 Edge-TTS 旁白合成与音轨混流（纯画面预览）",
     )
     render.add_argument(
+        "--no-comfyui",
+        action="store_true",
+        help="禁用 ComfyUI 文生图补帧（缺素材时直接走品牌渐变背景）",
+    )
+    render.add_argument(
         "--cover",
         action="store_true",
         help="preview 模式渲染后同步抽取爆款封面 cover.jpg（默认取 Hook 开场卡帧）",
@@ -771,6 +879,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     director.add_argument("--no-strict-axis", action="store_true", help="轴线违规仅告警不报错")
     director.add_argument("--no-network", action="store_true", help="禁用 Pexels/MediaIndexerPro 联网取材")
     director.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面预览）")
+    director.add_argument("--no-comfyui", action="store_true", help="禁用 ComfyUI 文生图补帧（缺素材时走渐变背景）")
     director.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
     director.add_argument(
         "--backend",
@@ -798,6 +907,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     text.add_argument("--fps", type=int, default=24, help="输出帧率（默认 24）")
     text.add_argument("--no-network", action="store_true", help="禁用图库联网取材，只用本地素材")
     text.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面）")
+    text.add_argument("--no-comfyui", action="store_true", help="禁用 ComfyUI 文生图补帧（缺素材时走渐变背景）")
     text.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
     text.add_argument("--cover", action="store_true", help="同步抽取爆款封面 cover.jpg")
     text.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒，默认 0.5）")
