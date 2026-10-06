@@ -26,7 +26,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from src.core.paths import REPO_ROOT, WORK_DIR
+from src.core.paths import REPO_ROOT, VIDEO_FACTORY_DIR, WORK_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -69,21 +69,64 @@ def _record_pexels_failure(reason: Optional[str]) -> None:
         logger.warning("[media] Pexels 不可用（%s），转用本地素材 / ComfyUI 兜底", reason)
 
 
-def _env_key(key: str) -> Optional[str]:
-    value = os.environ.get(key)
-    if value and value not in {"YOUR_KEY_HERE", "your_deepseek_key_here"}:
-        return value
-    env_path = REPO_ROOT / ".env"
-    if env_path.exists():
+_PLACEHOLDER_KEYS = {"YOUR_KEY_HERE", "your_deepseek_key_here"}
+
+# 仓库根 .env 与产品级 .env 都要读：PEXELS_API_KEY 实际配在
+# products/008-video-factory/.env，此前只读根 .env，于是云端图库一直误报 no_api_key。
+ENV_FILES = (REPO_ROOT / ".env", VIDEO_FACTORY_DIR / ".env")
+
+
+def _parse_env_file(path: Path) -> dict:
+    """读单个 .env；优先 python-dotenv，缺失时退回严格文本解析。"""
+    try:
+        from dotenv import dotenv_values  # type: ignore[import-not-found]
+    except Exception:  # noqa: BLE001 - dotenv 只是可选依赖
+        dotenv_values = None
+    if dotenv_values is not None:
         try:
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line.startswith(key + "="):
-                    value = line.split("=", 1)[1].strip().strip("\"'")
-                    if value and value not in {"YOUR_KEY_HERE", "your_deepseek_key_here"}:
-                        return value
+            data = dotenv_values(path) or {}
+            return {str(k): str(v) for k, v in data.items() if v}
+        except Exception:  # noqa: BLE001 - 解析失败不阻断出片
+            return {}
+    parsed: dict = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        parsed[name.strip()] = value.strip().strip("\"'")
+    return {k: v for k, v in parsed.items() if v}
+
+
+def load_env_files(*, override: bool = False) -> list[str]:
+    """把 .env（仓库根 + 产品目录）注入进程环境变量。
+
+    真实环境变量优先（除非 override=True），密钥只以环境变量形式存在，
+    绝不回显、不落盘、不写入报告。
+    """
+    loaded: list[str] = []
+    for path in ENV_FILES:
+        if not path.exists():
+            continue
+        try:
+            pairs = _parse_env_file(path)
         except OSError:
-            pass
+            continue
+        for name, value in pairs.items():
+            if not value:
+                continue
+            if override or not os.environ.get(name):
+                os.environ[name] = value
+                loaded.append(name)
+    return loaded
+
+
+def _env_key(key: str) -> Optional[str]:
+    """读取配置键的值（仅用于本地 API 调用，绝不回显真实值）。"""
+    load_env_files()
+    value = os.environ.get(key)
+    if value and value not in _PLACEHOLDER_KEYS:
+        return value
     return None
 
 
@@ -470,6 +513,7 @@ __all__ = [
     "resolve_scene_media_ex",
     "first_unused_local",
     "has_pexels_key",
+    "load_env_files",
     "pexels_video",
     "pexels_photo",
     "mediaindexer_search",

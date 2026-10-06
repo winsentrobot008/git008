@@ -444,6 +444,69 @@ def test_asset_distinctness() -> None:
     check("cache: 默认渲染前清空缓存", getattr(default, "keep_assets", False) is False, str(default))
 
 
+
+def test_shot_visual_diversity() -> None:
+    """8) 六镜视觉唯一性：逐镜检索词 / 文生图提示词 / 随机种子 / 素材路径必须全部不同。"""
+    text = (
+        "凌晨两点的冰箱第三次自己亮起。"
+        "她发现里面冻着一封写给未来的信。"
+        "信上说：别怕，你正在成为你想成为的人。"
+        "窗外的城市灯火一盏盏熄灭。"
+        "她把信贴在胸口，决定明天就出发。"
+        "清晨第一班地铁载着她驶向未知。"
+    )
+    sb = director_adapter.text_to_storyboard(
+        text, shot_count=6, target_duration=15.0, provider="offline", visual_mapper=_mapper
+    )
+    scenes = sb["scenes"]
+    check("diversity: 六镜剧本产出 6 个镜头", len(scenes) == 6, str(len(scenes)))
+
+    keywords = [tuple(s.get("search_keywords") or []) for s in scenes]
+    check(
+        "diversity: 逐镜 search_keywords 互不相同",
+        len(set(keywords)) == len(keywords),
+        str([list(k) for k in keywords]),
+    )
+    prompts = [pipeline._comfyui_image_prompt(s) for s in scenes]
+    check("diversity: 逐镜文生图提示词互不相同", len(set(prompts)) == len(prompts), str(prompts))
+
+    seeds: list[int] = []
+    outputs: list[str] = []
+
+    def _div_probe(prompt, out_path, seed=0):
+        seeds.append(seed)
+        outputs.append(Path(out_path).name)
+        return _fake_frame(prompt, out_path, seed=seed)
+
+    div_cache = WORK / "diversity_cache"
+    div_cache.mkdir(parents=True, exist_ok=True)
+    sb2 = director_adapter.text_to_storyboard(
+        text, shot_count=6, target_duration=15.0, provider="offline", visual_mapper=_mapper
+    )
+    staged = pipeline.stage_assets(
+        sb2,
+        use_network=False,
+        cache_dir=div_cache,
+        use_comfyui=True,
+        image_generator=_div_probe,
+    )
+    check("diversity: 逐镜种子互不相同", len(set(seeds)) == 6, str(seeds))
+    check(
+        "diversity: 种子 = 随机基数 + 镜序",
+        sorted(seeds) == list(range(min(seeds), min(seeds) + 6)),
+        str(seeds),
+    )
+    check("diversity: 逐镜输出文件互不相同", len(set(outputs)) == 6, str(outputs))
+
+    sources = [Path(str(s.get("source") or "")).name for s in staged["scenes"]]
+    expected = [f"comfyui_shot_{i:03d}.png" for i in range(6)]
+    check(
+        "diversity: 场景 i 引用第 i 张图（不串用 0 号画面）",
+        sources == expected,
+        str(sources),
+    )
+
+
 def main() -> int:
     try:
         test_text_to_shots()
@@ -453,6 +516,7 @@ def main() -> int:
         test_render_robustness()
         test_text_to_preview_480()
         test_asset_distinctness()
+        test_shot_visual_diversity()
     finally:
         shutil.rmtree(WORK, ignore_errors=True)
 

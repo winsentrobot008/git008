@@ -32,9 +32,14 @@ for _entry in (str(PRODUCT_ROOT), str(REPO_ROOT)):
     if _entry not in sys.path:
         sys.path.insert(0, _entry)
 
+from modules.video_factory import media as media_module  # noqa: E402
 from server import pipeline_runner as runner  # noqa: E402
 from server import sysmon  # noqa: E402
 from server.jobs import REGISTRY  # noqa: E402
+
+# 启动即加载 .env（仓库根 + 产品目录）：PEXELS_API_KEY 配在产品级 .env，
+# 不加载的话云端图库会被误判成 no_api_key。密钥只注入环境变量，绝不回显。
+ENV_KEYS_LOADED = media_module.load_env_files()
 
 VERSION = "1.0.0"
 WEB_DIR = PRODUCT_ROOT / "web"
@@ -195,7 +200,10 @@ def health() -> dict:
 
 @app.get("/api/system")
 def system(prefer: str = "auto") -> dict:
-    return sysmon.system_status(prefer)
+    body = sysmon.system_status(prefer)
+    # 只回传「是否已配置」布尔值，绝不回显密钥内容。
+    body["media"] = {"pexels_key_configured": media_module.has_pexels_key()}
+    return body
 
 
 @app.post("/api/topic")

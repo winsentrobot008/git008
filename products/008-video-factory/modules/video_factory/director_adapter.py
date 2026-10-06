@@ -142,6 +142,17 @@ _TEXT_FALLBACK_KEYWORDS = (
     "modern indoor lifestyle",
 )
 
+# 词典未命中时逐镜轮换的实拍修饰词：同一分镜的 6 个镜头必须拿到不同提示词，
+# 否则 ComfyUI/图库会为整片返回同一张画面。
+_TEXT_VISUAL_VARIATIONS = (
+    "wide establishing shot",
+    "close-up detail shot",
+    "medium portrait shot",
+    "over-the-shoulder shot",
+    "top-down flat lay shot",
+    "backlit silhouette shot",
+)
+
 
 # 兜底通用科技视觉词（与 scripts/agent_reach_bridge.py 的兜底保持一致）
 DEFAULT_VISUAL_FALLBACK = [
@@ -370,7 +381,11 @@ def _visual_queries(
 ) -> list[str]:
     # 导演显式给出的检索词已是视觉词，尊重原文；映射器只负责把「派生词」转成视觉词
     explicit = _dedupe(
-        shot.get("asset_queries") or shot.get("visual_keywords") or shot.get("queries"), 3
+        shot.get("asset_queries")
+        or shot.get("visual_keywords")
+        or shot.get("queries")
+        or shot.get("search_keywords"),
+        3,
     )
     queries = list(explicit)
     if not queries:
@@ -456,8 +471,32 @@ def _english_keywords(
     index: int,
     mapper: Optional[Callable[..., list[str]]],
     seed_keywords: Optional[list[str]] = None,
+    avoid: Optional[list[list[str]]] = None,
 ) -> list[str]:
-    """旁白文本 → 2-3 个英文图库检索词。"""
+    """旁白文本 → 英文图库检索词；同一分镜内保证与 avoid 的组合不重复。
+
+    词典对普通中文短句命中率很低，未命中时全部落到同一组通用科技词，于是 6 个
+    镜头拿到完全相同的检索词与文生图提示词。撞车时**保留**原检索词（相关性仍在），
+    再追加本镜专属视觉修饰词，既保证逐镜唯一，也不破坏本地素材/图库关键字命中。
+    """
+    seen = {tuple(item) for item in (avoid or [])}
+    primary = _mapped_keywords(text, index=index, mapper=mapper, seed_keywords=seed_keywords)
+    if tuple(primary) not in seen:
+        return primary
+    merged = _dedupe([*primary, *_varied_keywords(text, index=index)], 4)
+    if tuple(merged) not in seen:
+        return merged
+    return _dedupe([*merged, f"shot {index + 1}"], 5)
+
+
+def _mapped_keywords(
+    text: str,
+    *,
+    index: int,
+    mapper: Optional[Callable[..., list[str]]],
+    seed_keywords: Optional[list[str]] = None,
+) -> list[str]:
+    """词典/英文原文/通用兜底三条路径的原始检索词。"""
     if seed_keywords:
         cleaned = [str(k).strip() for k in seed_keywords if str(k).strip()]
         if cleaned:
@@ -475,6 +514,14 @@ def _english_keywords(
     if latin:
         return _dedupe(latin, 3)
     return [_TEXT_FALLBACK_KEYWORDS[index % len(_TEXT_FALLBACK_KEYWORDS)]]
+
+
+def _varied_keywords(text: str, *, index: int) -> list[str]:
+    """逐镜差异化检索词：本镜实拍修饰 + 轮换通用视觉词。"""
+    latin = _dedupe([t.lower() for t in re.split(r"[^A-Za-z0-9]+", text) if len(t) >= 3], 2)
+    variation = _TEXT_VISUAL_VARIATIONS[index % len(_TEXT_VISUAL_VARIATIONS)]
+    generic = _TEXT_FALLBACK_KEYWORDS[index % len(_TEXT_FALLBACK_KEYWORDS)]
+    return _dedupe([*latin, variation, generic], 3)
 
 
 def _movement_for(index: int, total: int) -> str:
@@ -518,20 +565,24 @@ def _offline_text_shots(
     weights = [3.0 if i == 0 else (4.0 if i == count - 1 else 2.5) for i in range(count)]
     unit = max(1.0, float(target_duration)) / sum(weights)
     shots: list[dict] = []
+    used_keywords: set[tuple[str, ...]] = set()
     for i in range(count):
         script_text = sentences[i] if i < len(sentences) else sentences[-1]
+        keywords = _english_keywords(
+            script_text,
+            index=i,
+            mapper=mapper,
+            seed_keywords=seed_keywords if i == 0 else None,
+            avoid=used_keywords,
+        )
+        used_keywords.add(tuple(keywords))
         shots.append(
             {
                 "id": f"s1-{i + 1:02d}",
                 "scene": "s1",
                 "kind": "hook" if i == 0 else ("cta" if i == count - 1 else "text"),
                 "script_text": script_text,
-                "search_keywords": _english_keywords(
-                    script_text,
-                    index=i,
-                    mapper=mapper,
-                    seed_keywords=seed_keywords if i == 0 else None,
-                ),
+                "search_keywords": keywords,
                 "camera_movement": _movement_for(i, count),
                 "shot_size": _TEXT_SHOT_SIZES[i % len(_TEXT_SHOT_SIZES)],
                 "duration_s": round(weights[i] * unit, 2),
@@ -579,6 +630,7 @@ def _shots_to_script(
     """把词法不定的 shots 规范成导演分镜契约（字段齐全 + 轴线安全）。"""
     count = max(1, len(shots))
     out: list[dict] = []
+    used_keywords: set[tuple[str, ...]] = set()
     for i, raw in enumerate(shots):
         if not isinstance(raw, dict):
             continue
@@ -595,15 +647,18 @@ def _shots_to_script(
         if movement not in _TEXT_MOVEMENTS:
             movement = _movement_for(i, count)
         keywords = _dedupe(
-            raw.get("search_keywords") or raw.get("keywords") or raw.get("asset_queries"), 3
+            raw.get("search_keywords") or raw.get("keywords") or raw.get("asset_queries"), 4
         )
-        if not keywords:
+        # LLM 偶尔会为每个镜头返回同一组词，撞车时按镜序改写，保证逐镜视觉差异。
+        if not keywords or tuple(keywords) in used_keywords:
             keywords = _english_keywords(
                 script_text,
                 index=i,
                 mapper=mapper,
                 seed_keywords=seed_keywords if i == 0 else None,
+                avoid=used_keywords,
             )
+        used_keywords.add(tuple(keywords))
         out.append(
             {
                 "id": _as_str(raw.get("id") or f"s1-{i + 1:02d}"),
@@ -873,7 +928,7 @@ def adapt_director_script(
         ).lower()
         if movement not in _TEXT_MOVEMENTS:
             movement = "static"
-        keywords = _dedupe(shot.get("search_keywords") or shot.get("keywords"), 3)
+        keywords = _dedupe(shot.get("search_keywords") or shot.get("keywords"), 4)
         scene["script_text"] = script_text
         scene["search_keywords"] = keywords or list(scene["asset_queries"])
         scene["camera_movement"] = movement

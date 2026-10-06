@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import random
 import subprocess
 import sys
 from pathlib import Path
@@ -241,6 +242,8 @@ def stage_assets(
     cache = Path(cache_dir or STOCK_CACHE_DIR)
     cache.mkdir(parents=True, exist_ok=True)
     cache_reset = clear_stock_cache(cache) if reset_cache else None
+    # 未显式给定基础种子时抽取随机基数：逐镜 seed = 基数 + 镜序，画面必然不同。
+    seed_base = int(comfyui_seed) if comfyui_seed else random.randint(1, 10_000_000)
     generator = image_generator or render_backend.generate_comfyui_image
     entries: list[dict] = []
     resolved = 0
@@ -274,7 +277,7 @@ def stage_assets(
             hit = None
         if not hit and use_comfyui:
             hit = _generate_comfyui_shot(
-                scene, i, cache, generator, base_seed=comfyui_seed
+                scene, i, cache, generator, base_seed=seed_base
             )
             if hit:
                 generated += 1
@@ -328,6 +331,7 @@ def stage_assets(
         "resolved": resolved,
         "fallback": total - resolved,
         "comfyui_images": generated,
+        "comfyui_seed_base": seed_base,
         "duplicate_avoided": duplicate_avoided,
         "entries": entries,
     }
