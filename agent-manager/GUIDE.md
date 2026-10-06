@@ -25,20 +25,49 @@ Useful flags (both scripts): `--dry-run`, `--skip-model`, `--no-native`, `--no-l
 `--model-dir <path>`, `--rpc <url>`. Everything is overridable by environment variable too
 (`MAOTANG_RPC_URL`, `MAOTANG_MODEL_PATH`, `MAOTANG_MODE`, `MAOTANG_THREADS`).
 
+## Phone as a node
+
+The agent is a node in its own right, not a thin client:
+
+- **Device attestation.** `--node-status` prints a signed attestation that binds this agent's
+  Ed25519 node key to the device hardware fingerprint (read-only Android verified-boot and serial
+  signals, Apple platform UUID, TPM 2.0 presence, Linux DMI/machine-id). Only SHA-256 digests are
+  recorded - raw serials never leave the probe and never touch disk. `--require-hardware-attestation`
+  fails unless a real TEE / Secure Enclave signal is present.
+- **Local acceleration.** `NpuInferenceDelegator` probes ONNX Runtime execution providers and the
+  llama.cpp GPU backend, then picks NPU, then GPU, then CPU, producing the provider list, GPU layer
+  offload and thread count that are handed to the local SLM runtime.
+- **Direct P2P (A2A).** `--mesh` starts an agent-to-agent mesh over raw TCP: length-prefixed signed
+  JSON envelopes, peer discovery by gossip, de-duplicated transaction broadcast. There is no
+  rendezvous server, bootstrap URL or web server, peers are announced as `host:port` and must be
+  allow-listed, and every hop re-signs the envelope.
+
+```bash
+node src/agent-manager.mjs --node-status
+node src/agent-manager.mjs --mesh --mesh-port 7788 --peer 192.168.1.42:7788
+node src/agent-manager.mjs --mesh --peer 192.168.1.42:7788 --broadcast-tx 0x02f8...
+```
+
+Node/mesh environment: `MAOTANG_NODE_SEED`, `MAOTANG_NODE_KEYSTORE`, `MAOTANG_MESH_ENABLED`,
+`MAOTANG_MESH_PEERS`, `MAOTANG_MESH_HOST`, `MAOTANG_MESH_PORT`, `MAOTANG_CHAIN_ID`.
+
 ## Offline-first guarantees
 
-- The fail-closed egress guard (`src/network-guard.mjs`) is installed before any other I/O.
-  The only permitted destination is the configured blockchain JSON-RPC origin.
+- The fail-closed egress guard (`src/network-guard.mjs`) is installed before any other I/O. The
+  only permitted HTTP destination is the configured blockchain JSON-RPC origin.
+- The peer mesh is off by default. When enabled it adds raw-TCP peers to the allow-list only; HTTP
+  egress stays limited to the node.
 - Intent parsing runs on the local model. No cloud inference, no telemetry, no analytics.
-- Personhood material (nullifier / proof) is read from the local store and passed to the
-  contract call; it is never sent anywhere except the on-chain transaction.
+- Personhood material (nullifier / proof) is read from the local store and passed to the contract
+  call; it is never sent anywhere except the on-chain transaction.
 
 ## Tests
 
 ```bash
-node --test test/                 # network guard + JSON-RPC, no native runtime required
-python test/offline_first_e2e.py  # end-to-end proof that only JSON-RPC egress is allowed
+node --test test/                   # guard, attestation, NPU delegation, two-node mesh
+python test/offline_first_e2e.py    # end-to-end proof that only JSON-RPC egress is allowed
+python test/node_simulation_e2e.py  # attestation generation + direct P2P signing, offline
 ```
 
-The Python test needs no Node.js and runs a real JSON-RPC round trip against a local mock
-node while a socket-level egress guard is active; attempts to reach anything else are refused.
+The Python tests need no Node.js. They run real JSON-RPC and real P2P round trips over loopback
+while a socket-level egress guard is active; attempts to reach anything else are refused.

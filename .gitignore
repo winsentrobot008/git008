@@ -101,3 +101,5 @@ next-env.d.ts
 # --- MAOTANG agent-manager (local SLM weights and build output) ---
 /agent-manager/models/
 /agent-manager/dist/
+# --- MAOTANG node identity keystore (never commit keys) ---
+/agent-manager/.node/

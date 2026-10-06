@@ -83,9 +83,9 @@ denial of service against a public JSON-RPC provider, and anything already publi
    schema-validated tool call; a separate, least-privilege signer process consults the key
    store and signs. Compromise of the model must not imply compromise of the key.
 4. **Egress guard.** The agent runtime installs a fail-closed egress guard before any other
-   code runs. Only the configured JSON-RPC origin may be contacted; all other sockets,
-   `fetch` calls and HTTP requests are blocked. See
-   `agent-manager/src/network-guard.mjs`.
+   code runs. HTTP is limited to the configured JSON-RPC origin; raw TCP is limited to that node
+   and to peers on the explicit mesh allow-list. Everything else - sockets, `fetch` calls and HTTP
+   requests - is blocked. See `agent-manager/src/network-guard.mjs`.
 5. **Secrets in process.** Keys are injected as process environment variables only where
    unavoidable, are never cached, and are never written back to disk. Prefer a hardware
    signer when one is available.
@@ -95,19 +95,52 @@ denial of service against a public JSON-RPC provider, and anything already publi
    zeroization, timing side channels in signing, and supply-chain tampering in the
    dependencies that handle keys.
 
+## Device attestation and the peer mesh
+
+A MAOTANG agent is a node: it binds itself to the physical device and can talk to other agents
+directly, without a central server.
+
+- `MobileNodeAttestation` collects read-only platform signals (Android verified-boot state and
+  boot serial, Apple platform UUID, TPM 2.0 presence, Linux DMI / machine-id) and stores
+  **digests only**. Raw serials, UUIDs and machine-ids never leave the probe, are never logged and
+  are never written to the repository. The attestation document is signed with the node's Ed25519
+  key, so any change to the fingerprint is detectable.
+- `attestationLevel` is `hardware` only when a real TEE/SE signal is present (locked bootloader,
+  Apple Silicon, TPM 2.0). A software fingerprint is reported honestly as `software`.
+  Callers that require a real quote use `requireHardwareAttestation()` and must add a native
+  attestation shim (Android KeyStore attestation, Apple App Attest, TPM 2.0 quote) before
+  production.
+- The node key is generated once and kept in a git-ignored, mode-0600 local keystore
+  (`MAOTANG_NODE_KEYSTORE`, default `agent-manager/.node/node-key.json`). On a phone this belongs
+  in the OS secure store. Node keys are **never** derived from hardware identifiers: those are
+  guessable, so a key derived from them would not be secret.
+- The peer mesh is direct TCP only. There is no rendezvous server, bootstrap URL, DHT or web
+  server. Peers come from local configuration or from gossip by an already-connected peer, and a
+  gossiped peer is only dialed if it is already on the operator's allow-list. The mesh is disabled
+  by default, peers are announced as `host:port` (never a URL), and each hop re-signs the
+  envelope, so a relay can forward a transaction but cannot alter it. Transactions are
+  de-duplicated and rejected when the chain id does not match.
+
 ## Offline-first guarantee
 
 `agent-manager` is offline-first by construction:
 
 - A fail-closed egress guard is installed at startup, before any other module performs I/O.
-- The only permitted destination is the configured blockchain JSON-RPC origin (loopback by
-  default). There are no cloud inference calls: the intent model runs locally.
-- The guarantee is enforced by two tests:
+- The only permitted HTTP egress is JSON-RPC POST to the configured blockchain node; there are no
+  cloud inference calls, because the intent model runs locally.
+- Raw TCP is permitted only to that node and to peers on the explicit mesh allow-list. Enabling
+  the mesh does not widen HTTP egress: a peer is reachable over TCP, never over `fetch`.
+- The guarantee is enforced by four tests:
   - `agent-manager/test/offline-first.test.mjs` (Node, `node --test`) intercepts `fetch` and
     raw socket connects.
-  - `agent-manager/test/offline_first_e2e.py` (runnable with Python only, no Node required)
-    performs a real JSON-RPC round trip against a local node while a socket-level guard is
-    active, and proves that cloud/arbitrary egress is refused.
+  - `agent-manager/test/node-simulation.test.mjs` (Node, `node --test`) covers attestation,
+    delegation planning and a real two-node mesh with replay and cross-chain rejection.
+  - `agent-manager/test/offline_first_e2e.py` (Python only, no Node required) performs a real
+    JSON-RPC round trip against a local node while a socket-level guard is active, and proves that
+    cloud/arbitrary egress is refused.
+  - `agent-manager/test/node_simulation_e2e.py` (Python only, no Node required) generates a
+    device attestation, runs a real two-node P2P transaction broadcast over loopback, and verifies
+    that only allow-listed egress is possible.
 
 ## Dependency and supply-chain rules
 

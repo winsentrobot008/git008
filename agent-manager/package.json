@@ -1,7 +1,7 @@
 {
   "name": "@maotang/agent-manager",
   "version": "0.1.0",
-  "description": "Offline-first MAOTANG agent manager: local 0.5B SLM intent parsing, fail-closed egress policy, JSON-RPC only.",
+  "description": "Phone-as-a-node MAOTANG agent: local 0.5B SLM, TEE device attestation, NPU/GPU delegation, direct P2P A2A mesh, JSON-RPC only.",
   "license": "MIT",
   "type": "module",
   "private": true,
@@ -12,8 +12,11 @@
   "scripts": {
     "setup": "node ./src/agent-manager.mjs --check-rpc",
     "start": "node ./src/agent-manager.mjs",
+    "node-status": "node ./src/agent-manager.mjs --node-status",
+    "mesh": "node ./src/agent-manager.mjs --mesh",
     "test": "node --test test/",
-    "test:offline": "python test/offline_first_e2e.py"
+    "test:offline": "python test/offline_first_e2e.py",
+    "test:node": "python test/node_simulation_e2e.py"
   },
   "dependencies": {
     "@maotang/agent-client": "file:../agent-client"

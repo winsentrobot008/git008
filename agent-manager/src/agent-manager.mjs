@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 /**
- * MAOTANG local agent manager.
+ * MAOTANG local agent manager - phone-as-a-node.
  *
  * Natural language in, schema-validated tool call out. The intent model runs locally through
- * `@maotang/agent-client`; the only network destination the process may reach is the configured
- * blockchain JSON-RPC node, enforced by the fail-closed egress guard installed at startup.
+ * `@maotang/agent-client`, the node binds itself to this device with a signed hardware
+ * attestation, inference is delegated to the best local accelerator, and transactions can be
+ * gossiped agent-to-agent over a direct peer mesh.
  *
- * There is no cloud inference, no telemetry and no analytics.
+ * The only HTTP egress is JSON-RPC to the configured blockchain node. The peer mesh is off unless
+ * it is switched on explicitly, and every dial is checked against the fail-closed allow-list.
+ * There is no cloud inference, no telemetry, no analytics and no rendezvous server.
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -18,15 +21,33 @@ import { LocalAgent, SlmRuntime } from "@maotang/agent-client";
 
 import { EgressBlockedError, createEgressPolicy, installEgressGuard } from "./network-guard.mjs";
 import { JsonRpcClient } from "./rpc-client.mjs";
+import { P2PMesh } from "./network/index.mjs";
+import {
+  MobileNodeAttestation,
+  NpuInferenceDelegator,
+  loadOrCreateIdentity,
+  requireHardwareAttestation,
+  verifyAttestation,
+} from "./node/index.mjs";
 
 export const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const USAGE = [
-  "MAOTANG agent manager - offline-first local SLM, JSON-RPC only",
+  "MAOTANG agent manager - phone-as-a-node (local SLM, local attestation, JSON-RPC + peer mesh)",
   "",
   "Usage: maotang-agent [intent] [options]",
   "",
-  "Options:",
+  "Node:",
+  "  --node-status                  print device attestation + NPU delegation as JSON and exit",
+  "  --require-hardware-attestation fail unless a TEE/Secure Enclave attestation is available",
+  "",
+  "Mesh:",
+  "  --mesh                         enable the direct A2A peer mesh",
+  "  --peer <host:port>             allow-list a peer (repeatable)",
+  "  --mesh-port <n>                listen port (0 = ephemeral)",
+  "  --broadcast-tx <raw hex>       sign and gossip a raw transaction over the mesh",
+  "",
+  "Runtime:",
   "  --rpc <url>     blockchain JSON-RPC endpoint (default: $MAOTANG_RPC_URL)",
   "  --mode <mode>   auto | native | simulated (default: auto)",
   "  --model <path>  local .gguf model path",
@@ -37,6 +58,8 @@ const USAGE = [
   "Run without an intent to start the interactive prompt. Commands: exit, quit.",
 ].join("\n");
 
+const VALUE_OPTIONS = new Set(["--rpc", "--mode", "--model", "--peer", "--mesh-port", "--broadcast-tx"]);
+
 export function parseArgs(argv) {
   const options = {
     help: false,
@@ -46,6 +69,12 @@ export function parseArgs(argv) {
     rpc: undefined,
     model: undefined,
     intent: undefined,
+    nodeStatus: false,
+    requireHardware: false,
+    mesh: false,
+    peers: [],
+    meshPort: undefined,
+    broadcastTx: undefined,
   };
   const positionals = [];
 
@@ -57,7 +86,13 @@ export function parseArgs(argv) {
       options.checkRpc = true;
     } else if (arg === "--no-guard") {
       options.guard = false;
-    } else if (arg === "--rpc" || arg === "--mode" || arg === "--model") {
+    } else if (arg === "--node-status") {
+      options.nodeStatus = true;
+    } else if (arg === "--require-hardware-attestation") {
+      options.requireHardware = true;
+    } else if (arg === "--mesh") {
+      options.mesh = true;
+    } else if (VALUE_OPTIONS.has(arg)) {
       const value = argv[index + 1];
       if (value === undefined) {
         throw new Error(`option "${arg}" requires a value`);
@@ -65,7 +100,10 @@ export function parseArgs(argv) {
       index += 1;
       if (arg === "--rpc") options.rpc = value;
       else if (arg === "--mode") options.mode = value;
-      else options.model = value;
+      else if (arg === "--model") options.model = value;
+      else if (arg === "--peer") options.peers.push(value);
+      else if (arg === "--mesh-port") options.meshPort = Number(value);
+      else options.broadcastTx = value;
     } else if (arg.startsWith("--")) {
       throw new Error(`unknown option "${arg}"`);
     } else {
@@ -76,11 +114,27 @@ export function parseArgs(argv) {
   if (!["auto", "native", "simulated"].includes(options.mode)) {
     throw new Error(`--mode must be auto, native or simulated (received "${options.mode}")`);
   }
+  if (options.meshPort !== undefined && (!Number.isInteger(options.meshPort) || options.meshPort < 0)) {
+    throw new Error(`--mesh-port must be a non-negative integer (received "${options.meshPort}")`);
+  }
   options.intent = positionals.join(" ").trim() || undefined;
   return options;
 }
 
-/** Reads the committed config: model manifest, egress policy defaults and the runtime budget. */
+/** Parses "host:port". Hostnames only - a URL here is a configuration error. */
+export function parsePeerSpec(spec) {
+  const match = /^([A-Za-z0-9._-]+):(\d{1,5})$/.exec(String(spec).trim());
+  if (match === null) {
+    return null;
+  }
+  const port = Number(match[2]);
+  if (port <= 0 || port > 65535) {
+    return null;
+  }
+  return { host: match[1], port };
+}
+
+/** Reads the committed config: model manifest, egress/mesh policy defaults and the runtime budget. */
 export function loadConfig(env = process.env) {
   const policy = JSON.parse(readFileSync(path.join(PACKAGE_ROOT, "config", "policy.json"), "utf8"));
   const manifestPath = path.join(PACKAGE_ROOT, policy.model?.manifest ?? path.join("config", "model.json"));
@@ -97,8 +151,42 @@ export function loadConfig(env = process.env) {
   };
 }
 
+/** Merges the committed mesh policy with environment and CLI overrides. */
+export function meshConfigFrom(config, options = {}, env = process.env) {
+  const meshPolicy = config.policy.mesh ?? {};
+  const peers = [];
+  const pushPeer = (candidate) => {
+    if (candidate !== null && !peers.some((peer) => peer.host === candidate.host && peer.port === candidate.port)) {
+      peers.push(candidate);
+    }
+  };
+
+  for (const peer of meshPolicy.peers ?? []) {
+    pushPeer(parsePeerSpec(`${peer.host}:${peer.port}`));
+  }
+  for (const raw of String(env.MAOTANG_MESH_PEERS ?? "").split(",")) {
+    if (raw.trim() !== "") {
+      pushPeer(parsePeerSpec(raw));
+    }
+  }
+  for (const raw of options.peers ?? []) {
+    pushPeer(parsePeerSpec(raw));
+  }
+
+  return {
+    enabled: options.mesh === true || env.MAOTANG_MESH_ENABLED === "1" || peers.length > 0,
+    listenHost: env.MAOTANG_MESH_HOST ?? meshPolicy.listenHost ?? "127.0.0.1",
+    listenPort: options.meshPort ?? (env.MAOTANG_MESH_PORT ? Number(env.MAOTANG_MESH_PORT) : meshPolicy.listenPort ?? 0),
+    advertiseHost: env.MAOTANG_MESH_ADVERTISE ?? meshPolicy.advertiseHost ?? undefined,
+    maxPeers: Number(meshPolicy.maxPeers ?? 32),
+    maxHops: Number(meshPolicy.maxHops ?? 4),
+    chainId: String(env.MAOTANG_CHAIN_ID ?? meshPolicy.chainId ?? "0x1"),
+    peers,
+  };
+}
+
 /** Builds the local SLM runtime. `auto` uses the real weights when present, else the test double. */
-export function buildRuntime(config, requestedMode = "auto") {
+export function buildRuntime(config, requestedMode = "auto", overrides = {}) {
   const modelPresent = existsSync(config.modelPath);
   const mode = requestedMode === "auto" ? (modelPresent ? "native" : "simulated") : requestedMode;
 
@@ -111,7 +199,7 @@ export function buildRuntime(config, requestedMode = "auto") {
     mode,
     contextSize: config.model.contextSize,
     maxMemoryBytes: config.maxMemoryBytes,
-    threads: config.threads,
+    threads: overrides.threads ?? config.threads,
   });
 
   return { runtime, mode, modelPresent };
@@ -129,6 +217,31 @@ export function localContextFromEnv(env = process.env) {
   if (env.MAOTANG_PRICE_WEI_PER_TOKEN) context.price_wei_per_token = env.MAOTANG_PRICE_WEI_PER_TOKEN;
   if (env.MAOTANG_MAX_SLIPPAGE_BPS) context.max_slippage_bps = Number(env.MAOTANG_MAX_SLIPPAGE_BPS);
   return context;
+}
+
+/**
+ * Materializes this device's node identity. The attestation (which probes hardware and therefore
+ * spawns platform commands) is only collected when the caller actually needs it.
+ */
+export function buildNodeProfile(env = process.env, { withAttestation = false, logger } = {}) {
+  const keystorePath = env.MAOTANG_NODE_KEYSTORE || path.join(PACKAGE_ROOT, ".node", "node-key.json");
+  const loaded = loadOrCreateIdentity({ keystorePath, env, logger });
+
+  const profile = {
+    identity: loaded.identity,
+    nodeId: loaded.identity.nodeId,
+    keySource: loaded.source,
+    persisted: loaded.persisted,
+    keystorePath,
+    document: null,
+  };
+
+  if (withAttestation) {
+    const attestation = new MobileNodeAttestation(loaded.identity);
+    profile.document = attestation.issue({ agentPubKey: env.MAOTANG_AGENT_PUBKEY ?? null });
+    profile.check = verifyAttestation(profile.document);
+  }
+  return profile;
 }
 
 async function handleOnce(agent, intent) {
@@ -157,32 +270,112 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     return 0;
   }
 
+  const log = (line) => process.stdout.write(`[maotang] ${line}\n`);
+  const warn = (line) => process.stderr.write(`[maotang] ${line}\n`);
+
   const config = loadConfig(env);
   if (options.model !== undefined) config.modelPath = options.model;
   const rpcUrl = options.rpc ?? config.rpcUrl;
+  const mesh = meshConfigFrom(config, options, env);
 
   const policy = createEgressPolicy({
     rpcUrl,
     allowLoopbackRpcOnly: config.policy.network?.allowLoopbackRpcOnly ?? true,
+    mesh: { enabled: mesh.enabled, peers: mesh.peers },
   });
 
   const guard = options.guard ? installEgressGuard(policy) : undefined;
   if (guard === undefined) {
-    process.stderr.write("[maotang] WARNING: egress guard disabled (test mode)\n");
+    warn("WARNING: egress guard disabled (test mode)");
   }
 
+  let meshNode;
   try {
-    process.stdout.write(`[maotang] egress: fail-closed, allowed origin = ${policy.rpcOrigin}\n`);
+    log(`egress: fail-closed, rpc=${policy.rpcOrigin}, mesh=${policy.meshEnabled ? "on" : "off"}`);
+
+    const profile = buildNodeProfile(env, {
+      withAttestation: options.nodeStatus || options.requireHardware || mesh.enabled,
+      logger: { warn },
+    });
+
+    const delegator = new NpuInferenceDelegator({ modelFormat: config.model.format, threads: config.threads });
+    const { probe, plan } = await delegator.analyze();
+    log(`node ${profile.nodeId.slice(0, 16)}... key=${profile.keySource}`);
+    log(`inference: ${delegator.describe(plan)}`);
+
+    if (profile.document !== null) {
+      log(`attestation: ${profile.document.provider}/${profile.document.attestationLevel}`);
+    }
+    if (options.requireHardware) {
+      requireHardwareAttestation(profile.document);
+    }
 
     if (options.checkRpc) {
       const chainId = await new JsonRpcClient({ url: rpcUrl, policy }).chainId();
-      process.stdout.write(`[maotang] node reachable, eth_chainId=${chainId}\n`);
+      log(`node reachable, eth_chainId=${chainId}`);
     }
 
-    const { runtime, mode, modelPresent } = buildRuntime(config, options.mode);
+    if (options.nodeStatus) {
+      const status = {
+        node: {
+          nodeId: profile.nodeId,
+          keySource: profile.keySource,
+          keystorePersisted: profile.persisted,
+        },
+        attestation: profile.document,
+        attestationCheck: profile.check ?? null,
+        inference: {
+          plan,
+          probe: { onnxProviders: probe.onnxProviders, llamaGpu: probe.llamaGpu, notes: probe.notes },
+        },
+        egress: {
+          mode: policy.mode,
+          rpcOrigin: policy.rpcOrigin,
+          meshEnabled: policy.meshEnabled,
+          allowedPeers: policy.peerEndpoints(),
+        },
+        model: { id: config.model.id, format: config.model.format },
+      };
+      process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+      return 0;
+    }
+
+    if (mesh.enabled) {
+      meshNode = new P2PMesh({
+        identity: profile.identity,
+        policy,
+        listenHost: mesh.listenHost,
+        listenPort: mesh.listenPort,
+        advertiseHost: mesh.advertiseHost,
+        maxPeers: mesh.maxPeers,
+        maxHops: mesh.maxHops,
+        chainId: mesh.chainId,
+        logger: { info: log, warn, error: warn },
+      });
+      meshNode.on("transaction", (tx) => log(`mesh tx received ${tx.txId.slice(0, 16)}... from ${tx.from.slice(0, 16)}...`));
+      meshNode.on("peer:up", (peer) => log(`peer up ${peer.nodeId.slice(0, 16)}... at ${peer.host}:${peer.port}`));
+
+      const endpoint = await meshNode.start();
+      log(`mesh listening on ${endpoint.host}:${endpoint.port} as ${profile.nodeId.slice(0, 16)}...`);
+      if (mesh.peers.length > 0) {
+        await meshNode.bootstrap(mesh.peers);
+        log(`mesh peers connected: ${meshNode.peers().length}`);
+      }
+
+      if (options.broadcastTx !== undefined) {
+        const result = await meshNode.broadcastTransaction({ chainId: mesh.chainId, rawTransaction: options.broadcastTx });
+        process.stdout.write(`${JSON.stringify({ broadcast: result, peers: meshNode.peers() }, null, 2)}\n`);
+        if (result.peersSent === 0) {
+          log("no mesh peers reachable; submit this transaction directly over JSON-RPC instead");
+        }
+        return 0;
+      }
+    }
+
+    const { runtime, mode, modelPresent } = buildRuntime(config, options.mode, { threads: plan.threads });
     const mib = (bytes) => (bytes / (1024 * 1024)).toFixed(1);
-    process.stdout.write(`[maotang] model: ${config.model.id} (${mode}${modelPresent ? "" : ", weights absent"})\n`);
-    process.stdout.write(`[maotang] memory: ${mib(runtime.memory.totalBytes)} MiB / ${mib(runtime.memory.budgetBytes)} MiB budget\n`);
+    log(`model: ${config.model.id} (${mode}${modelPresent ? "" : ", weights absent"})`);
+    log(`memory: ${mib(runtime.memory.totalBytes)} MiB / ${mib(runtime.memory.budgetBytes)} MiB budget`);
 
     const agent = new LocalAgent(runtime, { context: localContextFromEnv(env) });
     await agent.start();
@@ -196,6 +389,9 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     await agent.stop();
     return 0;
   } finally {
+    if (meshNode !== undefined) {
+      await meshNode.stop();
+    }
     guard?.uninstall();
   }
 }

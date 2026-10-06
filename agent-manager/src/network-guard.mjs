@@ -1,17 +1,18 @@
 /**
  * Fail-closed egress guard for the MAOTANG agent manager.
  *
- * The agent runtime is allowed exactly one network destination: a JSON-RPC request to the
- * configured blockchain node. Everything else - cloud inference, telemetry, analytics, CDNs -
- * is refused before a socket is opened.
+ * The agent runtime may reach exactly two kinds of destination:
+ *   1. the configured blockchain JSON-RPC node (HTTP POST), and
+ *   2. optionally, direct peers on an explicit mesh allow-list (raw TCP only, never HTTP).
+ *
+ * Cloud inference, telemetry, analytics, CDNs and any gossiped peer that is not on the operator's
+ * list are refused before a socket is opened. The mesh is disabled unless it is switched on
+ * explicitly, so the default posture is still "JSON-RPC to the node and nothing else".
  *
  * Two layers are provided:
  *   1. `assertEgressAllowed(policy, target)` - a cheap check any caller can make.
  *   2. `installEgressGuard(policy)`          - a hard choke point that patches `fetch` and
  *      `net.Socket.prototype.connect`, so even a dependency that bypasses the client is stopped.
- *
- * This module deliberately has no cloud configuration surface: there is no field that can
- * widen the allow-list beyond an explicit origin list.
  */
 import net from "node:net";
 
@@ -32,6 +33,10 @@ export function isLoopbackHost(hostname) {
   return LOOPBACK_HOSTS.has(host) || /^127(\.\d{1,3}){3}$/.test(host);
 }
 
+function normalizeHost(hostname) {
+  return String(hostname ?? "localhost").toLowerCase().replace(/^\[|\]$/g, "");
+}
+
 function defaultPort(protocol) {
   return protocol === "https:" ? 443 : 80;
 }
@@ -45,10 +50,12 @@ function parseUrl(target) {
 }
 
 /**
- * Builds an allow-list that contains exactly one JSON-RPC origin (plus explicit extras).
- * Throws on an empty or non-HTTP rpcUrl so the runtime can never start in an "allow all" state.
+ * Builds the allow-list: one JSON-RPC origin, plus an optional explicit peer mesh.
+ *
+ * `mesh.enabled` defaults to false. Peers can only come from this list or from `policy.addPeer()`;
+ * a peer gossiped by another node is still checked against it before anything is dialed.
  */
-export function createEgressPolicy({ rpcUrl, allowLoopbackRpcOnly = true, extraAllowedOrigins = [] } = {}) {
+export function createEgressPolicy({ rpcUrl, allowLoopbackRpcOnly = true, extraAllowedOrigins = [], mesh } = {}) {
   if (typeof rpcUrl !== "string" || rpcUrl.trim() === "") {
     throw new Error("an explicit JSON-RPC url is required (fail-closed policy)");
   }
@@ -68,10 +75,22 @@ export function createEgressPolicy({ rpcUrl, allowLoopbackRpcOnly = true, extraA
     allowedOrigins.add(parseUrl(origin).origin);
   }
 
-  const allowedHosts = new Set([rpc.hostname.toLowerCase()]);
+  const allowedHosts = new Set([normalizeHost(rpc.hostname)]);
   if (isLoopbackHost(rpc.hostname)) {
     for (const host of LOOPBACK_HOSTS) {
       allowedHosts.add(host);
+    }
+  }
+
+  const meshEnabled = mesh?.enabled === true;
+  const allowedPeers = new Set();
+  if (meshEnabled) {
+    for (const peer of mesh.peers ?? []) {
+      const host = normalizeHost(peer?.host);
+      const port = Number(peer?.port);
+      if (host !== "" && Number.isInteger(port) && port > 0) {
+        allowedPeers.add(`${host}:${port}`);
+      }
     }
   }
 
@@ -79,18 +98,43 @@ export function createEgressPolicy({ rpcUrl, allowLoopbackRpcOnly = true, extraA
     mode: "fail-closed",
     rpcUrl,
     rpcOrigin: rpc.origin,
-    rpcHost: rpc.hostname.toLowerCase(),
+    rpcHost: normalizeHost(rpc.hostname),
     rpcPort: rpc.port === "" ? defaultPort(rpc.protocol) : Number(rpc.port),
     allowedOrigins,
     allowedHosts,
+    meshEnabled,
+    allowedPeers,
     audit: [],
     blocked: [],
     isHostPortAllowed(host, port) {
-      const normalized = String(host ?? "localhost").toLowerCase().replace(/^\[|\]$/g, "");
-      return Number(port) === policy.rpcPort && policy.allowedHosts.has(normalized);
+      const normalized = normalizeHost(host);
+      const numericPort = Number(port);
+      if (numericPort === policy.rpcPort && policy.allowedHosts.has(normalized)) {
+        return true;
+      }
+      return policy.meshEnabled && policy.allowedPeers.has(`${normalized}:${numericPort}`);
     },
     isOriginAllowed(origin) {
       return policy.allowedOrigins.has(origin);
+    },
+    /** Adds a peer at runtime. A no-op unless the mesh was enabled for this policy. */
+    addPeer(host, port) {
+      if (!policy.meshEnabled) {
+        return false;
+      }
+      const normalized = normalizeHost(host);
+      const numericPort = Number(port);
+      if (normalized === "" || !Number.isInteger(numericPort) || numericPort <= 0) {
+        return false;
+      }
+      policy.allowedPeers.add(`${normalized}:${numericPort}`);
+      return true;
+    },
+    peerEndpoints() {
+      return [...policy.allowedPeers].map((entry) => {
+        const [host, port] = entry.split(":");
+        return { host, port: Number(port) };
+      });
     },
   };
   return policy;
@@ -120,6 +164,15 @@ export function assertEgressAllowed(policy, target, reason = "outbound request")
   return url;
 }
 
+/** Validates a raw TCP peer destination against the mesh allow-list. */
+export function assertPeerAllowed(policy, host, port, reason = "mesh peer") {
+  if (!policy.isHostPortAllowed(host, port)) {
+    policy.blocked.push({ target: `${normalizeHost(host)}:${Number(port)}`, reason });
+    throw new EgressBlockedError(`${normalizeHost(host)}:${Number(port)}`, reason);
+  }
+  return { host: normalizeHost(host), port: Number(port) };
+}
+
 function parseConnectArgs(args) {
   const first = args[0];
   if (typeof first === "object" && first !== null) {
@@ -146,9 +199,9 @@ export function installEgressGuard(policy, deps = {}) {
   netModule.Socket.prototype.connect = function guardedConnect(...args) {
     const { host, port } = parseConnectArgs(args);
     if (port === null || !policy.isHostPortAllowed(host, port)) {
-      const target = `${host ?? "localhost"}:${port ?? "?"}`;
+      const target = `${normalizeHost(host)}:${port ?? "?"}`;
       policy.blocked.push({ target, reason: "socket connect" });
-      throw new EgressBlockedError(target, "socket connect outside the JSON-RPC allow-list");
+      throw new EgressBlockedError(target, "socket connect outside the node/peer allow-list");
     }
     return originalConnect.apply(this, args);
   };
