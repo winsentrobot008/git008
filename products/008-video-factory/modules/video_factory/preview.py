@@ -514,6 +514,7 @@ def render_cover(
     ffmpeg.run(
         "ffmpeg",
         [
+            "-y",
             "-ss", f"{max(0.0, float(offset_s)):.3f}",
             "-i", str(video_path),
             "-frames:v", "1",
