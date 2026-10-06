@@ -7,12 +7,13 @@ export function createStore(initial) {
   return {
     get: () => state,
     set(patch) {
+      const prev = state;
       state = { ...state, ...(typeof patch === "function" ? patch(state) : patch) };
-      subs.forEach((fn) => fn(state));
+      subs.forEach((fn) => fn(state, prev));
     },
     subscribe(fn) {
       subs.add(fn);
-      fn(state);
+      fn(state, null);
       return () => subs.delete(fn);
     },
   };

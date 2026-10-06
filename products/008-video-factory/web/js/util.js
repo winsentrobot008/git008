@@ -33,3 +33,36 @@ export function debounce(fn, wait = 250) {
 export function byId(id) {
   return document.getElementById(id);
 }
+
+/**
+ * 绑定文本输入（支持中文/日文 IME）。
+ * 合成期间不提交状态，避免逐字触发重绘、失焦与光标跳动；
+ * 合成结束（compositionend）后才提交一次完整文本。
+ * @returns 解绑函数
+ */
+export function bindCommittedInput(el, commit) {
+  if (!el) return () => {};
+  let composing = false;
+
+  const onStart = () => {
+    composing = true;
+  };
+  const onEnd = (e) => {
+    composing = false;
+    commit(e.target.value);
+  };
+  const onInput = (e) => {
+    // 双重保护：自己的标志位 + 原生 isComposing
+    if (composing || e.isComposing) return;
+    commit(e.target.value);
+  };
+
+  el.addEventListener("compositionstart", onStart);
+  el.addEventListener("compositionend", onEnd);
+  el.addEventListener("input", onInput);
+  return () => {
+    el.removeEventListener("compositionstart", onStart);
+    el.removeEventListener("compositionend", onEnd);
+    el.removeEventListener("input", onInput);
+  };
+}

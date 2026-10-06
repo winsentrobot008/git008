@@ -11,6 +11,7 @@
 | i18n | 自研 30 行 i18n 核心（API 对齐 `react-i18next` 的 `t()`） | 只有 `t(key, vars)` / `setLang()` / 插值 / 复数占位；迁移到 react-i18next 时字典与调用点可原样保留 |
 | 后端 | FastAPI（已装 0.142.2）+ WebSocket | 直接复用 `modules/video_factory` 的 Python 管线，无需跨语言 IPC |
 | 进度推送 | WebSocket `/ws/jobs/{id}`，按行流式回传子进程 stdout | 复用 FFmpeg/CLI 逐行日志，天然映射到阶段机 |
+| 状态与重绘 | `store.set()` 向订阅者传 `(state, prev)`，组件按引用比对决定是否重绘；输入框使用 `bindCommittedInput` | 守卫依赖 `prev`，不传则退化为“每次全量重绘”；重绘会替换聚焦中的输入节点，直接中断中文 IME 合成 |
 
 **为何不用 Next.js 直接落地**：`products/008ai-landing` 的门禁是 `npx tsc --noEmit`（AGENTS.md 强制、必须在该子项目目录内执行）。无 Node 时该门禁无法运行，交付无法验证的 TSX 等于交付未测试代码。因此本阶段先交付**可运行、可测试**的零构建版本，并把结构做成「1:1 可迁移」形态（见 §6）。
 
@@ -40,6 +41,7 @@ products/008-video-factory/
 ├─ tests/test_server_api.py    # REST + WebSocket 集成测试（39 项）
 ├─ tests/test_web_ui.py        # 真实浏览器端到端测试（29 项）
 ├─ tests/test_base_path.py     # 子路径部署回归（15 项，含真实浏览器）
+├─ tests/test_ime_input.py     # 中文 IME 输入回归（18 项，CDP 真实合成）
 └─ docs/FRONTEND_ARCHITECTURE.md
 ```
 

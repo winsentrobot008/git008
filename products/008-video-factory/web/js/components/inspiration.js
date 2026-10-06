@@ -1,7 +1,7 @@
 /** 灵感 / 热点区：创意输入 + Agent-Reach 全网点取材一键回填。 */
 
 import { t, onLangChange } from "../i18n.js";
-import { esc } from "../util.js";
+import { esc, bindCommittedInput } from "../util.js";
 import { api } from "../api.js";
 
 const SOURCES = ["auto", "github", "v2ex", "rss", "web"];
@@ -86,13 +86,13 @@ export function mount(root, store, { toast }) {
   };
 
   function wire() {
-    root.querySelector("#vf-idea").addEventListener("input", (e) => store.set({ idea: e.target.value }));
+    bindCommittedInput(root.querySelector("#vf-idea"), (value) => store.set({ idea: value }));
     root.querySelector("#vf-style").addEventListener("change", (e) => store.set({ style: e.target.value }));
     root.querySelector("#vf-duration").addEventListener("change", (e) => store.set({ duration: Number(e.target.value) }));
     root.querySelector("#vf-shots").addEventListener("change", (e) => store.set({ shots: Number(e.target.value) }));
     root.querySelector("#vf-provider").addEventListener("change", (e) => store.set({ provider: e.target.value }));
-    root.querySelector("#vf-topic-query").addEventListener("input", (e) =>
-      store.set({ topic: { ...store.get().topic, query: e.target.value } }),
+    bindCommittedInput(root.querySelector("#vf-topic-query"), (value) =>
+      store.set({ topic: { ...store.get().topic, query: value } }),
     );
     root.querySelector("#vf-topic-source").addEventListener("change", (e) =>
       store.set({ topic: { ...store.get().topic, source: e.target.value } }),
@@ -104,13 +104,14 @@ export function mount(root, store, { toast }) {
       try {
         const payload = await api.topic(topic.query, topic.source);
         topicResult = payload;
+        // 用 await 后的最新 topic 合并，避免覆盖等待期间用户的输入
         store.set({
-          topic: { ...topic, loading: false, payload },
+          topic: { ...store.get().topic, loading: false, payload },
           idea: payload.text || store.get().idea,
         });
         toast(t("inspiration.fetched", { source: payload.source, count: (payload.items || []).length }), "ok");
       } catch (err) {
-        store.set({ topic: { ...topic, loading: false } });
+        store.set({ topic: { ...store.get().topic, loading: false } });
         toast(`${t("toast.failed")}: ${err.message}`, "error");
       }
     });
@@ -144,8 +145,18 @@ export function mount(root, store, { toast }) {
   }
 
   store.subscribe((s, prev) => {
-    // 只在结构性状态变化时重绘：故意不订阅 idea，避免逐字输入时重绘导致失焦
-    if (!prev || prev.generation !== s.generation || prev.topic !== s.topic) render();
+    // 只在结构性状态变化时重绘。
+    // idea / topic.query 的逐字更新不重绘：否则会替换正在输入的 DOM 节点，
+    // 导致失焦、光标跳到末尾，并直接中断中文 IME 合成。
+    if (
+      !prev ||
+      prev.generation !== s.generation ||
+      prev.topic.loading !== s.topic.loading ||
+      prev.topic.payload !== s.topic.payload ||
+      prev.topic.source !== s.topic.source
+    ) {
+      render();
+    }
   });
   onLangChange(render);
   return render;
