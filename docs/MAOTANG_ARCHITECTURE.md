@@ -228,3 +228,46 @@ The agent runtime is local-first: intent parsing must not depend on any cloud LL
 - `agent-client/test/local-agent.test.ts` drives the full pipeline in `simulated` mode (a deterministic
   stand-in for the model) so tool calling is covered in CI, and verifies the native path fails loudly
   when its runtime is absent.
+
+## 12. DePIN mining engine
+
+Registered agents turn local physical and compute work into `$mHUMAN` rewards. `MaoTangMining`
+(`contracts/src/MaoTangMining.sol`) inherits `AgentGated`, so every entry point carries the same
+`requireAuthorizedAgent` gate as token claims.
+
+- `submitMiningProof(bytes32 proofType, bytes proofData)` accepts exactly two proof types, both a
+  fixed 192-byte (six ABI words) blob:
+  - `PROOF_TYPE_BLE_PING` (ASCII `maotang.mining.ble-ping.v1`) - a batch of BLE proximity
+    observations: ping count, strongest RSSI, window start/end, beacon-set hash and the node-signed
+    telemetry digest. Rejected when the strongest signal is outside -100..-20 dBm, the window is
+    stale (older than 15 minutes) or in the future, the batch is empty/oversized, or a digest is
+    missing.
+  - `PROOF_TYPE_ZK_COMPUTE` (ASCII `maotang.mining.zk-compute.v1`) - a batch of offloaded NPU tasks:
+    task count, attested compute units, window, task-set hash and the ZK proof digest. Rejected when
+    the attested work is below `MIN_COMPUTE_UNITS` or the batch is empty/oversized.
+- Each proof is scored once: the nullifier `keccak256(abi.encode(proofType, agent, proofData))` is
+  written before accrual, so replaying identical bytes reverts with `ReplayProof`.
+- Rewards accrue in `pendingMiningRewards[agent]` and are subject to a hard per-epoch emission cap
+  (`MAX_EPOCH_REWARD`, one human quota per day). `claimMiningRewards()` transfers the accrued
+  micro-units out of the contract's reward vault to the agent's own contract account; the vault is
+  funded with `fundRewardVault` (`transferFrom`), never minted, so mining cannot dilute holders.
+
+The off-chain half lives in `agent-manager/src/mining/`:
+
+- `constants.mjs` is the single source of truth for every value shared with the contract (proof-type
+  tags, reward rates, proximity band, batch bounds, emission cap) plus the precomputed function
+  selectors; `test/mining_e2e.py` re-derives each selector with a vector-checked keccak256 and
+  asserts the Solidity and JS constants are equal, so the two sides cannot drift.
+- `abi.mjs` is a minimal, dependency-free encoder for the two fixed payloads and the
+  `submitMiningProof` / `claimMiningRewards` / `fundRewardVault` calldata.
+- `telemetry.mjs` normalizes raw BLE observations and NPU task results, drops out-of-band/stale
+  duplicates, commits the set with SHA-256 and signs the batch with the node's Ed25519 key.
+- `transport.mjs` builds, signs (via an injected TEE/Secure-Enclave signer) and broadcasts
+  transactions over `eth_sendRawTransaction`, always through the fail-closed egress guard.
+- `background-miner.mjs` is the ultra-low-power worker: a single `unref()`ed duty-cycle timer, newest
+  N items per proof, NPU batching paused below a battery floor unless charging, local de-duplication
+  and a pre-check against the epoch cap.
+
+`python test/mining_e2e.py` is the runnable evidence: it verifies the shipped sources, checks the
+constant/selector agreement, then simulates BLE pings and NPU tasks through a mirror of the
+contract's rules to show exact reward accrual, vault disbursement and every rejection path.

@@ -174,15 +174,19 @@ export function assertPeerAllowed(policy, host, port, reason = "mesh peer") {
 }
 
 function parseConnectArgs(args) {
-  const first = args[0];
+  // `net.connect(options)` reaches Socket.prototype.connect as a single normalised array
+  // (`[[options, cb]]`), while a direct `socket.connect(options, cb)` does not. Unwrap both forms
+  // so the choke point sees the real destination instead of blocking every dial.
+  const source = Array.isArray(args[0]) ? args[0] : args;
+  const first = source[0];
   if (typeof first === "object" && first !== null) {
     return { host: first.host ?? first.hostname ?? null, port: first.port ?? null };
   }
   if (typeof first === "number") {
-    return { host: typeof args[1] === "string" ? args[1] : null, port: first };
+    return { host: typeof source[1] === "string" ? source[1] : null, port: first };
   }
   if (typeof first === "string" && /^\d+$/.test(first)) {
-    return { host: typeof args[1] === "string" ? args[1] : null, port: Number(first) };
+    return { host: typeof source[1] === "string" ? source[1] : null, port: Number(first) };
   }
   return { host: null, port: null };
 }

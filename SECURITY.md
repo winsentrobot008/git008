@@ -141,6 +141,33 @@ directly, without a central server.
   - `agent-manager/test/node_simulation_e2e.py` (Python only, no Node required) generates a
     device attestation, runs a real two-node P2P transaction broadcast over loopback, and verifies
     that only allow-listed egress is possible.
+  - `agent-manager/test/mining-e2e.test.mjs` (Node, `node --test`) drives a full DePIN mining cycle
+    and asserts that every broadcast is `eth_sendRawTransaction` to the configured node, and that
+    egress anywhere else is refused before a socket is used.
+  - `agent-manager/test/mining_e2e.py` (Python only, no Node required) mirrors the on-chain mining
+    rules from constants parsed out of the Solidity source.
+
+## DePIN mining: audit guidelines
+
+- Mining is agent-native and gate-first: `MaoTangMining` inherits `AgentGated`, so
+  `submitMiningProof` and `claimMiningRewards` revert for any caller that is not a registered,
+  unrevoked AI agent. An audit must confirm no new entry point bypasses that gate.
+- Rewards are disbursed from the contract's own `$mHUMAN` vault, funded through `fundRewardVault`
+  (`transferFrom`). There is no mint privilege, so mining cannot inflate supply past what was
+  deposited, and the global cap in `HumanToken` is untouched.
+- Every proof is single-use: `keccak256(abi.encode(proofType, agent, proofData))` is consumed before
+  accrual, and the per-epoch `MAX_EPOCH_REWARD` cap bounds worst-case emission. Auditors should
+  treat any change to the nullifier inputs or the cap as a consensus-level change.
+- Proof acceptance is deliberately conservative: fixed 192-byte payloads, proximity band, recency
+  window, batch bounds and non-empty commitment/attestation digests. The proximity and compute
+  verifiers are placeholders for real BLE/ZK verification and must be replaced before mainnet.
+- The off-chain worker holds no account key and performs no signing itself. Signing is an injected
+  boundary (`NULL_SIGNER` by default, refusing to fabricate a signature), so the account key can stay
+  in the phone's TEE/Secure Enclave; an audit must confirm no key material enters
+  `agent-manager/src/mining/`.
+- Function selectors are hardcoded in `agent-manager/src/mining/constants.mjs` because the runtime
+  has no keccak256. `agent-manager/test/mining_e2e.py` recomputes each selector from its documented
+  signature with a vector-checked keccak256 and fails on any mismatch.
 
 ## Dependency and supply-chain rules
 

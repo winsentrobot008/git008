@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { LocalAgent, SlmRuntime } from "@maotang/agent-client";
 
 import { EgressBlockedError, createEgressPolicy, installEgressGuard } from "./network-guard.mjs";
+import { BackgroundMiner, JsonRpcMiningTransport, NULL_SIGNER, DEFAULT_DUTY_CYCLE } from "./mining/index.mjs";
 import { JsonRpcClient } from "./rpc-client.mjs";
 import { P2PMesh } from "./network/index.mjs";
 import {
@@ -47,6 +48,10 @@ const USAGE = [
   "  --mesh-port <n>                listen port (0 = ephemeral)",
   "  --broadcast-tx <raw hex>       sign and gossip a raw transaction over the mesh",
   "",
+  "Mining (DePIN):",
+  "  --mine                         run one background mining cycle (BLE proximity + NPU compute)",
+  "  --mining-contract <address>    MaoTangMining address (default: $MAOTANG_MINING_CONTRACT)",
+  "",
   "Runtime:",
   "  --rpc <url>     blockchain JSON-RPC endpoint (default: $MAOTANG_RPC_URL)",
   "  --mode <mode>   auto | native | simulated (default: auto)",
@@ -58,7 +63,7 @@ const USAGE = [
   "Run without an intent to start the interactive prompt. Commands: exit, quit.",
 ].join("\n");
 
-const VALUE_OPTIONS = new Set(["--rpc", "--mode", "--model", "--peer", "--mesh-port", "--broadcast-tx"]);
+const VALUE_OPTIONS = new Set(["--rpc", "--mode", "--model", "--peer", "--mesh-port", "--broadcast-tx", "--mining-contract"]);
 
 export function parseArgs(argv) {
   const options = {
@@ -75,6 +80,8 @@ export function parseArgs(argv) {
     peers: [],
     meshPort: undefined,
     broadcastTx: undefined,
+    mine: false,
+    miningContract: undefined,
   };
   const positionals = [];
 
@@ -92,6 +99,8 @@ export function parseArgs(argv) {
       options.requireHardware = true;
     } else if (arg === "--mesh") {
       options.mesh = true;
+    } else if (arg === "--mine") {
+      options.mine = true;
     } else if (VALUE_OPTIONS.has(arg)) {
       const value = argv[index + 1];
       if (value === undefined) {
@@ -103,6 +112,7 @@ export function parseArgs(argv) {
       else if (arg === "--model") options.model = value;
       else if (arg === "--peer") options.peers.push(value);
       else if (arg === "--mesh-port") options.meshPort = Number(value);
+      else if (arg === "--mining-contract") options.miningContract = value;
       else options.broadcastTx = value;
     } else if (arg.startsWith("--")) {
       throw new Error(`unknown option "${arg}"`);
@@ -337,6 +347,31 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
         model: { id: config.model.id, format: config.model.format },
       };
       process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+      return 0;
+    }
+
+    if (options.mine) {
+      const miningContract = options.miningContract ?? env.MAOTANG_MINING_CONTRACT;
+      if (typeof miningContract !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(miningContract.trim())) {
+        throw new Error(
+          "--mine needs the MaoTangMining contract address: pass --mining-contract or set MAOTANG_MINING_CONTRACT",
+        );
+      }
+      const transport = new JsonRpcMiningTransport({
+        rpcUrl,
+        policy,
+        contract: miningContract.trim(),
+        chainId: mesh.chainId,
+        signer: NULL_SIGNER,
+      });
+      const miner = new BackgroundMiner({
+        identity: profile.identity,
+        transport,
+        dutyCycle: { periodic: false, autoClaim: DEFAULT_DUTY_CYCLE.autoClaim },
+        logger: { info: log, warn, error: warn },
+      });
+      const cycle = await miner.start();
+      process.stdout.write(`${JSON.stringify({ mining: miner.status(), cycle }, null, 2)}\n`);
       return 0;
     }
 

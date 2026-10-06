@@ -46,10 +46,41 @@ The agent is a node in its own right, not a thin client:
 node src/agent-manager.mjs --node-status
 node src/agent-manager.mjs --mesh --mesh-port 7788 --peer 192.168.1.42:7788
 node src/agent-manager.mjs --mesh --peer 192.168.1.42:7788 --broadcast-tx 0x02f8...
+node src/agent-manager.mjs --mine --mining-contract 0x...
 ```
 
 Node/mesh environment: `MAOTANG_NODE_SEED`, `MAOTANG_NODE_KEYSTORE`, `MAOTANG_MESH_ENABLED`,
 `MAOTANG_MESH_PEERS`, `MAOTANG_MESH_HOST`, `MAOTANG_MESH_PORT`, `MAOTANG_CHAIN_ID`.
+
+## Background mining (DePIN)
+
+`src/mining/` turns local physical and compute work into `$mHUMAN` rewards. `BackgroundMiner` wakes on
+a slow duty cycle, drains two evidence sources, compresses what it found into at most two proofs per
+cycle and hands them to the chain:
+
+- **Type 1 - BLE proximity ping.** Observations from nearby DePIN beacons are filtered to the
+  contract's proximity band (-100..-20 dBm) and recency window (15 minutes), committed as a beacon-set
+  hash and signed by the node key.
+- **Type 2 - NPU compute proof.** Completed local inference tasks (300s of NPU/GPU work via
+  `NpuInferenceDelegator`) are batched with their ZK proof digests.
+
+Both proofs are exactly 192 bytes (`abi.mjs`), submitted with `submitMiningProof(bytes32,bytes)`, and
+the accrued reward is pulled out of the protocol reward vault with `claimMiningRewards()`.
+
+Power discipline: one `unref()`ed timer, only the newest N observations/tasks per proof, NPU batching
+paused below `batteryFloor` unless charging, local de-duplication of every proof, and a pre-check
+against the on-chain per-epoch emission cap so a doomed proof never costs a transaction.
+
+Signing and networking are injected, not built in: `JsonRpcMiningTransport` builds calldata, asks a
+TEE/Secure-Enclave-backed signer for a raw transaction and posts it with `eth_sendRawTransaction`
+through the egress guard. The worker holds no keys, opens no sockets of its own and has no cloud path -
+`--mine` without a configured signer simply reports "nothing to prove".
+
+```bash
+node src/agent-manager.mjs --mine --mining-contract 0xYourMaoTangMining
+```
+
+Environment: `MAOTANG_MINING_CONTRACT`.
 
 ## Offline-first guarantees
 
@@ -64,9 +95,10 @@ Node/mesh environment: `MAOTANG_NODE_SEED`, `MAOTANG_NODE_KEYSTORE`, `MAOTANG_ME
 ## Tests
 
 ```bash
-node --test test/                   # guard, attestation, NPU delegation, two-node mesh
+node --test test/                   # guard, attestation, NPU delegation, two-node mesh, DePIN mining
 python test/offline_first_e2e.py    # end-to-end proof that only JSON-RPC egress is allowed
 python test/node_simulation_e2e.py  # attestation generation + direct P2P signing, offline
+python test/mining_e2e.py           # BLE + NPU proofs -> $mHUMAN rewards, and constant agreement
 ```
 
 The Python tests need no Node.js. They run real JSON-RPC and real P2P round trips over loopback

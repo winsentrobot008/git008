@@ -14,9 +14,11 @@
     "start": "node ./src/agent-manager.mjs",
     "node-status": "node ./src/agent-manager.mjs --node-status",
     "mesh": "node ./src/agent-manager.mjs --mesh",
+    "mine": "node ./src/agent-manager.mjs --mine",
     "test": "node --test test/",
     "test:offline": "python test/offline_first_e2e.py",
-    "test:node": "python test/node_simulation_e2e.py"
+    "test:node": "python test/node_simulation_e2e.py",
+    "test:mining": "python test/mining_e2e.py"
   },
   "dependencies": {
     "@maotang/agent-client": "file:../agent-client"
