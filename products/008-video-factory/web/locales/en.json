@@ -103,6 +103,16 @@
     "history": "Rendered videos",
     "historyEmpty": "No rendered videos yet",
     "download": "Download",
+    "review": "Review / publish",
+    "reviewHint": "Once the draft passes QC, approve it or request a 1080x1920 high-res export.",
+    "passBtn": "Pass",
+    "highresBtn": "Request high-res 1080x1920",
+    "rejectBtn": "Reject",
+    "reviewed": "Review: {decision}",
+    "decision": {
+      "pass": "Approved",
+      "reject": "Rejected"
+    },
     "stage": {
       "queued": "Queued",
       "validating": "Validating",
@@ -128,6 +138,9 @@
     "renderStarted": "Render job submitted: {id}",
     "renderDone": "Render finished",
     "renderFailed": "Render failed",
-    "renderCancelled": "Render cancelled"
+    "renderCancelled": "Render cancelled",
+    "reviewPassed": "Review approved",
+    "reviewRejected": "Review rejected",
+    "highresStarted": "High-res export submitted: {id}"
   }
 }

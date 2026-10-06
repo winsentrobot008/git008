@@ -37,6 +37,9 @@ export const api = {
   validate: (director_script) => req("/validate", { method: "POST", body: { director_script }, timeout: 30000 }),
   render: (payload) => req("/render", { method: "POST", body: payload, timeout: 30000 }),
   cancelRender: (job_id) => req("/render/cancel", { method: "POST", body: { job_id: job_id ?? null }, timeout: 20000 }),
+  review: (job_id, decision = "pass", notes = null) =>
+    req("/review", { method: "POST", body: { job_id, decision, notes }, timeout: 20000 }),
+  renderHighres: (payload) => req("/render/highres", { method: "POST", body: payload, timeout: 30000 }),
   job: (id) => req(`/jobs/${id}`, { timeout: 15000 }),
   videos: () => req("/videos", { timeout: 15000 }),
 };

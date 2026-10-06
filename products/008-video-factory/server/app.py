@@ -121,6 +121,24 @@ class CancelReq(BaseModel):
     job_id: Optional[str] = None
 
 
+class ReviewReq(BaseModel):
+    """人工审核钩子：Pass 通过 / reject 打回。"""
+
+    job_id: str
+    decision: str = "pass"
+    notes: Optional[str] = None
+
+
+class HighResReq(BaseModel):
+    """审核通过后的高清导出请求（默认 1080x1920 竖版成片）。"""
+
+    job_id: str
+    resolution: str = "1080x1920"
+    fps: int = Field(default=24, ge=1, le=60)
+    backend: str = "auto"
+    cover: bool = True
+
+
 # --------------------------------------------------------------------------
 # 基础端点
 # --------------------------------------------------------------------------
@@ -240,6 +258,91 @@ def cancel_render(req: Optional[CancelReq] = None) -> dict:
     return {"status": "cancelled", "job_ids": sorted(set(cancelled_jobs) | set(stopped))}
 
 
+
+
+@app.post("/api/review")
+def review(req: ReviewReq) -> dict:
+    """人工审核钩子：Pass（通过）/ reject（打回），结论写入作业快照。"""
+    if req.decision not in ("pass", "reject"):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "BAD_REQUEST", "message": f"未知审核结论：{req.decision}"},
+        )
+    job = REGISTRY.get(req.job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": f"作业不存在：{req.job_id}"},
+        )
+    if job.state != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NOT_READY", "message": "草稿尚未渲染完成，无法审核"},
+        )
+    entry = REGISTRY.set_review(job, req.decision, req.notes)
+    return {"status": "ok", "job_id": job.id, "review": entry}
+
+
+@app.post("/api/render/highres")
+def render_highres(req: HighResReq) -> dict:
+    """审核通过后请求高清导出：复用草稿作业的分镜副本，另起一个渲染作业。"""
+    if req.backend not in ("auto", "comfyui", "ffmpeg"):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "BAD_REQUEST", "message": f"未知渲染后端：{req.backend}"},
+        )
+    source = REGISTRY.get(req.job_id)
+    if source is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": f"作业不存在：{req.job_id}"},
+        )
+    if source.state != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NOT_READY", "message": "草稿尚未渲染完成，无法请求高清导出"},
+        )
+    review_entry = source.snapshot().get("review") or {}
+    if review_entry.get("decision") == "reject":
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "REJECTED", "message": "该草稿已被否决，不能导出高清成片"},
+        )
+    try:
+        script = runner.load_job_script(req.job_id)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "NO_SCRIPT", "message": f"分镜副本不可用：{exc}"},
+        ) from exc
+
+    if not _slots.acquire(blocking=False):
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "BUSY", "message": f"当前已有 {MAX_CONCURRENT_RENDERS} 个渲染作业在跑，请稍后再试"},
+        )
+    job = REGISTRY.create("render")
+    try:
+        runner.start_render_thread(
+            REGISTRY,
+            job,
+            script,
+            backend=req.backend,
+            cover=req.cover,
+            resolution=req.resolution,
+            fps=req.fps,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _slots.release()
+        raise HTTPException(status_code=500, detail={"code": "PIPELINE_ERROR", "message": str(exc)}) from exc
+    threading.Thread(target=_release_when_done, args=(job.id,), daemon=True).start()
+    return {
+        "job_id": job.id,
+        "stage": job.stage,
+        "progress": job.progress,
+        "resolution": req.resolution,
+        "source_job": req.job_id,
+    }
 @app.get("/api/jobs/{job_id}")
 def job_state(job_id: str) -> dict:
     job = REGISTRY.get(job_id)

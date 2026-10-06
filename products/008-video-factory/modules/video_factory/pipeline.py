@@ -13,11 +13,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Optional
 
 from src.core.llm_client import diagnose_llm
 from src.core.paths import OUTPUT_DIR, WORK_DIR, video_factory_dir
 
-from . import director_adapter, hyperframes, preview as video_preview, render_backend, storyboard
+from . import director_adapter, hyperframes, media, narration, preview as video_preview, render_backend, storyboard
 from .storyboard import slugify
 
 VIDEO_FACTORY_ROOT = video_factory_dir()
@@ -82,6 +83,211 @@ def _parse_resolution(resolution: str) -> tuple[int, int]:
         return 480, 480
 
 
+# --------------------------------------------------------------------------
+# Stage-2 自动化前置：图库素材暂存（work/assets/cache）+ Edge-TTS 旁白时轴
+# --------------------------------------------------------------------------
+STOCK_CACHE_DIR = WORK_DIR / "assets" / "cache"
+_MEDIA_FALLBACK = "gradient"
+
+
+def _scene_probe(scene: dict) -> dict:
+    """给 media.resolve_scene_media 提供检索词与文本（优先显式字段）。"""
+    keywords = scene.get("search_keywords") or scene.get("asset_queries") or []
+    if isinstance(keywords, str):
+        keywords = [keywords]
+    return {
+        "text": scene.get("script_text") or scene.get("text") or "",
+        "asset_queries": [str(k).strip() for k in keywords if str(k).strip()][:3],
+    }
+
+
+def _existing_staging(data: dict) -> dict:
+    staging = data.get("staging") if isinstance(data, dict) else None
+    return dict(staging) if isinstance(staging, dict) else {}
+
+
+def stage_assets(
+    storyboard_data: dict,
+    *,
+    use_network: bool = True,
+    cache_dir: Optional[Path] = None,
+) -> dict:
+    """按 search_keywords 抓取图库视频/图片到 work/assets/cache。
+
+    返回改写后的 storyboard 副本，每镜记录 `_media_via` 来源；无匹配的镜头标记
+    为 gradient 回退，交由渲染器（ComfyUI 后端或品牌渐变背景）兜底。
+    """
+    sb = storyboard.validate_storyboard(storyboard_data)
+    cache = Path(cache_dir or STOCK_CACHE_DIR)
+    cache.mkdir(parents=True, exist_ok=True)
+    entries: list[dict] = []
+    resolved = 0
+    for i, scene in enumerate(sb["scenes"]):
+        if scene.get("source"):
+            entries.append(
+                {
+                    "index": i,
+                    "via": scene.get("_media_via") or "preset",
+                    "kind": scene.get("_media_kind"),
+                    "source": scene["source"],
+                }
+            )
+            resolved += 1
+            continue
+        hit = media.resolve_scene_media(
+            _scene_probe(scene), cache_dir=cache, use_network=use_network
+        )
+        if hit:
+            scene["source"] = hit["source"]
+            scene["_media_kind"] = hit["kind"]
+            scene["_media_via"] = hit["via"]
+            entries.append(
+                {
+                    "index": i,
+                    "via": hit["via"],
+                    "kind": hit["kind"],
+                    "source": hit["source"],
+                    "query": hit.get("query"),
+                }
+            )
+            resolved += 1
+        else:
+            scene["_media_via"] = _MEDIA_FALLBACK
+            entries.append(
+                {
+                    "index": i,
+                    "via": _MEDIA_FALLBACK,
+                    "kind": None,
+                    "source": None,
+                    "reason": "no_stock_match",
+                }
+            )
+    total = len(sb["scenes"])
+    report: dict = {
+        "ok": resolved > 0 or total == 0,
+        "cache_dir": str(cache),
+        "scenes": total,
+        "resolved": resolved,
+        "fallback": total - resolved,
+        "entries": entries,
+    }
+    if resolved < total:
+        try:
+            report["comfyui"] = render_backend.probe_comfyui()
+        except Exception:  # noqa: BLE001 - 心跳探测失败不影响出片
+            report["comfyui"] = None
+    sb["staging"] = {**_existing_staging(storyboard_data), "assets": report}
+    return sb
+
+
+def _scene_timeline(scenes: list[dict]) -> list[dict]:
+    """缺省旁白时轴：按镜头时长把 script_text 依次排到时间轴上。"""
+    lines: list[dict] = []
+    cursor = 0.0
+    for scene in scenes:
+        duration = float(scene.get("duration_s") or 3.5)
+        text = str(scene.get("script_text") or scene.get("text") or "").strip()
+        if text:
+            lines.append(
+                {
+                    "text": text,
+                    "start_seconds": round(cursor, 2),
+                    "end_seconds": round(cursor + duration, 2),
+                }
+            )
+        cursor += duration
+    return lines
+
+
+def stage_narration(
+    storyboard_data: dict,
+    *,
+    voice: Optional[str] = None,
+    use_tts: bool = True,
+    synth: Any = None,
+    cache_dir: Optional[Path] = None,
+) -> dict:
+    """Edge-TTS 合成整条旁白轨（含每句 timecode），写入 audio.narration。
+
+    `synth` 可注入确定性合成器（测试用），避免联网依赖；合成失败自动降级为无声。
+    """
+    sb = storyboard.validate_storyboard(storyboard_data)
+    lines = list(sb.get("voice_script") or []) or _scene_timeline(sb["scenes"])
+    total = sum(float(sc.get("duration_s") or 0) for sc in sb["scenes"]) or None
+    cache = Path(cache_dir or STOCK_CACHE_DIR)
+    slug = slugify(sb.get("title") or "storyboard")
+    out = cache / f"{slug}_narration.m4a"
+
+    report: dict = {"ok": False, "reason": "disabled", "lines": lines, "dropped": []}
+    if use_tts and lines:
+        report = narration.build_narration_track(
+            lines,
+            out,
+            voice=voice or narration.DEFAULT_VOICE,
+            total_seconds=total,
+            synth=synth,
+        )
+    if report.get("ok"):
+        sb["audio"]["narration"] = [
+            {
+                "src": report["output"],
+                "start_seconds": 0.0,
+                "end_seconds": float(report.get("duration_seconds") or 0),
+            }
+        ]
+    sb["staging"] = {
+        **_existing_staging(storyboard_data),
+        "narration": {
+            "ok": bool(report.get("ok")),
+            "reason": report.get("reason"),
+            "output": report.get("output"),
+            "duration_seconds": report.get("duration_seconds"),
+            "lines": report.get("lines") or lines,
+            "dropped": report.get("dropped") or [],
+            "voice": report.get("voice") or voice or narration.DEFAULT_VOICE,
+        },
+    }
+    return sb
+
+
+def stage_storyboard(
+    storyboard_data: dict,
+    *,
+    use_network: bool = True,
+    use_tts: bool = True,
+    voice: Optional[str] = None,
+    synth: Any = None,
+    cache_dir: Optional[Path] = None,
+) -> dict:
+    """完整 Stage-2 前置：图库取材 → Edge-TTS 旁白 → 可直接渲染的 storyboard。"""
+    sb = stage_assets(storyboard_data, use_network=use_network, cache_dir=cache_dir)
+    return stage_narration(
+        sb, voice=voice, use_tts=use_tts, synth=synth, cache_dir=cache_dir
+    )
+
+
+def _staging_summary(data: dict) -> dict:
+    """CLI 输出用的 Stage-2 暂存摘要（完整明细只留在 storyboard JSON，避免日志噪声）。"""
+    staging = data.get("staging") or {}
+    assets = staging.get("assets") or {}
+    narration = staging.get("narration") or {}
+    via: dict[str, int] = {}
+    for entry in assets.get("entries") or []:
+        key = str(entry.get("via") or "unknown")
+        via[key] = via.get(key, 0) + 1
+    return {
+        "assets": {
+            "resolved": assets.get("resolved"),
+            "fallback": assets.get("fallback"),
+            "via": via,
+        },
+        "narration": {
+            "ok": narration.get("ok"),
+            "duration_seconds": narration.get("duration_seconds"),
+            "voice": narration.get("voice"),
+        },
+    }
+
 def _cmd_storyboard_render(args: argparse.Namespace) -> int:
     """storyboard 模式：分镜 JSON → 低清预览（FFmpeg）或 HyperFrames 高质量渲染。"""
     storyboard_path = Path(args.storyboard)
@@ -98,8 +304,12 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
     fps = int(getattr(args, "fps", 24) or 24)
     use_network = not getattr(args, "no_network", False)
 
-    # 统一先跑媒体策略（Pexels → MediaIndexerPro → 本地素材库）
-    data = storyboard.resolve_media_for_storyboard(data, use_network=use_network)
+    # Stage-2 前置：图库取材（work/assets/cache）+ Edge-TTS 旁白时轴
+    data = stage_storyboard(
+        data,
+        use_network=use_network,
+        use_tts=not getattr(args, "no_tts", False),
+    )
 
     try:
         if getattr(args, "preview", False):
@@ -130,6 +340,7 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
                         "resolution": result["resolution"],
                         "fps": result["fps"],
                         "size_mb": result["size_mb"],
+                        "staging": _staging_summary(data),
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -152,6 +363,94 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
         print(f"[video] storyboard 渲染失败：{exc}", file=sys.stderr)
         return 1
 
+
+def cmd_text(args: argparse.Namespace) -> int:
+    """原始文本 → 结构化分镜 → Stage-2 暂存（图库 + Edge-TTS）→ 低清草稿出片。"""
+    text = str(getattr(args, "text", "") or "").strip()
+    if not text:
+        print("[video] 文本为空", file=sys.stderr)
+        return 1
+    try:
+        script = director_adapter.parse_text_to_shots(
+            text,
+            style=getattr(args, "style", "短剧") or "短剧",
+            shot_count=int(getattr(args, "shots", 6) or 6),
+            target_duration=float(getattr(args, "duration", 15.0) or 15.0),
+            title=getattr(args, "title", None),
+            provider=getattr(args, "provider", None),
+            use_llm=not getattr(args, "offline", False),
+        )
+        text_source = script.get("text_source")
+        data = director_adapter.adapt_director_script(script, strict_axis=True)
+        data = stage_storyboard(
+            data,
+            use_network=not getattr(args, "no_network", False),
+            use_tts=not getattr(args, "no_tts", False),
+        )
+    except director_adapter.DirectorAdapterError as exc:
+        print(f"[video] 文本转分镜失败：{exc}", file=sys.stderr)
+        return 1
+
+    slug = slugify(data["title"])
+    out_path = (
+        Path(args.output)
+        if getattr(args, "output", None)
+        else WORK_DIR / "director" / f"{slug}.storyboard.json"
+    )
+    director_adapter.write_storyboard(data, out_path)
+    print(f"[video] 文本分镜已生成：{len(data['scenes'])} 镜（来源 {text_source}）→ {out_path}")
+
+    staged = data.get("staging") or {}
+    assets = staged.get("assets") or {}
+    narr = staged.get("narration") or {}
+    print(
+        f"[video] Stage-2 暂存：素材 {assets.get('resolved', 0)}/{assets.get('scenes', 0)} 命中，"
+        f"旁白 {'OK' if narr.get('ok') else '跳过'}"
+    )
+
+    width, height = _parse_resolution(getattr(args, "resolution", "") or "480x480")
+    try:
+        result = video_preview.render_preview(
+            data,
+            width=width,
+            height=height,
+            fps=int(getattr(args, "fps", 24) or 24),
+            use_network=False,  # 素材已在 stage_storyboard 统一解析
+            inspect=not getattr(args, "no_inspect", False),
+        )
+        if getattr(args, "cover", False):
+            result["cover"] = video_preview.render_cover(
+                Path(result["output"]),
+                output_path=Path(result["output"]).with_name("cover.jpg"),
+                offset_s=float(getattr(args, "cover_offset", 0.5) or 0.5),
+            )
+    except (ValueError, RuntimeError, OSError) as exc:
+        print(f"[video] 草稿出片失败：{exc}", file=sys.stderr)
+        return 1
+
+    inspection = result.get("inspector") or {}
+    print(
+        json.dumps(
+            {
+                "mode": "text",
+                "ok": result["ok"],
+                "text_source": text_source,
+                "storyboard": str(out_path),
+                "output": result["output"],
+                "cover": result.get("cover"),
+                "duration_seconds": result.get("duration_seconds"),
+                "resolution": result.get("resolution"),
+                "fps": result.get("fps"),
+                "size_mb": result.get("size_mb"),
+                "inspect_ok": inspection.get("ok"),
+                "checks": inspection.get("checks") or {},
+                "staging": _staging_summary(data),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
 
 def cmd_storyboard(args: argparse.Namespace) -> int:
     """分镜 JSON → HyperFrames 工作区（可选 lint/validate/render）。"""
@@ -269,12 +568,24 @@ def cmd_director(args: argparse.Namespace) -> int:
         return 0
 
     try:
+        data = stage_storyboard(
+            data,
+            use_network=not getattr(args, "no_network", False),
+            use_tts=not getattr(args, "no_tts", False),
+        )
+        staged = data.get("staging") or {}
+        assets = staged.get("assets") or {}
+        narr = staged.get("narration") or {}
+        print(
+            f"[video] Stage-2 暂存：素材 {assets.get('resolved', 0)}/{assets.get('scenes', 0)} 命中，"
+            f"旁白 {'OK' if narr.get('ok') else '跳过'}"
+        )
         result = video_preview.render_preview(
             data,
             width=width,
             height=height,
             fps=int(getattr(args, "fps", 24) or 24),
-            use_network=not getattr(args, "no_network", False),
+            use_network=False,  # 素材已在 stage_storyboard 统一解析
             inspect=not getattr(args, "no_inspect", False),
         )
         if getattr(args, "cover", False):
@@ -296,6 +607,7 @@ def cmd_director(args: argparse.Namespace) -> int:
         "size_mb": result.get("size_mb"),
         "inspect_ok": inspection.get("ok"),
         "checks": inspection.get("checks") or {},
+        "staging": _staging_summary(data),
     })
     if result.get("cover"):
         summary["cover"] = result["cover"]
@@ -424,6 +736,11 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
         help="禁用 Pexels/MediaIndexerPro 网络取料，只用本地素材",
     )
     render.add_argument(
+        "--no-tts",
+        action="store_true",
+        help="跳过 Edge-TTS 旁白合成与音轨混流（纯画面预览）",
+    )
+    render.add_argument(
         "--cover",
         action="store_true",
         help="preview 模式渲染后同步抽取爆款封面 cover.jpg（默认取 Hook 开场卡帧）",
@@ -453,6 +770,7 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     director.add_argument("--default-duration", type=float, default=3.5, help="缺省镜头时长（秒）")
     director.add_argument("--no-strict-axis", action="store_true", help="轴线违规仅告警不报错")
     director.add_argument("--no-network", action="store_true", help="禁用 Pexels/MediaIndexerPro 联网取材")
+    director.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面预览）")
     director.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
     director.add_argument(
         "--backend",
@@ -464,6 +782,26 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     director.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒）")
     director.set_defaults(handler=cmd_director)
 
+    text = sub.add_parser(
+        "text",
+        help="原始文本 → 结构化分镜 → 图库/TTS 暂存 → 480x480 草稿出片（端到端自动化）",
+    )
+    text.add_argument("--text", required=True, help="原始文本（旁白/故事段落）")
+    text.add_argument("--style", default="短剧", help="风格（默认 短剧）")
+    text.add_argument("--shots", type=int, default=6, help="镜头数（默认 6）")
+    text.add_argument("--duration", type=float, default=15.0, help="目标时长秒数（默认 15）")
+    text.add_argument("--title", help="标题（缺省取首句，≤16 字）")
+    text.add_argument("--provider", help="LLM 网关（缺省按 .env 路由；offline 强制确定性拆分）")
+    text.add_argument("--offline", action="store_true", help="强制确定性拆分，不调用 LLM")
+    text.add_argument("--output", "-o", help="storyboard JSON 输出路径（默认 work/director/<slug>.storyboard.json）")
+    text.add_argument("--resolution", default="480x480", help="草稿画幅（默认 480x480）")
+    text.add_argument("--fps", type=int, default=24, help="输出帧率（默认 24）")
+    text.add_argument("--no-network", action="store_true", help="禁用图库联网取材，只用本地素材")
+    text.add_argument("--no-tts", action="store_true", help="跳过 Edge-TTS 旁白合成（纯画面）")
+    text.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
+    text.add_argument("--cover", action="store_true", help="同步抽取爆款封面 cover.jpg")
+    text.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒，默认 0.5）")
+    text.set_defaults(handler=cmd_text)
     storyboard = sub.add_parser("storyboard", help="分镜 JSON → HyperFrames 工作区 + 渲染")
     storyboard.add_argument("--input", "-i", required=True, help="分镜 JSON 路径")
     storyboard.add_argument(

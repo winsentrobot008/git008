@@ -39,6 +39,8 @@ __all__ = [
     "fetch_topic",
     "validate_script",
     "list_videos",
+    "job_script_path",
+    "load_job_script",
 ]
 
 CLI = PRODUCT_ROOT / "src" / "cli.py"
@@ -317,6 +319,19 @@ def start_render_thread(registry: JobRegistry, job: Job, script: dict, **kwargs:
 
 
 # --------------------------------------------------------------------------
+
+
+def job_script_path(job_id: str) -> Path:
+    """渲染作业在 work/studio 下落盘的分镜副本路径（高清导出复用）。"""
+    return WORK_DIR / f"{job_id}.director.json"
+
+
+def load_job_script(job_id: str) -> dict:
+    """读取作业分镜副本；缺失或非法 JSON 抛错（由调用方转成 HTTP 契约）。"""
+    path = job_script_path(job_id)
+    if not path.exists():
+        raise FileNotFoundError(f"未找到作业 {job_id} 的分镜副本：{path.name}")
+    return json.loads(path.read_text(encoding="utf-8"))
 # 同步端点（快速，无需作业）
 # --------------------------------------------------------------------------
 def build_storyboard_from_idea(

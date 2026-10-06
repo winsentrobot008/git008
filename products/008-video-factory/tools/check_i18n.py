@@ -23,8 +23,8 @@ JS_ROOT = WEB / "js"
 _T_CALL = re.compile(r"""\bt\(\s*["'`]([a-zA-Z0-9_.]+)["'`]""")
 _TEMPLATE = re.compile(r"""\bt\(\s*`([a-zA-Z0-9_.]+)\.\$\{""")
 
-# 运行时动态拼接的 key 前缀（如 inspector.stage.${stage} / check.${name}），单独白名单
-DYNAMIC_PREFIXES = ("inspector.stage.", "check.")
+# 运行时动态拼接的 key 前缀（如 inspector.stage.${stage} / inspector.decision.${d} / check.${name}），单独白名单
+DYNAMIC_PREFIXES = ("inspector.stage.", "inspector.decision.", "check.")
 
 
 def flatten(node, prefix=""):

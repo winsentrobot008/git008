@@ -254,11 +254,17 @@ def mediaindexer_search(queries: list[str]) -> list[Path]:
     return merged
 
 
-def local_stock_search(queries: list[str]) -> list[Path]:
-    """008-video-factory 本地素材缓存（assets/stock / assets/captured）。"""
+def local_stock_search(
+    queries: list[str], *, extra_roots: Optional[list[Path]] = None
+) -> list[Path]:
+    """008-video-factory 本地素材缓存（assets/stock / assets/captured / 下载缓存）。
+
+    `extra_roots` 让调用方把「已下载缓存目录」也算作本地源：命中缓存即零下载复用。
+    """
     roots = [
         REPO_ROOT / "products" / "008-video-factory" / "assets" / "stock",
         REPO_ROOT / "products" / "008-video-factory" / "assets" / "captured",
+        *(extra_roots or []),
     ]
     return _local_ranked(queries, roots)
 
@@ -290,7 +296,7 @@ def resolve_scene_media(
 
     local = mediaindexer_search(queries)
     if not local:
-        local = local_stock_search(queries)
+        local = local_stock_search(queries, extra_roots=[cache_dir])
     if local:
         path = local[0]
         kind = (

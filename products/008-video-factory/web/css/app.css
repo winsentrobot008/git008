@@ -192,6 +192,8 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--vf-accen
 .vf-empty { color: var(--vf-muted); font-size: 12.5px; margin: 6px 0; }
 .vf-error { color: var(--vf-danger); font-size: 12.5px; margin: 10px 0 0; }
 .vf-ok { color: var(--vf-ok); font-size: 12.5px; }
+.vf-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 0; }
+.vf-hint { margin: 0 0 10px; font-size: 12.5px; color: var(--vf-muted); }
 .vf-danger { color: var(--vf-danger); }
 .vf-banner { border: 1px solid var(--vf-border-strong); border-radius: var(--vf-radius-sm); padding: 10px 12px; margin-bottom: 12px; background: rgba(255, 255, 255, 0.05); font-size: 12.5px; }
 .vf-banner--warn { border-color: rgba(251, 191, 36, 0.42); background: rgba(251, 191, 36, 0.09); }

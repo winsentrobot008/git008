@@ -52,7 +52,10 @@ JSON 契约（契约定义见 `modules/video_factory/storyboard.py`）。
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -69,6 +72,8 @@ __all__ = [
     "adapt_file",
     "write_storyboard",
     "main",
+    "parse_text_to_shots",
+    "text_to_storyboard",
 ]
 
 # 镜头语汇 → storyboard 场景类型（_SCENE_TYPES 白名单）
@@ -126,6 +131,17 @@ _MOVEMENT_HINTS = {
     "handheld": "handheld camera",
     "static": "",
 }
+
+
+# 纯文本 → 分镜：镜头运动与景别白名单（任务契约 push_in / static / pull_out）
+_TEXT_MOVEMENTS = ("push_in", "static", "pull_out")
+_TEXT_SHOT_SIZES = ("medium", "wide", "close", "medium_close", "extreme_close")
+_TEXT_FALLBACK_KEYWORDS = (
+    "cinematic b-roll",
+    "night city lights",
+    "modern indoor lifestyle",
+)
+
 
 # 兜底通用科技视觉词（与 scripts/agent_reach_bridge.py 的兜底保持一致）
 DEFAULT_VISUAL_FALLBACK = [
@@ -395,6 +411,334 @@ def _dialogue_lines(shot: dict) -> list[dict]:
 
 
 # --------------------------------------------------------------------------
+# 纯文本 → 结构化镜头（script_text / search_keywords / camera_movement）
+# --------------------------------------------------------------------------
+_TEXT_SYSTEM_PROMPT = (
+    "你是短视频导演兼编剧。把用户给的原始文本拆成若干镜头，为每个镜头写出"
+    "可直接配音的旁白、用于图库检索的英文关键词、以及镜头运动。只返回 JSON。"
+)
+
+_TEXT_SCHEMA_HINT = """{
+  "title": "不超过 16 字的标题",
+  "shots": [
+    {
+      "script_text": "该镜头的配音旁白（中文，1-2 句）",
+      "search_keywords": ["english stock footage query", "2-3 words each"],
+      "camera_movement": "push_in | static | pull_out",
+      "shot_size": "wide | medium | close",
+      "duration_s": 3.0
+    }
+  ]
+}"""
+
+
+def _load_visual_mapper() -> Optional[Callable[..., list[str]]]:
+    """复用 Agent-Reach 的中英视觉词典把中文转成英文检索词；缺失返回 None。"""
+    try:
+        scripts_dir = REPO_ROOT / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        from agent_reach_bridge import map_to_visual_keywords  # noqa: PLC0415
+    except Exception:  # noqa: BLE001 - 词典可选，缺失即回退通用词
+        return None
+
+    def _mapper(raw_keywords, text_summary="", limit=3):
+        """静音封装：映射器会向 stdout 打印命中日志，避免污染 CLI 输出。"""
+        with contextlib.redirect_stdout(io.StringIO()):
+            return map_to_visual_keywords(raw_keywords, text_summary, limit=limit)
+
+    return _mapper
+
+
+def _english_keywords(
+    text: str,
+    *,
+    index: int,
+    mapper: Optional[Callable[..., list[str]]],
+    seed_keywords: Optional[list[str]] = None,
+) -> list[str]:
+    """旁白文本 → 2-3 个英文图库检索词。"""
+    if seed_keywords:
+        cleaned = [str(k).strip() for k in seed_keywords if str(k).strip()]
+        if cleaned:
+            return cleaned[:3]
+    if mapper is not None:
+        try:
+            mapped = mapper([], text, limit=3)
+        except Exception:  # noqa: BLE001 - 词典失败不得阻断出片
+            mapped = None
+        if mapped:
+            cleaned = [str(m).strip() for m in mapped if str(m).strip()]
+            if cleaned:
+                return cleaned[:3]
+    latin = [t.lower() for t in re.split(r"[^A-Za-z0-9]+", text) if len(t) >= 3]
+    if latin:
+        return _dedupe(latin, 3)
+    return [_TEXT_FALLBACK_KEYWORDS[index % len(_TEXT_FALLBACK_KEYWORDS)]]
+
+
+def _movement_for(index: int, total: int) -> str:
+    """确定性镜头运动：开场推入、结尾拉出、中段静态。"""
+    if index == 0:
+        return "push_in"
+    if total > 1 and index == total - 1:
+        return "pull_out"
+    return "static"
+
+
+def _coerce_text_shots(data: Any) -> dict:
+    """容忍 LLM 返回 {"script": {...}} / {"shots": [...]} 等包装。"""
+    if isinstance(data, list):
+        return {"shots": data}
+    if not isinstance(data, dict):
+        raise DirectorAdapterError("文本解析未返回 JSON 对象/数组")
+    for key in ("script", "director_script", "storyboard", "data"):
+        inner = data.get(key)
+        if isinstance(inner, dict) and ("shots" in inner or "scenes" in inner):
+            return inner
+    if "shots" in data or "scenes" in data:
+        return data
+    raise DirectorAdapterError("LLM 输出缺少 shots 字段")
+
+
+def _offline_text_shots(
+    text: str,
+    *,
+    shot_count: int,
+    target_duration: float,
+    mapper: Optional[Callable[..., list[str]]],
+    seed_keywords: Optional[list[str]],
+) -> dict:
+    """不依赖 LLM 的确定性拆分：按标点切句 → 逐镜分配旁白/检索词/运动。"""
+    count = max(1, int(shot_count or 6))
+    sentences = [s.strip() for s in re.split(r"[。！？!?\n]+", str(text or "")) if s.strip()]
+    if not sentences:
+        sentences = [str(text or "").strip() or "一个关于科技与人的瞬间"]
+
+    weights = [3.0 if i == 0 else (4.0 if i == count - 1 else 2.5) for i in range(count)]
+    unit = max(1.0, float(target_duration)) / sum(weights)
+    shots: list[dict] = []
+    for i in range(count):
+        script_text = sentences[i] if i < len(sentences) else sentences[-1]
+        shots.append(
+            {
+                "id": f"s1-{i + 1:02d}",
+                "scene": "s1",
+                "kind": "hook" if i == 0 else ("cta" if i == count - 1 else "text"),
+                "script_text": script_text,
+                "search_keywords": _english_keywords(
+                    script_text,
+                    index=i,
+                    mapper=mapper,
+                    seed_keywords=seed_keywords if i == 0 else None,
+                ),
+                "camera_movement": _movement_for(i, count),
+                "shot_size": _TEXT_SHOT_SIZES[i % len(_TEXT_SHOT_SIZES)],
+                "duration_s": round(weights[i] * unit, 2),
+            }
+        )
+    return {"shots": shots}
+
+
+def _llm_text_shots(
+    text: str,
+    *,
+    shot_count: int,
+    target_duration: float,
+    provider: Optional[str],
+    seed_keywords: Optional[list[str]],
+) -> dict:
+    """LLM 路径：一次结构化调用产出全部镜头。"""
+    from src.core.llm_client import LLMClient  # noqa: PLC0415
+
+    client = LLMClient(provider)
+    prompt_lines = [
+        f"原始文本：{text}",
+        f"目标时长：约 {target_duration} 秒；镜头数：约 {shot_count} 个。",
+        "请输出如下 JSON（只返回 JSON）：",
+        _TEXT_SCHEMA_HINT,
+    ]
+    if seed_keywords:
+        prompt_lines.append(f"可参考的检索词：{', '.join(map(str, seed_keywords))}")
+    return _coerce_text_shots(
+        client.chat_structured(
+            "\n".join(prompt_lines), system=_TEXT_SYSTEM_PROMPT, temperature=0.8
+        )
+    )
+
+
+def _shots_to_script(
+    shots: list[dict],
+    *,
+    style: str,
+    source: str,
+    mapper: Optional[Callable[..., list[str]]],
+    seed_keywords: Optional[list[str]],
+    default_duration: float,
+) -> dict:
+    """把词法不定的 shots 规范成导演分镜契约（字段齐全 + 轴线安全）。"""
+    count = max(1, len(shots))
+    out: list[dict] = []
+    for i, raw in enumerate(shots):
+        if not isinstance(raw, dict):
+            continue
+        script_text = _as_str(
+            raw.get("script_text")
+            or raw.get("voiceover")
+            or raw.get("voice_over")
+            or raw.get("narration")
+            or raw.get("text")
+        )
+        if not script_text:
+            continue
+        movement = _as_str(raw.get("camera_movement") or raw.get("movement")).lower()
+        if movement not in _TEXT_MOVEMENTS:
+            movement = _movement_for(i, count)
+        keywords = _dedupe(
+            raw.get("search_keywords") or raw.get("keywords") or raw.get("asset_queries"), 3
+        )
+        if not keywords:
+            keywords = _english_keywords(
+                script_text,
+                index=i,
+                mapper=mapper,
+                seed_keywords=seed_keywords if i == 0 else None,
+            )
+        out.append(
+            {
+                "id": _as_str(raw.get("id") or f"s1-{i + 1:02d}"),
+                "scene": _as_str(raw.get("scene") or "s1"),
+                "kind": _as_str(raw.get("kind") or ("hook" if i == 0 else "text")),
+                "text": script_text,
+                "script_text": script_text,
+                "search_keywords": keywords,
+                "asset_queries": keywords,
+                "camera_movement": movement,
+                "duration_s": raw.get("duration_s")
+                or raw.get("duration_seconds")
+                or default_duration,
+                "camera": {
+                    "shot_size": _as_str(raw.get("shot_size") or "medium"),
+                    "side": "neutral" if i % 3 == 2 else "left",
+                    "movement": movement,
+                },
+            }
+        )
+    if not out:
+        raise DirectorAdapterError("文本解析没有产出有效镜头（缺少 script_text）")
+    return {
+        "title": "",
+        "style": style,
+        "format": "short_drama",
+        "width": 1080,
+        "height": 1920,
+        "fps": 24,
+        "shots": out,
+        "audio": {"music": {"volume": 0.2}},
+        "text_source": source,
+    }
+
+
+def _derive_text_title(text: str, shots: list[dict], title: Optional[str]) -> str:
+    """标题优先用显式 title，其次首镜旁白，最后原始文本首句（≤16 字）。"""
+    if title and str(title).strip():
+        return str(title).strip()[:24]
+    head = _as_str(shots[0].get("script_text")) if shots else ""
+    if not head:
+        head = str(text or "")
+    head = re.split(r"[，。！？、,.!?；;：:\n]", head)[0].strip()
+    return (head[:16] or "创意短片").strip()
+
+
+def parse_text_to_shots(
+    text: str,
+    *,
+    style: str = "短剧",
+    shot_count: int = 6,
+    target_duration: float = 15.0,
+    title: Optional[str] = None,
+    seed_keywords: Optional[list[str]] = None,
+    provider: Optional[str] = None,
+    use_llm: bool = True,
+    visual_mapper: Optional[Callable[..., list[str]]] = None,
+    default_duration: float = 3.5,
+) -> dict:
+    """原始文本 → 结构化镜头（导演分镜契约，可直接喂 adapt_director_script）。
+
+    每个镜头都显式带 `script_text`（Edge-TTS 旁白）、`search_keywords`
+    （图库检索英文词）与 `camera_movement`（push_in / static / pull_out）。
+    LLM 不可用、抛错或 `provider="offline"` 时自动走确定性拆分。
+    """
+    raw_text = str(text or "").strip()
+    if not raw_text:
+        raise DirectorAdapterError("原始文本为空")
+
+    mapper = visual_mapper if visual_mapper is not None else _load_visual_mapper()
+    shots: list[dict] = []
+    source = "offline"
+    if use_llm and provider != "offline":
+        try:
+            data = _llm_text_shots(
+                raw_text,
+                shot_count=shot_count,
+                target_duration=target_duration,
+                provider=provider,
+                seed_keywords=seed_keywords,
+            )
+            shots = [
+                s
+                for s in (data.get("shots") or data.get("scenes") or [])
+                if isinstance(s, dict)
+            ]
+            if shots:
+                source = "llm"
+        except Exception as exc:  # noqa: BLE001 - LLM 不可用即降级
+            print(
+                f"[director] LLM 文本解析不可用，改用确定性拆分：{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+    if not shots:
+        shots = _offline_text_shots(
+            raw_text,
+            shot_count=shot_count,
+            target_duration=target_duration,
+            mapper=mapper,
+            seed_keywords=seed_keywords,
+        )["shots"]
+        source = "llm-fallback" if source == "llm" else "offline"
+
+    script = _shots_to_script(
+        shots,
+        style=style,
+        source=source,
+        mapper=mapper,
+        seed_keywords=seed_keywords,
+        default_duration=default_duration,
+    )
+    script["title"] = _derive_text_title(raw_text, script["shots"], title)
+    return script
+
+
+def text_to_storyboard(text: str, **kwargs: Any) -> dict:
+    """原始文本 → storyboard 契约（parse_text_to_shots + adapt_director_script）。"""
+    strict_axis = bool(kwargs.pop("strict_axis", True))
+    product = kwargs.pop("product", None)
+    mapper = kwargs.get("visual_mapper")
+    script = parse_text_to_shots(text, **kwargs)
+    storyboard = adapt_director_script(
+        script,
+        strict_axis=strict_axis,
+        visual_mapper=mapper,
+        product=product,
+    )
+    storyboard["text_pipeline"] = {
+        "source": script.get("text_source"),
+        "style": script.get("style"),
+    }
+    return storyboard
+
+
+# --------------------------------------------------------------------------
 # 主适配逻辑
 # --------------------------------------------------------------------------
 def adapt_director_script(
@@ -517,6 +861,22 @@ def adapt_director_script(
             mapper=visual_mapper,
             text=text,
         )
+        # 纯文本管线字段：旁白 / 英文检索词 / 镜头运动（Stage-2 TTS + 图库取材）
+        script_text = _as_str(
+            shot.get("script_text")
+            or shot.get("voiceover")
+            or shot.get("voice_over")
+            or shot.get("narration")
+        ) or text
+        movement = _as_str(
+            shot.get("camera_movement") or shot.get("movement") or camera.get("movement")
+        ).lower()
+        if movement not in _TEXT_MOVEMENTS:
+            movement = "static"
+        keywords = _dedupe(shot.get("search_keywords") or shot.get("keywords"), 3)
+        scene["script_text"] = script_text
+        scene["search_keywords"] = keywords or list(scene["asset_queries"])
+        scene["camera_movement"] = movement
         if source:
             scene["source"] = source
             media_kind = _media_kind_for(source)

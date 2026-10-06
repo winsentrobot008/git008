@@ -103,6 +103,16 @@
     "history": "历史成片",
     "historyEmpty": "暂无历史成片",
     "download": "下载成片",
+    "review": "审核 / 发布",
+    "reviewHint": "草稿质检通过后可一键通过，或请求 1080x1920 高清导出用于发布。",
+    "passBtn": "通过（Pass）",
+    "highresBtn": "请求高清导出 1080x1920",
+    "rejectBtn": "打回重做",
+    "reviewed": "审核结论：{decision}",
+    "decision": {
+      "pass": "已通过",
+      "reject": "已打回"
+    },
     "stage": {
       "queued": "排队中",
       "validating": "校验中",
@@ -128,6 +138,9 @@
     "renderStarted": "渲染作业已提交：{id}",
     "renderDone": "渲染完成",
     "renderFailed": "渲染失败",
-    "renderCancelled": "渲染已终止"
+    "renderCancelled": "渲染已终止",
+    "reviewPassed": "审核通过",
+    "reviewRejected": "已打回",
+    "highresStarted": "高清导出已提交：{id}"
   }
 }

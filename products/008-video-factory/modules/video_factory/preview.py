@@ -493,6 +493,40 @@ def _scene_segment(
     return out
 
 
+
+
+def _mux_narration(video: Path, audio: Path, out: Path) -> None:
+    """把 Edge-TTS 旁白音轨混入无声预览（视频流直拷，只转音频）。"""
+    ffmpeg.run(
+        "ffmpeg",
+        [
+            "-y",
+            "-i", str(video),
+            "-i", str(audio),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "128k",
+            "-shortest",
+            "-movflags", "+faststart",
+            str(out),
+        ],
+        timeout=300,
+    )
+
+
+def _resolve_narration(sb: dict, narration_path: Optional[Path]) -> Optional[Path]:
+    """显式参数优先；否则取 audio.narration[0].src（存在且非空才启用）。"""
+    candidate: Optional[Path] = Path(narration_path) if narration_path else None
+    if candidate is None:
+        for raw in (sb.get("audio") or {}).get("narration") or []:
+            if isinstance(raw, dict) and raw.get("src"):
+                candidate = Path(str(raw["src"]))
+                break
+    if candidate and candidate.exists() and candidate.stat().st_size > 0:
+        return candidate
+    return None
+
 def render_preview(
     storyboard_data: dict,
     *,
@@ -503,6 +537,7 @@ def render_preview(
     cache_dir: Optional[Path] = None,
     use_network: bool = True,
     inspect: bool = True,
+    narration_path: Optional[Path] = None,
 ) -> dict:
     """分镜 → 低清预览 MP4（纯 FFmpeg，网络媒体可用时先抓取）。"""
     sb = storyboard.resolve_media_for_storyboard(
@@ -511,6 +546,7 @@ def render_preview(
         use_network=use_network,
     )
     theme = sb.get("theme") or {}
+    narration = _resolve_narration(sb, narration_path)
     slug = storyboard.slugify(sb.get("title") or "storyboard")
     workdir = WORK_DIR / "preview" / slug
     workdir.mkdir(parents=True, exist_ok=True)
@@ -536,6 +572,7 @@ def render_preview(
 
     staged = Path(output_path or WORK_DIR / "preview" / slug / f"{slug}_{width}x{height}_preview.mp4")
     staged.parent.mkdir(parents=True, exist_ok=True)
+    concat_out = workdir / f"{slug}_concat.mp4" if narration else staged
     concat_file = workdir / "concat.txt"
     concat_file.write_text(
         "".join(f"file '{p.name}'\n" for p in segments),
@@ -550,22 +587,31 @@ def render_preview(
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-pix_fmt", "yuv420p", "-r", str(fps),
             "-movflags", "+faststart",
-            str(staged),
+            str(concat_out),
         ],
         timeout=900,
         cwd=str(workdir),
     )
+    if narration:
+        _mux_narration(concat_out, narration, staged)
     duration = ffmpeg.probe_duration(staged)
     codec = ffmpeg.probe_codec(staged)
     size_mb = round(staged.stat().st_size / 1024 / 1024, 2)
 
     inspection = None
     if inspect:
+        qc_kwargs: dict = {"require_audio": False}  # 默认无声合成，仅断言画面质量
+        if narration:
+            # 带旁白的草稿：断言音轨存在与音画同步；静音断层门禁留给高清成片复核
+            qc_kwargs = {
+                "require_audio": True,
+                "check_silence": max(width, height) >= 1080,
+            }
         inspection = inspect_video(
             staged,
             expected={"width": width, "height": height, "fps": fps},
-            require_audio=False,  # 分镜预览为无声合成，仅断言画面质量
             quarantine=False,
+            **qc_kwargs,
         )
         if not inspection["ok"]:
             raise RuntimeError(
@@ -573,7 +619,8 @@ def render_preview(
             )
         out = Path(output_path or OUTPUT_DIR / f"{slug}_{width}x{height}_preview.mp4")
         out.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(staged, out)
+        if out.resolve() != staged.resolve():
+            shutil.copy2(staged, out)  # output_path 已指向成片时无需自拷
     else:
         out = staged
 
@@ -587,6 +634,7 @@ def render_preview(
         "fps": fps,
         "size_mb": size_mb,
         "scenes": len(segments),
+        "narration_track": str(narration) if narration else None,
         "inspector": inspection,
     }
 

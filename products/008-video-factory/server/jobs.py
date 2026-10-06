@@ -43,6 +43,7 @@ class Job:
     logs: list[dict] = field(default_factory=list)
     result: Optional[dict] = None
     error: Optional[dict] = None
+    review: Optional[dict] = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     _subscribers: list[queue.Queue] = field(default_factory=list, repr=False)
@@ -61,6 +62,7 @@ class Job:
             "logs": list(self.logs),
             "result": self.result,
             "error": self.error,
+            "review": self.review,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -152,6 +154,20 @@ class JobRegistry:
         return True
 
     # -- 订阅 -------------------------------------------------------------
+    def set_review(self, job: Job, decision: str, notes: Optional[str] = None) -> dict:
+        """记录人工审核结论（pass / reject）并广播给订阅者。"""
+        entry = {
+            "decision": decision,
+            "notes": notes or "",
+            "reviewed_at": time.time(),
+        }
+        with self._lock:
+            job.review = entry
+            job.updated_at = time.time()
+            self._publish_locked(
+                job, {"type": "review", "job_id": job.id, "review": dict(entry)}
+            )
+        return dict(entry)
     def subscribe(self, job: Job) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=1000)
         with self._lock:

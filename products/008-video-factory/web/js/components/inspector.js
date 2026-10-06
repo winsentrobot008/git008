@@ -6,6 +6,7 @@ import { api, openJobSocket, BASE } from "../api.js";
 
 const RESOLUTIONS = ["480x480", "480x854", "1080x1080", "1080x1920"];
 let socketClose = null;
+const HIGHRES_RESOLUTION = "1080x1920";
 
 export function mount(root, store, { toast }) {
   const render = () => {
@@ -106,6 +107,8 @@ export function mount(root, store, { toast }) {
             : `<p class="vf-empty">${esc(t("inspector.empty"))}</p>`
         }
 
+        ${reviewPanel(r, busy)}
+
         <div class="vf-subcard">
           <h3>${esc(t("inspector.history"))}</h3>
           ${
@@ -129,6 +132,25 @@ export function mount(root, store, { toast }) {
     if (logs) logs.scrollTop = logs.scrollHeight;
   };
 
+  /** 审核 / 发布钩子：Pass 通过、打回重做，或请求 1080x1920 高清导出。 */
+  function reviewPanel(r, busy) {
+    if (!r.result || !r.jobId || busy) return "";
+    const reviewed = r.review
+      ? `<p class="vf-ok">${esc(
+          t("inspector.reviewed", { decision: t(`inspector.decision.${r.review.decision}`) }),
+        )}</p>`
+      : "";
+    return `<div class="vf-subcard">
+        <h3>${esc(t("inspector.review"))}</h3>
+        <p class="vf-hint">${esc(t("inspector.reviewHint"))}</p>
+        <div class="vf-actions">
+          <button type="button" class="vf-btn" id="vf-reject">${esc(t("inspector.rejectBtn"))}</button>
+          <button type="button" class="vf-btn vf-btn--primary" id="vf-pass">${esc(t("inspector.passBtn"))}</button>
+          <button type="button" class="vf-btn" id="vf-highres">${esc(t("inspector.highresBtn"))}</button>
+        </div>
+        ${reviewed}
+      </div>`;
+  }
   function wire() {
     const backend = root.querySelector("#vf-backend");
     if (backend) backend.addEventListener("change", (e) => store.set({ backend: e.target.value }));
@@ -139,6 +161,12 @@ export function mount(root, store, { toast }) {
 
     const btn = root.querySelector("#vf-render");
     if (btn) btn.addEventListener("click", () => (store.get().render?.running ? cancelRender() : startRender()));
+    const pass = root.querySelector("#vf-pass");
+    if (pass) pass.addEventListener("click", () => reviewJob("pass"));
+    const reject = root.querySelector("#vf-reject");
+    if (reject) reject.addEventListener("click", () => reviewJob("reject"));
+    const highres = root.querySelector("#vf-highres");
+    if (highres) highres.addEventListener("click", () => requestHighres());
   }
 
   async function startRender() {
@@ -178,6 +206,38 @@ export function mount(root, store, { toast }) {
     }
   }
 
+  async function reviewJob(decision) {
+    const current = store.get().render || {};
+    if (!current.jobId) return;
+    try {
+      const { review } = await api.review(current.jobId, decision);
+      store.set({ render: { ...store.get().render, review } });
+      toast(t(decision === "pass" ? "toast.reviewPassed" : "toast.reviewRejected"), "ok");
+    } catch (err) {
+      toast(`${t("toast.failed")}: ${err.message}`, "error");
+    }
+  }
+
+  /** 审核通过后复用草稿分镜另起一个 1080x1920 高清作业。 */
+  async function requestHighres() {
+    const current = store.get().render || {};
+    if (!current.jobId) return;
+    try {
+      const { job_id: jobId, resolution } = await api.renderHighres({
+        job_id: current.jobId,
+        resolution: HIGHRES_RESOLUTION,
+      });
+      store.set({
+        resolution,
+        render: { jobId, stage: "queued", progress: 0, logs: [], result: null, error: null, running: true },
+        busy: true,
+      });
+      toast(t("toast.highresStarted", { id: jobId }), "ok");
+      attachSocket(jobId);
+    } catch (err) {
+      toast(`${t("toast.renderFailed")}: ${err.message}`, "error");
+    }
+  }
   /** 停止本地渲染态：断开作业 socket、清空进度，按钮回到“开始渲染”。 */
   function resetToIdle(current = {}) {
     socketClose?.();
