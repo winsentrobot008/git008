@@ -4,7 +4,7 @@ Append durable decisions newest-first. Keep each entry concise and verifiable.
 
 ## 2026-10-07 — ADR-008: MAOTANG Protocol — 8.3B cap, 6-decimal micro-units, 0.5% swap / 1% graduation fee model, and local agent sustenance vault
 
-**Status:** Accepted (fee constants applied; sustenance vault still unimplemented)
+**Status:** Implemented (MaoTangSustenanceVault.sol & MaoTangBondingCurve.sol) — pending compilation
 
 **Context:** MAOTANG ($mHUMAN) is agent-native: a human proves personhood once, authorizes a local AI
 agent, and that agent works on their behalf. Whitepaper v2.2 fixes the human quota, the supply
@@ -31,10 +31,13 @@ siphoning mechanism partly open. The repository had drifted from the spec: the s
   so quotas and rewards always settle to the human the agent was registered for.
 
 **Consequences:** Changing either fee rate, or lowering the vault share, is a protocol-economic change
-and requires a superseding ADR rather than a silent constant edit. `MaoTangSustenanceVault.sol` does
-not exist yet, so the fee constants currently have no on-chain sink to pay into — the routing target
-is specified but unimplemented (GAP_ANALYSIS P0-4). The value-siphoning half of Whitepaper v2.2
-remains unspecified in the repository and must not be treated as designed.
+and requires a superseding ADR rather than a silent constant edit. The routing target is now
+implemented end to end: `MaoTangBondingCurve` computes and forwards the 0.5% swap fee on every trade
+and the 1.00% graduation fee at migration, and `MaoTangSustenanceVault` routes both to human
+principals through an agent-gated payout (GAP_ANALYSIS P0-2, P0-4). **Neither contract has been
+compiled or executed** — `contracts/lib/` is empty, so no Foundry suite can build yet. The BTC half
+of Whitepaper v2.2 (§3.1 `$mHUMAN`/BTC pair, volatility harvesting) remains unimplemented, and the
+protocol/creator/vault split is still an assumption rather than a ratified policy.
 
 **References:** `contracts/src/HumanToken.sol`, `contracts/src/interfaces/IMaoTangCurve.sol`,
 `contracts/src/interfaces/IMaoTangGraduate.sol`, `sdk/src/curve-math.ts`, `docs/WHITEPAPER_v2.md`,

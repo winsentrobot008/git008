@@ -42,7 +42,9 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 | C8 | Fee *routing* (protocol/creator/staker split) | No fee router, splitter or treasury contract. `MAOTANG_ARCHITECTURE.md:98` admits "split policy still open" | **FAIL** |
 | C9 | Bandwidth relay (PoB) reward surface | `MaoTangMining.sol:28-32` defines only `PROOF_TYPE_BLE_PING` and `PROOF_TYPE_ZK_COMPUTE` | **FAIL** |
 | C10 | Staking / 0.5% swap-fee share to stakers | No staking contract | **FAIL** |
-| C11 | BTC value siphon + floating pair | Spec §3 is now available (authoritative) and specifies a `$mHUMAN`/BTC dynamic bonding curve plus volatility-harvesting arbitrage. No such curve, pair or arbitrage loop exists in the repository | **FAIL** (specified, unimplemented) |
+| C11 | BTC value siphon + floating pair | §3.1 requires a `$mHUMAN`/BTC dynamic bonding curve plus volatility-harvesting arbitrage. A bonding curve now exists (P0-2) but it is **ETH-paired**, not BTC-paired, and there is no arbitrage loop or BTC leg anywhere | **PARTIAL** - curve primitive exists, BTC siphon does not |
+| C16 | Bonding curve, factory and graduation (§3.1 primitive) | `MaoTangBondingCurve.sol` implements `IMaoTangCurve` + `IMaoTangGraduate`; `MaoTangFactory.sol` implements `IMaoTangFactory`; `MemeToken.sol` is the 18-decimal inventory token. Constants and truncation order mirror `sdk/src/curve-math.ts` | **PASS** (pending compilation) |
+| C17 | Trade, graduation and fee events | `TokenPurchased`, `TokenSold`, `TokenGraduated` and `FeeRouted` are declared and emitted; the renamed events are mirrored in `sdk/src/abi.ts` | **PASS** (ABI-visible rename from `TokensBought`/`TokensSold`/`Graduated`) |
 | C12 | Mining emission integrity | `MaoTangMining.sol` has no mint privilege; rewards come from an externally funded vault (`fundRewardVault`) | PASS as designed, but emission depends on external deposits |
 | C13 | Token allocation split (§4.1) | §4.1 specifies 70% human-quota + AI mining pool, 15% DEX liquidity and curve seed, 10% edge-compute/DePIN ecosystem, 5% security and audit treasury. `HumanToken` knows only a single global cap and one quota-per-human mint path: no allocation buckets, no liquidity reserve, no ecosystem or audit treasury | **FAIL** |
 | C14 | Burn-on-Action (§4.2) | §4.2 requires 50% of the $mHUMAN consumed by physical check-in and settlement to be burned permanently. `HumanToken` exposes no burn function, and no code path consumes $mHUMAN at all | **FAIL** |
@@ -66,7 +68,7 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 
 | # | Requirement | Evidence | Verdict |
 | --- | --- | --- | --- |
-| D1 | Architecture doc matches v2.2 | `docs/MAOTANG_ARCHITECTURE.md:7` still describes MAOTANG as "a **meme-first DEX**", and `:41` claims "The reference implementation is a single `MaoTangCurve` deployment" — but **no `MaoTangCurve.sol` exists** (`contracts/src` has only interfaces `IMaoTangCurve/Factory/Graduate`) | **FAIL** — stale and self-contradicting |
+| D1 | Architecture doc matches v2.2 | `:41`'s claim that a single curve deployment implements both `IMaoTangCurve` and `IMaoTangGraduate` is **now true** (`MaoTangBondingCurve.sol`). Still stale: `:7` describes MAOTANG as "a **meme-first DEX**", the class is called `MaoTangCurve` rather than `MaoTangBondingCurve`, and the doc does not mention `MemeToken`, the factory parameters, or fee routing | **PARTIAL** |
 | D2 | Curve constants consistent | `VIRTUAL_TOKEN_SUPPLY = 1_073_000_000` (`sdk/src/curve-math.ts:13`, `MAOTANG_ARCHITECTURE.md:96`) is unrelated to the whitepaper's 1M $mHUMAN quota | **FAIL** |
 | D3 | Memory protocol | `memory/ARCHITECTURE_DECISIONS.md` and `memory/LESSONS_LEARNED.md` contain **no MAOTANG entry**, though `AGENTS.md` requires recording material architecture decisions | **FAIL** |
 | D4 | Legacy artifacts | `contracts/test/MicroHuman.t.sol` still carries the pre-rename name (`MicroHumanTest`) while importing `HumanToken` | PARTIAL — cosmetic |
@@ -76,11 +78,11 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 **Missing modules (do not exist at all):**
 
 1. ~~`MaoTangSustenanceVault.sol`~~ — **implemented** at `contracts/src/MaoTangSustenanceVault.sol` (P0-4).
-2. Curve implementation — `MaoTangCurve.sol`, a factory implementation and the graduation target are
-   absent; only `IMaoTangCurve` / `IMaoTangFactory` / `IMaoTangGraduate` interfaces exist. The SDK's
-   `curve-math.ts` therefore has no on-chain counterpart.
+2. ~~Curve implementation~~ — **implemented** as `contracts/src/MaoTangBondingCurve.sol` +
+   `contracts/src/MaoTangFactory.sol` + `contracts/src/MemeToken.sol` (P0-2). The SDK's
+   `curve-math.ts` now has an on-chain twin.
 3. ZK verifier — no verifier contract of any kind (Groth16/PLONK), for personhood or hardware.
-4. Curve-side fee splitter — the vault now exists as the routing destination, but the curve that must compute and forward the 0.5% / 1.00% split is still unimplemented (see item 2).
+4. ~~Curve-side fee splitter~~ — **implemented**. The curve computes and forwards the 0.5% swap fee on every trade and the 1.00% graduation fee at migration, both to the vault.
 5. Staking and fee-share contract (§2.4).
 6. BTC siphon and floating-pair module — §3.1/§3.2 are now authoritative spec, and nothing implements them.
 7. Bandwidth-relay (PoB) proof type and accounting.
@@ -126,7 +128,7 @@ labelled but must not survive to mainnet.
 | ID | Task | Touch points | Exit criteria |
 | --- | --- | --- | --- |
 | P0-1 | Implement real ZK verification for personhood and hardware attestation; replace both placeholder nullifier derivations | `HumanToken.sol:82`, `AIAgentRegistry.sol:117`, new `IVerifier.sol` | A forged proof cannot mint a quota; one human cannot claim twice across proofs |
-| P0-2 | Implement the bonding curve, factory and graduation contracts so `sdk/src/curve-math.ts` has an on-chain twin | new `MaoTangCurve.sol`, `MaoTangFactory.sol` | Off-chain quote matches on-chain execution within truncation tolerance |
+| P0-2 | Implement the bonding curve, factory and graduation contracts so `sdk/src/curve-math.ts` has an on-chain twin | **DONE.** `contracts/src/MaoTangBondingCurve.sol`, `MaoTangFactory.sol`, `MemeToken.sol`, interface updates, `contracts/test/MaoTangBondingCurve.t.sol`, `sdk/src/abi.ts` | Implemented with the same constants and truncation order as the SDK. **Not compiled or executed** - see the verification gap in §4 |
 | P0-3 | Reconcile fee policy to 0.5% swap + 1% graduation and implement routing | **DONE (off-chain half).** `sdk/src/curve-math.ts`, `docs/MAOTANG_ARCHITECTURE.md`, `frontend/src/app/page.tsx`, `contracts/src/interfaces/*.sol`. **Still open:** the on-chain curve/graduation implementation and the vault the fees route into (P0-2, P0-4) | Constants agree across docs, SDK and UI. On-chain enforcement is not yet possible because no curve implementation exists |
 | P0-4 | Create `MaoTangSustenanceVault.sol` | **DONE.** `contracts/src/MaoTangSustenanceVault.sol`, `contracts/src/interfaces/IERC20.sol`, `contracts/test/MaoTangSustenanceVault.t.sol` | Implemented; **not compiled or executed** - see the verification gap in §4 |
 | P0-5 | Move node keys to hardware-backed storage and add a real attestation shim | `node/keystore.mjs`, `node/hardware-probes.mjs` | `attestationLevel: "hardware"` is achievable on a real device |
@@ -163,10 +165,13 @@ full reads of the three contracts, both policy/config JSON files, `sdk/src/curve
   while no `lib/` directory exists**, so even `forge-std` is unvendored. No Foundry suite
   (`MicroHuman.t.sol`, `MaoTangMining.t.sol`, `AIAgentRegistry.t.sol`,
   `MaoTangSustenanceVault.t.sol`) has ever been compiled or executed in this workspace.
-- `contracts/src/MaoTangSustenanceVault.sol` and `contracts/test/MaoTangSustenanceVault.t.sol` are
-  **uncompiled**. They were written against `solc 0.8.24` (per `foundry.toml`) using only constructs
-  shared with the existing contracts, and reviewed by hand, but no compiler has verified them.
-  Compile before trusting the C5 verdict.
+- `contracts/src/MaoTangSustenanceVault.sol`, `contracts/src/MaoTangBondingCurve.sol`,
+  `contracts/src/MaoTangFactory.sol`, `contracts/src/MemeToken.sol`,
+  `contracts/src/interfaces/IERC20.sol`, `contracts/src/interfaces/IMaoTangSustenanceVault.sol` and
+  the two new test files are **uncompiled**. They were written against `solc 0.8.24` (per
+  `foundry.toml`) using only constructs shared with the existing contracts, and reviewed by hand, but
+  no compiler has verified them. Compile before trusting the C5, C16 or C17 verdicts.
+- `sdk/src/abi.ts` was edited to mirror the renamed events but `tsc` could not be run either.
 - `npx tsc --noEmit` — `node` is not on `PATH` and no Node installation was found in the standard
   locations, so the `AGENTS.md` type gate was **not executed**.
 
@@ -180,16 +185,21 @@ authoritative (`docs/WHITEPAPER_v2.md`, §1–§5); the **fee model** is reconci
 graduation across SDK, UI, interface docs and now the vault constants; and the **vault** exists with
 its fee-intake, bounded routing, agent-gated payout, and the required events.
 
-What remains is the whole **value-extraction and identity stack**:
+The fee pipeline is now closed end to end on paper: the curve computes the 0.5% swap fee and the
+1.00% graduation fee, forwards both to the vault, and the vault routes them to human principals
+through an agent-gated payout. What remains is the **BTC layer and the identity layer**:
 
-- No curve, factory or graduation implementation, so the 0.5%/1.00% split still has no on-chain
-  producer (P0-2) — the vault can receive fees that nothing yet computes.
 - No real ZK verification: both "ZK" nullifiers are still `keccak256` placeholders (P0-1).
-- No BTC siphon, no allocation buckets, no burn path, no staking, no bandwidth relay, no off-ramp
-  (P1-2, P1-11, P1-12, P1-3, P1-4, P1-6).
+- No BTC leg: the curve is ETH-paired, so §3.1's `$mHUMAN`/BTC pair and volatility-harvesting
+  arbitrage do not exist (P1-2).
+- No allocation buckets, no burn path, no staking, no bandwidth relay, no off-ramp
+  (P1-11, P1-12, P1-3, P1-4, P1-6).
 
-Of the checks re-verifiable against the finalised spec, C1–C3, C6, C7, C12 and the new C5 pass;
-C4, C8–C10 and C11, C13–C15 fail.
+Of the checks re-verifiable against the finalised spec, C1–C3, C5–C7, C12 and the new C16–C17 pass;
+C4, C8–C10 and C13–C15 fail, and C11 is partial.
+
+None of the contract or SDK work in P0-2 and P0-4 has been compiled; that is now the largest single
+risk in the repository, larger than any remaining feature gap.
 
 Two things need an author decision, not code:
 
@@ -198,5 +208,7 @@ Two things need an author decision, not code:
 2. **The protocol/creator/vault split** — the vault currently routes 100% of each fee
    (`SUSTENANCE_VAULT_SHARE_BPS = 10_000n`), which is an assumption, not a ratified policy.
 
-Recommended immediate next step: **P0-2** (curve, factory and graduation), because the vault's fee
-intake and every §3.1 volatility-harvesting claim depend on a curve that does not exist yet.
+Recommended immediate next step: **compile and run `forge test`**, which requires vendoring
+`forge-std` into `contracts/lib/` first. Two commits' worth of Solidity and a TypeScript ABI change
+are currently unverified by any toolchain. Only after that does **P0-1** (real ZK verification) make
+sense as the next feature.

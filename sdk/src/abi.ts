@@ -32,12 +32,13 @@ export const maoTangCurveAbi = [
   "function calculatePrice() view returns (uint256 price)",
   "function token() view returns (address token)",
   "function target() view returns (uint256 target)",
-  "event TokensBought(address indexed buyer, uint256 reserveIn, uint256 tokensOut, uint256 newPrice)",
-  "event TokensSold(address indexed seller, uint256 tokensIn, uint256 reserveOut, uint256 newPrice)",
+  "event TokenPurchased(address indexed buyer, uint256 reserveIn, uint256 tokensOut, uint256 newPrice)",
+  "event TokenSold(address indexed seller, uint256 tokensIn, uint256 reserveOut, uint256 newPrice)",
+  "event FeeRouted(address indexed asset, uint256 amount, uint8 source)",
 ] as const;
 
 export const maoTangGraduateAbi = [
   "function graduateToMarket() returns (address market)",
   "function graduationProgressBps() view returns (uint256 progressBps)",
-  "event Graduated(address indexed curve, address indexed market, uint256 reserveMigrated, uint256 tokensMigrated)",
+  "event TokenGraduated(address indexed curve, address indexed market, uint256 reserveMigrated, uint256 tokensMigrated)",
 ] as const;

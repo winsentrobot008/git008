@@ -32,5 +32,7 @@ interface IMaoTangFactory {
     /// @param symbol Token symbol, for example `"MAOTANG"`.
     /// @return token Address of the deployed meme ERC-20.
     /// @return curve Address of the bonding curve that trades `token`.
-    function createMemeToken(string name, string symbol) external returns (address token, address curve);
+    function createMemeToken(string calldata name, string calldata symbol)
+        external
+        returns (address token, address curve);
 }

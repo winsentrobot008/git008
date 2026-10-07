@@ -15,7 +15,9 @@ interface IMaoTangGraduate {
     /// @param market Market that now holds the migrated liquidity.
     /// @param reserveMigrated Reserve (native ETH) moved into the market, net of the 1.00% graduation fee.
     /// @param tokensMigrated Meme tokens moved from the curve inventory into the market.
-    event Graduated(address indexed curve, address indexed market, uint256 reserveMigrated, uint256 tokensMigrated);
+    event TokenGraduated(
+        address indexed curve, address indexed market, uint256 reserveMigrated, uint256 tokensMigrated
+    );
 
     /// @notice Reverts while the curve is still below 100% of its raise target.
     /// @param progressBps Progress towards graduation, in basis points.

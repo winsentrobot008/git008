@@ -15,16 +15,16 @@ interface IMaoTangCurve {
     /// @notice Emitted when a trader buys tokens from the curve.
     /// @param buyer Account that paid the reserve.
     /// @param reserveIn Reserve amount credited to the curve, net of the 0.5% swap fee.
-    /// @param tokensOut Meme tokens minted to `buyer`.
+    /// @param tokensOut Meme tokens transferred to `buyer` out of the curve inventory.
     /// @param newPrice Spot price after the trade, in reserve wei per whole token.
-    event TokensBought(address indexed buyer, uint256 reserveIn, uint256 tokensOut, uint256 newPrice);
+    event TokenPurchased(address indexed buyer, uint256 reserveIn, uint256 tokensOut, uint256 newPrice);
 
     /// @notice Emitted when a trader sells tokens back into the curve.
     /// @param seller Account that returned the tokens.
     /// @param tokensIn Meme tokens burned from `seller`.
     /// @param reserveOut Reserve amount paid out to `seller`, net of the 0.5% swap fee.
     /// @param newPrice Spot price after the trade, in reserve wei per whole token.
-    event TokensSold(address indexed seller, uint256 tokensIn, uint256 reserveOut, uint256 newPrice);
+    event TokenSold(address indexed seller, uint256 tokensIn, uint256 reserveOut, uint256 newPrice);
 
     /// @notice Reverts when the curve has already graduated to a market.
     error CurveAlreadyGraduated();
@@ -46,7 +46,9 @@ interface IMaoTangCurve {
     function buyTokensOnCurve() external payable returns (uint256 tokensOut);
 
     /// @notice Sells meme tokens back into the curve.
-    /// @dev The curve must be approved to transfer the caller's meme tokens beforehand.
+    /// @dev The curve must be approved to transfer the caller's meme tokens beforehand. This entry
+    /// point has no amount parameter, so it sells exactly the allowance the caller granted the curve;
+    /// approve the amount you intend to sell.
     /// A 0.5% swap fee is deducted from the gross reserve owed before payout, and routed to
     /// `MaoTangSustenanceVault`.
     /// @return amountOut Amount of reserve (native ETH) returned to the caller.
