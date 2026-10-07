@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { GRADUATION_TARGET_WEI, graduationProgressBps } from "@maotang/sdk";
+import { GRADUATION_TARGET_WEI, TRADE_FEE_BPS, graduationProgressBps } from "@maotang/sdk";
 import { demoLaunches, type LaunchCard } from "@/lib/launches";
 
 const ETH = 10n ** 18n;
+
+/** Renders a basis-point constant as a percentage, so the UI cannot drift from the SDK. */
+function formatBps(bps: bigint): string {
+  return `${(Number(bps) / 100).toFixed(2)}%`;
+}
 
 function formatEth(wei: bigint): string {
   const whole = wei / ETH;
@@ -104,7 +109,7 @@ export default function HomePage() {
           </div>
           <div className="rounded-2xl border border-maotang-border bg-maotang-surface p-5">
             <dt className="text-xs text-white/40">Trade fee</dt>
-            <dd className="mt-1 font-mono text-xl">1.00%</dd>
+            <dd className="mt-1 font-mono text-xl">{formatBps(TRADE_FEE_BPS)}</dd>
           </div>
         </dl>
       </section>

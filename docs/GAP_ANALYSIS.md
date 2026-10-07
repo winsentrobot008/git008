@@ -11,7 +11,7 @@ than footnotes:
 
 | Task premise | Actual state | Resolution |
 | --- | --- | --- |
-| Spec at `docs/WHITEPAPER_v2.md` | **File does not exist.** `docs/` contains only `008_FACTORY_SOP.md`, `AI_FACTORY_SPEC.md`, `MAOTANG_ARCHITECTURE.md`. No `*WHITEPAPER*` file exists anywhere in the workspace. | Audited against the v2.2 text supplied in the task prompt, plus `docs/MAOTANG_ARCHITECTURE.md` (v0.1 scaffold) as the in-repo spec. |
+| Spec at `docs/WHITEPAPER_v2.md` | **File did not exist at audit time.** `docs/` contained only `008_FACTORY_SOP.md`, `AI_FACTORY_SPEC.md`, `MAOTANG_ARCHITECTURE.md`. | Audited against the v2.2 text supplied in the task prompt, plus `docs/MAOTANG_ARCHITECTURE.md` (v0.1 scaffold) as the in-repo spec. A reconstructed `docs/WHITEPAPER_v2.md` was added afterwards — see the provenance notice in that file; its Part II is explicitly non-authoritative and does not change any verdict below. |
 | Contracts in `blockchain/` | **Directory does not exist.** Contracts live in `contracts/`. | Used `contracts/` as the audit target. |
 | `blockchain/`: "0.5% swap / 1% graduation fee routing" | The supplied v2.2 text is **truncated mid-section 3**. Sections 4–8 (which would define fee routing, the 8.3B cap arithmetic and the BTC siphon) were never delivered. | Every check that depends on missing text is marked `UNVERIFIABLE — spec missing` rather than guessed. |
 
@@ -37,8 +37,8 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 | C3 | 8.3B global cap | `HumanToken.sol:38` `MAX_GLOBAL_SUPPLY = 8_300_000_000 * 1_000_000 * 10 ** 6`; enforced at `:88`; test asserts it at `contracts/test/MicroHuman.t.sol:15` | PASS |
 | C4 | ZK nullifier checks | `HumanToken.sol:82-84` `personhoodNullifier()` = `keccak256(zkProof)`; `:79-80` single-use `claimedPersonhood` map. Same pattern at `AIAgentRegistry.sol:117-119` `hardwareNullifier()` | **PARTIAL** — nullifier *bookkeeping* exists, the *proof* does not |
 | C5 | `MaoTangSustenanceVault.sol` | Not present. `contracts/src` contains exactly `HumanToken.sol`, `AIAgentRegistry.sol`, `MaoTangMining.sol` | **FAIL** |
-| C6 | 0.5% swap fee | `sdk/src/curve-math.ts:19` `TRADE_FEE_BPS = 100n` (1.00%); `docs/MAOTANG_ARCHITECTURE.md:98` states 1.00% | **FAIL** — contradicts spec by 2x |
-| C7 | 1% graduation fee | No graduation fee constant exists in any contract or SDK file | **FAIL** |
+| C6 | 0.5% swap fee | Was `TRADE_FEE_BPS = 100n` (1.00%). **Now `50n`** (`sdk/src/curve-math.ts`), mirrored in `docs/MAOTANG_ARCHITECTURE.md` and rendered from the SDK in `frontend/src/app/page.tsx` | **RESOLVED** |
+| C7 | 1% graduation fee | Was absent. **Now `GRADUATION_FEE_BPS = 100n`** with `graduationFee()`, documented on `IMaoTangGraduate.sol` | **RESOLVED** |
 | C8 | Fee *routing* (protocol/creator/staker split) | No fee router, splitter or treasury contract. `MAOTANG_ARCHITECTURE.md:98` admits "split policy still open" | **FAIL** |
 | C9 | Bandwidth relay (PoB) reward surface | `MaoTangMining.sol:28-32` defines only `PROOF_TYPE_BLE_PING` and `PROOF_TYPE_ZK_COMPUTE` | **FAIL** |
 | C10 | Staking / 0.5% swap-fee share to stakers | No staking contract | **FAIL** |
@@ -88,8 +88,8 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 
 | Constant | Repository | Whitepaper v2.2 | Action |
 | --- | --- | --- | --- |
-| Swap fee | `100` bps = 1.00% (`sdk/src/curve-math.ts:19`) | 0.5% | Reconcile |
-| Graduation fee | absent | 1% | Add |
+| Swap fee | Was `100` bps; now `50` bps = 0.50% (`sdk/src/curve-math.ts`) | 0.5% | Resolved |
+| Graduation fee | Was absent; now `GRADUATION_FEE_BPS = 100n` | 1% | Resolved |
 | Virtual token supply | `1,073,000,000` | not stated in delivered text | BLOCKED |
 
 **Outdated / legacy artifacts:** `docs/MAOTANG_ARCHITECTURE.md` (stale, describes a different
@@ -110,7 +110,7 @@ labelled but must not survive to mainnet.
 | --- | --- | --- | --- |
 | P0-1 | Implement real ZK verification for personhood and hardware attestation; replace both placeholder nullifier derivations | `HumanToken.sol:82`, `AIAgentRegistry.sol:117`, new `IVerifier.sol` | A forged proof cannot mint a quota; one human cannot claim twice across proofs |
 | P0-2 | Implement the bonding curve, factory and graduation contracts so `sdk/src/curve-math.ts` has an on-chain twin | new `MaoTangCurve.sol`, `MaoTangFactory.sol` | Off-chain quote matches on-chain execution within truncation tolerance |
-| P0-3 | Reconcile fee policy to 0.5% swap + 1% graduation and implement routing | `sdk/src/curve-math.ts:19`, `docs/MAOTANG_ARCHITECTURE.md:98`, new fee router | Constants agree across docs, SDK and contracts; split is enforced on-chain |
+| P0-3 | Reconcile fee policy to 0.5% swap + 1% graduation and implement routing | **DONE (off-chain half).** `sdk/src/curve-math.ts`, `docs/MAOTANG_ARCHITECTURE.md`, `frontend/src/app/page.tsx`, `contracts/src/interfaces/*.sol`. **Still open:** the on-chain curve/graduation implementation and the vault the fees route into (P0-2, P0-4) | Constants agree across docs, SDK and UI. On-chain enforcement is not yet possible because no curve implementation exists |
 | P0-4 | Create `MaoTangSustenanceVault.sol` | new contract | Vault semantics defined and tested against the sustenance flow |
 | P0-5 | Move node keys to hardware-backed storage and add a real attestation shim | `node/keystore.mjs`, `node/hardware-probes.mjs` | `attestationLevel: "hardware"` is achievable on a real device |
 
@@ -160,6 +160,7 @@ Of the 8.3B, 1M-per-person and 6-decimal checks the task asked for, all three pa
 ZK nullifier and `MaoTangSustenanceVault.sol` checks fail, and the BTC siphon check cannot be
 performed until the missing whitepaper sections are supplied.
 
-Recommended immediate next step: supply Whitepaper v2.2 sections 3–8, then execute P0-3 (fee
-reconciliation) first, because it is the only P0 item that requires no missing spec and it currently
-contradicts the whitepaper by a factor of two.
+Recommended immediate next step: supply the author's Whitepaper v2.2 sections 3–8. P0-3 (fee
+reconciliation) has since been executed off-chain — see the resolved rows in §1.1 and §2 — which
+leaves P0-1 (real ZK verification), P0-2 (curve implementation) and P0-4
+(`MaoTangSustenanceVault.sol`) as the open P0 items.

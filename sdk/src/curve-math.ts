@@ -1,4 +1,4 @@
-import type { BuyQuote, SellQuote } from "./types.js";
+import type { BuyQuote, FeeSplit, SellQuote } from "./types.js";
 
 /** Basis point denominator. */
 export const BPS_DENOMINATOR = 10_000n;
@@ -15,8 +15,29 @@ export const VIRTUAL_TOKEN_SUPPLY = 1_073_000_000n * ONE_ETHER;
 /** Reserve target, in wei, that graduates a curve at 100%. */
 export const GRADUATION_TARGET_WEI = 5n * ONE_ETHER;
 
-/** Swap fee charged by the curve on every trade, in basis points. */
-export const TRADE_FEE_BPS = 100n;
+/**
+ * Swap fee charged by the curve on every trade, in basis points.
+ *
+ * Whitepaper v2.2 specifies 0.5% (50 BPS). Raising this is a protocol-economic change and requires a
+ * superseding entry in `memory/ARCHITECTURE_DECISIONS.md`.
+ */
+export const TRADE_FEE_BPS = 50n;
+
+/**
+ * Fee charged when a curve graduates into an open market, in basis points.
+ *
+ * Whitepaper v2.2 specifies 1.00% (100 BPS), levied on the reserve migrated at graduation.
+ */
+export const GRADUATION_FEE_BPS = 100n;
+
+/**
+ * Share of every collected fee routed to `MaoTangSustenanceVault`, in basis points.
+ *
+ * Whitepaper v2.2 fixes the two fee *rates* but leaves the protocol/creator/vault split open, so the
+ * default is a single sink: 100% of each fee funds the sustenance vault. Lower this only alongside a
+ * ratified split policy and a superseding ADR.
+ */
+export const SUSTENANCE_VAULT_SHARE_BPS = 10_000n;
 
 /** Accounting inputs of a curve: reserve held and tokens sold so far. */
 export interface CurveAmounts {
@@ -33,8 +54,36 @@ function invariant(amounts: CurveAmounts): bigint {
   return (amounts.reserve + VIRTUAL_RESERVE_WEI) * (amounts.tokensSold + VIRTUAL_TOKEN_SUPPLY);
 }
 
-function feeOn(amount: bigint): bigint {
+/**
+ * Swap fee charged on `amount`, denominated in the same unit as the input.
+ * @param amount Gross reserve amount the fee is levied on.
+ */
+export function swapFee(amount: bigint): bigint {
   return (amount * TRADE_FEE_BPS) / BPS_DENOMINATOR;
+}
+
+/**
+ * Graduation fee charged on `amount` of reserve migrated into a market.
+ * @param amount Gross reserve amount the fee is levied on.
+ */
+export function graduationFee(amount: bigint): bigint {
+  return (amount * GRADUATION_FEE_BPS) / BPS_DENOMINATOR;
+}
+
+/**
+ * Routes a collected fee between the sustenance vault and the remaining recipients.
+ * @param fee Fee already collected, in reserve wei.
+ * @param vaultShareBps Share credited to the vault, in basis points. Defaults to the whole fee.
+ */
+export function routeFee(fee: bigint, vaultShareBps: bigint = SUSTENANCE_VAULT_SHARE_BPS): FeeSplit {
+  if (vaultShareBps < 0n || vaultShareBps > BPS_DENOMINATOR) {
+    throw new RangeError("vaultShareBps must fall within [0, BPS_DENOMINATOR]");
+  }
+  if (fee < 0n) {
+    throw new RangeError("fee cannot be negative");
+  }
+  const vault = (fee * vaultShareBps) / BPS_DENOMINATOR;
+  return { vault, remainder: fee - vault };
 }
 
 /** Spot price in reserve wei per one whole meme token. */
@@ -47,7 +96,7 @@ export function quoteBuy(amounts: CurveAmounts, reserveIn: bigint): BuyQuote {
   if (reserveIn <= 0n) {
     throw new RangeError("reserveIn must be positive");
   }
-  const fee = feeOn(reserveIn);
+  const fee = swapFee(reserveIn);
   const netReserveIn = reserveIn - fee;
   const nextReserveSide = amounts.reserve + netReserveIn + VIRTUAL_RESERVE_WEI;
   const nextTokenSide = invariant(amounts) / nextReserveSide;
@@ -71,7 +120,7 @@ export function quoteSell(amounts: CurveAmounts, tokensIn: bigint): SellQuote {
   if (grossReserveOut > amounts.reserve) {
     throw new RangeError("tokensIn exceeds the reserve held by the curve");
   }
-  const fee = feeOn(grossReserveOut);
+  const fee = swapFee(grossReserveOut);
   const reserveOut = grossReserveOut - fee;
   return {
     tokensIn,

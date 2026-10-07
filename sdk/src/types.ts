@@ -43,6 +43,17 @@ export interface SellQuote {
   priceAfter: bigint;
 }
 
+/**
+ * Result of routing a collected fee between the sustenance vault and the remaining recipients.
+ * See `routeFee` in `curve-math.ts`.
+ */
+export interface FeeSplit {
+  /** Portion credited to `MaoTangSustenanceVault`. */
+  vault: bigint;
+  /** Portion left for the protocol and creator recipients. */
+  remainder: bigint;
+}
+
 /** A read-only contract call, encoded by the transport. */
 export interface ContractReadRequest {
   address: Address;

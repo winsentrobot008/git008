@@ -95,7 +95,8 @@ frontend can quote before submitting a transaction.
 | `VIRTUAL_RESERVE_WEI` | 30 ETH | Sets the starting price floor. |
 | `VIRTUAL_TOKEN_SUPPLY` | 1,073,000,000 tokens | Virtual inventory. |
 | `GRADUATION_TARGET_WEI` | 5 ETH | Real reserve that triggers graduation. |
-| `TRADE_FEE_BPS` | 100 (1.00%) | Split between protocol and creator treasury — split policy still open. |
+| `TRADE_FEE_BPS` | 50 (0.50%) | Swap fee, per Whitepaper v2.2. Split policy still open; defaults to the sustenance vault. |
+| `GRADUATION_FEE_BPS` | 100 (1.00%) | Charged on reserve migrated at graduation, per Whitepaper v2.2. |
 
 ## 5. Lifecycle
 
