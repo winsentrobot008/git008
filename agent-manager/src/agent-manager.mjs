@@ -23,6 +23,7 @@ import { EgressBlockedError, createEgressPolicy, installEgressGuard } from "./ne
 import { BackgroundMiner, JsonRpcMiningTransport, NULL_SIGNER, DEFAULT_DUTY_CYCLE } from "./mining/index.mjs";
 import { JsonRpcClient } from "./rpc-client.mjs";
 import { P2PMesh } from "./network/index.mjs";
+import { createSystemDepinSource } from "./services/index.mjs";
 import {
   MobileNodeAttestation,
   NpuInferenceDelegator,
@@ -364,14 +365,17 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
         chainId: mesh.chainId,
         signer: NULL_SIGNER,
       });
+      const depin = await createSystemDepinSource({ env, logger: { info: log, warn, error: warn } });
       const miner = new BackgroundMiner({
         identity: profile.identity,
         transport,
+        bleSource: depin,
+        contextSource: depin,
         dutyCycle: { periodic: false, autoClaim: DEFAULT_DUTY_CYCLE.autoClaim },
         logger: { info: log, warn, error: warn },
       });
       const cycle = await miner.start();
-      process.stdout.write(`${JSON.stringify({ mining: miner.status(), cycle }, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify({ mining: miner.status(), depin: depin.status(), cycle }, null, 2)}\n`);
       return 0;
     }
 

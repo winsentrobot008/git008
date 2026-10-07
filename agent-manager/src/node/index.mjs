@@ -1,4 +1,5 @@
 export * from "./attestation.mjs";
+export * from "./hardware-key.mjs";
 export * from "./hardware-probes.mjs";
 export * from "./identity.mjs";
 export * from "./keystore.mjs";

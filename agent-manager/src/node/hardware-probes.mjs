@@ -79,7 +79,8 @@ export function collectHardwareClaims(options = {}) {
 
   if (options.probes !== undefined) {
     for (const entry of options.probes.entries ?? []) {
-      entries.push(entry);
+      // Injected entries may be `[source, value]` tuples or `{ source, value }` records.
+      entries.push(Array.isArray(entry) ? entry : [entry?.source, entry?.value]);
     }
     provider = options.probes.provider ?? provider;
     attestationLevel = options.probes.attestationLevel ?? attestationLevel;
@@ -146,7 +147,11 @@ export function collectHardwareClaims(options = {}) {
     }
   }
 
-  entries.push(["host", os.hostname()], ["arch", arch]);
+  // Injected probes are a complete, deterministic fingerprint: adding host/arch would make a
+  // "deterministic" test input vary by machine.
+  if (options.probes === undefined) {
+    entries.push(["host", os.hostname()], ["arch", arch]);
+  }
 
   const claims = [];
   const seen = new Set();

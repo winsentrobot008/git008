@@ -33,6 +33,34 @@ const PROVIDER_ACCELERATOR = Object.freeze({
 
 const ACCELERATOR_RANK = { [ACCELERATORS.NPU]: 2, [ACCELERATORS.GPU]: 1, [ACCELERATORS.CPU]: 0 };
 
+/**
+ * Within one accelerator class, prefer the vendor-specific provider over a generic fallback: a QNN
+ * or NNAPI session really runs on the phone's NPU, while XNNPACK is a CPU kernel library that
+ * merely reports as NPU-capable. Without this tiebreak the plan would depend on probe order.
+ */
+const PROVIDER_PRIORITY = Object.freeze([
+  "qnn",
+  "nnapi",
+  "coreml",
+  "cann",
+  "vitis",
+  "openvino",
+  "xnnpack",
+  "tensorrt",
+  "cuda",
+  "dml",
+  "rocm",
+  "migraphx",
+  "webgpu",
+  "cpu",
+]);
+
+function providerRank(provider) {
+  const key = String(provider).toLowerCase().replace(/executionprovider$/, "");
+  const index = PROVIDER_PRIORITY.indexOf(key);
+  return index === -1 ? PROVIDER_PRIORITY.length : index;
+}
+
 /** Maps an ONNX Runtime execution provider name to an accelerator class. */
 export function classifyProvider(provider) {
   const key = String(provider).toLowerCase().replace(/executionprovider$/, "");
@@ -147,7 +175,9 @@ export class NpuInferenceDelegator {
       .map((provider, index) => ({ provider, index }))
       .sort((a, b) => {
         const byClass = ACCELERATOR_RANK[classifyProvider(b.provider)] - ACCELERATOR_RANK[classifyProvider(a.provider)];
-        return byClass !== 0 ? byClass : a.index - b.index;
+        if (byClass !== 0) return byClass;
+        const byRank = providerRank(a.provider) - providerRank(b.provider);
+        return byRank !== 0 ? byRank : a.index - b.index;
       })
       .map((entry) => entry.provider);
 

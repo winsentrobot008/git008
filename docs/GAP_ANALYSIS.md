@@ -57,11 +57,11 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 
 | # | Whitepaper requirement | Evidence | Verdict |
 | --- | --- | --- | --- |
-| A1 | Keyless hardware signing | `agent-manager/src/node/keystore.mjs:57` creates a **software** key and logs "prefer the OS secure store in production"; `hardware-probes.mjs:8-10` states a native TEE/SE shim does not exist and reports `attestationLevel: "software"` | **FAIL** (honest placeholder) |
-| A2 | Secure Enclave / Keystore backed identity | `hardware-probes.mjs:69-145` probes Android/Apple/TPM but explicitly notes no DeviceCheck, App Attest or KeyStore binding is reachable from Node | **FAIL** |
-| A3 | BLE physical scanning | `mining/background-miner.mjs:71,86,130` consumes an *injected* `bleSource` adapter. No concrete BLE radio implementation exists in the repo | **PARTIAL** — interface seam only |
-| A4 | 5G / cellular scanning | Zero matches for `5g`, `cellular`, `gnss`, `gps` across `agent-manager/src`, `agent-client/src`, `contracts/src`, `sdk/src` | **FAIL** |
-| A5 | UWB scanning | Zero matches for `uwb` | **FAIL** |
+| A1 | Keyless hardware signing | `node/hardware-key.mjs` defines the `seal`/`unseal` provider contract (Android Keystore / Secure Enclave / TPM 2.0 / YubiKey PIV / WebAuthn `hmac-secret`) bridged by the `MAOTANG_HW_KEY_HELPER` helper; `node/keystore.mjs` writes a v2 `sealedSeed` record and **fails closed** (never regenerates) when the hardware root is missing. Plaintext remains only as an explicit, warned fallback | **PARTIAL** (P1-1) - sealing/binding real and tested; the OS TEE/SE session is still an operator-supplied shim |
+| A2 | Secure Enclave / Keystore backed identity | `hardware-probes.mjs:69-145` probes Android/Apple/TPM and still notes that no DeviceCheck, App Attest or KeyStore binding is reachable from Node; P1-1 adds the *key-sealing* half (`hardware-key.mjs`) but not the platform attestation shim | **PARTIAL** (P1-1) |
+| A3 | BLE physical scanning | `services/ble-scanner.mjs`: GAP advertising-data (AD-structure) parsing, one-way node hashing, passive/active modes, `noble` event adapter plus a system-helper backend; wired into `--mine` as `bleSource` | **PASS (in-repo adapter)** - the radio itself is bridged by a helper |
+| A4 | 5G / cellular scanning | `services/cellular-collector.mjs`: MCC / MNC / LAC-or-TAC / CellID (plus `ci`/`eci`/`nci` aliases), NR-ARFCN/RSRP/RSRQ/SINR, range-checked and banded; GNSS fixes with range checks and an inferred fix type | **PASS (in-repo adapter)** |
+| A5 | UWB scanning | `services/uwb-ranger.mjs`: fixed 48-byte FiRa / 802.15.4z ranging report (signed azimuth/elevation, 64-bit device clock), proximity bands, order-independent set commitment | **PASS (in-repo adapter)** |
 | A6 | NPU compute proof generation | `node/npu-delegator.mjs:14-143` performs real accelerator selection (NPU/GPU/CPU) against ONNX providers; `MaoTangMining.sol:34` accepts `PROOF_TYPE_ZK_COMPUTE` | **PARTIAL** — accelerator choice is real, but `proofDigest` is only a digest field: no prover, no ZK proof is generated |
 | A7 | Automated BTC/USDT yield conversion | No `btc`, `usdt`, `stablecoin` or `siphon` reference in `agent-manager/`. `config/policy.json` sets `network.mode: "fail-closed"` with the note "The only permitted HTTP egress is JSON-RPC POST to the configured blockchain node" | **FAIL** — and actively blocked by the network policy |
 | A8 | Local SLM agent + tool calling | `agent-client/src/slm/*` (llama.cpp, ONNX, simulated backends), `intents/*` parser + schema validation | PASS |
@@ -134,7 +134,7 @@ labelled but must not survive to mainnet.
 | P0-2 | Implement the bonding curve, factory and graduation contracts so `sdk/src/curve-math.ts` has an on-chain twin | **DONE.** `contracts/src/MaoTangBondingCurve.sol`, `MaoTangFactory.sol`, `MemeToken.sol`, interface updates, `contracts/test/MaoTangBondingCurve.t.sol`, `sdk/src/abi.ts` | Implemented with the same constants and truncation order as the SDK. **Compiled and unit-tested** - 13/13 pass (§4) |
 | P0-3 | Reconcile fee policy to 0.5% swap + 1% graduation and implement routing | **DONE (off-chain half).** `sdk/src/curve-math.ts`, `docs/MAOTANG_ARCHITECTURE.md`, `frontend/src/app/page.tsx`, `contracts/src/interfaces/*.sol`. **Still open:** the on-chain curve/graduation implementation and the vault the fees route into (P0-2, P0-4) | Constants agree across docs, SDK and UI. On-chain enforcement is not yet possible because no curve implementation exists |
 | P0-4 | Create `MaoTangSustenanceVault.sol` | **DONE.** `contracts/src/MaoTangSustenanceVault.sol`, `contracts/src/interfaces/IERC20.sol`, `contracts/test/MaoTangSustenanceVault.t.sol` | Implemented; **compiled and unit-tested** - 13/13 pass (§4) |
-| P0-5 | Move node keys to hardware-backed storage and add a real attestation shim | `node/keystore.mjs`, `node/hardware-probes.mjs` | `attestationLevel: "hardware"` is achievable on a real device |
+| P0-5 | Move node keys to hardware-backed storage and add a real attestation shim | **DONE for the key half (P1-1).** `node/hardware-key.mjs`, `node/keystore.mjs`, `test/hardware-keystore.test.mjs` (7 checks: seal/unseal, v1 to v2 migration, fail-closed). **Still open:** the device-side TEE/SE session is an operator-supplied native helper, not shipped in-repo | `attestationLevel: "hardware"` is achievable on a real device |
 
 ### P1 — required for full protocol coverage
 
@@ -144,7 +144,7 @@ labelled but must not survive to mainnet.
 | P1-2 | BTC siphon + floating pair module (§3.1/§3.2) | Unblocked: spec now specifies a `$mHUMAN`/BTC dynamic bonding curve and volatility-harvesting arbitrage. Depends on P0-2 |
 | P1-3 | Staking and 0.5% swap-fee share to stakers | Whitepaper §2.4 |
 | P1-4 | Bandwidth relay: new proof type + relay accounting | Contract and `mining/constants.mjs` must stay in sync (the existing e2e test asserts this) |
-| P1-5 | Concrete BLE / UWB / 5G adapters | Native shims; today only the `bleSource` seam exists |
+| P1-5 | Concrete BLE / UWB / 5G adapters | **DONE (P1-1).** `services/{ble-scanner,cellular-collector,uwb-ranger,depin-source}.mjs`, wired into `agent-manager --mine` as `bleSource` + `contextSource`; the radio is bridged through a JSON/JSONL system helper |
 | P1-6 | Off-ramp protocol (§5.2): auto-convert to USDT/USDC, settle to a bound crypto card | Requires relaxing `config/policy.json` fail-closed JSON-RPC-only egress — a deliberate security decision, not a bug fix |
 | P1-7 | On-device ZK prover for compute proofs | `proofDigest` is currently an unproven digest |
 | P1-8 | Rewrite or archive `docs/MAOTANG_ARCHITECTURE.md` for v2.2 semantics | Removes the "meme-first DEX" contradiction |
@@ -338,6 +338,48 @@ installed it fails closed, and the owner must install the ceremony output and th
 anti-forgery guarantee is only as strong as the key a deployer chooses, so key installation must be treated
 as a one-shot ceremony. Proofs used by the tests are genuine circom 2.2.3 / snarkjs artifacts generated for a
 throwaway local setup (2^8 ptau); they prove the encoding and the pairing check, not the production circuit.
+### 4.7 P1-1 verification run - DePIN physical edge + hardware keying (2026-10-07)
+
+P1-1 implemented the physical DePIN edge (`agent-manager/src/services/`: BLE scanner, 5G/GNSS
+collector, UWB ranger, fused context source), hardware-backed key sealing (`node/hardware-key.mjs`
+plus `node/keystore.mjs`), and the telemetry -> `submitMiningProof` wiring (`sdk/src/agent-client.ts`,
+`mining/telemetry.mjs`, `mining/background-miner.mjs`, `agent-manager.mjs --mine`).
+
+| Command (cwd) | Observed | Exit |
+| --- | --- | --- |
+| `npx tsc --noEmit` (`sdk/`) | no diagnostics | 0 |
+| `npx tsc --noEmit` (`frontend/`) | no diagnostics | 0 |
+| `node --test dist/test-build/test/*.test.js` (`sdk/`) | **14 passed / 0 failed** (7 pre-existing + 7 new `mining-proof`) | 0 |
+| `node --test test/*.test.mjs` (`agent-manager/`) | **46 passed / 0 failed** across 5 suites | 0 |
+
+Per-suite split for `agent-manager`: `mining-e2e` 14, `node-simulation` 12, `offline-first` 7,
+`depin-telemetry` 13 (new), `hardware-keystore` 7 (new). `forge build` / `forge test` were **not**
+re-run: P1-1 touches no Solidity file (the six-word `proofData` layout and `MaoTangMining.sol` are
+unchanged, and its `telemetryDigest` word now carries the physical-context hash). `agent-client/`
+was not type-checked: that package has no installed `node_modules` on this host, and its pre-existing
+`local-agent.ts` duplicate-identifier / `slm/onnx.ts` errors are untouched by P1-1.
+
+Defects found by running the suite, and their repairs:
+
+- **Attestation could not consume the documented probe injection.** `collectHardwareClaims` iterated
+  injected `entries` as `[source, value]` tuples while the tests (and its own doc comment) pass
+  `{ source, value }` records, and it appended machine-specific `host`/`arch` claims even for an
+  injected probe set. Both made the "deterministic" injected fingerprint machine-dependent; the
+  producer now accepts either shape and adds `host`/`arch` only for a real probe.
+- **NPU provider order depended on probe order.** `planFor` ranked only by accelerator class, so
+  `[CPU, XNNPACK, QNN]` planned XNNPACK (a CPU kernel library that merely self-reports as
+  NPU-capable) ahead of QNN (a real NPU provider). A vendor-priority tiebreak now makes the plan
+  deterministic: QNN > NNAPI > CoreML > ... > XNNPACK > CPU.
+- **Case-sensitive reason assertion.** `node-simulation.test.mjs` matched `/fingerprint/` against
+  the message that names the `hardwareFingerprint` field; the harness regex is now `/fingerprint/i`.
+
+**Design honesty, stated plainly.** No radio is simulated: every scanner reports `available: false`
+(or throws a typed `*UnavailableError`) with a reason when its backend is absent, and the fused
+context lists each absent stream in `unavailable`. The physical context (cell-set hash, GNSS digest,
+UWB range set) is folded into the *signed* BLE telemetry digest, so the on-chain scorer sees a
+non-zero digest that commits to all four radios instead of a mocked zero. The device-side
+TEE/SE/YubiKey session itself remains an operator-supplied helper (`MAOTANG_HW_KEY_HELPER`): the repo
+ships the seal/unseal contract, the fail-closed sealed record and their tests, not a native shim.
 ## 5. Bottom Line
 
 Three of the four original blockers are now cleared. The **specification** is complete and

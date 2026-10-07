@@ -1,4 +1,4 @@
-import { aiAgentRegistryAbi, humanTokenAbi, maoTangCurveAbi } from "./abi.js";
+import { aiAgentRegistryAbi, humanTokenAbi, maoTangCurveAbi, maoTangMiningAbi } from "./abi.js";
 import type { Address, ContractTransport, Hex } from "./types.js";
 
 /** Domain prefix mixed into every A2A challenge. */
@@ -47,6 +47,20 @@ export class CurveNotConfiguredError extends AgentError {
   }
 }
 
+export class MiningNotConfiguredError extends AgentError {
+  constructor() {
+    super("mining proofs need the MaoTangMining address; pass `mining` in the client config");
+    this.name = "MiningNotConfiguredError";
+  }
+}
+
+export class MiningProofError extends AgentError {
+  constructor(message: string) {
+    super(message);
+    this.name = "MiningProofError";
+  }
+}
+
 export class UnsupportedIntentError extends AgentError {
   constructor(readonly intent: string) {
     super(`unsupported intent "${intent}"; try "claim my human quota", "buy 0.5 ETH of mHUMAN" or "swap 1000 mHUMAN for ETH"`);
@@ -61,6 +75,8 @@ export interface AgentClientConfig {
   token: Address;
   /** Bonding curve used by curve intents. */
   curve?: Address;
+  /** Deployed `MaoTangMining`; required to plan or submit DePIN mining proofs. */
+  mining?: Address;
   /** Public key the agent was registered with on chain. */
   agentPubKey: Hex;
   transport: ContractTransport;
@@ -141,6 +157,118 @@ export function parseUnits(value: string, decimals: number): bigint {
   return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(padded === "" ? "0" : padded);
 }
 
+/** The two proof kinds `MaoTangMining.sol` scores. */
+export type MiningProofKind = "blePing" | "zkCompute";
+
+/**
+ * Domain-separated `bytes32` proof-type tags. Byte-identical to `MaoTangMining.sol` and to
+ * `agent-manager/src/mining/constants.mjs`, so the SDK cannot drift from the on-chain scorer.
+ */
+export const MINING_PROOF_TYPES = {
+  blePing: "0x6d616f74616e672e6d696e696e672e626c652d70696e672e7631000000000000",
+  zkCompute: "0x6d616f74616e672e6d696e696e672e7a6b2d636f6d707574652e763100000000",
+} as const satisfies Record<MiningProofKind, Hex>;
+
+/**
+ * The physical-proximity half of a mining proof: a window of nearby BLE pings.
+ *
+ * The hashes (and the BLE/cell/GNSS telemetry that produced them) are derived on-device by the
+ * agent-manager; the SDK only encodes them, which is why it stays dependency-free and never has to
+ * see a raw radio identifier.
+ */
+export interface BlePingTelemetry {
+  /** Accepted in-band pings in the window, 1..64. */
+  pingCount: number;
+  /** Strongest RSSI in the window, in dBm (negative). */
+  strongestRssi: number;
+  /** First observation, Unix seconds. */
+  windowStart: number;
+  /** Newest observation, Unix seconds; must be fresh on chain. */
+  windowEnd: number;
+  /** Order-independent commitment over the beacon set. */
+  beaconSetHash: Hex;
+  /** Signed digest over the batch and its physical context. */
+  telemetryDigest: Hex;
+}
+
+/** The offloaded-compute half of a mining proof: a window of completed NPU/GPU tasks. */
+export interface ComputeTelemetry {
+  taskCount: number;
+  computeUnits: bigint | number;
+  windowStart: number;
+  windowEnd: number;
+  taskSetHash: Hex;
+  proofDigest: Hex;
+}
+
+export type MiningTelemetry =
+  | { kind: "blePing"; telemetry: BlePingTelemetry }
+  | { kind: "zkCompute"; telemetry: ComputeTelemetry };
+
+const PROOF_DATA_BYTES = 6 * 32;
+const WORD_HEX = 64;
+
+function toUintWord(value: bigint | number, label: string): string {
+  const n = typeof value === "bigint" ? value : BigInt(Math.trunc(value));
+  if (n < 0n) throw new MiningProofError(`${label} must not be negative`);
+  return n.toString(16).padStart(WORD_HEX, "0");
+}
+
+function toIntWord(value: bigint | number, label: string): string {
+  const n = typeof value === "bigint" ? value : BigInt(Math.trunc(value));
+  if (n < -(1n << 255n) || n > (1n << 255n) - 1n) throw new MiningProofError(`${label} is out of int256 range`);
+  return (n < 0n ? (1n << 256n) + n : n).toString(16).padStart(WORD_HEX, "0");
+}
+
+function toBytes32Word(value: Hex, label: string): string {
+  const hex = String(value).replace(/^0x/i, "").toLowerCase();
+  if (hex.length !== WORD_HEX || !/^[0-9a-f]+$/.test(hex)) {
+    throw new MiningProofError(`${label} must be a 32-byte hex value`);
+  }
+  return hex;
+}
+
+/**
+ * Encodes a telemetry batch into the fixed six-word (192-byte) payload `MaoTangMining` abi.decode()s:
+ * `[pingCount|taskCount, strongestRssi|computeUnits, windowStart, windowEnd, setHash, digest]`.
+ */
+export function encodeMiningProof(proof: MiningTelemetry): Hex {
+  const words =
+    proof.kind === "blePing"
+      ? [
+          toUintWord(proof.telemetry.pingCount, "pingCount"),
+          toIntWord(proof.telemetry.strongestRssi, "strongestRssi"),
+          toUintWord(proof.telemetry.windowStart, "windowStart"),
+          toUintWord(proof.telemetry.windowEnd, "windowEnd"),
+          toBytes32Word(proof.telemetry.beaconSetHash, "beaconSetHash"),
+          toBytes32Word(proof.telemetry.telemetryDigest, "telemetryDigest"),
+        ]
+      : [
+          toUintWord(proof.telemetry.taskCount, "taskCount"),
+          toUintWord(proof.telemetry.computeUnits, "computeUnits"),
+          toUintWord(proof.telemetry.windowStart, "windowStart"),
+          toUintWord(proof.telemetry.windowEnd, "windowEnd"),
+          toBytes32Word(proof.telemetry.taskSetHash, "taskSetHash"),
+          toBytes32Word(proof.telemetry.proofDigest, "proofDigest"),
+        ];
+  const payload = `0x${words.join("")}`;
+  if ((payload.length - 2) / 2 !== PROOF_DATA_BYTES) {
+    throw new MiningProofError(`mining payload must be ${PROOF_DATA_BYTES} bytes`);
+  }
+  return payload as Hex;
+}
+
+/** Decodes a six-word payload back to its unsigned words. Used to verify, never to trust, input. */
+export function decodeMiningProof(proofData: Hex): readonly bigint[] {
+  const hex = String(proofData).replace(/^0x/i, "");
+  if (hex.length !== PROOF_DATA_BYTES * 2) {
+    throw new MiningProofError(`mining payload must be ${PROOF_DATA_BYTES} bytes`);
+  }
+  return Array.from({ length: 6 }, (_unused, index) =>
+    BigInt(`0x${hex.slice(index * WORD_HEX, index * WORD_HEX + WORD_HEX)}`),
+  );
+}
+
 /** Translates a natural-language trading intent into a protocol action. */
 export function parseIntent(intent: string): ParsedIntent {
   const text = intent.toLowerCase();
@@ -182,6 +310,7 @@ export class AgentClient {
   readonly registry: Address;
   readonly token: Address;
   readonly curve: Address | undefined;
+  readonly mining: Address | undefined;
   readonly agentPubKey: Hex;
 
   private readonly config: AgentClientConfig;
@@ -193,6 +322,7 @@ export class AgentClient {
     this.registry = config.registry;
     this.token = config.token;
     this.curve = config.curve;
+    this.mining = config.mining;
     this.agentPubKey = config.agentPubKey;
     this.session = undefined;
   }
@@ -325,6 +455,32 @@ export class AgentClient {
 
     const hash = await this.transport.write(call);
     return { intent, kind: parsed.kind, call, hash, balance: null };
+  }
+
+  /**
+   * Builds `MaoTangMining.submitMiningProof(bytes32,bytes)` from an on-device telemetry batch.
+   *
+   * This is the seam that turns a physical scan (BLE pings + 5G cell set + GNSS fix + UWB ranges,
+   * summarised into the two hashes) into a transaction without the SDK seeing raw radio data.
+   */
+  planMiningProof(proof: MiningTelemetry): PlannedCall {
+    if (this.mining === undefined) {
+      throw new MiningNotConfiguredError();
+    }
+    return {
+      address: this.mining,
+      abi: maoTangMiningAbi,
+      functionName: "submitMiningProof",
+      args: [MINING_PROOF_TYPES[proof.kind], encodeMiningProof(proof)],
+    };
+  }
+
+  /** Plans and submits a mining proof; an A2A session is established first when none exists. */
+  async submitMiningProof(proof: MiningTelemetry): Promise<Hex> {
+    if (this.session === undefined) {
+      await this.agentLogin();
+    }
+    return this.transport.write(this.planMiningProof(proof));
   }
 
   private async planCall(intent: string, parsed: ParsedIntent): Promise<PlannedCall> {

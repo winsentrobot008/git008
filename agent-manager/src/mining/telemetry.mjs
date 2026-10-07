@@ -90,12 +90,20 @@ function setCommitment(ids) {
   return `0x${sha256Hex([...new Set(ids)].sort().join("|"))}`;
 }
 
+/** The physical context is committed as a bytes32; anything else must not reach the encoder. */
+export function assertPhysicalContextHash(value) {
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value)) {
+    throw new TelemetryError("bad-physical-context", "physicalContextHash must be a 32-byte hex value");
+  }
+  return value.toLowerCase();
+}
+
 /**
  * Filters raw BLE observations against the contract's proximity rules and builds a BLE proof batch.
  * Out-of-band, stale and duplicate observations are dropped and reported, never silently trusted.
  */
 export function batchBleObservations(observations, options = {}) {
-  const { identity, now = Math.floor(Date.now() / 1000), maxPings = MAX_BLE_PINGS_PER_PROOF } = options;
+  const { identity, now = Math.floor(Date.now() / 1000), maxPings = MAX_BLE_PINGS_PER_PROOF, context } = options;
   const cutoff = now - Math.floor(MAX_PROOF_AGE_MS / 1000);
   const accepted = [];
   const rejections = { outOfBand: 0, stale: 0, malformed: 0 };
@@ -142,6 +150,13 @@ export function batchBleObservations(observations, options = {}) {
     strongestRssi: Math.max(...pings.map((observation) => observation.rssi)),
     observations: pings.map((observation) => ({ ...observation })),
   };
+  // The physical context (5G cell set / GNSS fix / UWB ranges) is committed *inside* the signed
+  // digest, so one BLE_PING proof attests all four radios. With no context the body - and therefore
+  // the digest - stays byte-identical to the original payload.
+  if (context !== undefined && context !== null) {
+    body.physicalContextHash = assertPhysicalContextHash(context.physicalContextHash);
+    body.physicalContext = context.physicalContext ?? null;
+  }
   const signature = identity === undefined ? null : signObject(identity, BLE_TELEMETRY_DOMAIN, body);
   const telemetryDigest = `0x${sha256Hex(`${canonicalize(body)}\n${signature ?? ""}`)}`;
 

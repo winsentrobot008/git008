@@ -102,7 +102,7 @@ test("MobileNodeAttestation binds the node key to a device fingerprint without l
 
   const extraClaim = { ...document, claims: [...document.claims, { source: "injected", digest: "0".repeat(64) }] };
   assert.equal(verifyAttestation(extraClaim).valid, false);
-  assert.match(verifyAttestation(extraClaim).reasons.join(" "), /fingerprint/);
+  assert.match(verifyAttestation(extraClaim).reasons.join(" "), /fingerprint/i);
 
   const resigned = { ...document, provider: "software" };
   assert.equal(verifyAttestation(resigned).valid, false);

@@ -37,6 +37,16 @@ export const maoTangCurveAbi = [
   "event FeeRouted(address indexed asset, uint256 amount, uint8 source)",
 ] as const;
 
+/** `MaoTangMining`: the DePIN proof submission + reward vault surface. */
+export const maoTangMiningAbi = [
+  "function submitMiningProof(bytes32 proofType, bytes proofData)",
+  "function claimMiningRewards() returns (uint256 claimed)",
+  "function fundRewardVault(uint256 amount)",
+  "function rewardVaultBalance() view returns (uint256 balance)",
+  "event MiningProofAccepted(address indexed agent, bytes32 indexed proofType, uint256 units, uint256 reward)",
+  "event MiningRewardsClaimed(address indexed agent, uint256 amount)",
+] as const;
+
 export const maoTangGraduateAbi = [
   "function graduateToMarket() returns (address market)",
   "function graduationProgressBps() view returns (uint256 progressBps)",

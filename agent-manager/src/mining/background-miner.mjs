@@ -1,8 +1,10 @@
 /**
  * BackgroundMiner: the ultra-low-power DePIN worker.
  *
- * It wakes on a slow duty cycle, drains two local evidence sources (BLE proximity scans and
- * completed NPU inference tasks), compresses whatever it found into at most two proofs per cycle,
+ * It wakes on a slow duty cycle, drains its local evidence sources (BLE proximity scans, completed
+ * NPU inference tasks, and - when wired in - the physical context a BLE proof commits to: the 5G
+ * cell set, the GNSS fix and UWB ranges), compresses whatever it found into at most two proofs per
+ * cycle,
  * and hands those proofs to a transport that can only reach the blockchain node over JSON-RPC.
  *
  * Power discipline is explicit:
@@ -70,6 +72,7 @@ export class BackgroundMiner {
     transport,
     bleSource,
     computeSource,
+    contextSource,
     powerSource,
     dutyCycle = {},
     clock = () => Date.now(),
@@ -85,6 +88,7 @@ export class BackgroundMiner {
     this.transport = transport;
     this.bleSource = bleSource;
     this.computeSource = computeSource;
+    this.contextSource = contextSource;
     this.powerSource = powerSource;
     this.#dutyCycle = { ...DEFAULT_DUTY_CYCLE, ...dutyCycle };
     this.#clock = clock;
@@ -125,7 +129,15 @@ export class BackgroundMiner {
       errors: [],
       claimed: null,
       pendingMicro: "0",
+      physicalContext: null,
+      physicalContextHash: null,
     };
+
+    const physicalContext = await this.#collectContext({ since: now });
+    if (physicalContext !== null) {
+      report.physicalContext = physicalContext.summary;
+      report.physicalContextHash = physicalContext.digest;
+    }
 
     const observations = await this.#drain("ble", this.bleSource, "scan", { since: now });
     report.observations = observations.items.length;
@@ -146,6 +158,10 @@ export class BackgroundMiner {
         identity: this.identity,
         now,
         maxPings: this.#dutyCycle.maxBlePingsPerProof,
+        context:
+          physicalContext === null
+            ? undefined
+            : { physicalContextHash: physicalContext.digest, physicalContext: physicalContext.summary },
       });
       candidates.push({ proofType: PROOF_TYPE_BLE_PING, units: batch.pingCount, proofData: encodeBleBatch(batch), meta: batch });
     } catch (error) {
@@ -257,6 +273,29 @@ export class BackgroundMiner {
 
   toJSON() {
     return this.status();
+  }
+
+  /**
+   * Drains the physical-context source (5G cell set + GNSS fix + UWB ranges), if one is wired in.
+   * A missing or failed source yields `null`, so the BLE proof keeps its original digest; the
+   * failure is logged rather than silently swallowed, and nothing is fabricated.
+   */
+  async #collectContext(context) {
+    if (this.contextSource === undefined || this.contextSource === null) return null;
+    try {
+      const data =
+        typeof this.contextSource === "function"
+          ? await this.contextSource(context)
+          : await this.contextSource.collect(context);
+      if (data === null || data === undefined) return null;
+      if (typeof data.digest !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(data.digest)) {
+        throw new TypeError("physical context source must return { digest } with a 32-byte hex digest");
+      }
+      return data;
+    } catch (error) {
+      this.#logger.warn?.(`[mining] physical context source failed: ${error?.message ?? error}`);
+      return null;
+    }
   }
 
   async #drain(stream, source, method, context) {

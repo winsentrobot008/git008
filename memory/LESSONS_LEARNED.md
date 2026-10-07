@@ -2,6 +2,36 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-07 - A "deterministic" injected probe is only deterministic if the producer stops adding machine facts
+
+- **Observation:** `collectHardwareClaims` iterated an injected `probes.entries` list as
+  `[source, value]` tuples while its own tests and doc comment pass `{ source, value }` records, so
+  two attestation tests failed with `.for is not iterable`. Once that was fixed they still saw four
+  claims instead of two, because the function appended `host`/`arch` even for an injected probe set.
+  A third test in the same file then failed because it matched the case-sensitive `/fingerprint/`
+  against the reason `hardwareFingerprint does not match the claim set`.
+- **Lesson:** "Inject the inputs" is not enough for determinism - the producer must also stop
+  appending environment facts, and the injected shape must match exactly what the doc comment
+  promises. Fix the *producer* contract (accept both shapes; add host/arch only for a real probe)
+  rather than loosening each assertion, and keep a diagnostic regex case-insensitive when it matches
+  a camelCase field name.
+- **Application:** `agent-manager/src/node/hardware-probes.mjs` and
+  `agent-manager/test/node-simulation.test.mjs`; the suite went 43/46 -> 46/46.
+
+## 2026-10-07 - Ranking providers by class alone leaves the winner to probe order
+
+- **Observation:** `NpuInferenceDelegator.planFor` sorted ONNX execution providers only by
+  accelerator rank (NPU > GPU > CPU) and then by input index. Given `[CPU, XNNPACK, QNN]` it
+  planned `XNNPACKExecutionProvider` first, because XNNPACK self-reports as NPU-capable while
+  actually being a CPU kernel library; the suite expected QNN first.
+- **Observation (part 2):** The same class-only ranking made the plan depend on probe order, so the
+  same device could plan differently between runs.
+- **Lesson:** A classifier that maps providers into coarse classes is not a *preference order*.
+  Where a vendor-specific provider and a generic fallback share a class, add an explicit priority
+  list and use it as the tiebreak so the plan is deterministic regardless of probe order.
+- **Application:** `agent-manager/src/node/npu-delegator.mjs` (`PROVIDER_PRIORITY`); the
+  `NpuInferenceDelegator prefers NPU, then GPU, then CPU` test now passes.
+
 ## 2026-10-07 - A staticcall in an argument list *is* the next call, and a reverting precompile burns all forwarded gas
 
 - **Observation:** Two MAOTANG defects had the same shape. (1) `MaoTangMining.t.sol` passed

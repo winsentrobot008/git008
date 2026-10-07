@@ -2,6 +2,48 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-07 — ADR-011: MAOTANG DePIN edge (P1-1) — hardware-sealed node key, honest radio adapters, context inside the signed digest
+
+**Status:** Accepted (implemented; `agent-manager` 46/46, `sdk` 14/14, both TypeScript gates green)
+
+**Context:** The node identity seed sat in a plaintext file (v1 keystore) and the miner's BLE
+"evidence" came from an injected adapter with no concrete radio. Whitepaper §3 requires physical
+keying and proof-of-physicality; rows A1/A3/A4/A5 of `docs/GAP_ANALYSIS.md` tracked both as missing.
+
+**Decision:**
+
+- **Hardware key sealing is a contract, not a device driver.** `node/hardware-key.mjs` defines
+  `seal(seedHex)` / `unseal(sealedHex)` on a provider whose kind is one of
+  `android-tee-keystore | apple-secure-enclave | tpm2 | yubikey-piv | webauthn-hmac-secret |
+  os-secure-store`. `node/keystore.mjs` writes a **v2** record (`{ version: 2, sealedSeed,
+  protection }`); a v2 record whose provider is missing is a **hard error** (fail closed) because
+  regenerating would orphan the on-chain identity. A v1 plaintext record still loads and is
+  re-sealed in place once hardware appears. The native session is bridged by
+  `MAOTANG_HW_KEY_HELPER` (seed on stdin, JSON on stdout), never reimplemented.
+- **Radios are adapters over a bridged native helper.** `services/ble-scanner.mjs`,
+  `cellular-collector.mjs` and `uwb-ranger.mjs` parse real wire formats (GAP AD structures;
+  MCC/MNC/LAC-or-TAC/CellID; a 48-byte FiRa/802.15.4z ranging report) and report
+  `available: false` with a reason when their backend is absent. Nothing is fabricated and raw
+  identifiers are one-way hashed.
+- **The physical context rides inside the signed BLE digest.** `batchBleObservations` gains an
+  optional `context` whose `physicalContextHash` (cell set + GNSS + UWB, fused by
+  `depin-source.mjs`) is folded into the signed body, so the frozen six-word `proofData` layout and
+  `MaoTangMining.sol` stay untouched while the digest commits to all four radios. With no context
+  the digest is byte-identical to the original payload, keeping existing proofs and tests stable.
+- **The SDK grows a mining seam but stays dependency-free.** `sdk/src/agent-client.ts` gains
+  `MINING_PROOF_TYPES`, `encodeMiningProof` / `decodeMiningProof` and `planMiningProof` /
+  `submitMiningProof`; hashing stays on-device.
+
+**Consequences:** A stolen keystore file is useless without the hardware root, and a device that
+loses its secure element must be recovered deliberately rather than silently re-keyed. Verifiers can
+re-derive the physical context from the committed summary. The residual gap is explicit: the repo
+ships the seal/unseal contract and its tests, not a native TEE/SE/YubiKey shim, so
+`attestationLevel: "hardware"` still needs an operator-supplied helper.
+
+**References:** `agent-manager/src/node/hardware-key.mjs`, `agent-manager/src/node/keystore.mjs`,
+`agent-manager/src/services/depin-source.mjs`, `agent-manager/src/mining/telemetry.mjs`,
+`sdk/src/agent-client.ts`, `docs/GAP_ANALYSIS.md` §4.7.
+
 ## 2026-10-07 — ADR-009: MAOTANG — Groth16 nullifier verifier (P0-1): no hardcoded key, install-then-lock, fail-closed
 
 **Status:** Accepted (implemented; `forge test` 101/101, both TypeScript gates green)
