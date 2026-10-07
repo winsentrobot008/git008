@@ -380,6 +380,52 @@ UWB range set) is folded into the *signed* BLE telemetry digest, so the on-chain
 non-zero digest that commits to all four radios instead of a mocked zero. The device-side
 TEE/SE/YubiKey session itself remains an operator-supplied helper (`MAOTANG_HW_KEY_HELPER`): the repo
 ships the seal/unseal contract, the fail-closed sealed record and their tests, not a native shim.
+### 4.8 P1-UI verification run - live vault revenue + graduation bar (2026-10-07)
+
+P1-UI wired the `MaoTangSustenanceVault` revenue panel and the bonding-curve graduation bar into
+`frontend/src/app/page.tsx`, backed by four new client modules: `lib/chain.ts` (read-only JSON-RPC
+`ContractTransport` that reuses `MaoTangClient.getCurveState`), `lib/protocol.ts` (pinned zero-argument
+selectors plus `graduationGap`), `lib/hooks.ts` (SSR-safe 8s polling hooks) and `lib/format.ts`.
+`sdk/src/abi.ts` gained `maoTangSustenanceVaultAbi`: the vault was the one contract of the fee pipeline
+with no ABI fragment in the SDK.
+
+| Command (cwd) | Observed | Exit |
+| --- | --- | --- |
+| `npx tsc --noEmit` (`frontend/`) | no diagnostics | 0 |
+| `npx tsc -p tsconfig.json` (`sdk/`) | no diagnostics, `dist/` rebuilt with the new ABI | 0 |
+| `npx next build` (`frontend/`, Turbopack) | **fails**: `Module not found: Can't resolve '@maotang/sdk'` - reproduced on the pristine tree before this change | 1 |
+| `npx next build --webpack` (`frontend/`) | compiled, **3/3 static pages** (`/`, `/_not-found`), TypeScript clean | 0 |
+
+Ad-hoc harnesses, run from a scratch directory outside the repo and **not committed** (the frontend has
+no test runner, so adding one was out of scope):
+
+| Check | Observed |
+| --- | --- |
+| Pinned selectors vs `cast sig` (`contracts/`) | all five match: `calculatePrice()` 0xd348b409, `target()` 0xd4b83992, `token()` 0xfc0c546a, `nativeFeesReceived()` 0xe59dac29, `availableNative()` 0xb841a3e8 |
+| Pure-module suite (`node --test`, 6 tests over transpiled `lib/{format,protocol,chain}.ts`) | **6 passed / 0 failed** - adaptive `formatEth`, fee percentages, `graduationGap` (partial/exact/overshoot/empty), selector table, `parseAddress` |
+| Live JSON-RPC round trip (`eth_chainId` / `eth_getBalance` / `eth_call` against `ethereum-rpc.publicnode.com`) | chainId 1; balance 5.753522030339432166 ETH; codeless `eth_call` returns `0x` and decodes to `0n` |
+| Prerendered `/` HTML (`.next/server/app/index.html`) | vault hero and "Awaiting routing" render the em-dash placeholder, fee rates render 0.50% / 1.00%, demo fallback bar renders 42.60% (2.13 / 5 ETH) |
+| Emitted CSS bundle | contains the `maotang-*` tokens, `animate-pulse` and a `linear-gradient` (the `bg-linear-to-r` bar) |
+
+**SSR/SSG safety.** Both hooks start from `{ value: null, status: "idle" }` and only fetch inside
+`useEffect`, so the server HTML, the static export and the first client paint are identical and
+hydration cannot mismatch. Errors keep the last good read on screen and label it `rpc unreachable`;
+an unconfigured deployment shows `awaiting rpc` with an em dash rather than demo numbers dressed up as
+revenue. Requests are aborted on unmount and skipped while the tab is hidden.
+
+**What was not exercised, stated plainly.** No MAOTANG deployment exists on any network, so no real
+vault or curve bytecode was read: the selector/decode path is verified against `cast sig` plus an EOA
+empty return and a mainnet RPC round trip, not against a deployed vault. The graduation fallback is the
+same placeholder board the tiles use and is labelled as such.
+
+**Two environment findings.** (1) `npm run build` (Turbopack) cannot resolve `@maotang/sdk` through the
+`frontend/node_modules/@maotang/sdk` junction that points outside the frontend project; webpack resolves
+it and builds the app, so the passing gate is `next build --webpack`. (2) `next build` rewrote the
+tracked `frontend/tsconfig.json` in place; the change committed here is only Next 16's mandatory
+`jsx: "react-jsx"` plus the `.next/dev/types/**/*.ts` include entry, kept as a minimal diff. Root
+`.gitignore` now covers `/frontend/.next/`, which the pre-existing root-anchored `/.next/` pattern never
+matched.
+
 ## 5. Bottom Line
 
 Three of the four original blockers are now cleared. The **specification** is complete and

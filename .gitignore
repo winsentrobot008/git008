@@ -98,6 +98,7 @@ products/008ai-landing/qa-logs/
 /contracts/broadcast/
 /.next/
 next-env.d.ts
+/frontend/.next/
 
 # --- MAOTANG agent-manager (local SLM weights and build output) ---
 /agent-manager/models/

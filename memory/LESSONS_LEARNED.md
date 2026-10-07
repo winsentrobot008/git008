@@ -2,6 +2,34 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-07 - A hand-pinned function selector fails silently; cross-check it instead of reading it
+
+- **Observation:** the frontend bundle has no ABI encoder, so `frontend/src/lib/protocol.ts` pins five
+  4-byte selectors by hand. `cast sig` reproduced all five exactly (0xd348b409, 0xd4b83992, 0xfc0c546a,
+  0xe59dac29, 0xb841a3e8), but a single wrong nibble would have returned `0x` or unrelated data that the
+  panel would have rendered as a plausible number. Separately, `eth_call` against a codeless address
+  returns `0x`, which `BigInt("0x")` throws on - a decode path that only shows up against a live node.
+- **Lesson:** pinning selectors is fine for a dependency-free client, but the pin needs an automated
+  cross-check against the ABI (`cast sig`) in the same change, and an explicit empty-return case
+  (treat `0x` as `0n`). Verify both against a real RPC, not by inspection.
+- **Application:** `frontend/src/lib/protocol.ts` (`ZERO_ARG_READS`), `frontend/src/lib/chain.ts`
+  (`toBigInt`), recorded in `docs/GAP_ANALYSIS.md` §4.8.
+
+## 2026-10-07 - Re-run a failing gate on the pristine tree before assuming the change broke it
+
+- **Observation:** `npx next build` in `frontend/` failed with `Module not found: Can't resolve
+  '@maotang/sdk'` while `npx next build --webpack` compiled all 3 static pages and Node's own resolver
+  loaded the SDK through the same `frontend/node_modules/@maotang/sdk` junction (which points outside the
+  frontend project). The failure predates the change.
+- **Lesson:** when a workspace gate fails, re-run it at HEAD before touching anything - that separates a
+  pre-existing environment defect (a junction plus Turbopack) from the change under test, and it turns
+  "the build is broken" into a named, reproducible config constraint. Also expect the framework to rewrite
+  tracked config: `next build` formatted all of `frontend/tsconfig.json` and flipped `jsx: preserve` to
+  `react-jsx`, so commit the mandatory bit as a minimal diff and gitignore each sub-project's build output
+  explicitly.
+- **Application:** `frontend/tsconfig.json`, root `.gitignore` (`/frontend/.next/`), `docs/GAP_ANALYSIS.md`
+  §4.8.
+
 ## 2026-10-07 - A "deterministic" injected probe is only deterministic if the producer stops adding machine facts
 
 - **Observation:** `collectHardwareClaims` iterated an injected `probes.entries` list as

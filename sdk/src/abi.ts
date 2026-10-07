@@ -52,3 +52,21 @@ export const maoTangGraduateAbi = [
   "function graduationProgressBps() view returns (uint256 progressBps)",
   "event TokenGraduated(address indexed curve, address indexed market, uint256 reserveMigrated, uint256 tokensMigrated)",
 ] as const;
+
+/** `MaoTangSustenanceVault`: the fee sink that funds human sovereign wallets. */
+export const maoTangSustenanceVaultAbi = [
+  "function SWAP_FEE_BPS() view returns (uint256)",
+  "function GRADUATION_FEE_BPS() view returns (uint256)",
+  "function nativeFeesReceived() view returns (uint256)",
+  "function nativeSustenanceCredited() view returns (uint256)",
+  "function availableNative() view returns (uint256)",
+  "function tokenFeesReceived(address asset) view returns (uint256)",
+  "function availableToken(address asset) view returns (uint256)",
+  "function pendingSustenance(address principal, address asset) view returns (uint256)",
+  "function creditNativeSustenance(address principal, uint256 amount)",
+  "function creditTokenSustenance(address principal, address asset, uint256 amount)",
+  "function withdrawSustenance(address asset) returns (uint256 amount)",
+  "event FeeReceived(address indexed depositor, uint8 indexed source, address indexed asset, uint256 amount)",
+  "event SustenanceCredited(address indexed principal, address indexed asset, uint256 amount)",
+  "event SustenanceDisbursed(address indexed agent, address indexed principal, address indexed asset, uint256 amount)",
+] as const;

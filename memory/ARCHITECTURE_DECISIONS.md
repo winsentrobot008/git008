@@ -2,6 +2,43 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-07 — ADR-012: MAOTANG board reads live chain state without a wallet stack (P1-UI)
+
+**Status:** Accepted (implemented; `frontend` `tsc --noEmit` clean, webpack production build 3/3 static
+pages, 6/6 ad-hoc pure-module checks, selectors cross-checked with `cast sig`; see §4.8)
+
+**Context:** `frontend/src/app/page.tsx` rendered placeholder tiles only, so the SustenanceVault revenue
+and the curve graduation progress were invisible. The frontend ships no web3 dependency (no wagmi, viem
+or ethers installed), and its `next build` gate already failed on the pristine tree.
+
+**Decision:**
+
+- **Read through the SDK transport seam, not a new client library.** `lib/chain.ts` implements a
+  read-only JSON-RPC `ContractTransport` (writes throw) and reuses `MaoTangClient.getCurveState`, so
+  `progressBps`/`graduated` keep coming from the same `graduationProgressBps` helper the curve
+  contract mirrors. No ABI encoder, no wallet, no new runtime dependency.
+- **Zero-argument selectors are pinned, and verified.** `lib/protocol.ts` holds the five 4-byte
+  selectors (`cast sig` values, cross-checked in §4.8) because the client bundle stays dependency-free.
+  `sdk/src/abi.ts` gained `maoTangSustenanceVaultAbi`, so the vault surface is documented where every
+  other ABI lives even though the browser does not decode with it.
+- **Poll in an effect, never in render.** Both hooks start from `{ value: null, status: "idle" }`, fetch
+  every 8s inside `useEffect` with an `AbortController`, and skip the fetch while the tab is hidden. The
+  server HTML, the static export and the first client paint are therefore identical, so hydration cannot
+  mismatch. An unconfigured deployment stays in `awaiting rpc` and renders an em dash instead of demo
+  numbers dressed up as revenue; a failed poll keeps the last good read on screen and labels it.
+- **Framework-mandated build config is committed as a minimal diff.** `frontend/tsconfig.json` takes
+  Next 16's mandatory `jsx: "react-jsx"` plus the `.next/dev/types/**/*.ts` include entry, and root
+  `.gitignore` now covers `/frontend/.next/` (the root-anchored `/.next/` pattern never matched it).
+
+**Consequences / residual risk:**
+
+- Turbopack cannot resolve `@maotang/sdk` through the `frontend/node_modules/@maotang/sdk` junction;
+  the gate that passes is `npx next build --webpack`. Until that is fixed, the production build path is
+  webpack-only.
+- No MAOTANG deployment exists on any network, so the vault/curve panels are verified against
+  `cast sig`, a codeless `eth_call` empty return and a mainnet RPC round trip, not against real
+  bytecode. The graduation fallback stays the labelled placeholder board.
+
 ## 2026-10-07 — ADR-011: MAOTANG DePIN edge (P1-1) — hardware-sealed node key, honest radio adapters, context inside the signed digest
 
 **Status:** Accepted (implemented; `agent-manager` 46/46, `sdk` 14/14, both TypeScript gates green)
