@@ -24,6 +24,8 @@ const TOKEN = "0x4444444444444444444444444444444444444444" as Address;
 const CURVE = "0x5555555555555555555555555555555555555555" as Address;
 const PERSONHOOD_PROOF = "0xpersonhood-proof" as Hex;
 const HARDWARE_PROOF = "0xhardware-attestation" as Hex;
+const HARDWARE_NULLIFIER = `0x${"cd".repeat(32)}` as Hex;
+const PERSONHOOD_NULLIFIER = `0x${"ef".repeat(32)}` as Hex;
 const AGENT_PUB_KEY = `0x${"ab".repeat(32)}` as Hex;
 
 const sha256 = (value: string): string => createHash("sha256").update(value).digest("hex");
@@ -37,14 +39,14 @@ function deriveAgent(pubKey: Hex): Address {
 interface MockAgentRecord {
   owner: Address;
   pubKey: Hex;
-  hardwareId: Hex;
+  hardwareNullifier: Hex;
 }
 
 /** In-memory stand-in for the registry + token + curve, so the flow runs without a chain. */
 class MockAgentChain implements ContractTransport {
   readonly agents = new Map<string, MockAgentRecord>();
-  readonly hardwareIds = new Set<string>();
-  readonly claimedProofs = new Set<string>();
+  readonly hardwareNullifiers = new Set<string>();
+  readonly claimedNullifiers = new Set<string>();
   readonly balances = new Map<string, bigint>();
   readonly writes: ContractWriteRequest[] = [];
 
@@ -99,12 +101,12 @@ class MockAgentChain implements ContractTransport {
         if (this.agents.has(lower(agent))) {
           throw new Error("reverted: AgentAlreadyRegistered");
         }
-        const hardwareId = `0x${sha256(String(args[1]))}` as Hex;
-        if (this.hardwareIds.has(hardwareId)) {
+        const hardwareNullifier = String(args[2]) as Hex;
+        if (this.hardwareNullifiers.has(hardwareNullifier)) {
           throw new Error("reverted: HardwareAlreadyBound");
         }
-        this.hardwareIds.add(hardwareId);
-        this.agents.set(lower(agent), { owner: this.account, pubKey, hardwareId });
+        this.hardwareNullifiers.add(hardwareNullifier);
+        this.agents.set(lower(agent), { owner: this.account, pubKey, hardwareNullifier });
         return "0xregister" as Hex;
       }
       case "claimHumanQuota": {
@@ -112,11 +114,11 @@ class MockAgentChain implements ContractTransport {
         if (record === undefined) {
           throw new Error("reverted: UnauthorizedAgent");
         }
-        const proof = String(args[0]);
-        if (this.claimedProofs.has(proof)) {
+        const nullifier = String(args[1]);
+        if (this.claimedNullifiers.has(nullifier)) {
           throw new Error("reverted: QuotaAlreadyClaimed");
         }
-        this.claimedProofs.add(proof);
+        this.claimedNullifiers.add(nullifier);
         this.balances.set(lower(record.owner), (this.balances.get(lower(record.owner)) ?? 0n) + HUMAN_QUOTA);
         this.totalSupply += HUMAN_QUOTA;
         return "0xclaim" as Hex;
@@ -166,6 +168,7 @@ function setupAgent() {
     signMessage: (message) => signer.signMessage(message),
     recoverAddress: (message, signature) => signer.recoverAddress(message, signature),
     personhoodProof: PERSONHOOD_PROOF,
+    personhoodNullifier: PERSONHOOD_NULLIFIER,
     challengeNonce: () => "test-nonce",
   });
   return { chain, client, agent, signer };
@@ -176,7 +179,7 @@ test("a personal AI agent registers, logs in over A2A and claims one human quota
 
   // 1. the human owner authorizes the agent
   assert.equal(chain.account, HUMAN);
-  assert.equal(await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF }), "0xregister");
+  assert.equal(await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF, hardwareNullifier: HARDWARE_NULLIFIER }), "0xregister");
   assert.ok(chain.agents.has(agent.toLowerCase()));
 
   // 2. the agent connects and performs the A2A handshake
@@ -214,7 +217,7 @@ test("an unregistered agent cannot log in", async () => {
 
 test("a human-connected client cannot execute agent intents", async () => {
   const { client } = setupAgent();
-  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF });
+  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF, hardwareNullifier: HARDWARE_NULLIFIER });
 
   // the transport is still connected as the human, so the A2A handshake must refuse
   await assert.rejects(() => client.executeIntent("claim my quota"), AgentSignerMismatchError);
@@ -222,7 +225,7 @@ test("a human-connected client cannot execute agent intents", async () => {
 
 test("one personhood proof can only claim once", async () => {
   const { chain, client, agent } = setupAgent();
-  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF });
+  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF, hardwareNullifier: HARDWARE_NULLIFIER });
   chain.account = agent;
 
   await client.executeIntent("claim my quota");
@@ -232,7 +235,7 @@ test("one personhood proof can only claim once", async () => {
 
 test("natural-language curve intents map to agent-gated calls", async () => {
   const { chain, client, agent } = setupAgent();
-  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF });
+  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF, hardwareNullifier: HARDWARE_NULLIFIER });
   chain.account = agent;
 
   const buy = await client.executeIntent("swap 0.5 ETH for mHUMAN", { submit: false });
@@ -251,7 +254,7 @@ test("natural-language curve intents map to agent-gated calls", async () => {
 
 test("the balance intent reports the human position", async () => {
   const { chain, client, agent } = setupAgent();
-  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF });
+  await client.registerAgent({ zkHardwareProof: HARDWARE_PROOF, hardwareNullifier: HARDWARE_NULLIFIER });
   chain.account = agent;
   await client.executeIntent("claim my quota");
 

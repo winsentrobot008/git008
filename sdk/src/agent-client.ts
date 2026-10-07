@@ -32,7 +32,10 @@ export class AgentSignerMismatchError extends AgentError {
 
 export class MissingPersonhoodProofError extends AgentError {
   constructor() {
-    super("claimHumanQuota needs the personhood proof; pass `personhoodProof` in the client config");
+    super(
+      "claimHumanQuota needs the proof and its public nullifier; pass `personhoodProof` and "
+        + "`personhoodNullifier` in the client config",
+    );
     this.name = "MissingPersonhoodProofError";
   }
 }
@@ -67,6 +70,8 @@ export interface AgentClientConfig {
   recoverAddress(message: string, signature: Hex): Promise<Address>;
   /** Personhood proof consumed by `claimHumanQuota`. */
   personhoodProof?: Hex;
+  /** Single-use nullifier the personhood proof binds to; the circuit's only public input. */
+  personhoodNullifier?: Hex;
   /** Deterministic nonce source; defaults to a time + random suffix. */
   challengeNonce?: () => string;
 }
@@ -124,7 +129,7 @@ interface ParsedIntent {
   asset: "eth" | "mhuman" | null;
 }
 
-const AMOUNT_PATTERN = /(\d+(?:\.\d+)?)\s*(eth|micro-?human)/i;
+const AMOUNT_PATTERN = /(\d+(?:\.\d+)?)\s*(eth|micro-?human|m-?human)/i;
 const BARE_AMOUNT_PATTERN = /(\d+(?:\.\d+)?)/;
 
 /** Converts a decimal string into base units without floating point. */
@@ -203,12 +208,12 @@ export class AgentClient {
   }
 
   /** Registers and authorizes this agent. Must be sent from the human owner's account. */
-  async registerAgent(params: { zkHardwareProof: Hex }): Promise<Hex> {
+  async registerAgent(params: { zkHardwareProof: Hex; hardwareNullifier: Hex }): Promise<Hex> {
     return this.transport.write({
       address: this.registry,
       abi: aiAgentRegistryAbi,
       functionName: "registerAgent",
-      args: [this.agentPubKey, params.zkHardwareProof],
+      args: [this.agentPubKey, params.zkHardwareProof, params.hardwareNullifier],
     });
   }
 
@@ -325,14 +330,15 @@ export class AgentClient {
   private async planCall(intent: string, parsed: ParsedIntent): Promise<PlannedCall> {
     if (parsed.kind === "claim") {
       const proof = this.config.personhoodProof;
-      if (proof === undefined) {
+      const nullifier = this.config.personhoodNullifier;
+      if (proof === undefined || nullifier === undefined) {
         throw new MissingPersonhoodProofError();
       }
       return {
         address: this.token,
         abi: humanTokenAbi,
         functionName: "claimHumanQuota",
-        args: [proof],
+        args: [proof, nullifier],
       };
     }
 

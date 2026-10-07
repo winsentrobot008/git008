@@ -1,8 +1,10 @@
 # MAOTANG Protocol — Whitepaper v2.2 Gap Analysis
 
-Status: Phase 1 audit report (read-only) + Phase 2 toolchain verification. Produced 2026-10-07.
-Auditor: Codex. Phase 1 modified no source files; Phase 2 vendored `forge-std` under
-`contracts/lib/` and applied the compile/lint and sell-maths fixes recorded in §4.
+Status: Phase 1 audit report (read-only) + Phase 2 toolchain verification + Phase 3 P0-1 ZK work.
+Produced 2026-10-07. Auditor: Codex. Phase 1 modified no source files; Phase 2 vendored `forge-std`
+under `contracts/lib/` and applied the compile/lint and sell-maths fixes recorded in §4;
+Phase 3 implemented the Groth16 nullifier verifier (P0-1), replaced both `keccak256` placeholders and
+made the whole gate set green (§4.6).
 
 ## 0. Scope, Provenance and Method
 
@@ -36,7 +38,7 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 | C1 | 6-decimal precision | `contracts/src/HumanToken.sol:29` `DECIMALS = 6`; `:32` `MICRO_UNIT = 1` | PASS |
 | C2 | 1M micro-units per verified person | `HumanToken.sol:35` `HUMAN_QUOTA = 1_000_000 * 10 ** 6` | PASS |
 | C3 | 8.3B global cap | `HumanToken.sol:38` `MAX_GLOBAL_SUPPLY = 8_300_000_000 * 1_000_000 * 10 ** 6`; enforced at `:88`; test asserts it at `contracts/test/MicroHuman.t.sol:15` | PASS |
-| C4 | ZK nullifier checks | `HumanToken.sol:82-84` `personhoodNullifier()` = `keccak256(zkProof)`; `:79-80` single-use `claimedPersonhood` map. Same pattern at `AIAgentRegistry.sol:117-119` `hardwareNullifier()` | **PARTIAL** — nullifier *bookkeeping* exists, the *proof* does not |
+| C4 | ZK nullifier checks | **Now implemented (P0-1).** `contracts/src/interfaces/IZKVerifier.sol` fixes `verifyProof(bytes,bytes32)`; `contracts/src/Groth16Verifier.sol` performs the SnarkJS/Circom BN254 pairing check on precompiles `0x06`/`0x07`/`0x08`. `HumanToken.claimHumanQuota(bytes,bytes32)` and `AIAgentRegistry.registerAgent(bytes32,bytes,bytes32)` verify first and only then consume the nullifier (`nullifierUsed`, `hardwareBinding`); the proof-hash placeholders are gone. Exercised against genuine Circom/SnarkJS artifacts by `contracts/test/Groth16Verifier.t.sol` and `ZKPersonhoodClaim.t.sol` (§4.6) | **RESOLVED** — fails closed while no key is installed, and the key can be frozen with `lockVerificationKey()` |
 | C5 | `MaoTangSustenanceVault.sol` | Was absent. **Now implemented** at `contracts/src/MaoTangSustenanceVault.sol` with `depositFee`/`depositFeeToken`, `creditNativeSustenance`/`creditTokenSustenance`, `withdrawSustenance`, `quoteFee`, `pendingSustenance`, and the required `FeeReceived` + `SustenanceDisbursed` events. Covered by `contracts/test/MaoTangSustenanceVault.t.sol` | **RESOLVED** |
 | C6 | 0.5% swap fee | Was `TRADE_FEE_BPS = 100n` (1.00%). **Now `50n`** (`sdk/src/curve-math.ts`), mirrored in `docs/MAOTANG_ARCHITECTURE.md` and rendered from the SDK in `frontend/src/app/page.tsx` | **RESOLVED** |
 | C7 | 1% graduation fee | Was absent. **Now `GRADUATION_FEE_BPS = 100n`** with `graduationFee()`, documented on `IMaoTangGraduate.sol` | **RESOLVED** |
@@ -128,7 +130,7 @@ labelled but must not survive to mainnet.
 
 | ID | Task | Touch points | Exit criteria |
 | --- | --- | --- | --- |
-| P0-1 | Implement real ZK verification for personhood and hardware attestation; replace both placeholder nullifier derivations | `HumanToken.sol:82`, `AIAgentRegistry.sol:117`, new `IVerifier.sol` | A forged proof cannot mint a quota; one human cannot claim twice across proofs |
+| P0-1 | Implement real ZK verification for personhood and hardware attestation; replace both placeholder nullifier derivations | **DONE.** `contracts/src/interfaces/IZKVerifier.sol`, `contracts/src/Groth16Verifier.sol`, `contracts/src/HumanToken.sol`, `contracts/src/AIAgentRegistry.sol`, `contracts/test/fixtures/NullifierFixture.sol` | A forged proof cannot mint a quota; one human cannot claim twice across proofs. Both exit criteria are asserted by genuine-proof tests, and the full suite is 101/101 green (§4.6) |
 | P0-2 | Implement the bonding curve, factory and graduation contracts so `sdk/src/curve-math.ts` has an on-chain twin | **DONE.** `contracts/src/MaoTangBondingCurve.sol`, `MaoTangFactory.sol`, `MemeToken.sol`, interface updates, `contracts/test/MaoTangBondingCurve.t.sol`, `sdk/src/abi.ts` | Implemented with the same constants and truncation order as the SDK. **Compiled and unit-tested** - 13/13 pass (§4) |
 | P0-3 | Reconcile fee policy to 0.5% swap + 1% graduation and implement routing | **DONE (off-chain half).** `sdk/src/curve-math.ts`, `docs/MAOTANG_ARCHITECTURE.md`, `frontend/src/app/page.tsx`, `contracts/src/interfaces/*.sol`. **Still open:** the on-chain curve/graduation implementation and the vault the fees route into (P0-2, P0-4) | Constants agree across docs, SDK and UI. On-chain enforcement is not yet possible because no curve implementation exists |
 | P0-4 | Create `MaoTangSustenanceVault.sol` | **DONE.** `contracts/src/MaoTangSustenanceVault.sol`, `contracts/src/interfaces/IERC20.sol`, `contracts/test/MaoTangSustenanceVault.t.sol` | Implemented; **compiled and unit-tested** - 13/13 pass (§4) |
@@ -185,7 +187,7 @@ The 7 residual lint advisories are pre-existing and out of scope: `AIAgentRegist
 (`unsafe-typecast`, `encode-packed-collision`, `unused-return`) and `MaoTangMining.sol`
 (`reentrancy-events` x2, `block-timestamp` x2).
 
-### 4.2 `forge test` — new suites green, 20 pre-existing failures
+### 4.2 `forge test` — Phase 2 snapshot: new suites green, 20 pre-existing failures
 
 | Suite | Result |
 | --- | --- |
@@ -216,6 +218,8 @@ The 20 failures do not touch this change's code:
   repair, deliberately not applied here because the suite is outside this change's scope.
 
 Both predate this work and are left untouched per scope. Neither implicates the fee routing or the
+
+> **Superseded by §4.6:** the 20 failures and the `micro-HUMAN` parser defect below were repaired in Phase 3; the whole suite now passes.
 curve maths, which is what `MaoTangBondingCurve.t.sol` and `MaoTangSustenanceVault.t.sol` exercise.
 
 ### 4.3 TypeScript gates — PASS
@@ -228,7 +232,7 @@ curve maths, which is what `MaoTangBondingCurve.t.sol` and `MaoTangSustenanceVau
   failure ("natural-language curve intents map to agent-gated calls": expected `sellCurve`, got
   `buyCurve`) is pre-existing in `agent-client.ts`, which this change does not touch. Note that the
   packaged `npm test` script passes the bare directory `dist/test-build/test/`, which does not
-  resolve on this Windows host; the compiled test file must be named explicitly.
+  resolve on this Windows host; the compiled test file must be named explicitly. **Superseded by §4.6:** the pattern now matches `mHUMAN`, giving 7 passed / 0 failed.
 
 ### 4.4 Defect found and fixed by running the suite
 
@@ -284,6 +288,56 @@ pair is captured, so the input falls through to the `\bswap\b` branch at `:160` 
 `buyCurve`. Both the pattern and the test are untouched by this change (`agent-client.ts` last moved
 in `2e86f44`).
 
+
+### 4.6 P0-1 verification run — full gate set green (2026-10-07)
+
+Phase 3 implemented the Groth16 verifier and repaired the harness defects listed in §4.2 and §4.3,
+then re-ran every gate from its own sub-project directory:
+
+| Command (cwd) | Observed | Exit |
+| --- | --- | --- |
+| `forge build` (`contracts/`) | `Compiling 42 files with Solc 0.8.24` / `Compiler run successful!` | 0 |
+| `forge test` (`contracts/`) | **101 passed / 0 failed / 0 skipped** across 7 suites | 0 |
+| `npx tsc --noEmit` (`sdk/`) | no diagnostics | 0 |
+| `npx tsc --noEmit` (`frontend/`) | no diagnostics | 0 |
+| `node --test dist/test-build/test/agent-login.test.js` (`sdk/`) | **7 passed / 0 failed** | 0 |
+
+Per-suite split for `forge test`:
+
+| Suite | Result |
+| --- | --- |
+| `MicroHuman.t.sol` | 14 passed / 0 failed |
+| `AIAgentRegistry.t.sol` | 8 passed / 0 failed |
+| `Groth16Verifier.t.sol` | 14 passed / 0 failed (real Circom proofs, tamper, range, lock) |
+| `ZKPersonhoodClaim.t.sol` | 8 passed / 0 failed (register + claim end to end on real proofs) |
+| `MaoTangMining.t.sol` | 27 passed / 0 failed |
+| `MaoTangBondingCurve.t.sol` | 13 passed / 0 failed |
+| `MaoTangSustenanceVault.t.sol` | 13 passed / 0 failed |
+
+Defects found by running the suite, and their repairs:
+
+- **Pairing precompile drained the caller.** `Groth16Verifier` forwarded `gas()` to the EIP-197 precompile;
+  a rejected input (off-curve point) consumes *all* forwarded gas, so one bit flipped in a proof turned a
+  clean `false` into an `OutOfGas` revert. The `0x08` staticcall is now bounded by
+  `PAIRING_GAS_BUDGET = 1_000_000`.
+- **Mining harness evaluated external getters inside call arguments.** `PROOF_TYPE_BLE_PING()`,
+  `PROOF_TYPE_ZK_COMPUTE()` and `MAX_PROOF_AGE()` are external staticcalls, so passing them inline after
+  `vm.prank` / `vm.expectRevert` consumed the cheatcode and made the real call run as the test contract.
+  All three are hoisted into `setUp`.
+- **Stale expectation in `test_MalformedProofRejected`.** Expected `MalformedProof(64, 192)` for a 128-byte
+  payload; the expectation is now derived from the payload itself.
+- **Stale expectation in `test_BleBatchAccruesRewardAndClaimDisbursesToAgent`.** The human funds the whole
+  reward vault in `setUp`, so her wallet is empty afterwards; the assertion is now `balanceOf(alice) == 0`.
+- **`AMOUNT_PATTERN` could not match `mHUMAN`.** `sdk/src/agent-client.ts` only recognised `eth|micro-?human`,
+  so `"swap 1000 mHUMAN for ETH"` fell through to the `swap` branch and was reported as `buyCurve`. The
+  pattern now also accepts `m-?human`.
+
+**Residual risk, stated plainly.** `Groth16Verifier` deliberately hardcodes no verification key: with no key
+installed it fails closed, and the owner must install the ceremony output and then call
+`lockVerificationKey()` (irreversible). Until that ceremony exists, the verifier is the right shape but its
+anti-forgery guarantee is only as strong as the key a deployer chooses, so key installation must be treated
+as a one-shot ceremony. Proofs used by the tests are genuine circom 2.2.3 / snarkjs artifacts generated for a
+throwaway local setup (2^8 ptau); they prove the encoding and the pairing check, not the production circuit.
 ## 5. Bottom Line
 
 Three of the four original blockers are now cleared. The **specification** is complete and
@@ -295,7 +349,7 @@ The fee pipeline is now closed end to end on paper: the curve computes the 0.5% 
 1.00% graduation fee, forwards both to the vault, and the vault routes them to human principals
 through an agent-gated payout. What remains is the **BTC layer and the identity layer**:
 
-- No real ZK verification: both "ZK" nullifiers are still `keccak256` placeholders (P0-1).
+- The ZK layer is implemented but rests on a trusted setup that does not exist yet: the verifier hardcodes no key, fails closed until one is installed, and `lockVerificationKey()` must be called after the ceremony to remove key-swap forging (P0-1 residual).
 - No BTC leg: the curve is ETH-paired, so §3.1's `$mHUMAN`/BTC pair and volatility-harvesting
   arbitrage do not exist (P1-2).
 - No allocation buckets, no burn path, no staking, no bandwidth relay, no off-ramp
@@ -304,12 +358,11 @@ through an agent-gated payout. What remains is the **BTC layer and the identity 
 Of the checks re-verifiable against the finalised spec, C1–C3, C5–C7, C12 and the new C16–C17 pass;
 C4, C8–C10 and C13–C15 fail, and C11 is partial.
 
-The contract and SDK work in P0-2 and P0-4 is now compiled and unit-tested (51 passed / 20
-pre-existing failures, §4). All 20 failures are test-side defects — a bare-selector `expectRevert`
-and a proof-type getter evaluated inline after the prank/expectRevert (§4.2, §4.5) — so they do not
-weaken the contract verdict, but they do mean `forge test` cannot yet serve as a green gate. The
-largest remaining risk is therefore feature scope rather than an unverified pipeline: the BTC layer,
-the identity layer and the off-ramp are still unimplemented.
+The contract, verifier and SDK work in P0-1, P0-2 and P0-4 is compiled and unit-tested: **101 passed /
+0 failed** across 7 suites (§4.6). Every Phase-2 failure was a test-side defect and has been repaired,
+so `forge build`, `forge test`, both TypeScript gates and the SDK unit tests are all green. The largest
+remaining risk is therefore feature scope rather than an unverified pipeline: the BTC layer and the off-ramp
+are still unimplemented, and the ZK layer still needs its trusted setup of record.
 
 Two things need an author decision, not code:
 
@@ -318,7 +371,7 @@ Two things need an author decision, not code:
 2. **The protocol/creator/vault split** — the vault currently routes 100% of each fee
    (`SUSTENANCE_VAULT_SHARE_BPS = 10_000n`), which is an assumption, not a ratified policy.
 
-Recommended immediate next step: **P0-1** (real ZK verification). The toolchain gate is now closed -
-`forge-std` is vendored, `forge build` and `forge test` both run, and both TypeScript gates pass - so
-the next highest-value work is replacing the two `keccak256` nullifier placeholders with a real
-verifier.
+Recommended immediate next step: run the trusted setup of record for the personhood and hardware circuits,
+then install and lock the verification key (P0-1 residual). The toolchain gate is now closed —
+`forge-std` is vendored, `forge build` and `forge test` both pass (101/101), and both TypeScript gates plus
+the SDK unit tests pass — so the next highest-value work is either that ceremony or the BTC leg (P1-2).

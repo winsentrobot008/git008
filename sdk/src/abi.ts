@@ -1,24 +1,24 @@
 /** Minimal ABI fragments mirroring `contracts/src`. */
 
 export const aiAgentRegistryAbi = [
-  "function registerAgent(bytes32 agentPubKey, bytes memory zkHardwareProof) returns (address agent)",
+  "function registerAgent(bytes32 agentPubKey, bytes memory zkHardwareProof, bytes32 hardwareNullifier) returns (address agent)",
   "function revokeAgent(address agent)",
   "function agentAddress(bytes32 agentPubKey) view returns (address agent)",
   "function isAuthorizedAgent(address agent) view returns (bool authorized)",
   "function requireAuthorizedAgent(address agent) view returns (address owner)",
   "function agentByKey(bytes32 agentPubKey) view returns (address agent)",
-  "event AgentRegistered(address indexed agent, address indexed owner, bytes32 agentPubKey, bytes32 hardwareId)",
+  "event AgentRegistered(address indexed agent, address indexed owner, bytes32 agentPubKey, bytes32 hardwareNullifier)",
   "event AgentRevoked(address indexed agent, address indexed owner)",
 ] as const;
 
 export const humanTokenAbi = [
-  "function claimHumanQuota(bytes memory zkProof) returns (uint256 minted)",
+  "function claimHumanQuota(bytes memory zkProof, bytes32 nullifierHash) returns (uint256 minted)",
   "function balanceOf(address account) view returns (uint256 balance)",
   "function totalSupply() view returns (uint256)",
   "function decimals() view returns (uint8)",
   "function HUMAN_QUOTA() view returns (uint256)",
   "function MAX_GLOBAL_SUPPLY() view returns (uint256)",
-  "event HumanQuotaClaimed(address indexed wallet, address indexed agent, bytes32 indexed personhoodId, uint256 amount)",
+  "event HumanQuotaClaimed(address indexed wallet, address indexed agent, bytes32 indexed nullifierHash, uint256 amount)",
 ] as const;
 
 export const maoTangFactoryAbi = [

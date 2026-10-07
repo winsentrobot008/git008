@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {AIAgentRegistry} from "../src/AIAgentRegistry.sol";
+import {MockNullifierVerifier} from "./mocks/MockZKVerifier.sol";
 import {MaoTangSustenanceVault} from "../src/MaoTangSustenanceVault.sol";
 import {MaoTangBondingCurve} from "../src/MaoTangBondingCurve.sol";
 import {MaoTangFactory} from "../src/MaoTangFactory.sol";
@@ -14,6 +15,7 @@ import {IMaoTangFactory} from "../src/interfaces/IMaoTangFactory.sol";
 /// @dev Covers P0-2: the on-chain curve must mirror `sdk/src/curve-math.ts`, and every trade must
 /// route exactly 0.5% to `MaoTangSustenanceVault`, with a further 1.00% at graduation.
 contract MaoTangBondingCurveTest is Test {
+    MockNullifierVerifier internal verifier;
     AIAgentRegistry internal registry;
     MaoTangSustenanceVault internal vault;
     MaoTangFactory internal factory;
@@ -33,7 +35,8 @@ contract MaoTangBondingCurveTest is Test {
     uint256 internal constant GRAD_BPS = 100;
 
     function setUp() public {
-        registry = new AIAgentRegistry();
+        verifier = new MockNullifierVerifier();
+        registry = new AIAgentRegistry(address(verifier));
         vault = new MaoTangSustenanceVault(address(registry), authority);
         factory = new MaoTangFactory(address(vault), liquidityVenue);
 

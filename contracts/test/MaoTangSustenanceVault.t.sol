@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {AIAgentRegistry} from "../src/AIAgentRegistry.sol";
+import {MockNullifierVerifier} from "./mocks/MockZKVerifier.sol";
 import {HumanToken} from "../src/HumanToken.sol";
 import {MaoTangSustenanceVault} from "../src/MaoTangSustenanceVault.sol";
 
@@ -10,6 +11,7 @@ import {MaoTangSustenanceVault} from "../src/MaoTangSustenanceVault.sol";
 /// vault, an immutable protocol authority routes them to human principals, and only a registered
 /// agent may withdraw - always into the human wallet, never the agent's own account.
 contract MaoTangSustenanceVaultTest is Test {
+    MockNullifierVerifier internal verifier;
     AIAgentRegistry internal registry;
     MaoTangSustenanceVault internal vault;
     HumanToken internal mhuman;
@@ -22,12 +24,14 @@ contract MaoTangSustenanceVaultTest is Test {
     uint256 internal constant ONE = 1 ether;
 
     function setUp() public {
-        registry = new AIAgentRegistry();
+        verifier = new MockNullifierVerifier();
+        registry = new AIAgentRegistry(address(verifier));
         vault = new MaoTangSustenanceVault(address(registry), authority);
-        mhuman = new HumanToken(address(registry));
+        mhuman = new HumanToken(address(registry), address(verifier));
 
         vm.prank(alice);
-        agent = registry.registerAgent(keccak256("alice-agent-key"), abi.encodePacked("alice-hardware"));
+        bytes memory hardwareProof = abi.encodePacked("alice-hardware");
+        agent = registry.registerAgent(keccak256("alice-agent-key"), hardwareProof, keccak256(hardwareProof));
 
         vm.deal(address(this), 100 ether);
     }
@@ -138,7 +142,8 @@ contract MaoTangSustenanceVaultTest is Test {
 
     function test_TokenFeesFlowToPrincipalThroughVault() public {
         vm.prank(agent);
-        mhuman.claimHumanQuota(abi.encodePacked("alice-personhood"));
+        bytes memory personhoodProof = abi.encodePacked("alice-personhood");
+        mhuman.claimHumanQuota(personhoodProof, keccak256(personhoodProof));
 
         uint256 quota = mhuman.balanceOf(alice);
         assertGt(quota, 0);

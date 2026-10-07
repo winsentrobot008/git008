@@ -4,9 +4,13 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {AIAgentRegistry} from "../src/AIAgentRegistry.sol";
 import {HumanToken} from "../src/HumanToken.sol";
+import {MockNullifierVerifier} from "./mocks/MockZKVerifier.sol";
 
 /// @dev $mHUMAN is agent-native: every quota is claimed by a registered AI agent and minted into the
-/// wallet of the human that agent was registered for.
+/// wallet of the human that agent was registered for. The claim now requires a zero-knowledge
+/// personhood proof - this suite stubs {IZKVerifier} so the nullifier plumbing can be exercised for
+/// many identities; the real Groth16 pairing check is covered by `Groth16Verifier.t.sol` and
+/// `ZKPersonhoodClaim.t.sol`.
 contract MicroHumanTest is Test {
     /// @dev 1,000,000 whole tokens at 6 decimals.
     uint256 internal constant QUOTA = 1_000_000 * 10 ** 6;
@@ -14,6 +18,7 @@ contract MicroHumanTest is Test {
     /// @dev 8.3 billion humans, one quota each.
     uint256 internal constant MAX_SUPPLY = 8_300_000_000 * 1_000_000 * 10 ** 6;
 
+    MockNullifierVerifier internal verifier;
     AIAgentRegistry internal registry;
     HumanToken internal token;
 
@@ -27,8 +32,9 @@ contract MicroHumanTest is Test {
     address internal bobAgent;
 
     function setUp() public {
-        registry = new AIAgentRegistry();
-        token = new HumanToken(address(registry));
+        verifier = new MockNullifierVerifier();
+        registry = new AIAgentRegistry(address(verifier));
+        token = new HumanToken(address(registry), address(verifier));
         aliceAgent = _registerAgent(alice, ALICE_KEY, "alice-hardware");
         bobAgent = _registerAgent(bob, BOB_KEY, "bob-hardware");
     }
@@ -37,13 +43,18 @@ contract MicroHumanTest is Test {
         internal
         returns (address agent)
     {
+        bytes memory hardwareProof = abi.encodePacked(hardware);
+        bytes32 hardwareNullifier = keccak256(hardwareProof);
         vm.prank(owner);
-        agent = registry.registerAgent(agentPubKey, abi.encodePacked(hardware));
+        agent = registry.registerAgent(agentPubKey, hardwareProof, hardwareNullifier);
     }
 
+    /// @dev The stub verifier accepts any proof whose keccak256 equals the claimed nullifier, so the
+    /// single-use identity handle behaves exactly as it does with a real circuit.
     function _claim(address agent, uint256 identity) internal {
+        bytes memory proof = abi.encodePacked("personhood-", identity);
         vm.prank(agent);
-        token.claimHumanQuota(abi.encodePacked("personhood-", identity));
+        token.claimHumanQuota(proof, keccak256(proof));
     }
 
     function test_DecimalsAreStrictlySix() public view {
@@ -98,23 +109,39 @@ contract MicroHumanTest is Test {
         assertEq(token.remainingHumanQuota(), 8_300_000_000 - 1);
     }
 
+    /// @dev The claim consumes exactly the nullifier the proof was verified against.
+    function test_ClaimMarksTheVerifiedNullifierUsed() public {
+        bytes memory proof = abi.encodePacked("personhood-", uint256(3));
+        bytes32 nullifier = keccak256(proof);
+
+        assertFalse(token.nullifierUsed(nullifier));
+
+        vm.prank(aliceAgent);
+        token.claimHumanQuota(proof, nullifier);
+
+        assertTrue(token.nullifierUsed(nullifier));
+    }
+
     /// @dev AI-agent native: a human wallet cannot claim on its own.
     function test_HumanCannotClaimWithoutARegisteredAgent() public {
+        bytes memory proof = abi.encodePacked("personhood-", uint256(1));
+
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(AIAgentRegistry.UnauthorizedAgent.selector, alice));
-        token.claimHumanQuota(abi.encodePacked("personhood-", uint256(1)));
+        token.claimHumanQuota(proof, keccak256(proof));
     }
 
     /// @dev One proof, one claim: the same identity cannot be replayed.
     function test_ClaimCannotBeReplayedWithSameProof() public {
         bytes memory proof = abi.encodePacked("personhood-", uint256(42));
+        bytes32 nullifier = keccak256(proof);
 
         vm.prank(aliceAgent);
-        token.claimHumanQuota(proof);
+        token.claimHumanQuota(proof, nullifier);
 
         vm.prank(aliceAgent);
-        vm.expectRevert(HumanToken.QuotaAlreadyClaimed.selector);
-        token.claimHumanQuota(proof);
+        vm.expectRevert(abi.encodeWithSelector(HumanToken.QuotaAlreadyClaimed.selector, nullifier));
+        token.claimHumanQuota(proof, nullifier);
 
         assertEq(token.totalSupply(), QUOTA);
     }
@@ -122,21 +149,50 @@ contract MicroHumanTest is Test {
     /// @dev A consumed identity cannot be replayed through another agent either.
     function test_ConsumedIdentityCannotClaimFromAnotherAgent() public {
         bytes memory proof = abi.encodePacked("personhood-", uint256(7));
+        bytes32 nullifier = keccak256(proof);
 
         vm.prank(aliceAgent);
-        token.claimHumanQuota(proof);
+        token.claimHumanQuota(proof, nullifier);
 
         vm.prank(bobAgent);
-        vm.expectRevert(HumanToken.QuotaAlreadyClaimed.selector);
-        token.claimHumanQuota(proof);
+        vm.expectRevert(abi.encodeWithSelector(HumanToken.QuotaAlreadyClaimed.selector, nullifier));
+        token.claimHumanQuota(proof, nullifier);
 
         assertEq(token.balanceOf(bob), 0);
     }
 
     function test_ClaimRejectsEmptyProof() public {
+        bytes32 nullifier = keccak256("unused-nullifier");
+
         vm.prank(aliceAgent);
         vm.expectRevert(HumanToken.EmptyProof.selector);
-        token.claimHumanQuota("");
+        token.claimHumanQuota("", nullifier);
+    }
+
+    /// @dev A proof the verifier rejects must neither mint nor burn the nullifier.
+    function test_ClaimRejectsUnverifiedProof() public {
+        bytes memory proof = abi.encodePacked("personhood-", uint256(9));
+        bytes32 nullifier = keccak256("a-different-identity");
+
+        vm.prank(aliceAgent);
+        vm.expectRevert(abi.encodeWithSelector(HumanToken.InvalidPersonhoodProof.selector, nullifier));
+        token.claimHumanQuota(proof, nullifier);
+
+        assertFalse(token.nullifierUsed(nullifier));
+        assertEq(token.totalSupply(), 0);
+    }
+
+    function test_ClaimRejectsZeroNullifier() public {
+        bytes memory proof = abi.encodePacked("personhood-", uint256(10));
+
+        vm.prank(aliceAgent);
+        vm.expectRevert(abi.encodeWithSelector(HumanToken.InvalidPersonhoodProof.selector, bytes32(0)));
+        token.claimHumanQuota(proof, bytes32(0));
+    }
+
+    function test_ConstructorRejectsZeroVerifier() public {
+        vm.expectRevert(HumanToken.InvalidZKVerifier.selector);
+        new HumanToken(address(registry), address(0));
     }
 
     /// @dev Minted supply scales exactly as 8.3B humans * 1M units * 10^6.

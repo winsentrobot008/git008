@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {AIAgentRegistry} from "../src/AIAgentRegistry.sol";
 import {HumanToken} from "../src/HumanToken.sol";
 import {MaoTangMining} from "../src/MaoTangMining.sol";
+import {MockNullifierVerifier} from "./mocks/MockZKVerifier.sol";
 
 /// @dev Mining is agent-native: proofs are scored for a registered agent, and the reward is
 /// disbursed from the contract's own $mHUMAN vault to that agent's contract account.
@@ -15,9 +16,16 @@ contract MaoTangMiningTest is Test {
     uint256 internal constant COMPUTE_REWARD_PER_TASK = 5_000 * 10 ** 6;
     uint256 internal constant NOW = 1_700_000_000;
 
+    MockNullifierVerifier internal verifier;
     AIAgentRegistry internal registry;
     HumanToken internal token;
     MaoTangMining internal mining;
+
+    /// @dev Proof-type tags are read once in `setUp`. They are external staticcalls, so reading them
+    /// inline as an argument would consume the preceding `vm.prank` / `vm.expectRevert`.
+    bytes32 internal BLE_PING;
+    bytes32 internal ZK_COMPUTE;
+    uint256 internal MAX_PROOF_AGE;
 
     address internal alice = address(0xA11CE);
     address internal bob = address(0xB0B);
@@ -32,16 +40,22 @@ contract MaoTangMiningTest is Test {
     function setUp() public {
         vm.warp(NOW);
 
-        registry = new AIAgentRegistry();
-        token = new HumanToken(address(registry));
+        verifier = new MockNullifierVerifier();
+        registry = new AIAgentRegistry(address(verifier));
+        token = new HumanToken(address(registry), address(verifier));
         mining = new MaoTangMining(address(registry), address(token));
+
+        BLE_PING = mining.PROOF_TYPE_BLE_PING();
+        ZK_COMPUTE = mining.PROOF_TYPE_ZK_COMPUTE();
+        MAX_PROOF_AGE = mining.MAX_PROOF_AGE();
 
         aliceAgent = _registerAgent(alice, ALICE_KEY, "alice-hardware");
         bobAgent = _registerAgent(bob, BOB_KEY, "bob-hardware");
 
         // One human quota, minted through the agent, funds the reward vault used across tests.
+        bytes memory personhoodProof = abi.encodePacked("personhood-", uint256(1));
         vm.prank(aliceAgent);
-        token.claimHumanQuota(abi.encodePacked("personhood-", uint256(1)));
+        token.claimHumanQuota(personhoodProof, keccak256(personhoodProof));
     }
 
     // ------------------------------------------------------------------------------- happy paths
@@ -60,9 +74,10 @@ contract MaoTangMiningTest is Test {
         uint256 amount = mining.claimMiningRewards();
 
         assertEq(amount, reward);
-        // The reward lands in the agent's own contract account, not in the human wallet.
+        // The reward lands in the agent's own contract account, not in the human wallet. Alice
+        // funded the vault with her entire quota up front, so her wallet stays empty.
         assertEq(token.balanceOf(aliceAgent), reward);
-        assertEq(token.balanceOf(alice), QUOTA - reward);
+        assertEq(token.balanceOf(alice), 0);
         assertEq(mining.pendingMiningRewards(aliceAgent), 0);
         assertEq(mining.totalMiningRewardsClaimed(), reward);
         assertEq(mining.rewardVaultBalance(), QUOTA - reward);
@@ -88,7 +103,7 @@ contract MaoTangMiningTest is Test {
     function test_UnregisteredCallerCannotSubmit() public {
         vm.prank(ghost);
         vm.expectRevert(abi.encodeWithSelector(AIAgentRegistry.UnauthorizedAgent.selector, ghost));
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), _bleProof(1, -50, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
+        mining.submitMiningProof(BLE_PING, _bleProof(1, -50, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
     }
 
     function test_UnregisteredCallerCannotClaim() public {
@@ -116,9 +131,13 @@ contract MaoTangMiningTest is Test {
     }
 
     function test_MalformedProofRejected() public {
+        // Four ABI words (128 bytes) instead of the required six (192 bytes).
+        bytes memory truncated = abi.encode(uint256(1), int256(-50), NOW, NOW);
         vm.prank(aliceAgent);
-        vm.expectRevert(abi.encodeWithSelector(MaoTangMining.MalformedProof.selector, uint256(64), uint256(192)));
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), abi.encode(uint256(1), int256(-50), NOW, NOW));
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangMining.MalformedProof.selector, truncated.length, uint256(192))
+        );
+        mining.submitMiningProof(BLE_PING, truncated);
     }
 
     function test_ReplayProofRejected() public {
@@ -128,7 +147,7 @@ contract MaoTangMiningTest is Test {
 
         vm.prank(aliceAgent);
         vm.expectRevert();
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), proof);
+        mining.submitMiningProof(BLE_PING, proof);
 
         assertEq(mining.pendingMiningRewards(aliceAgent), 2 * BLE_REWARD_PER_PING);
     }
@@ -143,59 +162,59 @@ contract MaoTangMiningTest is Test {
         assertEq(mining.pendingMiningRewards(aliceAgent), BLE_REWARD_PER_PING);
         assertEq(mining.pendingMiningRewards(bobAgent), BLE_REWARD_PER_PING);
         assertTrue(
-            mining.miningProofNullifier(mining.PROOF_TYPE_BLE_PING(), aliceAgent, proof)
-                != mining.miningProofNullifier(mining.PROOF_TYPE_BLE_PING(), bobAgent, proof)
+            mining.miningProofNullifier(BLE_PING, aliceAgent, proof)
+                != mining.miningProofNullifier(BLE_PING, bobAgent, proof)
         );
     }
 
     function test_DistantSignalRejected() public {
         vm.prank(aliceAgent);
         vm.expectRevert(abi.encodeWithSelector(MaoTangMining.OutOfProximityRange.selector, int256(-101), int256(-100), int256(-20)));
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), _bleProof(1, -101, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
+        mining.submitMiningProof(BLE_PING, _bleProof(1, -101, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
     }
 
     function test_ImpossiblyStrongSignalRejected() public {
         vm.prank(aliceAgent);
         vm.expectRevert(abi.encodeWithSelector(MaoTangMining.OutOfProximityRange.selector, int256(0), int256(-100), int256(-20)));
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), _bleProof(1, 0, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
+        mining.submitMiningProof(BLE_PING, _bleProof(1, 0, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
     }
 
     function test_StaleProofRejected() public {
         uint256 windowEnd = NOW - 16 minutes;
         vm.prank(aliceAgent);
         vm.expectRevert(
-            abi.encodeWithSelector(MaoTangMining.StaleProof.selector, windowEnd, NOW, mining.MAX_PROOF_AGE())
+            abi.encodeWithSelector(MaoTangMining.StaleProof.selector, windowEnd, NOW, MAX_PROOF_AGE)
         );
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), _bleProof(1, -45, windowEnd, bytes32(uint256(1)), bytes32(uint256(2))));
+        mining.submitMiningProof(BLE_PING, _bleProof(1, -45, windowEnd, bytes32(uint256(1)), bytes32(uint256(2))));
     }
 
     function test_FutureWindowRejected() public {
         uint256 windowEnd = NOW + 1;
         vm.prank(aliceAgent);
         vm.expectRevert(abi.encodeWithSelector(MaoTangMining.ProofFromTheFuture.selector, windowEnd, NOW));
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), _bleProof(1, -45, windowEnd, bytes32(uint256(1)), bytes32(uint256(2))));
+        mining.submitMiningProof(BLE_PING, _bleProof(1, -45, windowEnd, bytes32(uint256(1)), bytes32(uint256(2))));
     }
 
     function test_ZeroPingBatchRejected() public {
         vm.prank(aliceAgent);
         vm.expectRevert(abi.encodeWithSelector(MaoTangMining.InvalidBatchSize.selector, uint256(0), uint256(64)));
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), _bleProof(0, -45, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
+        mining.submitMiningProof(BLE_PING, _bleProof(0, -45, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
     }
 
     function test_MissingAttestationRejected() public {
         vm.prank(aliceAgent);
         vm.expectRevert(MaoTangMining.MissingAttestation.selector);
-        mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), _bleProof(1, -45, NOW, bytes32(uint256(1)), bytes32(0)));
+        mining.submitMiningProof(BLE_PING, _bleProof(1, -45, NOW, bytes32(uint256(1)), bytes32(0)));
 
         vm.prank(aliceAgent);
         vm.expectRevert(MaoTangMining.EmptyProofDigest.selector);
-        mining.submitMiningProof(mining.PROOF_TYPE_ZK_COMPUTE(), _computeProof(1, 2_000, NOW, bytes32(0), bytes32(uint256(5))));
+        mining.submitMiningProof(ZK_COMPUTE, _computeProof(1, 2_000, NOW, bytes32(0), bytes32(uint256(5))));
     }
 
     function test_InsufficientComputeRejected() public {
         vm.prank(aliceAgent);
         vm.expectRevert(abi.encodeWithSelector(MaoTangMining.InsufficientCompute.selector, uint256(999), uint256(1_000)));
-        mining.submitMiningProof(mining.PROOF_TYPE_ZK_COMPUTE(), _computeProof(1, 999, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
+        mining.submitMiningProof(ZK_COMPUTE, _computeProof(1, 999, NOW, bytes32(uint256(1)), bytes32(uint256(2))));
     }
 
     // --------------------------------------------------------------------------- emission + vault
@@ -216,7 +235,7 @@ contract MaoTangMiningTest is Test {
             abi.encodeWithSelector(MaoTangMining.EpochEmissionCapExceeded.selector, NOW / 1 days, requested, MAX_EPOCH_REWARD - paid)
         );
         mining.submitMiningProof(
-            mining.PROOF_TYPE_ZK_COMPUTE(), _computeProof(64, 64_000, NOW, bytes32(uint256(4)), bytes32(uint256(104)))
+            ZK_COMPUTE, _computeProof(64, 64_000, NOW, bytes32(uint256(4)), bytes32(uint256(104)))
         );
     }
 
@@ -270,15 +289,15 @@ contract MaoTangMiningTest is Test {
     // ------------------------------------------------------------------------------------- views
 
     function test_QuoteMiningReward() public view {
-        assertEq(mining.quoteMiningReward(mining.PROOF_TYPE_BLE_PING(), 3), 3 * BLE_REWARD_PER_PING);
-        assertEq(mining.quoteMiningReward(mining.PROOF_TYPE_ZK_COMPUTE(), 3), 3 * COMPUTE_REWARD_PER_TASK);
+        assertEq(mining.quoteMiningReward(BLE_PING, 3), 3 * BLE_REWARD_PER_PING);
+        assertEq(mining.quoteMiningReward(ZK_COMPUTE, 3), 3 * COMPUTE_REWARD_PER_TASK);
     }
 
     function test_ProofTypesAreDistinctAndAsciiTagged() public view {
-        assertTrue(mining.PROOF_TYPE_BLE_PING() != mining.PROOF_TYPE_ZK_COMPUTE());
+        assertTrue(BLE_PING != ZK_COMPUTE);
         // ASCII "maotang.mining.ble-ping.v1" / "maotang.mining.zk-compute.v1", zero-padded.
-        assertEq(mining.PROOF_TYPE_BLE_PING(), 0x6d616f74616e672e6d696e696e672e626c652d70696e672e7631000000000000);
-        assertEq(mining.PROOF_TYPE_ZK_COMPUTE(), 0x6d616f74616e672e6d696e696e672e7a6b2d636f6d707574652e763100000000);
+        assertEq(BLE_PING, 0x6d616f74616e672e6d696e696e672e626c652d70696e672e7631000000000000);
+        assertEq(ZK_COMPUTE, 0x6d616f74616e672e6d696e696e672e7a6b2d636f6d707574652e763100000000);
         assertEq(mining.PROOF_DATA_BYTES(), 192);
     }
 
@@ -292,9 +311,9 @@ contract MaoTangMiningTest is Test {
     }
 
     function testFuzz_NullifierIsDeterministicAndAgentBound(bytes memory proofData) public view {
-        bytes32 first = mining.miningProofNullifier(mining.PROOF_TYPE_BLE_PING(), aliceAgent, proofData);
-        bytes32 again = mining.miningProofNullifier(mining.PROOF_TYPE_BLE_PING(), aliceAgent, proofData);
-        bytes32 other = mining.miningProofNullifier(mining.PROOF_TYPE_BLE_PING(), bobAgent, proofData);
+        bytes32 first = mining.miningProofNullifier(BLE_PING, aliceAgent, proofData);
+        bytes32 again = mining.miningProofNullifier(BLE_PING, aliceAgent, proofData);
+        bytes32 other = mining.miningProofNullifier(BLE_PING, bobAgent, proofData);
         assertEq(first, again);
         assertTrue(first != other);
     }
@@ -302,8 +321,10 @@ contract MaoTangMiningTest is Test {
     // ---------------------------------------------------------------------------------- helpers
 
     function _registerAgent(address human, bytes32 key, string memory hardware) internal returns (address agent) {
+        bytes memory hardwareProof = abi.encodePacked(hardware);
+        bytes32 hardwareNullifier = keccak256(hardwareProof);
         vm.prank(human);
-        agent = registry.registerAgent(key, abi.encodePacked(hardware));
+        agent = registry.registerAgent(key, hardwareProof, hardwareNullifier);
     }
 
     function _fundVault(uint256 amount) internal {
@@ -338,7 +359,7 @@ contract MaoTangMiningTest is Test {
 
     function _submitBleRaw(address agent, bytes memory proof) internal returns (uint256 reward) {
         vm.prank(agent);
-        reward = mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), proof);
+        reward = mining.submitMiningProof(BLE_PING, proof);
     }
 
     function _submitCompute(address agent, uint256 tasks, uint256 units, uint256 windowEnd, bytes32 taskSet, bytes32 proof)
@@ -346,6 +367,6 @@ contract MaoTangMiningTest is Test {
         returns (uint256 reward)
     {
         vm.prank(agent);
-        reward = mining.submitMiningProof(mining.PROOF_TYPE_ZK_COMPUTE(), _computeProof(tasks, units, windowEnd, taskSet, proof));
+        reward = mining.submitMiningProof(ZK_COMPUTE, _computeProof(tasks, units, windowEnd, taskSet, proof));
     }
 }

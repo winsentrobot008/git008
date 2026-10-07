@@ -56,12 +56,20 @@ denial of service against a public JSON-RPC provider, and anything already publi
 4. **Trusted setup.** The verifier and proving keys used in production must come from a
    documented multi-party ceremony; the ceremony transcript and artifact hashes ship with the
    release. Single-party dev keys must be impossible to reach in production builds.
+   `Groth16Verifier` deliberately hardcodes no key: it fails closed until the owner installs the
+   ceremony output, and `lockVerificationKey()` must then be called to remove the ability to swap the
+   key (a swapped key forges personhood for arbitrary nullifiers). Installation is a one-shot ceremony.
 5. **Nullifier derivation.** The nullifier is `H(secret, personhood_id, context)`. The on-chain
    verifier must bind the proof to the nullifier **and** the calling agent address, with
    chain-id and contract-address domain separation so a proof cannot be replayed across forks,
-   chains or deployments.
-6. **Single use.** `AIAgentRegistry`/`HumanToken` must enforce one claim per proof / personhood
-   ID. Double-claiming is the critical failure mode for this system.
+   chains or deployments. *Implementation note (2026-10-07):* `Groth16Verifier` currently takes
+   exactly one public input, the nullifier. The proof->agent binding is enforced on chain by
+   `AIAgentRegistry.hardwareBinding` and `HumanToken.nullifierUsed` rather than inside the circuit,
+   so the public-input list must be extended with chain id and verifier address before mainnet if
+   cross-deployment replay is to be excluded.
+6. **Single use.** `AIAgentRegistry`/`HumanToken` must enforce one claim per hardware nullifier /
+   personhood nullifier: `hardwareBinding` and `nullifierUsed` are written before the capability is
+   granted. Double-claiming is the critical failure mode for this system.
 7. **No network during proving.** The prover process runs with the egress guard installed; the
    only permitted destination is the configured blockchain JSON-RPC origin.
 8. **Reproducibility.** Circuit source, build script and artifact hashes live in the repository
@@ -76,7 +84,7 @@ denial of service against a public JSON-RPC provider, and anything already publi
    files, fixtures, logs, screenshots, test reports or error strings. The repository's
    `AGENTS.md` treats a leak as a security incident.
 2. **Storage.** Agent keys are derived on-device from the hardware attestation supplied to
-   `AIAgentRegistry.registerAgent(agentPubKey, zkHardwareProof)` and stored in OS secure
+   `AIAgentRegistry.registerAgent(agentPubKey, hardwareProof, hardwareNullifier)` and stored in OS secure
    storage (macOS Keychain, Windows DPAPI/CNG, Linux Secret Service) or a keystore with
    OS-level ACLs. Plaintext key files next to the project are forbidden.
 3. **Separation of duties.** The SLM intent engine never sees raw key bytes. It emits a

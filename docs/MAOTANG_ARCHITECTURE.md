@@ -192,14 +192,17 @@ Exports:
 Humans do not touch the protocol directly: every claim and every curve trade is executed by a
 registered personal AI agent.
 
-- `AIAgentRegistry.registerAgent(agentPubKey, zkHardwareProof)` binds one agent to one hardware
-  attestation. The agent identity address is derived deterministically from its public key
+- `AIAgentRegistry.registerAgent(agentPubKey, hardwareProof, hardwareNullifier)` verifies a Groth16
+  hardware-attestation proof (`IZKVerifier.verifyProof`) and binds one agent to one hardware nullifier.
+  The agent identity address is derived deterministically from its public key
   (`agentAddress(agentPubKey)`), and the caller becomes the human owner the agent acts for.
-- `requireAuthorizedAgent(agent)` is the single gate: `HumanToken.claimHumanQuota` calls it and mints
-  into the agent's human owner, while curve and market entry points inherit `AgentGated` so DEX trades
-  carry the same requirement.
-- One public key and one hardware attestation can each be registered once, and the human owner can
-  revoke an agent at any time.
+- `HumanToken.claimHumanQuota(proof, nullifierHash)` verifies the personhood proof against the same
+  verifier before minting one quota; `requireAuthorizedAgent(agent)` stays the single gate, and curve and
+  market entry points inherit `AgentGated` so DEX trades carry the same requirement.
+- One public key and one hardware nullifier can each be bound once, one nullifier can consume its quota
+  once, and the human owner can revoke an agent at any time.
+- The verifier (`contracts/src/Groth16Verifier.sol`) hardcodes no key: verification fails closed until the
+  owner installs the ceremony key, and `lockVerificationKey()` then freezes it irreversibly.
 
 The agent SDK performs the A2A handshake (`AgentClient.agentLogin()`): it derives the agent address,
 checks the on-chain registration, requires the connected account to be the agent and verifies a signed

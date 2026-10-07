@@ -2,15 +2,22 @@
 pragma solidity ^0.8.24;
 
 import {IAIAgentRegistry} from "./AIAgentRegistry.sol";
+import {IZKVerifier} from "./interfaces/IZKVerifier.sol";
 
 /// @title HumanToken ($mHUMAN)
 /// @notice One human, one identity, one quota — claimed through a registered AI agent.
 /// @dev Fixed-precision ERC-20. `decimals` is hardcoded to 6, so the smallest amount that can ever
 /// move is 1 Micro-HUMAN; integer arithmetic makes sub-unit amounts unrepresentable. Supply only
-/// grows through {claimHumanQuota}, and never past {MAX_GLOBAL_SUPPLY}.
+/// grows through {claimHumanQuota}, which requires a Groth16 personhood proof and never past
+/// {MAX_GLOBAL_SUPPLY}.
 contract HumanToken {
     /// @notice Registry deciding which AI agents may claim for which human.
     IAIAgentRegistry public immutable agentRegistry;
+
+    /// @notice Groth16 verifier every personhood proof must satisfy before a quota is minted.
+    /// @dev Immutable: there is no admin path to swap the verifier after deployment, so the rules
+    /// under which a human is recognized cannot change under the holders' feet.
+    IZKVerifier public immutable zkVerifier;
 
     /// @notice Token name.
     string public constant name = "Micro Human";
@@ -40,15 +47,19 @@ contract HumanToken {
     mapping(address owner => mapping(address spender => uint256 amount)) public allowance;
 
     /// @notice Personhood nullifiers that already consumed their one-time quota.
-    mapping(bytes32 personhoodId => bool claimed) public claimedPersonhood;
+    mapping(bytes32 nullifierHash => bool used) public nullifierUsed;
 
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
-    event HumanQuotaClaimed(address indexed wallet, address indexed agent, bytes32 indexed personhoodId, uint256 amount);
+    event HumanQuotaClaimed(
+        address indexed wallet, address indexed agent, bytes32 indexed nullifierHash, uint256 amount
+    );
 
     error EmptyProof();
     error InvalidAgentRegistry();
-    error QuotaAlreadyClaimed(bytes32 personhoodId);
+    error InvalidZKVerifier();
+    error InvalidPersonhoodProof(bytes32 nullifierHash);
+    error QuotaAlreadyClaimed(bytes32 nullifierHash);
     error GlobalSupplyCapExceeded(uint256 requested, uint256 remaining);
     error InsufficientBalance(address from, uint256 balance, uint256 needed);
     error InsufficientAllowance(address spender, uint256 allowance, uint256 needed);
@@ -56,9 +67,12 @@ contract HumanToken {
 
     /// @param agentRegistry_ AI agent registry that authorizes claims. Immutable: there is no admin
     /// path to redirect claims to a different registry.
-    constructor(address agentRegistry_) {
+    /// @param zkVerifier_ Groth16 verifier for personhood proofs. Also immutable.
+    constructor(address agentRegistry_, address zkVerifier_) {
         if (agentRegistry_ == address(0)) revert InvalidAgentRegistry();
+        if (zkVerifier_ == address(0)) revert InvalidZKVerifier();
         agentRegistry = IAIAgentRegistry(agentRegistry_);
+        zkVerifier = IZKVerifier(zkVerifier_);
     }
 
     /// @notice Fixed number of decimals: 6.
@@ -73,32 +87,29 @@ contract HumanToken {
 
     /// @notice Mints one human quota to the wallet the calling agent is authorized for.
     /// @dev AI-agent native: only a registered agent may call this, and the quota always lands in the
-    /// human wallet that agent was registered for. The derived personhood nullifier is written before
-    /// minting, so a given proof (a given person) can trigger this exactly once.
-    /// @param zkProof Personhood proof; its nullifier is the identity handle.
+    /// human wallet that agent was registered for. The claim is accepted only when
+    /// {IZKVerifier-verifyProof} accepts `proof` for `nullifierHash`, the circuit's single public
+    /// input. The nullifier is written before minting, so one person (one nullifier) can trigger this
+    /// exactly once, even across different agents.
+    /// @param proof Groth16 personhood proof, `abi.encode(uint256[8])` in SnarkJS limb order.
+    /// @param nullifierHash Single-use identity handle; must be a canonical BN254 scalar.
     /// @return minted Amount minted, always {HUMAN_QUOTA}.
-    function claimHumanQuota(bytes memory zkProof) external returns (uint256 minted) {
-        if (zkProof.length == 0) revert EmptyProof();
+    function claimHumanQuota(bytes calldata proof, bytes32 nullifierHash) external returns (uint256 minted) {
+        if (proof.length == 0) revert EmptyProof();
+        if (nullifierHash == bytes32(0)) revert InvalidPersonhoodProof(nullifierHash);
 
         address wallet = agentRegistry.requireAuthorizedAgent(msg.sender);
 
-        bytes32 personhoodId = personhoodNullifier(zkProof);
-        if (claimedPersonhood[personhoodId]) revert QuotaAlreadyClaimed(personhoodId);
-        claimedPersonhood[personhoodId] = true;
+        if (nullifierUsed[nullifierHash]) revert QuotaAlreadyClaimed(nullifierHash);
+        if (!zkVerifier.verifyProof(proof, nullifierHash)) revert InvalidPersonhoodProof(nullifierHash);
+        nullifierUsed[nullifierHash] = true;
 
         minted = HUMAN_QUOTA;
         uint256 remaining = MAX_GLOBAL_SUPPLY - totalSupply;
         if (minted > remaining) revert GlobalSupplyCapExceeded(minted, remaining);
 
         _mint(wallet, minted);
-        emit HumanQuotaClaimed(wallet, msg.sender, personhoodId, minted);
-    }
-
-    /// @notice Derives the single-use identity handle from a personhood proof.
-    /// @dev Placeholder for the real ZK verifier (Groth16 / PLONK). The default implementation binds
-    /// one proof to one nullifier but does not prove personhood; override it before production.
-    function personhoodNullifier(bytes memory zkProof) public pure virtual returns (bytes32) {
-        return keccak256(zkProof);
+        emit HumanQuotaClaimed(wallet, msg.sender, nullifierHash, minted);
     }
 
     /// @notice Moves `amount` micro-units to `to`.
