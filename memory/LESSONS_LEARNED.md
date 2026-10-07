@@ -2,6 +2,43 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-07 - A Turbopack alias to a workspace junction's target is not enough; declare the root
+
+- **Observation:** `frontend/node_modules/@maotang/sdk` is a Windows junction to the sibling `../sdk`,
+  which sits outside `frontend/`. With only `transpilePackages: ["@maotang/sdk"]`, `npm run build`
+  (Turbopack) failed to resolve the package, while `next build --webpack` succeeded because webpack walks
+  up to the workspace root on its own. Adding `turbopack.resolveAlias: { "@maotang/sdk":
+  "../sdk/dist/index.js" }` did not help: the alias leaves the target outside the computed root.
+- **Lesson:** When a package resolves through a symlink/junction that escapes the project directory, the
+  thing to change is the module-resolution *root*, not the package *name*. Turbopack exposes it as
+  `turbopack.root`; point it at the workspace directory that actually contains both projects.
+- **Application:** `frontend/next.config.ts` sets `turbopack: { root: path.resolve(__dirname, "..") }`;
+  both `npm run build` and `next build --webpack` now compile 3/3 static pages.
+
+## 2026-10-07 - `node --test <dir>/` finds no tests on Node 22.20; pass a glob instead
+
+- **Observation:** `node --test test/` and `node --test dist/test-build/test/` exit 0 with zero tests
+  discovered on Node 22.20.0 — the directory shorthand is treated as a module specifier and the trailing
+  slash misses. `node --test test/*.test.mjs` (or the `.js` equivalent) discovers and runs the files.
+- **Lesson:** A green `node --test <dir>` is not evidence a suite ran, because a runner that discovers
+  nothing also exits 0. Pin the discovery pattern in the package script and read the reported test count
+  as part of the gate.
+- **Application:** `agent-client/package.json` and `agent-manager/package.json` use the glob form;
+  `agent-client` reports 28/28 and `agent-manager` 55/55.
+
+## 2026-10-07 - `Promise<string> | string[]` is not "an optional promise of a string"
+
+- **Observation:** `SlmTokenizer.decode` was typed `Promise<string> | string[]`, but a tokenizer that
+  decodes either synchronously or behind a promise is `string | Promise<string>`. The mismatch hid behind
+  `await` — under the old union `await decode(...)` yields `string[]` without an error — so it only
+  surfaced once `agent-client` had installed dependencies and could actually be compiled.
+- **Lesson:** A "maybe sync, maybe async" seam must be written `T | Promise<T>`; a union of *different*
+  payload types (`string[]`) type-checks at the call site while encoding the wrong contract. And an
+  unenforceable gate is not a passing gate: `agent-client` had no installed toolchain, so its
+  `tsc --noEmit` could not run at all.
+- **Application:** `SlmTokenizer.decode` is `string | Promise<string>` and `SlmEngineInfo` gained an
+  optional `providers?: readonly string[]`; `agent-client` now runs `npm run typecheck` clean.
+
 ## 2026-10-07 - A hand-pinned function selector fails silently; cross-check it instead of reading it
 
 - **Observation:** the frontend bundle has no ABI encoder, so `frontend/src/lib/protocol.ts` pins five

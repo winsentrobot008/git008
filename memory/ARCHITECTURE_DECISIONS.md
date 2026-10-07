@@ -2,6 +2,60 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-07 — ADR-013: Turbopack resolves through the workspace root; local SLM/ONNX inference becomes a mining compute source (P1-EXTEND)
+
+**Status:** Accepted (implemented; `frontend` Turbopack `npm run build` 3/3 static pages and `next build
+--webpack` still green, `tsc --noEmit` clean in `frontend/`, `sdk/` and `agent-client/`, `agent-client`
+28/28 and `agent-manager` 55/55 via `node --test`; see §4.9)
+
+**Context:** Three independent breakages sat on the v2 branch. (1) The default Turbopack build could not
+resolve `@maotang/sdk`, whose `frontend/node_modules` entry is a Windows junction to the sibling `../sdk`;
+webpack walks up to the workspace root on its own, so only the Turbopack gate failed. (2) `agent-client`
+did not type-check at all (a duplicate `stop` identifier, a wrong `decode` return union) and had no
+installed toolchain, so `tsc --noEmit` was unenforceable there. (3) `PROOF_TYPE_ZK_COMPUTE` carried a
+mocked zero: nothing connected the on-device SLM/ONNX engine to the DePIN telemetry the mining path
+already collects.
+
+**Decision:**
+
+- **Widen Turbopack's root; do not alias the package.** `frontend/next.config.ts` sets
+  `turbopack.root = path.resolve(__dirname, "..")` alongside `transpilePackages: ["@maotang/sdk"]`. A
+  `resolveAlias` to `../sdk/dist/index.js` was tried first and failed — an alias does not bring the
+  junction's target inside the root — so the fix declares the sibling workspace as the root, the same
+  boundary webpack infers. Both build paths now pass.
+- **The provider ladder lives in `agent-client`; the miner only asks for a digest.** `slm/onnx.ts` gains
+  the same best-first provider order as `agent-manager/src/node/npu-delegator.mjs`
+  (qnn/nnapi/coreml/…/xnnpack/cuda/…), a `planExecutionProviders` that filters by what the runtime
+  reports `available`, and the invariant that `cpu` is always the last rung: ONNX Runtime always ships
+  its reference kernels, so a session can always be created. `CPU_FALLBACK_PROVIDERS = ["xnnpack","cpu"]`
+  is the graceful-degradation rung.
+- **The compute proof is the digest of the model output, committed to the physical context.**
+  `slm/offline-inference.ts` renders the fused telemetry (cell set + GNSS + UWB + BLE window) into the
+  prompt, runs the engine, and hashes the output into a domain-separated `bytes32`
+  (`maotang-slm-compute-proof-v1`). Timings and token counts are deliberately excluded so an independent
+  verifier can reproduce the digest from the model, the prompt and the telemetry alone.
+  `runOfflineInferenceTask` returns `{ available: false, reason }` on any absence and never rejects; the
+  miner skips the compute proof for that cycle and keeps mining BLE proximity.
+- **The miner drains it through the existing seam.** `agent-manager/src/mining/inference-compute-source.mjs`
+  is a `computeSource` with `run({ since })` / `status()`, mirroring the BLE evidence drain, wired in
+  `agent-manager.mjs` from the already-constructed `depin` sources. `@maotang/agent-client` is imported
+  lazily, so a node without a built package degrades to BLE-only instead of crashing.
+- **Env defaults are honest fallbacks, not demo data.** `frontend/src/lib/chain.ts` falls back to a local
+  anvil RPC **only** when `NODE_ENV !== "production"`, accepts both canonical
+  (`NEXT_PUBLIC_MAOTANG_*_ADDRESS`) and legacy keys, and maps malformed/empty values to `null` (rendered
+  as an em dash) rather than a fabricated address.
+
+**Consequences / residual risk:**
+
+- `agent-client` must be built (`npm run build`) and installed into `agent-manager` before the real
+  package-backed mining path can load; the integration test skips with that reason instead of failing,
+  and `agent-client/dist/` is not committed.
+- No NPU and no ONNX Runtime ran on this host: the ladder is proven against an injected fake
+  `onnxruntime-node` that refuses any list but `["cpu"]`, and the end-to-end path runs `mode: "simulated"`.
+  The real graph, tokenizer and qnn/nnapi providers remain device-side work.
+- One extra physical scan per mining cycle is the cost of committing the compute proof to the same
+  evidence the BLE proof attests; the context is memoized per `{ since }`, so a cycle pays once.
+
 ## 2026-10-07 — ADR-012: MAOTANG board reads live chain state without a wallet stack (P1-UI)
 
 **Status:** Accepted (implemented; `frontend` `tsc --noEmit` clean, webpack production build 3/3 static

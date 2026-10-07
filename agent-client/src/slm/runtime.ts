@@ -39,6 +39,8 @@ export interface SlmRuntimeConfig {
   allowOverBudget?: boolean;
   /** Required by the ONNX backend. */
   tokenizer?: SlmTokenizer;
+  /** Preferred ONNX execution providers, best first; `cpu` is always the terminal fallback. */
+  executionProviders?: readonly string[];
   /** Rejected: no cloud inference endpoints. */
   endpoint?: string;
   apiUrl?: string;
@@ -55,6 +57,8 @@ export interface SlmRuntimeInfo {
   modelPath: string;
   contextSize: number;
   loaded: boolean;
+  /** Execution providers the backend loaded, best first. */
+  providers: readonly string[];
   memory: MemoryEstimate;
 }
 
@@ -106,6 +110,7 @@ export class SlmRuntime {
       spec: this.model,
       contextSize: this.contextSize,
       threads: this.config.threads,
+      executionProviders: this.config.executionProviders,
     };
 
     if (this.mode === "simulated") {
@@ -153,6 +158,7 @@ export class SlmRuntime {
       modelPath: this.config.modelPath,
       contextSize: this.contextSize,
       loaded: this.engine.isLoaded(),
+      providers: this.engine.info().providers ?? [],
       memory: this.memory,
     };
   }

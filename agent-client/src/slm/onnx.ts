@@ -12,11 +12,114 @@ import type {
 
 export const ONNX_MODULE = "onnxruntime-node";
 
+/**
+ * Preferred execution providers, best first.
+ *
+ * Deliberately the same ordering as `PROVIDER_PRIORITY` in
+ * `agent-manager/src/node/npu-delegator.mjs`: a vendor NPU provider (QNN on Qualcomm, NNAPI on
+ * Android, CoreML on Apple silicon) outranks `xnnpack`, which is a CPU kernel library that merely
+ * reports as NPU-capable. `cpu` is always appended last.
+ */
+export const DEFAULT_EXECUTION_PROVIDERS: readonly string[] = [
+  "qnn",
+  "nnapi",
+  "coreml",
+  "cann",
+  "vitis",
+  "openvino",
+  "xnnpack",
+  "tensorrt",
+  "cuda",
+  "dml",
+  "rocm",
+  "migraphx",
+  "webgpu",
+];
+
+/** CPU-family providers: XNNPACK's kernels first, then ORT's always-available reference kernels. */
+export const CPU_FALLBACK_PROVIDERS: readonly string[] = ["xnnpack", "cpu"];
+
+/** Lowercases a provider name and drops the `ExecutionProvider` suffix ONNX Runtime appends. */
+export function normalizeProvider(provider: string): string {
+  return String(provider).toLowerCase().replace(/executionprovider$/, "");
+}
+
+function unique(providers: readonly string[]): string[] {
+  const seen: string[] = [];
+  for (const provider of providers) {
+    const key = normalizeProvider(provider);
+    if (key !== "" && !seen.includes(key)) {
+      seen.push(key);
+    }
+  }
+  return seen;
+}
+
+/**
+ * Orders the providers a session should ask for.
+ *
+ * `available` (when the runtime reports it) filters out providers this build cannot load, which
+ * turns most "unsupported provider" failures into a plan that simply omits them. An explicit
+ * `preferred` list is used as given (plus `cpu`); the CPU-family fallbacks are only appended to the
+ * default plan, so a caller can pin a session to one provider. `cpu` always ends the plan: ONNX
+ * Runtime always ships its reference kernels, so a session can always be created.
+ */
+export function planExecutionProviders(options: {
+  preferred?: readonly string[];
+  available?: readonly string[];
+} = {}): readonly string[] {
+  const available = options.available === undefined ? undefined : unique(options.available);
+  const allowed = (provider: string) => available === undefined || available.includes(normalizeProvider(provider));
+  const source = options.preferred ?? DEFAULT_EXECUTION_PROVIDERS;
+
+  const planned = unique(source).filter(allowed);
+  if (options.preferred === undefined) {
+    for (const provider of unique(CPU_FALLBACK_PROVIDERS)) {
+      if (allowed(provider) && !planned.includes(provider)) {
+        planned.push(provider);
+      }
+    }
+  }
+  return [...planned.filter((provider) => provider !== "cpu"), "cpu"];
+}
+
+/**
+ * The attempts, in order, that {@link OnnxEngine.load} walks when a session cannot be created.
+ *
+ * Every rung keeps `cpu` in its list and `["cpu"]` is always one of the rungs, so an unavailable
+ * NPU/GPU runtime degrades to CPU inference instead of failing the whole task.
+ */
+export function executionProviderLadder(planned: readonly string[]): readonly (readonly string[])[] {
+  const attempts: string[][] = [];
+  for (const candidate of [unique(planned), unique(CPU_FALLBACK_PROVIDERS), ["cpu"]]) {
+    const providers = candidate.length === 0 ? ["cpu"] : [...candidate];
+    if (!providers.includes("cpu")) {
+      providers.push("cpu");
+    }
+    const key = providers.join(",");
+    if (!attempts.some((attempt) => attempt.join(",") === key)) {
+      attempts.push(providers);
+    }
+  }
+  return attempts;
+}
+
+export interface ExecutionProviderFallback {
+  /** Providers the plan asked for first. */
+  from: readonly string[];
+  /** Providers that actually created the session. */
+  to: readonly string[];
+  /** Why the previous attempt failed. */
+  reason: string;
+}
+
 export interface OnnxEngineOptions {
   modelPath: string;
   spec: SlmModelSpec;
   contextSize: number;
   tokenizer?: SlmTokenizer;
+  /** Preferred execution providers, best first; defaults to {@link DEFAULT_EXECUTION_PROVIDERS}. */
+  executionProviders?: readonly string[];
   /** Overridable so tests can exercise the "runtime not installed" path. */
   moduleName?: string;
 }
@@ -33,9 +136,16 @@ interface OrtSession {
   release?(): Promise<void>;
 }
 
+/** The only part of a runtime module the provider probe needs, so tests can inject one. */
+export interface ExecutionProviderSource {
+  getAvailableExecutionProviders?: () => string[];
+}
+
 interface OrtModule {
   InferenceSession: { create(path: string, options?: Record<string, unknown>): Promise<OrtSession> };
   Tensor: new (type: string, data: BigInt64Array | Float32Array, dims: readonly number[]) => OrtTensor;
+  /** Present on some ONNX Runtime builds only, hence optional. */
+  getAvailableExecutionProviders?: () => string[];
 }
 
 /** Greedy argmax over the last row of a `[..., vocab]` logits tensor. */
@@ -66,6 +176,9 @@ export function argmaxLastRow(logits: OrtTensor): number {
  * `onnxruntime-node` is optional and imported dynamically. Decoding is a naive greedy loop that
  * re-runs the whole sequence each step (no KV-cache reuse): correct, memory-light, and slow — a
  * KV-cache path is the obvious follow-up once the ONNX graph exposes past/present tensors.
+ *
+ * Session creation walks an execution-provider ladder (NPU -> GPU -> XNNPACK -> CPU) and reports the
+ * provider it landed on, so a device without an NPU still runs on CPU kernels instead of failing.
  */
 export class OnnxEngine implements SlmEngine {
   readonly id = "onnx";
@@ -74,9 +187,21 @@ export class OnnxEngine implements SlmEngine {
   private readonly options: OnnxEngineOptions;
   private ort: OrtModule | null = null;
   private session: OrtSession | null = null;
+  private loadedProviders: readonly string[] = [];
+  private fallback: ExecutionProviderFallback | null = null;
 
   constructor(options: OnnxEngineOptions) {
     this.options = options;
+  }
+
+  /** Providers the loaded session uses, best first. Empty until `load()` succeeds. */
+  get providers(): readonly string[] {
+    return this.loadedProviders;
+  }
+
+  /** Set when the first provider plan failed and a later rung of the ladder was used. */
+  get providerFallback(): ExecutionProviderFallback | null {
+    return this.fallback;
   }
 
   async load(): Promise<SlmEngineInfo> {
@@ -99,11 +224,36 @@ export class OnnxEngine implements SlmEngine {
     }
 
     this.ort = ort;
-    this.session = await ort.InferenceSession.create(this.options.modelPath, {
-      executionProviders: ["cpu"],
-      graphOptimizationLevel: "all",
+    const planned = planExecutionProviders({
+      preferred: this.options.executionProviders,
+      available: detectAvailableProviders(ort),
     });
-    return this.info();
+    const ladder = executionProviderLadder(planned);
+
+    let lastReason = "no execution provider attempt was made";
+    for (const [index, providers] of ladder.entries()) {
+      try {
+        this.session = await ort.InferenceSession.create(this.options.modelPath, {
+          executionProviders: [...providers],
+          graphOptimizationLevel: "all",
+        });
+        this.loadedProviders = providers;
+        this.fallback =
+          index === 0
+            ? null
+            : { from: planned, to: providers, reason: lastReason };
+        return this.info();
+      } catch (error) {
+        lastReason = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    this.ort = null;
+    throw new SlmRuntimeUnavailableError(
+      moduleName,
+      `no execution provider accepted the model (tried ${ladder.map((attempt) => attempt.join("+")).join(", ")}); ` +
+        `last error: ${lastReason}`,
+    );
   }
 
   async unload(): Promise<void> {
@@ -112,6 +262,7 @@ export class OnnxEngine implements SlmEngine {
       this.session = null;
     }
     this.ort = null;
+    this.loadedProviders = [];
   }
 
   isLoaded(): boolean {
@@ -126,6 +277,7 @@ export class OnnxEngine implements SlmEngine {
       modelPath: this.options.modelPath,
       contextSize: this.options.contextSize,
       loaded: this.isLoaded(),
+      providers: [...this.loadedProviders],
     };
   }
 
@@ -206,5 +358,18 @@ export class OnnxEngine implements SlmEngine {
       throw new SlmRuntimeUnavailableError(ONNX_MODULE, "the session returned no outputs");
     }
     return first;
+  }
+}
+
+/** Reads the runtime's provider list when this build exposes one; `undefined` means "unknown". */
+export function detectAvailableProviders(ort: ExecutionProviderSource): readonly string[] | undefined {
+  if (typeof ort.getAvailableExecutionProviders !== "function") {
+    return undefined;
+  }
+  try {
+    const providers = ort.getAvailableExecutionProviders();
+    return Array.isArray(providers) ? unique(providers.map(String)) : undefined;
+  } catch {
+    return undefined;
   }
 }

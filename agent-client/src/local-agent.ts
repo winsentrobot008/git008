@@ -27,7 +27,7 @@ export class LocalAgent {
   private readonly context: ToolCallContext;
   private readonly maxTokens: number;
   private readonly temperature: number;
-  private readonly stop: readonly string[];
+  private readonly stopTokens: readonly string[];
   private prompt: string | undefined;
 
   constructor(runtime: SlmRuntime, options: LocalAgentOptions = {}) {
@@ -36,7 +36,7 @@ export class LocalAgent {
     this.context = options.context ?? {};
     this.maxTokens = options.maxTokens ?? 256;
     this.temperature = options.temperature ?? 0;
-    this.stop = options.stop ?? DEFAULT_STOP_TOKENS;
+    this.stopTokens = options.stop ?? DEFAULT_STOP_TOKENS;
     this.prompt = undefined;
   }
 
@@ -59,7 +59,7 @@ export class LocalAgent {
       prompt,
       maxTokens: this.maxTokens,
       temperature: this.temperature,
-      stop: [...this.stop],
+      stop: [...this.stopTokens],
     });
 
     return parseToolCall(result.text, this.tools);

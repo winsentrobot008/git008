@@ -20,7 +20,13 @@ import { fileURLToPath } from "node:url";
 import { LocalAgent, SlmRuntime } from "@maotang/agent-client";
 
 import { EgressBlockedError, createEgressPolicy, installEgressGuard } from "./network-guard.mjs";
-import { BackgroundMiner, JsonRpcMiningTransport, NULL_SIGNER, DEFAULT_DUTY_CYCLE } from "./mining/index.mjs";
+import {
+  BackgroundMiner,
+  JsonRpcMiningTransport,
+  NULL_SIGNER,
+  DEFAULT_DUTY_CYCLE,
+  createSlmComputeSource,
+} from "./mining/index.mjs";
 import { JsonRpcClient } from "./rpc-client.mjs";
 import { P2PMesh } from "./network/index.mjs";
 import { createSystemDepinSource } from "./services/index.mjs";
@@ -366,16 +372,26 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
         signer: NULL_SIGNER,
       });
       const depin = await createSystemDepinSource({ env, logger: { info: log, warn, error: warn } });
+      // The compute stream is the local SLM: the digest of its output is what PROOF_TYPE_ZK_COMPUTE
+      // carries. It drains the same radios the proximity proof uses, so one cycle attests both.
+      const slm = createSlmComputeSource({
+        contextSource: depin,
+        bleSource: depin,
+        identity: profile.identity,
+        env,
+        logger: { info: log, warn, error: warn },
+      });
       const miner = new BackgroundMiner({
         identity: profile.identity,
         transport,
         bleSource: depin,
+        computeSource: slm,
         contextSource: depin,
         dutyCycle: { periodic: false, autoClaim: DEFAULT_DUTY_CYCLE.autoClaim },
         logger: { info: log, warn, error: warn },
       });
       const cycle = await miner.start();
-      process.stdout.write(`${JSON.stringify({ mining: miner.status(), depin: depin.status(), cycle }, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify({ mining: miner.status(), depin: depin.status(), slm: slm.status(), cycle }, null, 2)}\n`);
       return 0;
     }
 

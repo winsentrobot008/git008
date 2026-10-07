@@ -59,12 +59,14 @@ function VaultRevenueCard({
   updatedAt,
   error,
   vault,
+  humanToken,
 }: {
   stats: VaultStats | null;
   status: LiveStatus;
   updatedAt: number | null;
   error: string | null;
   vault: Address | null;
+  humanToken: Address | null;
 }) {
   return (
     <section className="flex flex-col gap-6 rounded-2xl border border-maotang-border bg-maotang-surface p-6">
@@ -86,8 +88,8 @@ function VaultRevenueCard({
         </span>
         <span className="text-xs text-white/40">
           {vault
-            ? `vault ${shortAddress(vault)}`
-            : "set NEXT_PUBLIC_MAOTANG_RPC_URL and NEXT_PUBLIC_MAOTANG_VAULT to read a deployment"}
+            ? `vault ${shortAddress(vault)}${humanToken ? ` - $mHUMAN ${shortAddress(humanToken)}` : ""}`
+            : "set NEXT_PUBLIC_MAOTANG_RPC_URL and NEXT_PUBLIC_MAOTANG_VAULT_ADDRESS to read a deployment"}
         </span>
       </div>
 
@@ -293,6 +295,7 @@ export default function HomePage() {
           updatedAt={vault.updatedAt}
           error={vault.error}
           vault={config?.vault ?? null}
+          humanToken={config?.humanToken ?? null}
         />
         <GraduationPanel
           snapshot={snapshot}
@@ -343,8 +346,9 @@ export default function HomePage() {
           <p className="text-xs text-white/40">
             The tiles above are placeholder data. The vault and graduation panels read live state
             (every {Math.round(POLL_INTERVAL_MS / 1000)}s) once{" "}
-            <code>NEXT_PUBLIC_MAOTANG_RPC_URL</code>, <code>NEXT_PUBLIC_MAOTANG_CURVE</code> and{" "}
-            <code>NEXT_PUBLIC_MAOTANG_VAULT</code> are set.
+            <code>NEXT_PUBLIC_MAOTANG_RPC_URL</code>, <code>NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS</code> and{" "}
+            <code>NEXT_PUBLIC_MAOTANG_VAULT_ADDRESS</code> are set; outside production the RPC URL falls
+            back to local anvil (see <code>frontend/.env.example</code>).
           </p>
         </aside>
       </section>

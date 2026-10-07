@@ -54,12 +54,15 @@ export interface SlmEngineInfo {
   modelPath: string;
   contextSize: number;
   loaded: boolean;
+  /** Execution providers the backend loaded, best first. Absent when the backend has none. */
+  providers?: readonly string[];
 }
 
 /** Minimal tokenizer contract for the ONNX backend. */
 export interface SlmTokenizer {
-  encode(text: string): Promise<number[]> | number[];
-  decode(tokens: number[]): Promise<string> | string[];
+  encode(text: string): number[] | Promise<number[]>;
+  /** Returns the decoded text, synchronously or behind a promise. */
+  decode(tokens: number[]): string | Promise<string>;
   eosTokenId?: number;
 }
 

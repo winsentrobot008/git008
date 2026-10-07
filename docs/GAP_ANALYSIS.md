@@ -426,6 +426,85 @@ tracked `frontend/tsconfig.json` in place; the change committed here is only Nex
 `.gitignore` now covers `/frontend/.next/`, which the pre-existing root-anchored `/.next/` pattern never
 matched.
 
+### 4.9 P1-EXTEND verification run - Turbopack gate, agent-client diagnostics, SLM/ONNX -> ZK_COMPUTE (2026-10-07)
+
+P1-EXTEND closed the frontend build gate that §4.8 recorded as failing, made `agent-client` type-check
+and test on this host for the first time, and wired the local SLM/ONNX engine into the miner's
+physical telemetry so `PROOF_TYPE_ZK_COMPUTE` carries a real inference-output digest instead of a
+mocked zero.
+
+| Command (cwd) | Observed | Exit |
+| --- | --- | --- |
+| `npm run build` (`frontend/`, Turbopack) | **compiled, 3/3 static pages** - was `Module not found: Can't resolve '@maotang/sdk'` | 0 |
+| `npx next build --webpack` (`frontend/`) | compiled, 3/3 static pages (webpack path unchanged) | 0 |
+| `npx tsc --noEmit` (`frontend/`) | no diagnostics | 0 |
+| `npx tsc --noEmit` (`sdk/`) | no diagnostics | 0 |
+| `npx tsc --noEmit` (`agent-client/`) | no diagnostics - was **4 errors** (2 x TS2300, 2 x TS2345) | 0 |
+| `npm test` (`agent-client/`) | **28 passed / 0 failed** (12 pre-existing + 16 new) | 0 |
+| `npm test` (`agent-manager/`) | **55 passed / 0 failed** across 6 files (46 pre-existing + 9 new) | 0 |
+
+`forge build` / `forge test` were **not** re-run: P1-EXTEND touches no Solidity file, and
+`MaoTangMining.sol`'s six-word payload layout is unchanged (the compute proof type, its reward rate
+and the `abi.decode` layout are asserted equal to the Solidity source by `test/mining_e2e.py`).
+
+Defects found and repaired, in the order they surfaced:
+
+- **Turbopack refused the SDK junction.** `frontend/node_modules/@maotang/sdk` is a junction to
+  `../sdk`, outside the frontend's project directory, so Turbopack could not resolve the bare
+  specifier. An `resolveAlias` entry did not help; `turbopack.root = path.resolve(__dirname, "..")`
+  does, because it puts the SDK inside the bundler's workspace root. See ADR-013.
+- **`agent-client` never compiled on this machine.** `local-agent.ts` declared both a private
+  `stop: readonly string[]` field and a `stop()` method (TS2300 x2), and
+  `SlmTokenizer.decode` was typed `Promise<string> | string[]`, which is not "an optional promise"
+  but "a promise of a string or an array of strings" (TS2345 x2). The field is now `stopTokens` and
+  `decode` returns `string | Promise<string>`.
+- **The ONNX backend had no fallback.** It asked ONNX Runtime for `["cpu"]` and nothing else, so a
+  device that exposes an NPU could never use it and a missing provider was a hard failure. It now
+  walks an explicit ladder - planned providers (qnn > nnapi > coreml > ... > xnnpack, mirroring
+  `node/npu-delegator.mjs`'s priority) then `["xnnpack","cpu"]` then `["cpu"]` - records the
+  fallback reason, and reports the providers it actually loaded through `info().providers`.
+- **Two test scripts used a Node form that no longer works.** `node --test dist/test-build/test/`
+  (agent-client) and `node --test test/` (agent-manager) fail on Node 22.20 with
+  `Cannot find module ...\test`; both now use the glob form the verification log has been recording
+  all along (`node --test <dir>/*.test.js|mjs`). The suites were green before this change only
+  because the documented invocation was always the glob.
+- **`@maotang/agent-manager` could not reach its own dependency.** `package.json` declares
+  `@maotang/agent-client` but the package was never installed on this host, so the CLI's static import
+  would have failed at runtime. Installing it (a junction to `../agent-client`) and building
+  `agent-client/dist` makes the declared dependency real; the new compute source still imports it
+  lazily so a node without the package degrades instead of crashing.
+
+Ad-hoc harnesses (scratch directory outside the repo, not committed):
+
+| Check | Observed |
+| --- | --- |
+| Pure-module suite re-run (§4.8 harness, 6 tests) | 6 passed / 0 failed - selectors, `graduationGap`, formatters, `parseAddress` |
+| Env-wiring suite (transpiled `lib/chain.ts`, 4 tests) | 4 passed / 0 failed - dev fallback to `http://127.0.0.1:8545`, production returns `null`, canonical `*_ADDRESS` keys, legacy aliases honoured with the canonical key winning, malformed/empty addresses ignored |
+| `node src/agent-manager.mjs --mine` (no radio helpers, no model) | cycle report carries `slm.lastOutcome.reason = "MAOTANG_SLM_MODEL_PATH is not set"`, `skipped: [no-ble-evidence, no-compute-evidence]`, `errors: [MAOTANG_BLE_HELPER is not set]` |
+| `MAOTANG_SLM_MODE=simulated MAOTANG_SLM_MODEL_PATH=... --mine` | real CLI runs the SLM: `[slm] qwen2.5-0.5b-instruct-int4 on default -> 0x79df7105b3...` then `[slm] compute task slm-c8fe0240dfe197cdd9236b6d -> 0x79df7105b3...`, and stops at the pre-existing signer requirement (`no transaction signer configured`) |
+
+**The SLM -> on-chain path, stated exactly.** `mining/inference-compute-source.mjs` asks
+`agent-client` for one inference over the fused physical context: the prompt embeds the 5G cell-set
+hash, the GNSS digest, the UWB range-set hash and the BLE beacon-set commitment (batched by the same
+`batchBleObservations` the proximity proof uses), the model output is hashed into a domain-separated
+`bytes32`, and the digest becomes the task's `proof`. `batchComputeTasks` keeps that per-task digest
+verbatim and signs the batch around it, so payload word 5 is *not* the ONNX hash: the ONNX hash is
+committed to inside the signed batch digest, and changing the model output changes the payload.
+Timings and token counts are deliberately excluded from the digest so a verifier can reproduce it
+from the model, the prompt and the telemetry alone.
+
+**What was not exercised, stated plainly.** No NPU accelerator ran: the provider ladder is tested
+against an injected fake `onnxruntime-node` that refuses every list except `["cpu"]`, and the
+end-to-end mining path runs `mode: "simulated"` (the deterministic engine), because this host has no
+ONNX Runtime, no phone NPU and no model weights. The ONNX graph, its tokenizer and the real
+`qnn`/`nnapi` providers therefore remain device-side work - what is proven here is the seam: the
+ladder, the digest, the payload layout and the telemetry that feeds them.
+
+**Environment finding.** `agent-manager` runs are host-dependent in a new way: `agent-client`
+must be built (`npm run build`) and installed into `agent-manager` (`npm install --omit=optional`)
+before the mining path can load it. The test that exercises the real package skips with that reason
+when the package is absent instead of failing.
+
 ## 5. Bottom Line
 
 Three of the four original blockers are now cleared. The **specification** is complete and
@@ -463,3 +542,9 @@ Recommended immediate next step: run the trusted setup of record for the personh
 then install and lock the verification key (P0-1 residual). The toolchain gate is now closed —
 `forge-std` is vendored, `forge build` and `forge test` both pass (101/101), and both TypeScript gates plus
 the SDK unit tests pass — so the next highest-value work is either that ceremony or the BTC leg (P1-2).
+
+**P1-EXTEND update.** The frontend's Turbopack gate is closed (`npm run build` compiles 3/3 static
+pages; the fix is `turbopack.root = ..`, ADR-013), `agent-client` now type-checks and runs 28/28
+tests here, and the local SLM/ONNX engine is wired to the DePIN telemetry so `PROOF_TYPE_ZK_COMPUTE`
+carries a real inference-output digest. The remaining device-side work is unchanged: no NPU
+accelerator and no model weights were exercised on this host (§4.9).

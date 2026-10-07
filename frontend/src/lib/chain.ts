@@ -18,13 +18,23 @@ const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
  */
 const READ_ONLY_FACTORY: Address = "0x0000000000000000000000000000000000000000";
 
+/**
+ * Local anvil endpoint. Used as the dev/testnet fallback so `npm run dev` shows live panels without
+ * a `.env.local`; a production build never invents an endpoint.
+ */
+export const DEV_FALLBACK_RPC_URL = "http://127.0.0.1:8545";
+
 /** Chain endpoints the live panels poll. Built from `NEXT_PUBLIC_*` so the client bundle stays static. */
 export interface ChainConfig {
   rpcUrl: string;
+  /** True when `rpcUrl` came from {@link DEV_FALLBACK_RPC_URL} rather than the environment. */
+  usingDevFallback: boolean;
   /** Bonding curve whose graduation progress the board tracks. */
   curve: Address | null;
   /** `MaoTangSustenanceVault` whose revenue the board tracks. */
   vault: Address | null;
+  /** `HumanToken` ($mHUMAN) minted by the personhood claim. */
+  humanToken: Address | null;
 }
 
 /** Trims and validates a hex address, returning `null` for anything that is not 20 bytes. */
@@ -36,19 +46,36 @@ export function parseAddress(value: string | undefined | null): Address | null {
   return trimmed.toLowerCase() as Address;
 }
 
+/** First value that parses as an address; lets a canonical key and its legacy alias coexist. */
+export function firstAddress(...values: (string | undefined)[]): Address | null {
+  for (const value of values) {
+    const parsed = parseAddress(value);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
 /**
- * Reads the deployment the board points at, or `null` when no RPC endpoint is configured.
- * Returning `null` keeps the panels in their deterministic "awaiting rpc" state instead of guessing.
+ * Reads the deployment the board points at, or `null` when no endpoint is available at all.
+ *
+ * Addresses stay `null` when they are missing or malformed, which keeps the corresponding panel in
+ * its deterministic "awaiting rpc" state instead of guessing. Outside production the RPC URL falls
+ * back to local anvil, so `npm run dev` works against a local chain with no configuration.
  */
 export function readChainConfig(): ChainConfig | null {
-  const rpcUrl = process.env.NEXT_PUBLIC_MAOTANG_RPC_URL?.trim();
-  if (!rpcUrl) {
+  const configured = process.env.NEXT_PUBLIC_MAOTANG_RPC_URL?.trim();
+  const rpcUrl = configured && configured !== "" ? configured : process.env.NODE_ENV === "production" ? null : DEV_FALLBACK_RPC_URL;
+  if (rpcUrl === null) {
     return null;
   }
   return {
     rpcUrl,
-    curve: parseAddress(process.env.NEXT_PUBLIC_MAOTANG_CURVE),
-    vault: parseAddress(process.env.NEXT_PUBLIC_MAOTANG_VAULT),
+    usingDevFallback: !configured,
+    curve: firstAddress(process.env.NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS, process.env.NEXT_PUBLIC_MAOTANG_CURVE),
+    vault: firstAddress(process.env.NEXT_PUBLIC_MAOTANG_VAULT_ADDRESS, process.env.NEXT_PUBLIC_MAOTANG_VAULT),
+    humanToken: firstAddress(process.env.NEXT_PUBLIC_MAOTANG_HUMAN_TOKEN_ADDRESS),
   };
 }
 
