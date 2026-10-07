@@ -79,7 +79,7 @@ tokensOut      = (S + Sv) - k / (R + Rv + net)
 Sell `tokensIn` (the curve must be pre-approved for the token):
 
 ```
-grossReserveOut = (R + Rv) - k / (S + Sv - tokensIn)
+grossReserveOut = k / (S + Sv - tokensIn) - (R + Rv)
 fee             = grossReserveOut * FEE_BPS / 10000
 reserveOut      = grossReserveOut - fee
 ```

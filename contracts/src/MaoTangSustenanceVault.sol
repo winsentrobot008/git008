@@ -133,10 +133,10 @@ contract MaoTangSustenanceVault is AgentGated {
         if (asset == NATIVE) revert NativeAssetRequiresDepositFee();
         if (amount == 0) revert ZeroAmount();
 
-        _safeTransferFrom(asset, msg.sender, address(this), amount);
-
         tokenFeesReceived[asset] += amount;
         emit FeeReceived(msg.sender, source, asset, amount);
+
+        _safeTransferFrom(asset, msg.sender, address(this), amount);
     }
 
     /// @notice Fee rate of `source`, in basis points.
@@ -218,14 +218,17 @@ contract MaoTangSustenanceVault is AgentGated {
         if (amount == 0) revert NothingToWithdraw(principal, asset);
         claimableSustenance[principal][asset] = 0;
 
+        emit SustenanceDisbursed(msg.sender, principal, asset, amount);
+
         if (asset == NATIVE) {
+            // The payout destination is the principal bound to the calling agent, never a
+            // caller-supplied address, so the advisory is a false positive.
+            // forge-lint: disable-next-line(arbitrary-send-eth)
             (bool ok,) = principal.call{value: amount}("");
             if (!ok) revert NativeTransferFailed(principal, amount);
         } else {
             _safeTransfer(asset, principal, amount);
         }
-
-        emit SustenanceDisbursed(msg.sender, principal, asset, amount);
     }
 
     function _recordNative(FeeSource source, address depositor) private {

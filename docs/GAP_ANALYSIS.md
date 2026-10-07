@@ -1,7 +1,8 @@
 # MAOTANG Protocol — Whitepaper v2.2 Gap Analysis
 
-Status: audit report (read-only). Produced 2026-10-07.
-Auditor: Codex. No source files were modified by this audit.
+Status: Phase 1 audit report (read-only) + Phase 2 toolchain verification. Produced 2026-10-07.
+Auditor: Codex. Phase 1 modified no source files; Phase 2 vendored `forge-std` under
+`contracts/lib/` and applied the compile/lint and sell-maths fixes recorded in §4.
 
 ## 0. Scope, Provenance and Method
 
@@ -43,8 +44,8 @@ Legend: `PASS` matches spec · `PARTIAL` structurally present but not functional
 | C9 | Bandwidth relay (PoB) reward surface | `MaoTangMining.sol:28-32` defines only `PROOF_TYPE_BLE_PING` and `PROOF_TYPE_ZK_COMPUTE` | **FAIL** |
 | C10 | Staking / 0.5% swap-fee share to stakers | No staking contract | **FAIL** |
 | C11 | BTC value siphon + floating pair | §3.1 requires a `$mHUMAN`/BTC dynamic bonding curve plus volatility-harvesting arbitrage. A bonding curve now exists (P0-2) but it is **ETH-paired**, not BTC-paired, and there is no arbitrage loop or BTC leg anywhere | **PARTIAL** - curve primitive exists, BTC siphon does not |
-| C16 | Bonding curve, factory and graduation (§3.1 primitive) | `MaoTangBondingCurve.sol` implements `IMaoTangCurve` + `IMaoTangGraduate`; `MaoTangFactory.sol` implements `IMaoTangFactory`; `MemeToken.sol` is the 18-decimal inventory token. Constants and truncation order mirror `sdk/src/curve-math.ts` | **PASS** (pending compilation) |
-| C17 | Trade, graduation and fee events | `TokenPurchased`, `TokenSold`, `TokenGraduated` and `FeeRouted` are declared and emitted; the renamed events are mirrored in `sdk/src/abi.ts` | **PASS** (ABI-visible rename from `TokensBought`/`TokensSold`/`Graduated`) |
+| C16 | Bonding curve, factory and graduation (§3.1 primitive) | `MaoTangBondingCurve.sol` implements `IMaoTangCurve` + `IMaoTangGraduate`; `MaoTangFactory.sol` implements `IMaoTangFactory`; `MemeToken.sol` is the 18-decimal inventory token. Constants and truncation order mirror `sdk/src/curve-math.ts` | **PASS** (compiled; 13/13 tests, §4) |
+| C17 | Trade, graduation and fee events | `TokenPurchased`, `TokenSold`, `TokenGraduated` and `FeeRouted` are declared and emitted; the renamed events are mirrored in `sdk/src/abi.ts` | **PASS** (compile-verified, §4; ABI-visible rename from `TokensBought`/`TokensSold`/`Graduated`) |
 | C12 | Mining emission integrity | `MaoTangMining.sol` has no mint privilege; rewards come from an externally funded vault (`fundRewardVault`) | PASS as designed, but emission depends on external deposits |
 | C13 | Token allocation split (§4.1) | §4.1 specifies 70% human-quota + AI mining pool, 15% DEX liquidity and curve seed, 10% edge-compute/DePIN ecosystem, 5% security and audit treasury. `HumanToken` knows only a single global cap and one quota-per-human mint path: no allocation buckets, no liquidity reserve, no ecosystem or audit treasury | **FAIL** |
 | C14 | Burn-on-Action (§4.2) | §4.2 requires 50% of the $mHUMAN consumed by physical check-in and settlement to be burned permanently. `HumanToken` exposes no burn function, and no code path consumes $mHUMAN at all | **FAIL** |
@@ -128,9 +129,9 @@ labelled but must not survive to mainnet.
 | ID | Task | Touch points | Exit criteria |
 | --- | --- | --- | --- |
 | P0-1 | Implement real ZK verification for personhood and hardware attestation; replace both placeholder nullifier derivations | `HumanToken.sol:82`, `AIAgentRegistry.sol:117`, new `IVerifier.sol` | A forged proof cannot mint a quota; one human cannot claim twice across proofs |
-| P0-2 | Implement the bonding curve, factory and graduation contracts so `sdk/src/curve-math.ts` has an on-chain twin | **DONE.** `contracts/src/MaoTangBondingCurve.sol`, `MaoTangFactory.sol`, `MemeToken.sol`, interface updates, `contracts/test/MaoTangBondingCurve.t.sol`, `sdk/src/abi.ts` | Implemented with the same constants and truncation order as the SDK. **Not compiled or executed** - see the verification gap in §4 |
+| P0-2 | Implement the bonding curve, factory and graduation contracts so `sdk/src/curve-math.ts` has an on-chain twin | **DONE.** `contracts/src/MaoTangBondingCurve.sol`, `MaoTangFactory.sol`, `MemeToken.sol`, interface updates, `contracts/test/MaoTangBondingCurve.t.sol`, `sdk/src/abi.ts` | Implemented with the same constants and truncation order as the SDK. **Compiled and unit-tested** - 13/13 pass (§4) |
 | P0-3 | Reconcile fee policy to 0.5% swap + 1% graduation and implement routing | **DONE (off-chain half).** `sdk/src/curve-math.ts`, `docs/MAOTANG_ARCHITECTURE.md`, `frontend/src/app/page.tsx`, `contracts/src/interfaces/*.sol`. **Still open:** the on-chain curve/graduation implementation and the vault the fees route into (P0-2, P0-4) | Constants agree across docs, SDK and UI. On-chain enforcement is not yet possible because no curve implementation exists |
-| P0-4 | Create `MaoTangSustenanceVault.sol` | **DONE.** `contracts/src/MaoTangSustenanceVault.sol`, `contracts/src/interfaces/IERC20.sol`, `contracts/test/MaoTangSustenanceVault.t.sol` | Implemented; **not compiled or executed** - see the verification gap in §4 |
+| P0-4 | Create `MaoTangSustenanceVault.sol` | **DONE.** `contracts/src/MaoTangSustenanceVault.sol`, `contracts/src/interfaces/IERC20.sol`, `contracts/test/MaoTangSustenanceVault.t.sol` | Implemented; **compiled and unit-tested** - 13/13 pass (§4) |
 | P0-5 | Move node keys to hardware-backed storage and add a real attestation shim | `node/keystore.mjs`, `node/hardware-probes.mjs` | `attestationLevel: "hardware"` is achievable on a real device |
 
 ### P1 — required for full protocol coverage
@@ -152,31 +153,136 @@ labelled but must not survive to mainnet.
 
 ## 4. Verification Log
 
-Commands actually executed (all read-only): directory listings; `git status`; `git ls-files`;
-`rg` sweeps for `uwb|5g|cellular|gnss|gps`, for `sustenancevault|8\.3\s?[bB]illion|8300000000|nullifier`,
-and for `uwb|5g|cellular|ble|rssi|beacon|npu|btc|usdt|stablecoin|swap|yield|siphon|secur|enclave|keyless|hardware|attest|bandwidth|relay|stake`;
+**Phase 1 — static audit (read-only).** Directory listings; `git status`; `git ls-files`; `rg` sweeps
+for `uwb|5g|cellular|gnss|gps`, for `sustenancevault|8\.3\s?[bB]illion|8300000000|nullifier`, and for
+`uwb|5g|cellular|ble|rssi|beacon|npu|btc|usdt|stablecoin|swap|yield|siphon|secur|enclave|keyless|hardware|attest|bandwidth|relay|stake`;
 a sweep for `TRADE_FEE_BPS|GRADUATION_TARGET|VIRTUAL_`; a sweep for MAOTANG entries in `memory/`;
 full reads of the three contracts, both policy/config JSON files, `sdk/src/curve-math.ts`, the two
 `package.json` files and `contracts/test/MicroHuman.t.sol`.
 
-**Not run — toolchain unavailable on this host:**
+**Phase 2 — toolchain verification (2026-10-07).** `forge-std` is now vendored at
+`contracts/lib/forge-std` (v1.17.0), which satisfies `foundry.toml`'s `libs = ["lib"]` and its
+`forge-std/=lib/forge-std/src/` remapping, so `import "forge-std/Test.sol"` resolves. The vendored
+tree is the upstream release tag verbatim: every path it ships — `src/**` (including
+`src/interfaces/**`), `LICENSE-APACHE`, `LICENSE-MIT` and `README.md` — is SHA-256 identical to
+`github.com/foundry-rs/forge-std` tag `v1.17.0`, with no added, missing or modified file at those
+paths. Only the library's own test suite, CI workflows and repository metadata are excluded, because
+Forge never compiles `lib/*/test`. Foundry 1.8.5 and Node 22.20.0 were provisioned **outside the
+repository** (operator tool directory and OS temp); neither is committed.
 
-- `forge test` — `forge` is not installed, **and `contracts/foundry.toml` declares `libs = ["lib"]`
-  while no `lib/` directory exists**, so even `forge-std` is unvendored. No Foundry suite
-  (`MicroHuman.t.sol`, `MaoTangMining.t.sol`, `AIAgentRegistry.t.sol`,
-  `MaoTangSustenanceVault.t.sol`) has ever been compiled or executed in this workspace.
-- `contracts/src/MaoTangSustenanceVault.sol`, `contracts/src/MaoTangBondingCurve.sol`,
-  `contracts/src/MaoTangFactory.sol`, `contracts/src/MemeToken.sol`,
-  `contracts/src/interfaces/IERC20.sol`, `contracts/src/interfaces/IMaoTangSustenanceVault.sol` and
-  the two new test files are **uncompiled**. They were written against `solc 0.8.24` (per
-  `foundry.toml`) using only constructs shared with the existing contracts, and reviewed by hand, but
-  no compiler has verified them. Compile before trusting the C5, C16 or C17 verdicts.
-- `sdk/src/abi.ts` was edited to mirror the renamed events but `tsc` could not be run either.
-- `npx tsc --noEmit` — `node` is not on `PATH` and no Node installation was found in the standard
-  locations, so the `AGENTS.md` type gate was **not executed**.
+### 4.1 `forge build` — PASS
 
-Neither check is claimed as passing. Run both, in their own subproject directories, before any
-code change in P0–P1 is merged.
+```
+$ cd contracts && forge build
+Compiling 36 files with Solc 0.8.24
+Solc 0.8.24 finished in 6.63s
+Compiler run successful!
+```
+
+Exit code 0. **Solc reports 0 errors and 0 warnings.** Foundry's separate linter is clean for the
+three new contracts (`MaoTangBondingCurve.sol`, `MaoTangSustenanceVault.sol`, `MaoTangFactory.sol`).
+The 7 residual lint advisories are pre-existing and out of scope: `AIAgentRegistry.sol`
+(`unsafe-typecast`, `encode-packed-collision`, `unused-return`) and `MaoTangMining.sol`
+(`reentrancy-events` x2, `block-timestamp` x2).
+
+### 4.2 `forge test` — new suites green, 20 pre-existing failures
+
+| Suite | Result |
+| --- | --- |
+| `MaoTangBondingCurve.t.sol` | 13 passed / 0 failed |
+| `MaoTangSustenanceVault.t.sol` | 13 passed / 0 failed |
+| `AIAgentRegistry.t.sol` | 8 passed / 0 failed |
+| `MicroHuman.t.sol` | 8 passed / **2 failed** (pre-existing) |
+| `MaoTangMining.t.sol` | 9 passed / **18 failed** (pre-existing) |
+| **Total** | **51 passed / 20 failed** |
+
+The 20 failures do not touch this change's code:
+
+- `MicroHuman.t.sol` (2): `expectRevert(HumanToken.QuotaAlreadyClaimed.selector)` passes the bare
+  4-byte selector (`0x065c804d`), but the contract reverts with the argument-bearing
+  `QuotaAlreadyClaimed(bytes32)` (`0xb3de1981`). `vm.expectRevert` demands an exact data match, so
+  both replay tests fail on a test-side selector/argument mismatch; the contract's behaviour is the
+  documented one.
+- `MaoTangMining.t.sol` (18): one test-harness defect, **not** a contract defect, and not a `setUp`
+  failure (the other 9 tests in the suite run to completion). 14 of the suite's 15
+  `submitMiningProof(...)` call sites pass the proof-type getter *inline* as an argument, e.g.
+  `_submitBleRaw` is `vm.prank(agent); mining.submitMiningProof(mining.PROOF_TYPE_BLE_PING(), proof);`.
+  Solidity evaluates that argument first, so the getter's `staticcall` becomes the "next call": it
+  swallows `vm.prank` (the submission then executes as `MaoTangMiningTest` and reverts
+  `UnauthorizedAgent(0x7FA9385b…)`), or it swallows `vm.expectRevert` (the getter succeeds, giving
+  "next call did not revert as expected"). That splits the 18 failures 9/9. The single site that
+  hoists the constant into a local first — `test_UnknownProofTypeReverts` — passes. Traces captured
+  in §4.5 show both shapes; hoisting the constant above the prank/expectRevert is the evident
+  repair, deliberately not applied here because the suite is outside this change's scope.
+
+Both predate this work and are left untouched per scope. Neither implicates the fee routing or the
+curve maths, which is what `MaoTangBondingCurve.t.sol` and `MaoTangSustenanceVault.t.sol` exercise.
+
+### 4.3 TypeScript gates — PASS
+
+- `sdk`: `npx tsc --noEmit` -> exit 0.
+- `frontend`: `npx tsc --noEmit` -> exit 0 **after** building the SDK
+  (`tsc -p tsconfig.json`) so `@maotang/sdk`'s `dist/*.d.ts` resolve; the earlier `@maotang/sdk` and
+  `LaunchCard` errors were entirely downstream of the unbuilt SDK.
+- SDK unit tests: `node --test dist/test-build/test/agent-login.test.js` -> 6 passed / 1 failed. The
+  failure ("natural-language curve intents map to agent-gated calls": expected `sellCurve`, got
+  `buyCurve`) is pre-existing in `agent-client.ts`, which this change does not touch. Note that the
+  packaged `npm test` script passes the bare directory `dist/test-build/test/`, which does not
+  resolve on this Windows host; the compiled test file must be named explicitly.
+
+### 4.4 Defect found and fixed by running the suite
+
+The sell-side invariant was inverted in three places: on a sell the reserve leg *grows*, so the
+payout is `k/(S+Sv-tokensIn) - (R+Rv)`, not `(R+Rv) - k/(S+Sv-tokensIn)`. Fixed in
+`contracts/src/MaoTangBondingCurve.sol::_sell`, `sdk/src/curve-math.ts::quoteSell` and
+`docs/MAOTANG_ARCHITECTURE.md`.
+
+### 4.5 Independent re-run of the full gate set
+
+Every gate above was re-run from the committed tree after the vendoring landed. All of §4.1–§4.3
+reproduced exactly:
+
+| Command (cwd) | Observed | Exit |
+| --- | --- | --- |
+| `forge build --force` (`contracts/`) | `Compiling 36 files with Solc 0.8.24` / `Solc 0.8.24 finished in 6.18s` / `Compiler run successful!` | 0 |
+| `forge test` (`contracts/`) | 51 passed / 20 failed, per-suite split identical to §4.2 | 1 (pre-existing failures) |
+| `npx tsc --noEmit` (`sdk/`) | no diagnostics | 0 |
+| `npx tsc --noEmit` (`frontend/`) | no diagnostics | 0 |
+| `node --test dist/test-build/test/agent-login.test.js` (`sdk/`) | 6 passed / 1 failed | 1 |
+| `npm test` (`sdk/`) | `MODULE_NOT_FOUND` on `dist/test-build/test` | 1 |
+
+`--force` recompiles from source instead of reusing `contracts/out`, so §4.1's cached "no files
+changed" line is not load-bearing, and `Solc` still reports 0 errors and 0 warnings. Both TypeScript
+gates pass against the committed `sdk/dist` (`dist/*.d.ts` is newer than `src/**`), so the frontend
+needs no manual SDK rebuild once `dist` is current; rebuilding it changes nothing.
+
+The two failure modes in §4.2 were re-derived from `forge test -vvv` traces in this run. Selected
+excerpts (hex elided):
+
+```
+[FAIL: next call did not revert as expected] test_UnregisteredCallerCannotSubmit()
+  ├─ [0] VM::prank(0x…dEaD)
+  ├─ [0] VM::expectRevert(UnauthorizedAgent(0x…dEaD))
+  ├─ [271] MaoTangMining::PROOF_TYPE_BLE_PING() [staticcall]     <- consumes the expectRevert
+  │   └─ ← [Return] 0x6d616f74…0000
+  └─ ← [Revert] next call did not revert as expected
+
+[FAIL: UnauthorizedAgent(0x7FA9385b…)] test_AgentsAccrueIndependently()
+  ├─ [0] VM::prank(0x0Ec5bc43…)                                  <- consumed by the getter below
+  ├─ [271] MaoTangMining::PROOF_TYPE_BLE_PING() [staticcall]
+  ├─ [29213] MaoTangMining::submitMiningProof(0x6d616f74…, 0x0000…)
+  │   ├─ [2671] AIAgentRegistry::requireAuthorizedAgent(MaoTangMiningTest: [0x7FA9385b…])
+  │   │   └─ ← [Revert] UnauthorizedAgent(0x7FA9385b…)
+  │   └─ ← [Revert] UnauthorizedAgent(0x7FA9385b…)
+  └─ ← [Revert] UnauthorizedAgent(0x7FA9385b…)
+```
+
+The `sdk` unit-test failure is likewise a pre-existing parser defect, now pinned to a line:
+`sdk/src/agent-client.ts:127` defines `AMOUNT_PATTERN = /(\d+(?:\.\d+)?)\s*(eth|micro-?human)/i`,
+which cannot match the `mHUMAN` spelling in the test's `"swap 1000 mHUMAN for ETH"`. No amount/asset
+pair is captured, so the input falls through to the `\bswap\b` branch at `:160` and is reported as
+`buyCurve`. Both the pattern and the test are untouched by this change (`agent-client.ts` last moved
+in `2e86f44`).
 
 ## 5. Bottom Line
 
@@ -198,8 +304,12 @@ through an agent-gated payout. What remains is the **BTC layer and the identity 
 Of the checks re-verifiable against the finalised spec, C1–C3, C5–C7, C12 and the new C16–C17 pass;
 C4, C8–C10 and C13–C15 fail, and C11 is partial.
 
-None of the contract or SDK work in P0-2 and P0-4 has been compiled; that is now the largest single
-risk in the repository, larger than any remaining feature gap.
+The contract and SDK work in P0-2 and P0-4 is now compiled and unit-tested (51 passed / 20
+pre-existing failures, §4). All 20 failures are test-side defects — a bare-selector `expectRevert`
+and a proof-type getter evaluated inline after the prank/expectRevert (§4.2, §4.5) — so they do not
+weaken the contract verdict, but they do mean `forge test` cannot yet serve as a green gate. The
+largest remaining risk is therefore feature scope rather than an unverified pipeline: the BTC layer,
+the identity layer and the off-ramp are still unimplemented.
 
 Two things need an author decision, not code:
 
@@ -208,7 +318,7 @@ Two things need an author decision, not code:
 2. **The protocol/creator/vault split** — the vault currently routes 100% of each fee
    (`SUSTENANCE_VAULT_SHARE_BPS = 10_000n`), which is an assumption, not a ratified policy.
 
-Recommended immediate next step: **compile and run `forge test`**, which requires vendoring
-`forge-std` into `contracts/lib/` first. Two commits' worth of Solidity and a TypeScript ABI change
-are currently unverified by any toolchain. Only after that does **P0-1** (real ZK verification) make
-sense as the next feature.
+Recommended immediate next step: **P0-1** (real ZK verification). The toolchain gate is now closed -
+`forge-std` is vendored, `forge build` and `forge test` both run, and both TypeScript gates pass - so
+the next highest-value work is replacing the two `keccak256` nullifier placeholders with a real
+verifier.

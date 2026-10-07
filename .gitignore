@@ -37,6 +37,7 @@ htmlcov/
 node_modules/
 npm-debug.log
 yarn-error.log
+*.tsbuildinfo
 
 # --- Cline/治理系统缓存 ---
 .aider.tags.cache.v4

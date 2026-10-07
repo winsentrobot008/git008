@@ -62,6 +62,8 @@ contract MaoTangFactory is IMaoTangFactory {
         tokenOf[curve] = token;
         _launches.push(curve);
 
+        // Deploying a fresh contract cannot reenter this factory, so the advisory is a false positive.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit MemeTokenCreated(token, curve, msg.sender, name, symbol);
     }
 

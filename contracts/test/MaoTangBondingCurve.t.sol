@@ -7,6 +7,9 @@ import {MaoTangSustenanceVault} from "../src/MaoTangSustenanceVault.sol";
 import {MaoTangBondingCurve} from "../src/MaoTangBondingCurve.sol";
 import {MaoTangFactory} from "../src/MaoTangFactory.sol";
 import {MemeToken} from "../src/MemeToken.sol";
+import {IMaoTangCurve} from "../src/interfaces/IMaoTangCurve.sol";
+import {IMaoTangGraduate} from "../src/interfaces/IMaoTangGraduate.sol";
+import {IMaoTangFactory} from "../src/interfaces/IMaoTangFactory.sol";
 
 /// @dev Covers P0-2: the on-chain curve must mirror `sdk/src/curve-math.ts`, and every trade must
 /// route exactly 0.5% to `MaoTangSustenanceVault`, with a further 1.00% at graduation.
@@ -57,12 +60,12 @@ contract MaoTangBondingCurveTest is Test {
     }
 
     function test_DuplicateSymbolIsRejected() public {
-        vm.expectRevert(abi.encodeWithSelector(MaoTangFactory.SymbolAlreadyUsed.selector, "MAOTANG"));
+        vm.expectRevert(abi.encodeWithSelector(IMaoTangFactory.SymbolAlreadyUsed.selector, "MAOTANG"));
         factory.createMemeToken("Copy", "MAOTANG");
     }
 
     function test_EmptyMetadataIsRejected() public {
-        vm.expectRevert(MaoTangFactory.InvalidTokenMetadata.selector);
+        vm.expectRevert(IMaoTangFactory.InvalidTokenMetadata.selector);
         factory.createMemeToken("", "SYM");
     }
 
@@ -105,7 +108,7 @@ contract MaoTangBondingCurveTest is Test {
 
     function test_BuyHonoursSlippageBound() public {
         vm.prank(alice);
-        vm.expectRevert(MaoTangBondingCurve.SlippageExceeded.selector);
+        vm.expectPartialRevert(IMaoTangCurve.SlippageExceeded.selector);
         curve.buyTokensOnCurve{value: 1 ether}(type(uint256).max);
     }
 
@@ -148,7 +151,7 @@ contract MaoTangBondingCurveTest is Test {
         assertLt(curve.graduationProgressBps(), 10_000);
 
         vm.expectRevert(
-            abi.encodeWithSelector(MaoTangBondingCurve.CurveNotComplete.selector, curve.graduationProgressBps())
+            abi.encodeWithSelector(IMaoTangGraduate.CurveNotComplete.selector, curve.graduationProgressBps())
         );
         curve.graduateToMarket();
     }
@@ -187,11 +190,11 @@ contract MaoTangBondingCurveTest is Test {
         curve.graduateToMarket();
 
         vm.prank(bob);
-        vm.expectRevert(MaoTangBondingCurve.CurveAlreadyGraduated.selector);
+        vm.expectRevert(IMaoTangCurve.CurveAlreadyGraduated.selector);
         curve.buyTokensOnCurve{value: 1 ether}();
 
         vm.prank(bob);
-        vm.expectRevert(MaoTangBondingCurve.CurveAlreadyGraduated.selector);
+        vm.expectRevert(IMaoTangCurve.CurveAlreadyGraduated.selector);
         curve.sellTokensOnCurve();
     }
 
@@ -200,7 +203,7 @@ contract MaoTangBondingCurveTest is Test {
         curve.buyTokensOnCurve{value: 5.1 ether}();
         curve.graduateToMarket();
 
-        vm.expectRevert(abi.encodeWithSelector(MaoTangBondingCurve.MarketAlreadyDeployed.selector, liquidityVenue));
+        vm.expectRevert(abi.encodeWithSelector(IMaoTangGraduate.MarketAlreadyDeployed.selector, liquidityVenue));
         curve.graduateToMarket();
     }
 }

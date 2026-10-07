@@ -105,6 +105,9 @@ contract MaoTangBondingCurve is IMaoTangCurve, IMaoTangGraduate {
         address deployed = address(new MemeToken(name_, symbol_, address(this), VIRTUAL_TOKEN_SUPPLY));
         tokenAddress = deployed;
 
+        // Deploying a fresh contract cannot reenter this uninitialised curve, so the advisory is a
+        // false positive.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit CurveDeployed(deployed, creator_, vault_, market_);
     }
 
@@ -127,7 +130,7 @@ contract MaoTangBondingCurve is IMaoTangCurve, IMaoTangGraduate {
     }
 
     /// @notice Reserve, in wei, that graduates the curve.
-    function target() external view override returns (uint256) {
+    function target() external pure override returns (uint256) {
         return GRADUATION_TARGET_WEI;
     }
 
@@ -194,6 +197,11 @@ contract MaoTangBondingCurve is IMaoTangCurve, IMaoTangGraduate {
 
         _routeFee(fee, IMaoTangSustenanceVault.FeeSource.Graduation);
 
+        // State is finalised above and this entry point is nonReentrant, so the migration payouts
+        // cannot reorder the log; the advisory is a false positive.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit TokenGraduated(address(this), market, net, inventory);
+
         if (net > 0) {
             (bool ok,) = market.call{value: net}("");
             if (!ok) revert NativeTransferFailed();
@@ -202,7 +210,6 @@ contract MaoTangBondingCurve is IMaoTangCurve, IMaoTangGraduate {
             if (!IERC20(tokenAddress).transfer(market, inventory)) revert TokenTransferFailed();
         }
 
-        emit TokenGraduated(address(this), market, net, inventory);
         return market;
     }
 
@@ -231,9 +238,12 @@ contract MaoTangBondingCurve is IMaoTangCurve, IMaoTangGraduate {
 
         _routeFee(fee, IMaoTangSustenanceVault.FeeSource.Swap);
 
-        if (!IERC20(tokenAddress).transfer(buyer, tokensOut)) revert TokenTransferFailed();
-
+        // Effects and the fee interaction are complete and this entry point is nonReentrant, so a
+        // callback cannot reorder the log; the advisory is a false positive.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit TokenPurchased(buyer, reserveIn, tokensOut, calculatePrice());
+
+        if (!IERC20(tokenAddress).transfer(buyer, tokensOut)) revert TokenTransferFailed();
     }
 
     function _sell(address seller, uint256 tokensIn, uint256 minReserveOut)
@@ -248,7 +258,9 @@ contract MaoTangBondingCurve is IMaoTangCurve, IMaoTangGraduate {
 
         uint256 reserveSide = reserve + VIRTUAL_RESERVE_WEI;
         uint256 nextReserveSide = (tokenSide * reserveSide) / (tokenSide - tokensIn);
-        uint256 grossReserveOut = reserveSide - nextReserveSide;
+        // A sell walks the invariant in the opposite direction to a buy, so the reserve side grows
+        // and the payout is that growth. Subtracting in the other order yields a negative number.
+        uint256 grossReserveOut = nextReserveSide - reserveSide;
         if (grossReserveOut > reserve) revert CurveNotFunded();
 
         uint256 fee = (grossReserveOut * SWAP_FEE_BPS) / BPS_DENOMINATOR;
@@ -261,20 +273,26 @@ contract MaoTangBondingCurve is IMaoTangCurve, IMaoTangGraduate {
 
         _routeFee(fee, IMaoTangSustenanceVault.FeeSource.Swap);
 
+        // Effects are complete before the payouts and this entry point is nonReentrant, so a callback
+        // cannot reorder the log; the advisory is a false positive.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit TokenSold(seller, tokensIn, amountOut, calculatePrice());
+
         if (!IERC20(tokenAddress).transferFrom(seller, address(this), tokensIn)) {
             revert TokenTransferFailed();
         }
         MemeToken(tokenAddress).burn(tokensIn);
 
+        // Proceeds return to the seller that supplied the tokens (the audited msg.sender), not an
+        // arbitrary caller-supplied address, so the advisory is a false positive.
+        // forge-lint: disable-next-line(arbitrary-send-eth)
         (bool ok,) = seller.call{value: amountOut}("");
         if (!ok) revert NativeTransferFailed();
-
-        emit TokenSold(seller, tokensIn, amountOut, calculatePrice());
     }
 
     function _routeFee(uint256 amount, IMaoTangSustenanceVault.FeeSource source) private {
         if (amount == 0) return;
-        IMaoTangSustenanceVault(vault).depositFee{value: amount}(source);
         emit FeeRouted(address(0), amount, source);
+        IMaoTangSustenanceVault(vault).depositFee{value: amount}(source);
     }
 }

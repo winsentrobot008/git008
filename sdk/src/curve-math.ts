@@ -116,7 +116,10 @@ export function quoteSell(amounts: CurveAmounts, tokensIn: bigint): SellQuote {
   }
   const nextTokenSide = amounts.tokensSold + VIRTUAL_TOKEN_SUPPLY - tokensIn;
   const nextReserveSide = invariant(amounts) / nextTokenSide;
-  const grossReserveOut = amounts.reserve + VIRTUAL_RESERVE_WEI - nextReserveSide;
+  // A sell walks the invariant in the opposite direction to a buy: the reserve side grows and the
+  // seller is paid that growth, net of the swap fee. Subtracting in the other order produced a
+  // negative payout for every sell.
+  const grossReserveOut = nextReserveSide - (amounts.reserve + VIRTUAL_RESERVE_WEI);
   if (grossReserveOut > amounts.reserve) {
     throw new RangeError("tokensIn exceeds the reserve held by the curve");
   }
@@ -126,7 +129,10 @@ export function quoteSell(amounts: CurveAmounts, tokensIn: bigint): SellQuote {
     tokensIn,
     fee,
     reserveOut,
-    priceAfter: priceAt({ reserve: amounts.reserve - reserveOut, tokensSold: amounts.tokensSold - tokensIn }),
+    priceAfter: priceAt({
+      reserve: amounts.reserve - grossReserveOut,
+      tokensSold: amounts.tokensSold - tokensIn,
+    }),
   };
 }
 
