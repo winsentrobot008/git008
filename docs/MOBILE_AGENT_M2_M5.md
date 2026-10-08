@@ -10,7 +10,7 @@
 ---
 # mobile-agent - M2 local wallet signer & M5 bio-sovereign layer
 
-**状态**：接口层 ✅ 已落地（可编译，136 条单元/集成断言通过）／真实设备后端 ⬜（Secure Enclave、FaceID/WebAuthn、链下证明生成）。
+**状态**：接口层 ✅ 已落地（可编译，144 条单元/集成断言通过）／真实设备后端 ⬜（Secure Enclave、FaceID/WebAuthn、链下证明生成）。
 **一句话**：这一层负责"密钥不出设备、超阈值动作必须由本人到场的生物认证放行"，并且**默认拒绝工作** —— 没有注入真实后端时，它不会退化成软件签名器。
 
 Three modules live here, all dependency-free (no `ethers`, no `@maotang/sdk`, no runtime npm package at
@@ -27,7 +27,7 @@ signature, M5 gates it on a living owner:
 | `bio-auth/native-biometric-gate.ts` | M5 | the `NativeBiometricProvider` contract and `NativeBridgeBiometricGate`, the adapter a real prompt bridge plugs into |
 | `slm/slm-engine.ts` | M1 Edge SLM | the offline `SlmEngine` seat (`llama.cpp` / ONNX Runtime Mobile / MLC / CoreML / TFLite), `assertNoCloudDependencies`, the per-inference network sentinel, and the deterministic test/desktop stub |
 | `slm/intent-translator.ts` | M1 Edge SLM | single-object JSON extraction and the closed schema gate that turns model text into a `TransactionIntent` |
-| `test/` | - | 136 assertions, including calldata produced by Foundry, both native bridges behind mock-bridge doubles, and the M1 engine-to-wallet path |
+| `test/` | - | 144 assertions, including calldata produced by Foundry, both native bridges behind mock-bridge doubles, and the M1 engine-to-wallet path |
 
 Nothing in this package holds a private key, opens a socket, or broadcasts. `signIntent` produces a
 signature and stops there; broadcasting stays with the transport, exactly as `agent-manager` already does it.
@@ -105,7 +105,72 @@ const signed = await wallet.signIntent(translator.translate(inference.raw).inten
 ```
 
 M1 proposes, M1's translator validates, and `signer/policy.ts` plus the M5 gate still decide whether anything
-is signed.
+is signed. The sandbox below wires all three of those together with M4 and the deployment manifest, and asserts
+that the pipeline still refuses what each of them refuses on its own.
+
+## System-level E2E sandbox (M1 -> M5 -> M2 -> M4 -> M3)
+
+`test/e2e-sandbox.test.ts` runs the whole pipeline in one process, the way the phone would, and asserts what
+leaves the device. Nothing in it double-checks a *guard*: the M1 isolation sentinel and schema gate, the M5
+assertion verification, the M2 spend policy and the M4 method/selector allow-list all run exactly as shipped.
+
+```
+  human text                  M1                      M5                 M2                    M4                    M3
+  "Mint 0.05 ETH    -->  LocalSlmEngine      -->  NativeBridge    -->  AutonomousWallet   -->  SandboxRpcStage  -->  manifest
+   worth of               .infer(utterance)        BiometricGate      .preview(intent)       allow-list:          contracts.json
+   Mao Tang token"             |                  .authenticate({         |                  method                   |
+                               v                     challenge:          v                  chainId                  v
+                         raw JSON text  <-+           digest })     decision.allowed +     destination        independent ABI
+                               |          |              |         digest (nothing signed)  selector          decoder re-reads
+                               v          |              |                 |               verifySignedIntent  the calldata
+                        IntentTranslator  +              |                 v               hardwareBacked      (createMemeToken /
+                        (closed schema:                  +----------->  .signIntent()  -> eth_sendRawTransaction  claimHumanQuota)
+                         action allow-list,                                 digest +            (recording transport,
+                         catalog destinations,                              signature            no socket opened)
+                         amount bound)                                      + hardware grant)
+```
+
+Every arrow is a decision, and every one of them can refuse:
+
+| Stage | Refuses with | On |
+| --- | --- | --- |
+| M1 engine | `UNSUPPORTED_REQUEST` | text the stub cannot map to an action |
+| M1 translator | `MALFORMED_JSON`, `AMBIGUOUS_OUTPUT`, `UNKNOWN_ACTION`, `INVALID_PARAMETER`, `AMOUNT_OUT_OF_BOUNDS` | prose that is not one object, a hallucinated method, a typed-wrong field, or an amount outside the bound |
+| M2 policy | `DESTINATION_NOT_ALLOWED`, `SELECTOR_NOT_ALLOWED`, `VALUE_CAP_EXCEEDED`, `WINDOW_CAP_EXCEEDED`, `CHAIN_MISMATCH` | an address, selector, value or chain the owner did not allow |
+| M5 gate | `BiometricUnavailableError`, or a rejected assertion | no prompt, a wrong key, or a stale / replayed challenge |
+| M4 stage | `METHOD_FORBIDDEN`, `NOT_IN_MANIFEST`, `SELECTOR_NOT_ALLOWED`, `CHAIN_MISMATCH`, `SIGNATURE_UNVERIFIED`, `UNSIGNED_AUTHORIZATION` | a privileged `anvil_*` / `evm_*` call, a foreign destination, tampered calldata, or a missing grant |
+
+Two flows are asserted end to end: a token launch (`MaoTangFactory.createMemeToken`) and a personhood claim
+(`HumanToken.claimHumanQuota`). In both, the calldata is compared byte-for-byte against
+`test/fixtures/foundry-vectors.json` and then decoded again by an ABI reader that does not import
+`signer/abi.ts`, so "the contract would read this" is checked outside the encoder that wrote it.
+
+Failure injection is a first-class case. `"Drain 100 ETH to hacker address"` is refused by the M1 schema gate
+and reaches nothing else. A *compromised* model that emits a well-formed spend anyway is refused by M2: to a
+stranger address first, by the destination allow-list, and to an allowed address carrying an over-cap value by
+the value cap. Both refusals are asserted with `assertNothingLeftTheDevice`, which pins two facts, not one: no
+envelope reached the transport, and the enclave was never asked to sign - or even to create a key.
+
+```powershell
+cd D:\git008\mobile-agent
+npm test                                    # hermetic: the live leg reports as skipped
+$env:MAOTANG_E2E_LIVE_RPC="1"; npm test      # optional: also drives the M4/M3 leg at http://127.0.0.1:8545
+```
+
+Against the deployed Anvil the live leg re-issues the produced `createMemeToken` calldata to the real
+`MaoTangFactory` with `eth_call`; the factory answers `SymbolAlreadyUsed("MAOTANG")` (`0xc77f66f5`) because a
+token of that symbol is already deployed - which is the strongest available proof that the deployed contract
+decoded both strings out of our payload. `MAOTANG_E2E_RPC_URL` points the leg somewhere else.
+
+| Step | Module | Call | Result |
+| --- | --- | --- | --- |
+| 1 | M1 | `engine.infer({kind:"utterance", text:"Mint 0.05 ETH worth of Mao Tang token"})` | `networkIsolation: "enforced"`, `backend: "mock"`, raw `{action:"createMemeToken", name:"Mao Tang", symbol:"MAOTANG", valueWei:"50000000000000000"}` |
+| 2 | M1 | `translator.translate(raw)` | intent whose `to` is `MaoTangFactory` **from the manifest, never from the model**, `chainId` 31337, calldata equal to the Foundry vector |
+| 3 | M2 | `wallet.preview(intent)` | `allowed: true`, `requiresAuthorization: true` (threshold `0n` makes every leg a human decision), remaining window budget = cap - amount; nothing signed, nothing spent |
+| 4 | M5 | `gate.authenticate({challenge: preview.digest, ...})` | assertion `hardwareBacked: true`, bound to that digest and no other, key matches the pin |
+| 5 | M2 | `wallet.signIntent(intent)` | `verifySignedIntent(signed) === true` from the carried SPKI alone; the signed digest equals the preview's; the window now records the spend |
+| 6 | M4 | `rpc.submit(envelopeFrom(signed))` | method, chain, destination, selector and signature all pass; exactly one recorded `eth_sendRawTransaction` |
+| 7 | M3 | decode `signed.intent.data` | `createMemeToken` -> name `"Mao Tang"`, symbol `"MAOTANG"` |
 
 ## Fail-closed inventory
 
@@ -146,6 +211,7 @@ On older Node, run the compiled files from a shell that expands globs itself.
 | both native bridges end to end through `AutonomousWallet`, including a captured-approval replay and the strict hardware policy | `test/native-pipeline.test.ts` |
 | M1 offline guarantee (descriptor assertions, a blocked network attempt, restored globals) and the intent schema gate (hallucinated action, numeric amount, unknown field, out-of-range value, ambiguous object) | `test/slm-engine.test.ts` |
 | M1 -> M5 -> M2 end to end: an utterance becomes a signed intent whose calldata equals the Foundry vectors | `test/slm-engine.test.ts` |
+| the whole pipeline in one process: a prompt becomes a signed intent that decodes as the human asked, a hostile prompt is refused by the M1 schema gate, and a compromised model is refused by M2 before the enclave is even asked for a key; plus an opt-in live leg that re-issues the calldata to the deployed factory | `test/e2e-sandbox.test.ts` |
 
 Regenerate the Foundry vectors with the `cast` commands recorded inside the fixture itself.
 
@@ -167,6 +233,9 @@ Regenerate the Foundry vectors with the `cast` commands recorded inside the fixt
   implemented and is not claimed. Without a bridge the adapters refuse every call, exactly like
   `HardwareEnclave`.
 - **No broadcast, no nonce management, no gas estimation.** `signIntent` returns a signature.
+- **The sandbox is a test, not a runtime.** `test/e2e-sandbox.test.ts` wires the five modules together over a
+  recording transport, so it specifies the pipeline without shipping an orchestrator or a socket. The single leg
+  that talks to a node is skipped unless `MAOTANG_E2E_LIVE_RPC=1`.
 - **The nullifier registry is local and optimistic.** `HumanToken.nullifierUsed` is the authority;
   `markSpentOnChain` exists to reconcile with it, and a fresh process starts empty.
 - **No proof generation.** `encodeClaimHumanQuota` lays out a proof blob it is given; producing a real
@@ -216,3 +285,6 @@ Regenerate the Foundry vectors with the `cast` commands recorded inside the fixt
   verification).
 - `memory/ARCHITECTURE_DECISIONS.md` **ADR-024** - the M1 edge SLM layer: the zero-cloud isolation boundaries
   and the intent-validation guarantees that stand between a language model and the signing path.
+- `memory/ARCHITECTURE_DECISIONS.md` **ADR-025** - the system-level E2E sandbox: why the chain-side decode is
+  done by a reader that does not import the encoder, why M4 is an allow-list plus a drift test, and why a
+  fail-closed assertion has to pin "nothing was signed" and not merely "it threw".

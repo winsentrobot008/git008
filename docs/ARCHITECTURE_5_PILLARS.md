@@ -86,7 +86,7 @@
 
 **缺口**：合约层**没有 Cell 类型**。当前创世是“1 个已验证的活体人类 → 1,000,000 $mHUMAN 配额（`decimals = 6`）”，即单一 ERC-20 余额。细胞化（1 份配额细分为 1,000,000 个可寻址单元）需先出 ADR：记账视图 / 独立 ERC-20 / NFT 家族三选一，对 gas、可组合性与反女巫边界影响不同。
 
-**验收**：`cd D:\git008\agent-client; npm test`；`cd D:\git008\mobile-agent; npm run typecheck; npm test`（136 条断言，含 M1 离线隔离与 intent 拒绝路径、M1→M5→M2 端到端）
+**验收**：`cd D:\git008\agent-client; npm test`；`cd D:\git008\mobile-agent; npm run typecheck; npm test`（144 条断言，含 M1 离线隔离与 intent 拒绝路径、M1→M5→M2 端到端）
 
 **难度**：SLM 接口固化 = S（已完成）；移动端 M1 接口层 = S（已完成）；Cell 化 = L（含 ADR）。详见 `docs/MOBILE_AGENT_M2_M5.md`。
 
@@ -116,7 +116,7 @@
 
 **已知边界**：worker 私钥必须是**专用节点密钥**；复用部署密钥意味着节点密钥泄露即部署账户被清空。
 
-**验收**：`cd D:\git008\mobile-agent; npm run typecheck; npm test`（136 条断言，含 Foundry `cast` 逐字节 calldata 向量与“拒绝路径”断言）；`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
+**验收**：`cd D:\git008\mobile-agent; npm run typecheck; npm test`（144 条断言，含 Foundry `cast` 逐字节 calldata 向量与“拒绝路径”断言）；`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
 
 **难度**：接口层（含阈值策略）= S（已完成）；移动端硬件飞地 + 生物门禁后端 = L。详见 `docs/MOBILE_AGENT_M2_M5.md`。
 

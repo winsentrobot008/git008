@@ -2,6 +2,54 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-025: the sandbox proves the five modules compose by decoding what it signs, not by trusting the encoder that signed it
+
+**Status:** Accepted (implemented in `mobile-agent/test/e2e-sandbox.test.ts`; `npm run typecheck` clean and
+`npm test` green over 144 tests, 143 passing with the one opt-in live leg skipped by default. No contract,
+frontend or production module changed. Recorded in `docs/MOBILE_AGENT_M2_M5.md`)
+
+**Context:** ADR-022 through ADR-024 landed M2, M5's native bridges and M1 as separately verified units, each
+with its own test file. Every one of those files verifies a module against *its own* helpers: the ABI tests
+compare the encoder to the Foundry vectors, the policy tests call `evaluateIntent` directly, and the M1 tests
+stop at the signed intent. None of them answers the question that matters for the product - *when all five run
+together, does the thing that leaves the device still say exactly what the human asked for, and does the
+refusal path hold when a prompt is hostile?* A green unit suite is compatible with a pipeline that is wired
+wrongly at the seams.
+
+**Decision:**
+
+- **One process, all five modules, real adapters.** `mobile-agent/test/e2e-sandbox.test.ts` constructs
+  `LocalSlmEngineAdapter` (M1), `IntentTranslator` (M1), `NativeBridgeBiometricGate` (M5),
+  `AutonomousWallet` over `NativeBridgeEnclave` (M2) and a `SandboxRpcStage` (M4) over the manifest at
+  `frontend/config/contracts.json` (M3), then drives a single prompt through all of them.
+- **The chain-side read is independent of the encoder that wrote it.** The sandbox decodes
+  `createMemeToken(string,string)` and `claimHumanQuota(bytes,bytes32)` with a hand-written ABI reader that
+  never imports `signer/abi.ts`. Asserting that the encoder round-trips through itself would prove nothing; the
+  Foundry vectors plus an out-of-band decoder are what make "the contract would read this" a claim rather than
+  a restatement.
+- **M4 is an allow-list, and a drift test keeps it one.** `ALLOWED_RPC_METHODS` names what may go on the wire;
+  a method neither the allow-list nor the deployed `scripts/rpc-guard.mjs` deny list has heard of is refused
+  rather than forwarded. A test parses `DEFAULT_DENY` out of the real guard and asserts the sandbox refuses
+  every pattern the guard denies, so the two lists cannot silently diverge.
+- **Fail-closed is asserted as *two* facts.** `assertNothingLeftTheDevice` pins both halves of a refusal: no
+  envelope reached the transport, and the enclave was never asked to sign or even to create a key. "It threw"
+  is not the same as "nothing happened", and only the second one is the security property.
+- **What is stubbed is named in the file's own header.** The device (there is no Secure Enclave on a build
+  machine), the model (`DeterministicSlmBackend`, `kind: "mock"`) and the socket (a recording transport; this
+  package has no RLP encoder and no broadcast) are stubs. The M1 isolation sentinel, the M1 schema gate, the M5
+  assertion verification, the M2 spend policy and the M4 allow-list are not.
+- **The live leg is opt-in.** The one test that talks to a node is skipped unless `MAOTANG_E2E_LIVE_RPC=1`, so
+  `npm test` stays hermetic. Against the deployed Anvil it re-issues the produced calldata to the real
+  `MaoTangFactory` with `eth_call`, which answers `SymbolAlreadyUsed("MAOTANG")` (`0xc77f66f5`) because a token
+  of that symbol is already deployed - the strongest available proof that the deployed contract decoded both
+  strings out of our payload.
+
+**Consequences:** the pipeline now has one executable specification of its end-to-end behaviour, and a hostile
+prompt has a named, asserted refusal at both the schema gate and the policy. The cost is a test that constructs
+five modules; it lives in the test tree and imports only public entry points, so it does not widen the
+production surface. Adding a sixth module means adding it to `sandbox()` and to the sequence diagram in
+`docs/MOBILE_AGENT_M2_M5.md`, which is the intended friction.
+
 ## 2026-10-08 - ADR-024: M1 is an offline engine plus a closed intent schema, because a language model is a text generator and not an authority
 
 **Status:** Accepted (implemented in `mobile-agent/slm/slm-engine.ts` and
