@@ -267,6 +267,7 @@ proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
 6. **隧道纪律**：绝不把 `rpc.008ai.online` 指向持有真实资产的链；管理方法必须留在护栏与 WAF 之后（见 `docs/DEPLOY_MAOTANG_FRONTEND.md`）。
 7. **“已实现”双向同步**：任何新的已实现声明，必须在 `docs/WHITE_PAPER.md` 的模块状态列同步更新；任何路线图项不得写成现有能力。
 8. **安全相关改动**（金库出口、verifier、签名路径）必须同时给出拒绝路径的测试，而不只是 happy path。
+9. **密码学原语替换**：任何签名方案、哈希函数或证明系统的替换，必须走 ADR + 密码学评审 + 拒绝路径测试，并同一次变更内同步 `docs/WHITE_PAPER.md` 的状态列。**禁止“顺手替换”**（例如把 Groth16 换成另一个 setup 而不记录信任假设的变化）。PQC 相关的前瞻与出口设计见 §12。
 
 ---
 
@@ -290,3 +291,62 @@ proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
 - **M3**：毕业后的市场是固定 AMM 交易对，还是可配置的 venue adapter？（同上）
 - **M4**：“独立端点”的判定标准（不同运营方 / 不同 IP / 不同国家）？多端点仲裁的阈值与降权策略。
 - **M5**：硬件 attestation 的信任根取厂商 CA 还是协议自有 ceremony？撤销与轮换流程如何编排。
+
+---
+
+## 12. 未来演进：PQC 与量子抗性生物主权（逐模块影响）
+
+> **纯前瞻，无任何实现。** 完整备忘录见 `docs/WHITE_PAPER.md` §9；决策记录见 `memory/ARCHITECTURE_DECISIONS.md` **ADR-021**。仓库中没有任何 PQC 原语、量子加速或神经形态硬件的实现或依赖。
+
+### 12.1 逐模块影响
+
+| 模块 | 今天的原语 | 量子威胁 | 迁移目标 | 难度 |
+| --- | --- | --- | --- | --- |
+| M1 Edge SLM & Cell | 无链上密码学；权重完整性用 SHA-256 指纹 | Grover 平方根（抗碰撞强度减半，非致命） | 按需提升哈希输出或换 SHA-3；模型与加速器后端经 `SlmEngine` 抽象接入 | S |
+| M2 Local Wallet | secp256k1 ECDSA（Shor 可解） | 由公钥反推私钥 ⇒ 伪造交易授权 | 混合签名：ECDSA + ML-DSA（FIPS 204）或 SLH-DSA（FIPS 205），两者都过才放行 | M |
+| M3 Yield / Mining / Vault | 授权路径依赖 ECDSA；合约内的曲线与记账数学不依赖签名难度 | 授权被伪造（而非合约逻辑被破解） | 由 M2 与账户抽象承担；`immutable` owner/dripper 需迁移出口 | S–M |
+| M4 Light Node / RPC | 心跳用 secp256k1；状态完整性最终依赖底层共识签名 | 心跳签名可伪造 ⇒ 唯一性绑定失效 | 心跳迁移到混合/PQ 签名；轻客户端需 PQ 友好的共识验证 | M |
+| M5 Bio-Sovereign | **BN254 Groth16 配对**（Shor 可解）+ keccak256 nullifier | **伪造证明 ⇒ 凭空铸造配额、伪造 agent 绑定** | 透明哈希基证明（STARK 家族）或格基 SNARK；`IZKVerifier` 抽象已具备 | L |
+
+**威胁优先级：M5 > M2 > M4 > M3 > M1。** 因为 M5 的攻击者**不需要偷任何密钥** —— 只要能伪造一份证明就能增发配额与伪造身份；M2 需要目标密钥的公钥已暴露（即该账户已花费过）。
+
+### 12.2 不可变绑定带来的迁移约束（本次记录的最重要发现）
+
+`rg -ni "proxy|UUPS|ERC1967|upgradeable|delegatecall|initialize\(" contracts/src` **无匹配** ⇒ 仓库内**没有**任何代理 / 可升级模式。同时：
+
+- `AIAgentRegistry.zkVerifier` —— `immutable`，构造后不可替换；
+- `HumanToken.zkVerifier`、`HumanToken.agentRegistry` —— `immutable`，合约注释明确 “no admin path to redirect claims to a different registry”；
+- `Groth16Verifier.lockVerificationKey()` —— 不可逆冻结；
+- `MaoTangSustenanceVault.owner` / `dripper` —— `immutable`（ADR-018）。
+
+⇒ **PQC 迁移 = 新部署 + 状态迁移，而不是原地升级。** 必须在**现在**预留 exit ramp：
+
+1. registry 的**版本纪元（epoch）** 字段，使新合约能一次性接受旧纪元的状态；
+2. **一次性重签发窗口**：旧纪元冻结后，已绑定的人类主人可把配额与 agent 绑定迁往新纪元（带截止时间与治理控制）；
+3. **nullifier 消费记录的迁移格式**，防止跨纪元重放。
+
+这是**低成本、现在就能做**的前瞻动作；等到威胁具体化再补，代价是链分叉。
+
+### 12.3 已具备的接口预留（今天零成本，未来省一次重构）
+
+| 预留点 | 现状 | 为什么关键 |
+| --- | --- | --- |
+| `IZKVerifier` 抽象 | **已具备**（`contracts/src/interfaces/IZKVerifier.sol`） | 换证明系统时，消费方（registry / HumanToken）只认接口，业务逻辑不动 |
+| 注入式 signer（M2） | **已具备**（`agent-manager/src/mining/transport.mjs` 依赖注入） | 叠加 PQC / 混合签名不触碰业务层 |
+| `SlmEngine` 后端可插拔（M1） | **已具备**（可选动态 import） | 未来加速器后端按同一接口接入 |
+| `CONTRACT_READS` 选择器登记表（M4） | **已具备**（`frontend/src/lib/protocol.ts`） | 新 verifier 的只读方法必须显式登记，天然防止“猜编码”造成的静默错读 |
+| 可迁移出口（M5） | **⬜ 缺失** | 本节要求补的**唯一结构性缺口**：现在零成本，事后等于分叉 |
+
+### 12.4 生物主权在量子时代的定位
+
+链路是 `生物授权 → 飞地会话密钥 → 链上授权`：**末端算法（签名 / 证明）可替换，起点（物理在场）不可被 Shor 伪造**。因此生物主权是量子时代的**稳定基座**，把攻击成本从“破解数学”抬高到“物理攻陷一个人”。
+
+但**不等于“不可攻破”**。残余攻击面（飞地实现漏洞与固件后门、生物特征欺骗、供应链替换、胁迫与失能、端点被完全控权）及其缓解方向见 `docs/WHITE_PAPER.md` §9.4 —— 这些**不得在文档里被省略**，否则就是把前瞻写成过度承诺。
+
+### 12.5 PQC 未决问题
+
+1. 第一层签名选 **ML-DSA（格基，体积小、假设较新）** 还是 **SLH-DSA（哈希基，最保守、签名 KB 级）**？移动端存储与带宽预算如何约束？
+2. 证明系统选 **哈希基 STARK（透明、无需可信 setup、证明大）** 还是 **格基 SNARK（证明小）**？链上验证 gas 与证明体积如何折中（递归压缩 / L2 验证 / L1 只锚定承诺）？
+3. 迁移纪元由谁触发 —— owner 多签 / 治理投票 / 时间锁？如何避免迁移窗口本身成为新的攻击面？
+4. 生物认证失败（设备丢失、受伤、丧失决策能力）时的恢复与继承流程如何设计，且不引入可被滥用的后门？
+5. 混合签名“两边都通过才放行”在移动端是否带来不可接受的延迟？是否需要分级：**高价值动作双签、低价值动作单签**？

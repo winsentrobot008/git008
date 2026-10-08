@@ -2,6 +2,55 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-021: post-quantum foresight - plan the verifier exit ramp now, because the bindings are immutable
+
+**Status:** Proposed (documentation-only; no runtime code changed. Recorded in
+`docs/WHITE_PAPER.md` §9 and `docs/ARCHITECTURE_5_PILLARS.md` §12 as an all-roadmap memorandum)
+
+**Context:** Every trust root in the protocol is a hardness assumption that Shor's algorithm
+dissolves on a future fault-tolerant quantum computer. Two of them are load-bearing: secp256k1 ECDSA
+(wallet and heartbeat signatures) and the **BN254 / alt_bn128 pairing** Groth16 verifier behind both
+personhood claims and hardware attestation, which runs through the EIP-196/197 precompiles. The
+asymmetry matters: a quantum adversary does **not** need to steal a key to attack the verifier - it
+only needs to forge a proof, after which `claimHumanQuota` mints quota and `registerAgent` binds a
+fake agent. Chain data is permanently readable, so the exposure is "harvest now, forge later" rather
+than an attack that must succeed today.
+
+**Decision:**
+
+- **Record the transition plan, execute nothing yet.** Hybrid authorization first (ECDSA plus
+  ML-DSA / FIPS 204 or SLH-DSA / FIPS 205, both required to pass), then migrate the proof system to a
+  transparent hash-based (STARK-family) or lattice SNARK, then adopt on-chain PQC primitives if a
+  verifier precompile ever exists. Priority follows the attack surface: **M5 verifier > M2 wallet >
+  M4 heartbeat > M3 authorisation > M1 model fingerprint.**
+- **The finding that makes this urgent cheaply:** `contracts/src` contains **no proxy, UUPS,
+  ERC1967 or delegatecall pattern at all**, and the crypto bindings are `immutable` -
+  `AIAgentRegistry.zkVerifier`, `HumanToken.zkVerifier`, `HumanToken.agentRegistry` (whose comment
+  states there is no admin path to redirect claims), `Groth16Verifier.lockVerificationKey()` after
+  freezing, and `MaoTangSustenanceVault.owner` / `dripper` (ADR-018). A proof-system swap therefore
+  **cannot** be an upgrade: it is a new deployment plus a state migration. Require an exit ramp now:
+  a registry **epoch** field, a one-shot **re-issuance window** for quota and agent bindings, and a
+  **nullifier-consumption migration format** so consumption cannot be replayed across epochs.
+- **Biological root of trust is the quantum-stable layer, and only that.** Shor breaks mathematics,
+  not real-time physical presence: `biometric authorisation -> enclave session key -> on-chain
+  authorisation` keeps its origin unforgeable while the tail (signature and proof algorithms) is
+  swappable. It is **not** "unbreakable", and the residual surface (enclave implementation bugs,
+  biometric spoofing, supply chain, coercion, a fully compromised endpoint) is listed rather than
+  omitted.
+- **Accelerators stay behind interfaces.** Any future quantum-accelerated or neuromorphic edge chip
+  arrives as another backend of the existing seams (`SlmEngine`, the injected signer, the transport,
+  `IZKVerifier`), and the deterministic CPU path is never deleted, so a device generation change
+  cannot make the protocol unrunnable.
+- **New change discipline:** replacing a signature scheme, hash function or proof system requires an
+  ADR, a cryptography review and refusal-path tests, with the status column in `docs/WHITE_PAPER.md`
+  updated in the same change. No "incidental" primitive swaps.
+
+**Consequences:** The roadmap gains M8 (hybrid signatures), M9 (migration epoch and re-issuance
+window - flagged P0 because it is cheap now and fork-expensive later), M10 (hash-based proof system)
+and M11 (accelerator backends). The interface seams that already exist (`IZKVerifier`, injected
+signer, pluggable `SlmEngine`, the selector registry) cover four of the five PQC needs; the missing
+one is the state-migration exit, which is a contract-shape decision and must be made before any
+deployment is treated as final.
 ## 2026-10-08 - ADR-020: the protocol is documented and delivered as five independently verifiable pillars
 
 **Status:** Accepted (implemented as documentation; `docs/WHITE_PAPER.md` v3.0 and
