@@ -15,6 +15,10 @@
       "types": "./dist/video-worker.d.ts",
       "import": "./dist/video-worker.js"
     },
+    "./telemetry": {
+      "types": "./dist/telemetry.d.ts",
+      "import": "./dist/telemetry.js"
+    },
     "./package.json": "./package.json"
   },
   "files": ["dist"],

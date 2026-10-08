@@ -15,6 +15,7 @@
 > | P0 | `$mHUMAN`（6 位小数、Groth16 人格证明）、`MaoTangSustenanceVault`、`MaoTangBondingCurve`（0.5% 交易费 / 1.00% 毕业费） | ✅ 完成 |
 > | P1 | `AIAgentRegistry` + A2A Agent SDK、DePIN BLE/UWB/蜂窝覆盖证明、本地 SLM/ONNX 算力证明 | ✅ 完成 |
 > | **P2** | **Video Factory v2 & DePIN Telemetry**（端侧 Edge-TTS 配音、ComfyUI/SVD 视觉、FFmpeg NVENC 渲染与 DePIN 遥测回传、Alpha Testnet 一键启动） | 🟢 **ACTIVE** |
+> | **P3** | **Multi-Node DePIN Telemetry & Cross-Chain Vault** (`HardwareTelemetryCollector` signed heartbeat, `SustenanceVaultSpoke` on Base/Arbitrum/Optimism, cross-chain yield routing) | 🟢 **IN_PROGRESS** |
 >
 > 📄 [Whitepaper v2](docs/WHITEPAPER_v2.md) · [Gap Analysis](docs/GAP_ANALYSIS.md) · [Architecture](docs/MAOTANG_ARCHITECTURE.md)
 >

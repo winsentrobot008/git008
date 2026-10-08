@@ -275,3 +275,165 @@ The off-chain half lives in `agent-manager/src/mining/`:
 `python test/mining_e2e.py` is the runnable evidence: it verifies the shipped sources, checks the
 constant/selector agreement, then simulates BLE pings and NPU tasks through a mirror of the
 contract's rules to show exact reward accrual, vault disbursement and every rejection path.
+
+## 13. Multi-node DePIN topology (Phase P3)
+
+Phase P1 made one machine a miner and Phase P2 made it a renderer. Phase P3 makes a fleet of those
+machines addressable: every node advertises what it can actually do, and the hub routes work to a node
+that can do it. The unit of advertising is a signed hardware heartbeat.
+
+```text
+                      +----------------------------------------------+
+                      |          Orchestrator (off chain)            |
+                      |  routing table: agent -> capability, sequence |
+                      +---^--------^--------------^-------------^----+
+     POST /telemetry/heartbeat |        |              |             |
+                      +-------+--+ +---+------+ +-----+------+ +----+------+
+                      | RENDER   | | SLM      | | NPU / ZK   | | BLE / UWB |
+                      | NODE     | | NODE     | | NODE       | | NODE      |
+                      | RTX 3060 | | qwen2.5  | | Groth16    | | beacons   |
+                      | NVENC    | | 0.5B i4  | | prover     | | proximity |
+                      +----+-----+ +----+-----+ +-----+------+ +-----+-----+
+                           |            |             |              |
+                           +------------+------+------+--------------+
+                                               | signed capability + work proofs
+                                      +--------v---------+
+                                      | MaoTangMining    |  $mHUMAN rewards
+                                      | (AgentGated)     |  BLE + NPU proof types
+                                      +------------------+
+```
+
+| Node role | Advertised capability | Consumer of the capability |
+| --- | --- | --- |
+| Render node | GPU name, VRAM, probed NVENC availability, FFmpeg path | Video Factory v2 job routing |
+| SLM node | Model fingerprint (SHA-256 of the weights), CPU class, RAM | Local inference offload |
+| NPU / ZK node | GPU + Node runtime, so the hub can size proof batches | `MaoTangMining` proof scoring |
+| BLE / UWB node | Node runtime and platform only; coverage is a proof, not a capability | `MaoTangMining` proximity proofs |
+
+### 13.1 The heartbeat
+
+`agent-client/src/telemetry.ts` owns this. A collector probes the machine, canonicalizes the result,
+hashes it and signs the digest:
+
+```text
+HardwareProfile   = nodeVersion, platform, arch, cpuModel, cpuCount, memoryBytes,
+                    gpus[{ vendor, name, vramBytes, nvencCapable, source }],
+                    nvenc (probed, never assumed), ffmpegPath,
+                    slm { id, path, available, bytes, sha256 }
+
+TelemetryEnvelope = { proofType, agent, sequence, timestamp, hardware }
+digest            = sha256("maotang-node-telemetry-v1" + "\n" + canonicalize(envelope))
+signature         = secp256k1 ECDSA over sha256(digest), DER-encoded
+```
+
+- `proofType` is the ASCII tag `maotang.telemetry.node.v1` right-padded to 32 bytes, mirroring the
+  `MaoTangMining` proof-type convention so the tag can be promoted to a real on-chain proof type
+  without a rename.
+- Canonicalization is the same function `video-worker.ts` uses for content proofs, so two independent
+  implementations cannot disagree about the bytes behind a hash.
+- `nvenc` is capability-probed by running `ffmpeg -hide_banner -encoders` and looking for `h264_nvenc`,
+  the same check, the same `FFMPEG_DISABLE_NVENC` opt-out and the same binary resolution order as
+  `video-factory/src/tooling.ts`. A node that does not list the encoder must not claim it.
+- `slm.sha256` is a streaming SHA-256 of the local weights file. When nothing is configured, or the
+  file is missing, the fingerprint reports `available: false` instead of inventing a hash.
+- `sequence` is a per-process monotonic counter. It is deliberately *not* incremented by a dry run, so
+  a node cannot desynchronize the orchestrator by building a heartbeat it never sends.
+- Signature scheme: raw ECDSA over the digest, verifiable with `verifyHeartbeat`. Note the honest
+  limit - signature verification proves the worker that holds the node key produced the envelope; it
+  does not prove which on-chain *address* did, because deriving an address from a public key needs
+  keccak256, which is not in the Node standard library. The orchestrator records the configured agent
+  address next to the signature and a keccak-capable verifier can close that loop later.
+
+### 13.2 Transport and its current limit
+
+The working transport is the off-chain orchestrator: `HardwareTelemetryCollector.sendHeartbeat()`
+POSTs `{ proofType, heartbeat }` to `MAOTANG_HEARTBEAT_URL` (falling back to `MAOTANG_TELEMETRY_URL`).
+A `log` transport exists for air-gapped nodes and for tests.
+
+There is no on-chain transport yet, and this is a tracked gap rather than an oversight:
+`MaoTangMining.submitMiningProof(bytes32,bytes)` accepts exactly the `PROOF_TYPE_BLE_PING` and
+`PROOF_TYPE_ZK_COMPUTE` shapes and scores them for rewards. It has no capability-registration entry
+point, so a heartbeat has nothing to write. Promoting the heartbeat to chain means a third proof type
+with its own scoring rule - a separate reviewed change, not a silent extension of an existing one.
+
+The heartbeat loop is fail-soft by design: a broadcast error is logged and the next tick is scheduled,
+because a node that cannot reach the orchestrator must still render video. `start()` / `stop()` follow
+the same shape as `VideoWorker`, and both install `SIGINT` / `SIGTERM` handlers in their CLI entry.
+
+Environment keys read (names only): `MAOTANG_AGENT_ID`, `MAOTANG_WORKER_PRIVATE_KEY`,
+`MAOTANG_HEARTBEAT_URL`, `MAOTANG_TELEMETRY_URL`, `MAOTANG_HEARTBEAT_MS`, `MAOTANG_SLM_MODEL`. The
+worker key is deliberately its own variable and must be a dedicated node key: reusing the deployer key
+means a leaked node key can drain the deployment account.
+
+Evidence: `agent-client/test/telemetry.test.ts` covers the tag constant, every GPU parser, the NVENC
+probe and its disable switch, the model fingerprint, signature round-trip and tamper rejection, and the
+sequence invariant. `npm test` in `agent-client/` runs it alongside the video-worker suite.
+
+## 14. Cross-chain sustenance routing (Phase P3)
+
+Whitepaper v2.2 section 5.1 defines a single aggregation pool. That pool is the hub,
+`MaoTangSustenanceVault`, on the settlement chain. Phase P3 adds the other half of the topology:
+secondary-L2 spokes that siphon the identical 0.5% swap and 1.00% graduation fees locally and flush
+them to the hub. Moving every individual fee across chains would be uneconomic, so aggregation happens
+per chain and only the flush is bridged.
+
+```text
+   Base / Arbitrum / Optimism (spoke)                    Settlement chain (hub)
+   ----------------------------------                    ----------------------
+
+   MaoTangBondingCurve --0.5%--> SustenanceVaultSpoke            +-----------------------------+
+                        --1.00%--> (per L2)                      | MaoTangSustenanceVault      |
+                                      |                          |  nativeFeesReceived         |
+                                      | availableNative()        |  tokenFeesReceived[asset]   |
+                                      | (siphoned minus bridged) |  claimableSustenance[p][a]  |
+                                      v                          +--------------^--------------+
+                        bridgeYieldToHub(adapter)                             |
+                        bridgeYieldTokenToHub(adapter, asset, amount)         | yield lands as a fee
+                                      |                                       | deposit, then is credited
+                                      v                                       | to human principals
+                        IBridgeAdapter (allowlisted)  ---- message ---> transport
+```
+
+### 14.1 Contract surface
+
+`contracts/src/SustenanceVaultSpoke.sol`, with `contracts/src/interfaces/IBridgeAdapter.sol` as the
+only transport dependency:
+
+| Member | Access | Purpose |
+| --- | --- | --- |
+| `receive()` / `depositFee(FeeSource)` | anyone | Siphons a native fee; `depositFee` attributes the stream. |
+| `depositFeeToken(FeeSource, asset, amount)` | anyone | Siphons an ERC-20 fee via `transferFrom`. |
+| `quoteFee(FeeSource, gross)` / `feeRateBps(FeeSource)` | anyone | Byte-compatible with the hub, so curve code is chain-agnostic. |
+| `availableNative()` / `availableToken(asset)` | anyone | Siphoned minus bridged; the bridgeable balance. |
+| `setKeeper(address, bool)` / `setBridgeAdapter(address, bool)` | owner | Administer keepers and allowlisted transports. |
+| `bridgeYieldToHub(address adapter)` | owner or keeper | Flushes every accrued native fee to the hub vault. |
+| `bridgeYieldTokenToHub(address adapter, asset, amount)` | owner or keeper | Flushes a bounded ERC-20 amount; approves the adapter, then clears the allowance. |
+
+### 14.2 Invariants
+
+- **Yield is never minted.** Every bridged amount is bounded by what was actually siphoned;
+  `availableNative` and `availableToken` are received minus bridged, so they cannot go negative.
+- **The destination is fixed.** Both bridge functions always name `hubVault` on `hubChainId`. Neither
+  the owner nor a keeper can redirect yield to an arbitrary address.
+- **Adapters are allowlisted.** `bridgeYieldToHub` keeps the specified `address bridgeAdapter`
+  parameter, but validates it against `bridgeAdapters` before use. Without that check a compromised
+  keeper could hand in a malicious adapter and sweep the balance; with it, a keeper can only trigger
+  the transfer the owner would have triggered anyway.
+- **Relay fees stay separate.** `msg.value` on a bridge call is the transport fee, paid on top of the
+  yield, so the bridged amount always equals the accounted amount and the hub can never be told it
+  received more than was actually sent.
+- **Checks-effects-interactions.** Bookkeeping is updated before any external call, so a reentrant
+  bridge call finds nothing left to move.
+- **No admin takeover.** `owner` is immutable, mirroring the hub, and no function lets the owner
+  withdraw fees to itself.
+
+### 14.3 Open items
+
+- The hub has no cross-chain intake yet. It consumes fees through `depositFee`, payable by an EOA on
+  the hub chain, so a hub-side `receiveBridgedYield` - gated on an allowlist of remote spokes - is
+  required before this topology can move real value. The spoke is deliberately the half that exists
+  now, because it is the half that curve deployments need.
+- `contracts/scripts/deploy-testnet.ts` does not deploy a spoke yet. A spoke is per L2 and per adapter,
+  so it belongs in a per-chain deployment entry point rather than the single-chain Alpha pipeline.
+- Fee rates are mirrored from `sdk/src/curve-math.ts`. Changing either side is a protocol-economic
+  change and requires a superseding entry in `memory/ARCHITECTURE_DECISIONS.md`.
