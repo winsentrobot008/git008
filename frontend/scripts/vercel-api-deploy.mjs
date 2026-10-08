@@ -23,7 +23,11 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const TOKEN = process.env.VERCEL_TOKEN || "";
-const TEAM_ID = process.env.VERCEL_TEAM_ID || "team_yziFzTtkDBBAkujUR0JQOpRk";
+// Team scope. Set VERCEL_TEAM_ID to the empty string to target a personal (non-team) account.
+const TEAM_ID =
+  process.env.VERCEL_TEAM_ID !== undefined
+    ? process.env.VERCEL_TEAM_ID
+    : "team_yziFzTtkDBBAkujUR0JQOpRk";
 const PROJECT = process.env.VERCEL_PROJECT || "maotang-frontend";
 const DOMAIN = process.env.MAOTANG_DOMAIN || "maotang.008ai.online";
 const ROOT_DIRECTORY = "frontend";
@@ -71,7 +75,9 @@ const SKIP_FILES = (name) =>
   (name.startsWith(".env") && name !== ".env.example") || name.endsWith(".tsbuildinfo");
 
 async function vcall(method, urlPath, { body, raw, headers = {} } = {}) {
-  const res = await fetch(`${API}${urlPath}`, {
+  // An empty team scope is expressed as `teamId=`; drop it so the URL stays valid.
+  const cleanPath = urlPath.replace("?teamId=&", "?").replace(/\?teamId=$/, "");
+  const res = await fetch(`${API}${cleanPath}`, {
     method,
     headers: {
       Authorization: `Bearer ${TOKEN}`,
@@ -157,7 +163,7 @@ async function ensureProject() {
   if (createStatus !== 200 && createStatus !== 201) {
     throw new Error(
       createStatus === 403
-        ? `ERR_PROJECT_CREATE_FORBIDDEN: this token cannot create Vercel projects; grant VERCEL_TOKEN project:create scope (or create "${PROJECT}" once in the Vercel dashboard) and re-run. Detail: ${JSON.stringify(data).slice(0, 200)}`
+        ? `ERR_PROJECT_CREATE_FORBIDDEN: this token cannot create, or see, a project named "${PROJECT}". Grant VERCEL_TOKEN project:create scope - or, if the project already exists under another Vercel account/team, supply a token for that scope (set VERCEL_TEAM_ID="" for a personal account). Detail: ${JSON.stringify(data).slice(0, 200)}`
         : `project creation failed (${createStatus}): ${JSON.stringify(data).slice(0, 300)}`
     );
   }
@@ -224,7 +230,8 @@ function collectFiles() {
 async function uploadFilesToStore(files) {
   let ok = 0;
   for (const f of files) {
-    const res = await fetch(`${API}/v2/files?teamId=${TEAM_ID}`, {
+    const filesUrl = `/v2/files?teamId=${TEAM_ID}`.replace(/\?teamId=$/, "");
+    const res = await fetch(`${API}${filesUrl}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${TOKEN}`,
