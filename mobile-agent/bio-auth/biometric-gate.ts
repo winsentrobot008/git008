@@ -89,8 +89,12 @@ export interface BiometricGate {
   authenticate(request: BiometricRequest): Promise<BiometricAssertion>;
 }
 
-/** Validates a challenge and lowercases it, so a case difference can never become a silent mismatch. */
-function requireChallenge(challenge: Hex): Hex {
+/**
+ * Validates a challenge and lowercases it, so a case difference can never become a silent mismatch.
+ *
+ * Exported so `native-biometric-gate.ts` applies the identical rule instead of a second copy of it.
+ */
+export function requireChallenge(challenge: Hex): Hex {
   if (typeof challenge !== "string" || !isHex(challenge) || hexByteLength(challenge) !== CHALLENGE_BYTES) {
     throw new BiometricDeniedError(
       `challenge must be a ${CHALLENGE_BYTES}-byte 0x hex digest, got ${String(challenge)}`,

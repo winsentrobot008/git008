@@ -17,6 +17,7 @@
 
 export * from "./abi.js";
 export * from "./enclave.js";
+export * from "./native-enclave.js";
 export * from "./policy.js";
 export * from "./types.js";
 export * from "./wallet.js";

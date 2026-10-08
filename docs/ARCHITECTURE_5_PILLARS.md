@@ -92,7 +92,7 @@
 
 ## 3. Module 2 — Autonomous Local Wallet
 
-**状态**：接口层 ✅ / 真实移动飞地 ⬜（M3）。阈值策略引擎与签名路径的**接口层已落地**于 `mobile-agent/signer/`（含 72 条断言的测试）
+**状态**：接口层 ✅ / 真实移动飞地 ⬜（M3）。阈值策略引擎与签名路径的**接口层已落地**于 `mobile-agent/signer/`（含 110 条断言的测试）
 
 **目录归属**：`mobile-agent/signer/`（本次新增）、`mobile-agent/bio-auth/`（M5 侧的授权通道）、`agent-manager/src/mining/transport.mjs`、`sdk/src/agent-client.ts`
 
@@ -104,6 +104,7 @@
 - **阈值策略引擎（接口层 ✅ 本次落地）**：`mobile-agent/signer/policy.ts` —— 目标地址白名单、selector 白名单、单笔上限、滚动窗口上限、链 ID 绑定，超阈值必须主人生物确认。**缺信息即拒绝**：空白名单拒绝一切、`null` 策略拒绝一切、上限与阈值均含等号（恰好等于上限放行、多 1 wei 拒绝）。执行顺序固定为 策略 → 授权 → 签名 → 记账；任一环拒绝都不消耗窗口额度、也不产生签名。
 - **唯一签名路径（接口层 ✅ 本次落地）**：`AutonomousWallet.signIntent()` 是唯一能产出签名的方法（刻意没有旁路 sibling）；intent digest 用 SHA-256 + 领域分隔 + 长度前缀字段（`keccak256` 不在 Node 标准库内，且该 digest 从不上链，故不假装兼容）；`SecureEnclave` 接口**不提供导出私钥的方法**。
 - **默认拒绝的飞地**：`createSecureEnclave()` 默认返回 `HardwareEnclave`，每个方法都抛 `EnclaveUnavailableError` 并点名 iOS/Android 平台 API；`DevEnclave` 仅供桌面与测试，且拒绝 `NODE_ENV=production`（除非显式豁免）。
+- **原生硬件适配器（本次新增：适配层 ✅ / 真实桥 ⬜）**：`signer/native-enclave.ts` 的 `NativeBridgeEnclave` 实现同一 `SecureEnclave` 接口，委托给宿主注入的 `NativeCryptoProvider`（iOS `SecKeyCreateSignature` + Secure Enclave、Android `Signature` + StrongBox/TEE）。适配器只强制**互操作性**——secp256k1 曲线、SPKI 与未压缩点一致、payload 必须是预哈希、签名**释放前先验签**——不替策略判断 `hardwareBacked`（那由花钱策略裁决）。**本仓库不含 Swift/Kotlin 桥本身**；未注入桥时与 `HardwareEnclave` 一样全部拒绝。
 
 **数据契约**：已签名的 raw transaction 十六进制串；私钥只以**进程环境变量**形式注入子进程，不落盘、不缓存。
 
@@ -113,7 +114,7 @@
 
 **已知边界**：worker 私钥必须是**专用节点密钥**；复用部署密钥意味着节点密钥泄露即部署账户被清空。
 
-**验收**：`cd D:\git008\mobile-agent; npm run typecheck; npm test`（72 条断言，含 Foundry `cast` 逐字节 calldata 向量与“拒绝路径”断言）；`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
+**验收**：`cd D:\git008\mobile-agent; npm run typecheck; npm test`（110 条断言，含 Foundry `cast` 逐字节 calldata 向量与“拒绝路径”断言）；`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
 
 **难度**：接口层（含阈值策略）= S（已完成）；移动端硬件飞地 + 生物门禁后端 = L。详见 `docs/MOBILE_AGENT_M2_M5.md`。
 
@@ -225,7 +226,8 @@ proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
 - `biometric-gate.ts`：`DeviceBiometricGate`（默认实现，全部方法抛 `BiometricUnavailableError` 并点名 `LAContext` / `BiometricPrompt` / WebAuthn API）与 `SimulatedBiometricGate`（必须显式 `{ enabled: true }` 才工作；`hardwareBacked` **恒为 `false`**，因此永远无法满足 `requireHardwareBackedAuthorization`）。
 - `BiometricAuthorizationGate`：把设备断言适配到 M2 的 `AuthorizationGate`。强制三件事：断言必须**回显同一个 digest**（防止把 A 交易的指纹按到 B 交易上）、来源 key 必须一致、`grantedAt` 必须新鲜（默认 120s，含等号边界）且不得来自未来（容忍 5s 时钟偏移）。
 - `nullifier.ts`：硬件 nullifier 派生（SHA-256 + 领域分隔 + 长度前缀字段，末尾对 `SCALAR_FIELD` 取模并拒绝 0）+ 本地一次性登记表（`reserve` / `consume` / `release` / `markSpentOnChain`）。**链上 `HumanToken.nullifierUsed` 才是权威**，本地表只是乐观守卫，进程重启即为空。
-- **未做实的事**：没有生成 Groth16 证明（只按给定 proof blob 编码 calldata），没有真实设备后端，没有 PQC。
+- `native-biometric-gate.ts`（本次新增：适配层 ✅ / 真实桥 ⬜）：`NativeBridgeBiometricGate` 包一层 `NativeBiometricProvider`（`LAContext` / `BiometricPrompt` / WebAuthn），**由适配器自身验证**平台返回的挑战签名，验签通过才报 `hardwareBacked: true`；支持 `pinnedAssertionPublicKey` 绑定主人登记的断言公钥。
+- **未做实的事**：没有生成 Groth16 证明（只按给定 proof blob 编码 calldata），没有 Swift/Kotlin 原生桥与平台密钥证明链校验（Android `x5c` / iOS `SecKey` attestation，适配层与契约已就位），没有 PQC。
 
 **验收**：`cd D:\git008\contracts; forge test`；`cd D:\git008\mobile-agent; npm test`（生物门禁拒绝路径、断言绑定/新鲜度、nullifier 确定性与重放断言）
 

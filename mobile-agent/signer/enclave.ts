@@ -7,7 +7,7 @@
  * an enclave that can hand out the scalar is not an enclave, and a method that exists will eventually
  * be called.
  *
- * Two implementations ship, and the default is the one that refuses to work:
+ * Three implementations ship, and the default is the one that refuses to work:
  *
  *   - {@link HardwareEnclave} (default, `mode: "hardware"`): every call throws
  *     {@link EnclaveUnavailableError}. A real backend must be supplied by the mobile host - iOS
@@ -18,6 +18,10 @@
  *   - {@link DevEnclave} (`mode: "dev"`): an in-process secp256k1 key store built on `node:crypto`, for
  *     tests and desktop development. It reports `hardwareBacked: false` in its attestation and refuses
  *     to run under `NODE_ENV=production` unless explicitly forced.
+ *   - `NativeBridgeEnclave` (`mode: "hardware"`, in `native-enclave.ts`): the production adapter, which
+ *     implements this same interface over a `NativeCryptoProvider` supplied by the mobile host. It is a
+ *     separate module because it needs no access to anything in this file beyond the interface, the two
+ *     validators below and {@link verifyDigest}.
  *
  * Crypto is `node:crypto` only (no `ethers`, no `@noble/*`), matching `agent-client` and
  * `agent-manager`. Signatures are raw 64-byte `r || s` (`ieee-p1363`) over the 32-byte digest, so the
@@ -33,6 +37,7 @@ import {
 } from "node:crypto";
 
 import { hexByteLength, type Hex } from "./types.js";
+import { inspectSpki } from "../shared/ecdsa.js";
 
 /** Bytes in the digest an enclave signs. */
 export const DIGEST_BYTES = 32;
@@ -102,14 +107,21 @@ export interface SecureEnclave {
 
 const ALIAS_PATTERN = /^[A-Za-z0-9._:-]{1,64}$/;
 
-function requireAlias(alias: string): string {
+/**
+ * Validates a key alias.
+ *
+ * Exported so backend adapters (`native-enclave.ts`) apply the same rule instead of a copy of it: a check
+ * that exists twice will eventually disagree with itself, and this one guards a keystore namespace.
+ */
+export function requireAlias(alias: string): string {
   if (typeof alias !== "string" || !ALIAS_PATTERN.test(alias)) {
     throw new EnclaveKeyError(`key alias must match ${String(ALIAS_PATTERN)}, got ${JSON.stringify(alias)}`);
   }
   return alias;
 }
 
-function requireDigest(digest: Hex): Buffer {
+/** Validates that a digest is exactly {@link DIGEST_BYTES} bytes and returns it. Exported for the reason above. */
+export function requireDigest(digest: Hex): Buffer {
   let bytes: number;
   try {
     bytes = hexByteLength(digest);
@@ -122,25 +134,16 @@ function requireDigest(digest: Hex): Buffer {
   return Buffer.from(digest.slice(2), "hex");
 }
 
-function base64UrlToHex(value: string): string {
-  return Buffer.from(value, "base64url").toString("hex");
-}
-
 /** Derives the SPKI and SEC1 public forms of a private key without ever reading its scalar. */
 function describeKey(alias: string, key: KeyObject): EnclaveKeyRef {
-  const publicKey = createPublicKey(key);
-  const spki = publicKey.export({ type: "spki", format: "der" });
-  const jwk = publicKey.export({ format: "jwk" }) as { x?: string; y?: string; crv?: string };
-  if (typeof jwk.x !== "string" || typeof jwk.y !== "string") {
-    throw new EnclaveKeyError("the platform did not expose affine coordinates for the generated EC key");
-  }
-  const uncompressed = `0x04${base64UrlToHex(jwk.x)}${base64UrlToHex(jwk.y)}`;
+  const spkiPublicKey = `0x${createPublicKey(key).export({ type: "spki", format: "der" }).toString("hex")}` as Hex;
+  const { uncompressedPublicKey } = inspectSpki(spkiPublicKey);
   return {
     alias,
     algorithm: "ECDSA-secp256k1",
-    keyId: spki.toString("hex").slice(-32),
-    spkiPublicKey: `0x${spki.toString("hex")}` as Hex,
-    uncompressedPublicKey: uncompressed as Hex,
+    keyId: spkiPublicKey.slice(-32),
+    spkiPublicKey,
+    uncompressedPublicKey,
   };
 }
 

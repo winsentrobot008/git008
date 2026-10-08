@@ -2,6 +2,60 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-023: the native hardware bridges are adapters over a host-supplied contract, so the adapter enforces interop while the policy keeps owning hardware backing
+
+**Status:** Accepted (implemented in `mobile-agent/signer/native-enclave.ts`,
+`mobile-agent/bio-auth/native-biometric-gate.ts` and `mobile-agent/shared/ecdsa.ts`; `npm run typecheck` clean and
+`npm test` green over 110 assertions. No contract, frontend or agent runtime changed; no Swift/Kotlin bridge ships.
+Recorded in `docs/MOBILE_AGENT_M2_M5.md` and `docs/ARCHITECTURE_5_PILLARS.md` sections 3 and 6)
+
+**Context:** ADR-022 landed M2/M5 as refusing interfaces and named the device backend as the open item. Implementing
+it forces three questions the interfaces do not answer by themselves:
+
+- **A bridge is untrusted code in another runtime.** A Swift/Kotlin bridge can return a P-256 key, a public key that
+  contradicts the point it reported, a signature for a different digest, or a DER blob labelled raw. Each of those
+  fails *later*, in `verifySignedIntent` or at broadcast, where the cause is invisible.
+- **Two crypto conventions disagree invisibly.** iOS `SecKeyCreateSignature` and Android `Signature` return DER while
+  `SecureEnclave.signDigest` must return raw `r || s`; and some platform primitives sign the 32-byte digest as a
+  pre-hash while others hash it again (`SHA256withECDSA`). A mismatch is a signature that verifies nowhere.
+- **Judging `hardwareBacked` in the adapter would put spending authority in two places.** Only the bridge can know
+  whether its key is hardware backed; only the spend policy decides whether that answer is acceptable.
+
+**Decision:**
+
+- **The adapter implements the existing interface and nothing else.** `NativeBridgeEnclave implements SecureEnclave`
+  and `NativeBridgeBiometricGate implements BiometricGate`, so the guardrail pipeline is unchanged and
+  `policy.ts` / `wallet.ts` semantics are untouched. A host wires them with
+  `createNativeEnclave(nativeCryptoProviderFromGlobal())` and
+  `createNativeBiometricGate({ provider, pinnedAssertionPublicKey })`.
+- **The adapter enforces interop, not policy.** It refuses a non-secp256k1 signing key (the EVM cannot verify P-256),
+  a reported uncompressed point that contradicts the reported SPKI, a `payloadMode: "message"` signature, and any
+  signature that does not verify - and it refuses *before* releasing, so no `SignedIntent` can carry an unusable
+  signature. It reports `hardwareBacked` honestly from the bridge and lets a strict policy reject it.
+- **Signature normalization is shared and strict.** `shared/ecdsa.ts` inspects SPKI (curve plus uncompressed point),
+  converts DER to raw with a parser that rejects negative or oversized INTEGERs, and refuses a DER blob declared
+  `raw` rather than silently reinterpreting it. `EcdsaError` is thrown only for malformed input, never for "this
+  signature is wrong", so a broken bridge stays distinguishable from a rejected approval.
+- **The biometric adapter verifies the assertion itself.** Because `BiometricAssertion` has no signature field, the
+  adapter verifies the platform signature over the challenge and only then reports `hardwareBacked: true`. A grant
+  therefore proves possession of a key over *this* 32-byte challenge, not merely that a prompt returned success. The
+  assertion key can be pinned (`pinnedAssertionPublicKey`, validated as SPKI at construction); a future `grantedAt`
+  is treated as a bridge fault, while staleness stays `BiometricAuthorizationGate`'s job.
+- **Missing or malformed bridges keep failing closed.** Absent providers reproduce `HardwareEnclave` /
+  `DeviceBiometricGate` behaviour (every call throws the corresponding `*UnavailableError`), an incomplete or wrongly
+  declared bridge is rejected when attached, and a bridge failure is wrapped in `NativeBridgeError` /
+  `NativeBiometricBridgeError` with the original error preserved as `cause`.
+- **What does not ship is named.** No Swift/Kotlin bridge, and no platform key-attestation-chain verification
+  (Android `x5c`, iOS `SecKey` attestation). Pinning is supported and is the strong form of what ships; chain
+  verification is a separate, future step and is not claimed.
+
+**Consequences:** a device backend is now a matter of implementing two host contracts, and the refusal-path tests in
+`test/native-enclave.test.ts`, `test/native-biometric-gate.test.ts` and `test/native-pipeline.test.ts` are the
+contract those implementations must satisfy. The cost is that the package still cannot sign without a host bridge -
+deliberately, since a software stand-in for a hardware key is precisely the substitution ADR-022 exists to prevent.
+Changes to a signature scheme, a digest, an ECDSA convention or the pinned-key rule now require an ADR, a
+cryptography review and refusal-path tests in the same change, per the discipline in
+`docs/ARCHITECTURE_5_PILLARS.md` section 9 item 9.
 ## 2026-10-08 - ADR-022: the mobile agent ships its M2 signer and M5 bio-sovereign layer as refusing interfaces, because a silent fallback is the failure that matters
 
 **Status:** Accepted (implemented as an interface layer in `mobile-agent/`; `npm run typecheck` clean and

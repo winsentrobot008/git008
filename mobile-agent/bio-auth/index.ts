@@ -8,4 +8,5 @@
  */
 
 export * from "./biometric-gate.js";
+export * from "./native-biometric-gate.js";
 export * from "./nullifier.js";
