@@ -55,7 +55,7 @@
 
 | 模块 | 拥有（owns） | 对外暴露（exposes） | 消费（consumes） | 禁止（must not） |
 | --- | --- | --- | --- | --- |
-| **M1 Edge SLM & Cell** | `agent-client/src/slm/`、`agent-client/src/intents/`、`contracts/src/HumanToken.sol`（配额语义） | `SlmEngine`、`parseToolCall()`、工具 `claim_mhuman_quota` / `swap_micro_human`、`HUMAN_QUOTA` | 链上注册状态（只读）、人格证明（M5） | 引入任何云端 LLM 端点；绕过 `parseToolCall` 校验直接把参数送到钱包 |
+| **M1 Edge SLM & Cell** | `agent-client/src/slm/`、`agent-client/src/intents/`、`mobile-agent/slm/`（移动端离线引擎 + intent 翻译，✅ 接口层）、`contracts/src/HumanToken.sol`（配额语义） | `SlmEngine`、`LocalSlmEngineAdapter`、`IntentTranslator`、`assertNoCloudDependencies()`、`parseToolCall()`、工具 `claim_mhuman_quota` / `swap_micro_human`、`HUMAN_QUOTA` | 链上注册状态（只读）、人格证明（M5） | 引入任何云端 LLM 端点；绕过 `parseToolCall` / `IntentTranslator` 校验直接把模型参数送到钱包 |
 | **M2 Local Wallet** | `mobile-agent/signer/`（阈值策略与唯一签名路径，✅ 接口层）、`agent-manager/src/mining/transport.mjs`、签名器注入契约 | 注入式 signer 接口、`eth_sendRawTransaction` 广播、fail-closed egress guard | M1 的已校验 intent、M4 的 RPC 通道 | 在应用层持有明文私钥；复用部署密钥作为节点密钥；静默降级为“无护栏发送” |
 | **M3 Yield / Sustenance / Mining** | `contracts/src/{MaoTangBondingCurve,MaoTangSustenanceVault,MaoTangSustenanceDripper,MaoTangMining,SustenanceVaultSpoke}.sol`、`sdk/src/curve-math.ts`、`agent-manager/src/mining/` | 曲线报价/买卖、`submitMiningProof`、`claimMiningRewards`、金库入账与滴灌、刹车与出流上限 | M5 的 `requireAuthorizedAgent` 闸门 | 增发奖励（奖励只能 `transferFrom` 注资）；绕过 `AgentGated` 开新入口 |
 | **M4 Light Node / RPC** | `agent-client/src/telemetry.ts`、`scripts/rpc-guard.mjs`、`scripts/cloudflare-waf.ps1`、`frontend/src/lib/{chain,protocol,hooks}.ts`、`frontend/next.config.ts` | 心跳报文与能力广播、受护栏的 JSON-RPC、看板只读读取、地址 manifest | 链上只读方法（`eth_call`/`eth_getProof`） | 转发管理方法（`anvil_*`/`evm_*`/解锁账户签名）；在看板里签名（`write()` 必须抛错） |
@@ -67,15 +67,17 @@
 
 ## 2. Module 1 — Edge SLM & Cell Division
 
-**状态**：SLM 运行时 ✅ / Cell 化 ⬜（M6）
+**状态**：SLM 运行时（`agent-client/src/slm`）✅ / 移动端 M1（`mobile-agent/slm/`：离线引擎 + intent 翻译）✅ 接口层 / Cell 化 ⬜（M6）
 
-**目录归属**：`agent-client/src/slm/`、`agent-client/src/intents/`、`agent-client/test/local-agent.test.ts`、`contracts/src/HumanToken.sol`（配额语义）
+**目录归属**：`agent-client/src/slm/`、`agent-client/src/intents/`、`agent-client/test/local-agent.test.ts`、`mobile-agent/slm/`（移动端 M1，本次新增）、`contracts/src/HumanToken.sol`（配额语义）
 
 **接口**
 
 - `SlmEngine` —— 单一接口，两个可选后端：`llama.cpp`（`node-llama-cpp`，GGUF）与 ONNX Runtime（`onnxruntime-node`，INT4）。两者都是**动态 import 的可选依赖**，缺失时包仍可构建。
 - 默认模型 Qwen2.5-0.5B-Instruct INT4（权重约 397 MiB）；常驻内存估算含 fp16 KV cache 与运行开销，**硬上限 500 MiB**，超预算默认拒绝（`allowOverBudget` 显式豁免）。
 - `assertNoCloudDependencies()` —— 本地性是断言而非承诺；`mode: "native"` 失败时**大声报错**。
+- **移动端 M1 引擎（本次新增，接口层 ✅）**：`mobile-agent/slm/slm-engine.ts` 是 `agent-client/src/slm` 的移动端姊妹实现，**零运行时依赖**。`LocalSlmEngineAdapter` 只接受**进程内**后端（`llama.cpp` / `onnxruntime-mobile` / `mlc` / `coreml` / `tflite`），并叠加两层本地性强制：(a) `assertNoCloudDependencies(descriptor)` 拒绝端点、凭据、URI、云 SDK 名与 **loopback 模型服务器**（`ollama` 也拒绝——HTTP 一跳就是把 socket 放进签名路径）；(b) 每次推理期间把 `fetch` / `XMLHttpRequest` / `WebSocket` / `EventSource` 换成抛错哨兵并在 `finally` 还原，**试图联网的后端会失败而不是成功**，且没有关闭开关。未注入后端时 `infer` 抛 `SlmUnavailableError`，绝不降级到托管模型。
+- **移动端 intent 翻译（本次新增）**：`mobile-agent/slm/intent-translator.ts` 把模型文本变成 `TransactionIntent`——先做**单对象**抽取（0 个或 ≥2 个顶层对象一律拒绝；歧义正是 prompt injection 的形状），再做**闭合** schema 校验（action 白名单、`valueWei` 必须是规范整数字符串 wei 且在 `limits.maxValueWeiPerIntent` 内、未知字段拒绝、`chainId` 必须等于注入清单），最后由**本模块**用与 Foundry 逐字节对齐的 encoder 生成 calldata，目标地址来自注入的部署清单——**模型从不提供地址、chain、calldata 或 proof**。模型自述的 `reason` 只作备注，绝不进入授权提示文案。
 - 两个严格工具：`claim_mhuman_quota`、`swap_micro_human`；`parseToolCall()` 抽取、拒绝未知工具、校验每个参数后才允许触达钱包。
 
 **数据契约**：ChatML system prompt → **恰好一次** tool call JSON → 校验通过 → 结构化 intent（`AgentClient.executeIntent`）。
@@ -84,9 +86,9 @@
 
 **缺口**：合约层**没有 Cell 类型**。当前创世是“1 个已验证的活体人类 → 1,000,000 $mHUMAN 配额（`decimals = 6`）”，即单一 ERC-20 余额。细胞化（1 份配额细分为 1,000,000 个可寻址单元）需先出 ADR：记账视图 / 独立 ERC-20 / NFT 家族三选一，对 gas、可组合性与反女巫边界影响不同。
 
-**验收**：`cd D:\git008\agent-client; npm test`
+**验收**：`cd D:\git008\agent-client; npm test`；`cd D:\git008\mobile-agent; npm run typecheck; npm test`（136 条断言，含 M1 离线隔离与 intent 拒绝路径、M1→M5→M2 端到端）
 
-**难度**：SLM 接口固化 = S（已完成）；Cell 化 = L（含 ADR）。
+**难度**：SLM 接口固化 = S（已完成）；移动端 M1 接口层 = S（已完成）；Cell 化 = L（含 ADR）。详见 `docs/MOBILE_AGENT_M2_M5.md`。
 
 ---
 
@@ -114,7 +116,7 @@
 
 **已知边界**：worker 私钥必须是**专用节点密钥**；复用部署密钥意味着节点密钥泄露即部署账户被清空。
 
-**验收**：`cd D:\git008\mobile-agent; npm run typecheck; npm test`（110 条断言，含 Foundry `cast` 逐字节 calldata 向量与“拒绝路径”断言）；`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
+**验收**：`cd D:\git008\mobile-agent; npm run typecheck; npm test`（136 条断言，含 Foundry `cast` 逐字节 calldata 向量与“拒绝路径”断言）；`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
 
 **难度**：接口层（含阈值策略）= S（已完成）；移动端硬件飞地 + 生物门禁后端 = L。详见 `docs/MOBILE_AGENT_M2_M5.md`。
 

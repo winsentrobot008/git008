@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["signer/**/*.ts", "bio-auth/**/*.ts", "shared/**/*.ts"]
+  "include": ["signer/**/*.ts", "bio-auth/**/*.ts", "shared/**/*.ts", "slm/**/*.ts"]
 }

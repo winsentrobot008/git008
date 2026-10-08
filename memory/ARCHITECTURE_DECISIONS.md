@@ -2,6 +2,79 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-024: M1 is an offline engine plus a closed intent schema, because a language model is a text generator and not an authority
+
+**Status:** Accepted (implemented in `mobile-agent/slm/slm-engine.ts` and
+`mobile-agent/slm/intent-translator.ts`; `npm run typecheck` clean and `npm test` green over 136 assertions. No
+contract, frontend or agent runtime changed. Recorded in `docs/MOBILE_AGENT_M2_M5.md` and
+`docs/ARCHITECTURE_5_PILLARS.md` section 2)
+
+**Context:** ADR-022 and ADR-023 landed M2 and M5 on the phone; M1 is the layer that has to produce the intents
+they act on. `agent-client/src/slm` already answered "an offline runtime with no silent fallback" for the
+desktop node, and its `assertNoCloudDependencies(config)` plus tool-call parsing is the pattern to follow.
+Three things differ on a phone, and each one shapes a decision here:
+
+- **The model is the only interface, so it is also the attack surface.** A sentence can ask for a token launch;
+  it can also be written to make the model emit a call nobody asked for. Any output that is *interpreted* rather
+  than *validated* hands spending authority to text.
+- **JSON is where models are least reliable.** They wrap it in prose and fences, emit two objects, use a float
+  for an amount, or invent a plausible method name. Each of those is silent if the consumer is lenient, and
+  expensive because the consumer here is a signer.
+- **"Offline" is easy to claim and easy to lose.** One `fetch` in a binding turns the promise into an
+  aspiration, and a loopback model server feels local while still putting an HTTP hop on the signing path.
+
+**Decision:**
+
+- **Two layers, one direction, no authority.** `LocalSlmEngineAdapter.infer` produces *text*; only
+  `IntentTranslator.translate` produces a `TransactionIntent`; neither signs, and neither decides whether
+  spending is allowed. M1 proposes, the translator validates, M2's policy and the M5 gate dispose.
+- **Local means in-process, and the allow-list is explicit.** `assertNoCloudDependencies(descriptor)` accepts
+  only `llama.cpp`, `onnxruntime-mobile`, `mlc`, `coreml`, `tflite` and `mock`, and refuses: descriptor keys
+  naming an endpoint, host, port, credential, transport or cloud deployment; any field carrying a URI; any
+  `kind`/`modelId` naming a cloud SDK or hosted model; and any `kind`/`modelId` naming a loopback model server
+  (`ollama`, `lm-studio`, `vllm`, ...). The loopback refusal is deliberate: "it is only localhost" is exactly
+  the assumption that survives into a shipping build.
+- **The offline claim is enforced at runtime too.** Every inference runs with `fetch`, `XMLHttpRequest`,
+  `WebSocket` and `EventSource` replaced by throwers and restored in `finally`, so a backend that phones home
+  fails instead of succeeding, and the descriptor is re-asserted before each call so mutating one field after
+  construction cannot defeat the check. There is no configuration that switches the sentinel off; a guard with
+  an off switch is a preference.
+- **What the sentinel cannot see is stated, not implied.** It covers the JS-visible globals. It cannot see a
+  native addon that opens a socket below the JS layer, and that is why the descriptor allow-list exists as the
+  second half of the guarantee. Scanning the backend's `complete` source for `fetch(`/`http://` was considered
+  and rejected: it is trivially bypassable and would buy false confidence rather than a guarantee.
+- **Extraction refuses ambiguity.** One top-level JSON object or a refusal: zero objects is `MALFORMED_JSON`,
+  more than one is `AMBIGUOUS_OUTPUT`, and the brace scan is string-aware so a `}` inside a token name does not
+  end the object early. "Take the first object" is precisely how a benign-looking object gets used to authorise
+  a malicious one.
+- **The schema is closed, and the model names an action rather than a call.** `action` must be one of
+  `createMemeToken`, `claimHumanQuota`, `transfer` (anything else, plus the model's own `unsupported` answer, is
+  a distinct refusal); unrecognised fields are refused so an unexpected key cannot smuggle in a payload;
+  `valueWei` must be a canonical integer decimal string - a JSON number is refused outright because a float
+  cannot carry wei without losing precision - and within `limits.maxValueWeiPerIntent`; `chainId`, if present,
+  must equal the injected catalog's. Destinations come from the catalog and calldata from the same encoders the
+  integration tests check byte-for-byte against Foundry, so **the model never supplies an address, a chain, a
+  payload or a proof**.
+- **Model prose never reaches the human's prompt.** The model may include a `reason`; it is accepted as a note,
+  bounded, and discarded. The authorization prompt shows the translator's description, built only from validated
+  fields, because "approve to prevent loss of funds" is exactly the sentence that should never be rendered as
+  the reason for a signature.
+- **Absence and malformation fail closed.** No backend is `SlmUnavailableError` on use; a malformed descriptor or
+  a backend that resolves without text is `SlmBackendError`; the shipped `DeterministicSlmBackend` is labelled
+  `kind: "mock"`, refuses `NODE_ENV=production` unless explicitly forced and refuses a non-zero temperature, so
+  it cannot be mistaken for the real runtime or quietly shipped as one.
+- **The translator's bound is a first pass, not the authority.** It exists so an obviously oversized amount
+  never reaches the signer at all; the per-transaction cap, the rolling window, the destination and selector
+  allow-lists and the M5 grant remain decisive, and both gates run on every intent.
+
+**Consequences:** the mobile agent now has a complete chain - offline engine, validated intent, policy, consent,
+signature - where each link refuses on its own. A deployment that wants real inference implements
+`SlmRuntimeBackend`; nothing else has to change, and the refusal-path tests in `test/slm-engine.test.ts` are the
+contract that implementation must satisfy. The costs are explicit: M1 cannot run a model it was not compiled
+with, cannot accept a localhost inference server even when that would be convenient, and refuses a merely
+ambiguous answer instead of guessing. Changes to the schema, the action allow-list, the isolation rules or the
+extraction rules now require an ADR, a security review and refusal-path tests in the same change, per the
+discipline in `docs/ARCHITECTURE_5_PILLARS.md` section 9 item 9.
 ## 2026-10-08 - ADR-023: the native hardware bridges are adapters over a host-supplied contract, so the adapter enforces interop while the policy keeps owning hardware backing
 
 **Status:** Accepted (implemented in `mobile-agent/signer/native-enclave.ts`,

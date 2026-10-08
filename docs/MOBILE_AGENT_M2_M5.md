@@ -5,16 +5,17 @@
 > 模块状态与验收命令以本文件为准；`mobile-agent/README.md` 是本地可读的镜像。
 >
 > This document is the committed mirror of `mobile-agent/README.md`. Keep both in sync.
-> 目录归属：`mobile-agent/signer/`（M2）、`mobile-agent/bio-auth/`、`mobile-agent/shared/`、`mobile-agent/test/`。
+> 目录归属：`mobile-agent/slm/`（M1）、`mobile-agent/signer/`（M2）、`mobile-agent/bio-auth/`（M5）、`mobile-agent/shared/`、`mobile-agent/test/`。
 
 ---
 # mobile-agent - M2 local wallet signer & M5 bio-sovereign layer
 
-**状态**：接口层 ✅ 已落地（可编译，110 条单元/集成断言通过）／真实设备后端 ⬜（Secure Enclave、FaceID/WebAuthn、链下证明生成）。
+**状态**：接口层 ✅ 已落地（可编译，136 条单元/集成断言通过）／真实设备后端 ⬜（Secure Enclave、FaceID/WebAuthn、链下证明生成）。
 **一句话**：这一层负责"密钥不出设备、超阈值动作必须由本人到场的生物认证放行"，并且**默认拒绝工作** —— 没有注入真实后端时，它不会退化成软件签名器。
 
-Two modules live here, both dependency-free (no `ethers`, no `@maotang/sdk`, no runtime npm package at
-all, so a mobile host can bundle them as-is):
+Three modules live here, all dependency-free (no `ethers`, no `@maotang/sdk`, no runtime npm package at
+all, so a mobile host can bundle them as-is). M1 produces text offline, M2 turns a validated intent into a
+signature, M5 gates it on a living owner:
 
 | Path | Module | Owns |
 | --- | --- | --- |
@@ -24,7 +25,9 @@ all, so a mobile host can bundle them as-is):
 | `shared/ecdsa.ts` | M2 + M5 | ECDSA interop: SPKI inspection, strict DER-to-raw normalization, challenge verification. Decides no policy |
 | `signer/native-enclave.ts` | M2 | the `NativeCryptoProvider` contract and `NativeBridgeEnclave`, the adapter a real keystore bridge plugs into |
 | `bio-auth/native-biometric-gate.ts` | M5 | the `NativeBiometricProvider` contract and `NativeBridgeBiometricGate`, the adapter a real prompt bridge plugs into |
-| `test/` | - | 110 assertions, including calldata produced by Foundry and both native bridges behind mock-bridge doubles |
+| `slm/slm-engine.ts` | M1 Edge SLM | the offline `SlmEngine` seat (`llama.cpp` / ONNX Runtime Mobile / MLC / CoreML / TFLite), `assertNoCloudDependencies`, the per-inference network sentinel, and the deterministic test/desktop stub |
+| `slm/intent-translator.ts` | M1 Edge SLM | single-object JSON extraction and the closed schema gate that turns model text into a `TransactionIntent` |
+| `test/` | - | 136 assertions, including calldata produced by Foundry, both native bridges behind mock-bridge doubles, and the M1 engine-to-wallet path |
 
 Nothing in this package holds a private key, opens a socket, or broadcasts. `signIntent` produces a
 signature and stops there; broadcasting stays with the transport, exactly as `agent-manager` already does it.
@@ -64,6 +67,46 @@ The order is not an implementation detail, it is the guarantee:
 4. **sign** - only now is the digest handed to the enclave.
 5. **record** - a denial anywhere above costs no signature and consumes no window budget (asserted).
 
+## M1 - the edge SLM layer (offline intent source)
+
+`slm/` is the mobile-side M1, the sibling of `agent-client/src/slm`. It turns a human sentence or a system
+trigger into a *candidate* intent, and it is trusted with nothing else: the model never supplies a
+destination, a chain id, calldata or a proof.
+
+Four properties, each asserted in `test/slm-engine.test.ts`:
+
+1. **Offline, or it fails.** `assertNoCloudDependencies` refuses a descriptor that declares an endpoint, a
+   credential, a URI, a cloud SDK name or a loopback model server (yes, `ollama` too: an HTTP hop is a socket
+   on the signing path). Every inference then runs with `fetch`, `XMLHttpRequest`, `WebSocket` and
+   `EventSource` replaced by throwers and restored in `finally`, so a backend that phones home fails rather
+   than succeeds. There is no configuration that turns the sentinel off.
+2. **One object, or nothing.** The extractor pulls a single JSON object out of prose or fences with a
+   string-aware brace scan. Zero objects and more than one object are both refusals - an ambiguous answer is
+   the shape a prompt-injection payload takes, and "just take the first object" is how a benign-looking one
+   gets used to authorise a malicious one.
+3. **The model names an action; this package builds the call.** The schema is closed: `action` must be one of
+   `createMemeToken`, `claimHumanQuota`, `transfer`; unknown fields are refused; `valueWei` must be a
+   canonical integer decimal string (never a JSON number, which cannot carry wei without losing precision) and
+   within `limits.maxValueWeiPerIntent`; `chainId`, if present, must match the injected deployment catalog.
+   The calldata is then produced by the same encoders the integration tests check byte-for-byte against
+   Foundry, and the destination comes from the catalog.
+4. **A refusal upstream never reaches the wallet.** A hallucinated method, a malformed claim or an
+   out-of-range amount throws `IntentTranslationError` with a stable code before `signIntent` is called, so no
+   signature and no window budget is consumed. Model-authored prose (`reason`) is accepted as a note and never
+   reaches the authorization prompt, which shows only the translator's description of the validated call.
+
+### Wiring
+
+```ts
+const engine = createLocalSlmEngine({ backend: runtime });      // or createDeterministicSlmEngine()
+const translator = new IntentTranslator({ catalog, limits });   // addresses from frontend/config/contracts.json
+const inference = await engine.infer({ kind: "utterance", text: "Mint 0.05 ETH worth of Mao Tang token" });
+const signed = await wallet.signIntent(translator.translate(inference.raw).intent);
+```
+
+M1 proposes, M1's translator validates, and `signer/policy.ts` plus the M5 gate still decide whether anything
+is signed.
+
 ## Fail-closed inventory
 
 | Seam | Shipped default | Default behaviour | How a host satisfies it |
@@ -101,6 +144,8 @@ On older Node, run the compiled files from a shell that expands globs itself.
 | enclave adapter: raw/DER normalization, curve and SPKI-consistency refusals, payload-mode refusal, verify-before-release, missing/broken bridge behaviour | `test/native-enclave.test.ts` |
 | biometric adapter: hardware-backed grant, pinned-key enforcement, wrong-key/fabricated approvals refused, freshness, missing/broken bridge behaviour | `test/native-biometric-gate.test.ts` |
 | both native bridges end to end through `AutonomousWallet`, including a captured-approval replay and the strict hardware policy | `test/native-pipeline.test.ts` |
+| M1 offline guarantee (descriptor assertions, a blocked network attempt, restored globals) and the intent schema gate (hallucinated action, numeric amount, unknown field, out-of-range value, ambiguous object) | `test/slm-engine.test.ts` |
+| M1 -> M5 -> M2 end to end: an utterance becomes a signed intent whose calldata equals the Foundry vectors | `test/slm-engine.test.ts` |
 
 Regenerate the Foundry vectors with the `cast` commands recorded inside the fixture itself.
 
@@ -128,6 +173,10 @@ Regenerate the Foundry vectors with the `cast` commands recorded inside the fixt
   Groth16 proof for the owner's ceremony key is out of scope here.
 - **No PQC yet.** The post-quantum roadmap in `docs/WHITE_PAPER.md` section 9 is unimplemented; the seams
   it needs (injected signer, swappable verifier) are the ones this package already exposes.
+- **M1 ships a stub, not a model.** `DeterministicSlmBackend` is a rule-based stand-in for tests and desktop; a
+  real deployment must supply a `SlmRuntimeBackend` (`llama.cpp` / ONNX Runtime Mobile). The network sentinel
+  covers the JS-visible globals (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`); it cannot see a native
+  addon that opens a socket below the JS layer, which is why the descriptor allow-list exists as well.
 
 ## Wiring a real device
 
@@ -147,6 +196,14 @@ Regenerate the Foundry vectors with the `cast` commands recorded inside the fixt
    means every transaction needs a human.
 4. Keep the strict switch on: `requireHardwareBackedAuthorization: true` refuses any channel that cannot
    prove hardware backing, including every simulated one.
+5. Pin the assertion key in production. Without a pin the adapter still verifies the signature, but against the
+   key the bridge itself reported, which only proves the bridge holds that key; a pin
+   (`pinnedAssertionPublicKey`) ties the grant to the key the owner enrolled. Verifying the platform's key
+   attestation chain on top of the pin is a separate, not-yet-implemented step.
+6. Supply the M1 runtime: implement `SlmRuntimeBackend` over `llama.cpp` or ONNX Runtime Mobile, wire
+   `createLocalSlmEngine({ backend })`, and translate before signing -
+   `wallet.signIntent(translator.translate((await engine.infer(input)).raw).intent)`. Without a backend the
+   engine refuses; it never falls back to a hosted model.
 
 ## Related records
 
@@ -157,3 +214,5 @@ Regenerate the Foundry vectors with the `cast` commands recorded inside the fixt
 - `memory/ARCHITECTURE_DECISIONS.md` **ADR-023** - the native hardware bridge adapters: what they enforce
   (interop), what the policy owns (hardware backing), and what does not ship (the bridge, attestation-chain
   verification).
+- `memory/ARCHITECTURE_DECISIONS.md` **ADR-024** - the M1 edge SLM layer: the zero-cloud isolation boundaries
+  and the intent-validation guarantees that stand between a language model and the signing path.
