@@ -377,24 +377,33 @@ secondary-L2 spokes that siphon the identical 0.5% swap and 1.00% graduation fee
 them to the hub. Moving every individual fee across chains would be uneconomic, so aggregation happens
 per chain and only the flush is bridged.
 
-```text
-   Base / Arbitrum / Optimism (spoke)                    Settlement chain (hub)
-   ----------------------------------                    ----------------------
+Both halves are now implemented:
 
-   MaoTangBondingCurve --0.5%--> SustenanceVaultSpoke            +-----------------------------+
-                        --1.00%--> (per L2)                      | MaoTangSustenanceVault      |
-                                      |                          |  nativeFeesReceived         |
-                                      | availableNative()        |  tokenFeesReceived[asset]   |
-                                      | (siphoned minus bridged) |  claimableSustenance[p][a]  |
-                                      v                          +--------------^--------------+
-                        bridgeYieldToHub(adapter)                             |
-                        bridgeYieldTokenToHub(adapter, asset, amount)         | yield lands as a fee
-                                      |                                       | deposit, then is credited
-                                      v                                       | to human principals
-                        IBridgeAdapter (allowlisted)  ---- message ---> transport
+- The **spoke** (`contracts/src/SustenanceVaultSpoke.sol`) siphons, accounts for and flushes yield.
+- The **hub intake** (`receiveBridgedYield` / `receiveBridgedYieldToken` on `MaoTangSustenanceVault`)
+  accepts that flush, and only from an owner-trusted bridge adapter naming the spoke the owner
+  registered for the origin chain.
+
+```text
+   Base / Arbitrum / Optimism (spoke)                  Settlement chain (hub)
+   ----------------------------------                  ----------------------
+
+   MaoTangBondingCurve --0.5%-->  SustenanceVaultSpoke      +-------------------------------+
+                        --1.00%--> (per L2)                  | MaoTangSustenanceVault        |
+                                        |                    |   remoteSpokes[chainId]       |
+                     availableNative()  |                    |   trustedBridgeAdapters[a]    |
+                  (siphoned - bridged)  |                    |   nativeFeesReceived          |
+                                        v                    |   tokenFeesReceived[asset]    |
+                        bridgeYieldToHub(adapter)            |   claimableSustenance[p][a]   |
+                        bridgeYieldTokenToHub(...)           +---------------^---------------+
+                                        |                                    |
+                                        v                                    | intake, guarded by:
+                        IBridgeAdapter (owner-allowlisted)                   |  - trusted adapter
+                                        |                                    |  - registered pair
+                                        +-- (originChainId, originSpoke) ----+     (chain, spoke)
 ```
 
-### 14.1 Contract surface
+### 14.1 Spoke surface
 
 `contracts/src/SustenanceVaultSpoke.sol`, with `contracts/src/interfaces/IBridgeAdapter.sol` as the
 only transport dependency:
@@ -409,31 +418,71 @@ only transport dependency:
 | `bridgeYieldToHub(address adapter)` | owner or keeper | Flushes every accrued native fee to the hub vault. |
 | `bridgeYieldTokenToHub(address adapter, asset, amount)` | owner or keeper | Flushes a bounded ERC-20 amount; approves the adapter, then clears the allowance. |
 
-### 14.2 Invariants
+### 14.2 Hub intake surface
+
+`contracts/src/MaoTangSustenanceVault.sol`:
+
+| Member | Access | Purpose |
+| --- | --- | --- |
+| `remoteSpokes(uint256 chainId)` | anyone | Spoke registered for a chain; `address(0)` means none is. |
+| `trustedBridgeAdapters(address adapter)` | anyone | Whether an adapter may deliver yield. |
+| `setRemoteSpoke(uint256 chainId, address spoke)` | owner | Registers, rotates or revokes the spoke for a chain. |
+| `setTrustedBridgeAdapter(address adapter, bool trusted)` | owner | Grants or revokes an adapter allowlisting. |
+| `receiveBridgedYield(uint256 originChainId, address originSpoke)` | trusted adapter | Attributes native yield to its origin chain and adds it to `nativeFeesReceived`. |
+| `receiveBridgedYieldToken(uint256 originChainId, address originSpoke, address token, uint256 amount)` | trusted adapter | Pulls ERC-20 yield in via `transferFrom` and adds it to `tokenFeesReceived[token]`. |
+
+Events: `RemoteSpokeSet(chainId, spoke)`, `TrustedBridgeAdapterSet(adapter, trusted)` and
+`BridgedYieldReceived(originChainId, originSpoke, bridge, amount, token)`.
+
+What the intake guards do, and what they deliberately do not do:
+
+- `receiveBridgedYield` reverts `UntrustedBridgeAdapter` for any caller the owner has not trusted,
+  reverts `UnknownRemoteSpoke` when `(originChainId, originSpoke)` is not the registered pair (which
+  also covers a zero `originSpoke` and a chain the owner has revoked), and reverts `ZeroAmount` on a
+  zero-value delivery. The token variant adds the same `NATIVE` (`address(0)`) rejection that
+  `depositFeeToken` uses.
+- These guards protect **attribution, not solvency**. A plain native transfer is already accepted by
+  the hub `receive()` and recorded as a Swap fee, so bridged ETH cannot be lost either way; what the
+  guards add is provenance, so the settlement loop can tell an L2 flush apart from a direct donation.
+  The token path is a genuine gate, because refusing to pull ERC-20 from an untrusted caller is
+  exactly what the check prevents.
+- Registration is a rotation-safe pair. `setRemoteSpoke` writes a single mapping slot, so there is no
+  window in which two spokes are trusted for one chain, and `address(0)` revokes a chain outright.
+- Delivered yield joins the same accounting as the single-chain streams, so `availableNative()`,
+  `availableToken()` and `creditNativeSustenance` keep principal routing bounded by what the vault
+  actually holds: a bridged deposit becomes routable, and nothing more than that.
+
+Tests: `contracts/test/SustenanceVaultCrossChain.t.sol`, with `contracts/test/mocks/MockErc20.sol`,
+covers owner-only administration, both rejection paths on both intakes, event emission, balance and
+accounting updates, spoke and bridge revocation, that a bridge which has not approved cannot push
+tokens, and that bridged yield becomes routable to a principal under the existing bounded-routing rule.
+
+### 14.3 Invariants
 
 - **Yield is never minted.** Every bridged amount is bounded by what was actually siphoned;
-  `availableNative` and `availableToken` are received minus bridged, so they cannot go negative.
+  `availableNative` and `availableToken` are received minus bridged, so they cannot go negative, and
+  the hub records a delivery only up to the value it actually received.
 - **The destination is fixed.** Both bridge functions always name `hubVault` on `hubChainId`. Neither
   the owner nor a keeper can redirect yield to an arbitrary address.
-- **Adapters are allowlisted.** `bridgeYieldToHub` keeps the specified `address bridgeAdapter`
-  parameter, but validates it against `bridgeAdapters` before use. Without that check a compromised
-  keeper could hand in a malicious adapter and sweep the balance; with it, a keeper can only trigger
-  the transfer the owner would have triggered anyway.
+- **Adapters are allowlisted on both ends.** The spoke accepts a bridge adapter parameter but validates
+  it against `bridgeAdapters`; the hub validates the delivering caller against
+  `trustedBridgeAdapters`. Without the spoke check a compromised keeper could hand in a malicious
+  adapter and sweep the balance; without the hub check any contract could claim provenance it does not
+  have.
 - **Relay fees stay separate.** `msg.value` on a bridge call is the transport fee, paid on top of the
   yield, so the bridged amount always equals the accounted amount and the hub can never be told it
   received more than was actually sent.
 - **Checks-effects-interactions.** Bookkeeping is updated before any external call, so a reentrant
   bridge call finds nothing left to move.
-- **No admin takeover.** `owner` is immutable, mirroring the hub, and no function lets the owner
-  withdraw fees to itself.
+- **No admin takeover.** Both `owner` fields are immutable, mirroring the hub, and no function lets an
+  owner withdraw fees to itself.
 
-### 14.3 Open items
+### 14.4 Open items
 
-- The hub has no cross-chain intake yet. It consumes fees through `depositFee`, payable by an EOA on
-  the hub chain, so a hub-side `receiveBridgedYield` - gated on an allowlist of remote spokes - is
-  required before this topology can move real value. The spoke is deliberately the half that exists
-  now, because it is the half that curve deployments need.
 - `contracts/scripts/deploy-testnet.ts` does not deploy a spoke yet. A spoke is per L2 and per adapter,
   so it belongs in a per-chain deployment entry point rather than the single-chain Alpha pipeline.
+- No chain has a live adapter registration yet. `setRemoteSpoke` and `setTrustedBridgeAdapter` are
+  owner transactions on the hub, so a chain goes live when its spoke has been deployed, allowlisted,
+  and its transport adapter trusted.
 - Fee rates are mirrored from `sdk/src/curve-math.ts`. Changing either side is a protocol-economic
   change and requires a superseding entry in `memory/ARCHITECTURE_DECISIONS.md`.

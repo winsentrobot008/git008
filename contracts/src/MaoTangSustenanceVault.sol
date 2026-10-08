@@ -17,6 +17,10 @@ import {IERC20} from "./interfaces/IERC20.sol";
 ///   * A human's registered agent withdraws with {withdrawSustenance}, and the payout always lands in
 ///     the human wallet the agent was registered for - never in the agent's own account.
 ///
+///   * Cross-chain yield from a registered spoke enters through {receiveBridgedYield} /
+///     {receiveBridgedYieldToken}, which accept only an owner-trusted bridge adapter naming the
+///     spoke registered for the origin chain. See {setRemoteSpoke} and {setTrustedBridgeAdapter}.
+///
 /// Fee rates are mirrored from `sdk/src/curve-math.ts` (`TRADE_FEE_BPS = 50n`,
 /// `GRADUATION_FEE_BPS = 100n`). Changing either is a protocol-economic change and requires a
 /// superseding entry in `memory/ARCHITECTURE_DECISIONS.md`.
@@ -61,6 +65,15 @@ contract MaoTangSustenanceVault is AgentGated {
     /// @notice Accrued, unclaimed sustenance per principal and asset.
     mapping(address principal => mapping(address asset => uint256 amount)) public claimableSustenance;
 
+    /// @notice Chain id => the spoke contract allowed to send yield from that chain.
+    /// @dev Registered by {setRemoteSpoke}. `address(0)` means no spoke is trusted for the chain.
+    mapping(uint256 chainId => address spoke) public remoteSpokes;
+
+    /// @notice Bridge adapters allowed to deliver yield into the vault.
+    /// @dev Registered by {setTrustedBridgeAdapter}. The zero address is never a caller, so it is
+    /// rejected rather than stored, which keeps the mapping free of a meaningless entry.
+    mapping(address adapter => bool trusted) public trustedBridgeAdapters;
+
     /// @notice Emitted whenever a fee is paid into the vault.
     /// @param depositor Account that funded the vault, normally a bonding curve.
     /// @param source Which fee stream the deposit belongs to.
@@ -83,6 +96,30 @@ contract MaoTangSustenanceVault is AgentGated {
         address indexed agent, address indexed principal, address indexed asset, uint256 amount
     );
 
+    /// @notice Emitted when the owner registers or revokes a spoke for a chain.
+    /// @param chainId Chain the spoke lives on.
+    /// @param spoke Spoke now trusted for that chain; `address(0)` revokes the chain.
+    event RemoteSpokeSet(uint256 indexed chainId, address indexed spoke);
+
+    /// @notice Emitted when the owner grants or revokes a cross-chain bridge adapter.
+    /// @param adapter Adapter whose status changed.
+    /// @param trusted Whether the adapter may now deliver yield.
+    event TrustedBridgeAdapterSet(address indexed adapter, bool indexed trusted);
+
+    /// @notice Emitted when a trusted bridge delivers yield aggregated on another chain.
+    /// @param originChainId Chain the yield was siphoned on.
+    /// @param originSpoke Spoke that aggregated it.
+    /// @param bridge Trusted adapter that delivered it.
+    /// @param amount Amount received, in the asset's smallest unit.
+    /// @param token `NATIVE` for bridged ETH, otherwise the ERC-20 address.
+    event BridgedYieldReceived(
+        uint256 indexed originChainId,
+        address indexed originSpoke,
+        address indexed bridge,
+        uint256 amount,
+        address token
+    );
+
     error InvalidOwner();
     error NotOwner(address caller);
     error InvalidAgentRegistry();
@@ -93,6 +130,10 @@ contract MaoTangSustenanceVault is AgentGated {
     error NothingToWithdraw(address principal, address asset);
     error NativeTransferFailed(address to, uint256 amount);
     error TokenTransferFailed(address asset, address to, uint256 amount);
+    error InvalidChainId();
+    error InvalidBridgeAdapter(address adapter);
+    error UntrustedBridgeAdapter(address adapter);
+    error UnknownRemoteSpoke(uint256 chainId, address spoke);
 
     /// @dev Reverts unless the caller is the protocol authority.
     modifier onlyOwner() {
@@ -106,6 +147,27 @@ contract MaoTangSustenanceVault is AgentGated {
         if (agentRegistry_ == address(0)) revert InvalidAgentRegistry();
         if (owner_ == address(0)) revert InvalidOwner();
         owner = owner_;
+    }
+
+    /// @notice Registers, updates or revokes the spoke trusted for `chainId`.
+    /// @dev Passing `address(0)` revokes the chain, which stops {receiveBridgedYield} from accepting
+    /// its yield. Rotation is therefore one owner transaction, with no window in which two spokes are
+    /// simultaneously trusted for the same chain.
+    /// @param chainId Chain the spoke lives on. Must not be 0, the invalid chain id.
+    /// @param spoke Spoke allowed to send yield from `chainId`.
+    function setRemoteSpoke(uint256 chainId, address spoke) external onlyOwner {
+        if (chainId == 0) revert InvalidChainId();
+        remoteSpokes[chainId] = spoke;
+        emit RemoteSpokeSet(chainId, spoke);
+    }
+
+    /// @notice Grants or revokes a cross-chain bridge adapter.
+    /// @param adapter Adapter allowed to deliver yield. Must not be the zero address.
+    /// @param trusted Whether the adapter may now deliver yield.
+    function setTrustedBridgeAdapter(address adapter, bool trusted) external onlyOwner {
+        if (adapter == address(0)) revert InvalidBridgeAdapter(adapter);
+        trustedBridgeAdapters[adapter] = trusted;
+        emit TrustedBridgeAdapterSet(adapter, trusted);
     }
 
     /// @notice Accepts a native fee transfer that does not name its source.
@@ -137,6 +199,46 @@ contract MaoTangSustenanceVault is AgentGated {
         emit FeeReceived(msg.sender, source, asset, amount);
 
         _safeTransferFrom(asset, msg.sender, address(this), amount);
+    }
+
+    /// @notice Receives aggregated native yield from a registered spoke on another chain.
+    /// @dev Attribution is what the guards protect, not solvency: a plain native transfer is already
+    /// accepted by {receive} and recorded as a Swap fee, so ETH that arrives here cannot be lost. What
+    /// the guards add is provenance - only a trusted adapter naming the spoke registered for the origin
+    /// chain can have the deposit attributed to that chain. The amount joins {nativeFeesReceived}, so
+    /// principal routing stays bounded by what the vault actually holds, and the token field is
+    /// {NATIVE}.
+    /// @param originChainId Chain the yield was siphoned on.
+    /// @param originSpoke Spoke that aggregated it; must be the registered spoke for `originChainId`.
+    function receiveBridgedYield(uint256 originChainId, address originSpoke) external payable {
+        _requireTrustedBridge();
+        _requireRegisteredSpoke(originChainId, originSpoke);
+        if (msg.value == 0) revert ZeroAmount();
+
+        nativeFeesReceived += msg.value;
+        emit BridgedYieldReceived(originChainId, originSpoke, msg.sender, msg.value, NATIVE);
+    }
+
+    /// @notice Receives aggregated ERC-20 yield from a registered spoke on another chain.
+    /// @dev The bridge must {IERC20-approve} this contract for `amount` first, exactly as a curve does
+    /// for {depositFeeToken}. The deposit is recorded in {tokenFeesReceived} before the pull, so the
+    /// accounting can never run ahead of a transfer that fails.
+    /// @param originChainId Chain the yield was siphoned on.
+    /// @param originSpoke Spoke that aggregated it; must be the registered spoke for `originChainId`.
+    /// @param token ERC-20 received. Reverts for {NATIVE}; use {receiveBridgedYield} for ETH.
+    /// @param amount Amount delivered, in the token's smallest unit.
+    function receiveBridgedYieldToken(uint256 originChainId, address originSpoke, address token, uint256 amount)
+        external
+    {
+        _requireTrustedBridge();
+        _requireRegisteredSpoke(originChainId, originSpoke);
+        if (token == NATIVE) revert NativeAssetRequiresDepositFee();
+        if (amount == 0) revert ZeroAmount();
+
+        tokenFeesReceived[token] += amount;
+        emit BridgedYieldReceived(originChainId, originSpoke, msg.sender, amount, token);
+
+        _safeTransferFrom(token, msg.sender, address(this), amount);
     }
 
     /// @notice Fee rate of `source`, in basis points.
@@ -235,6 +337,18 @@ contract MaoTangSustenanceVault is AgentGated {
         uint256 amount = msg.value;
         nativeFeesReceived += amount;
         emit FeeReceived(depositor, source, NATIVE, amount);
+    }
+
+    /// @dev Reverts unless the caller is an adapter the owner has trusted to deliver yield.
+    function _requireTrustedBridge() private view {
+        if (!trustedBridgeAdapters[msg.sender]) revert UntrustedBridgeAdapter(msg.sender);
+    }
+
+    /// @dev Reverts unless `originSpoke` is exactly the spoke registered for `originChainId`.
+    function _requireRegisteredSpoke(uint256 originChainId, address originSpoke) private view {
+        if (originSpoke == address(0) || remoteSpokes[originChainId] != originSpoke) {
+            revert UnknownRemoteSpoke(originChainId, originSpoke);
+        }
     }
 
     /// @dev Tolerates tokens that return no data, rejects tokens that return false.

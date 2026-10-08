@@ -240,9 +240,14 @@ contract SustenanceVaultSpoke {
         if (amount == 0) revert NothingToBridge(NATIVE);
         nativeYieldBridged += amount;
 
-        messageId = IBridgeAdapter(bridgeAdapter).bridgeYield{value: amount + msg.value}(
-            hubVault, hubChainId, NATIVE, amount
-        );
+        IBridgeAdapter adapter = IBridgeAdapter(bridgeAdapter);
+        // `bridgeAdapter` is owner-allowlisted and the recipient is the immutable hub vault, so the
+        // destination is not caller-controlled; the advisory is a false positive.
+        // forge-lint: disable-next-line(arbitrary-send-eth)
+        messageId = adapter.bridgeYield{value: amount + msg.value}(hubVault, hubChainId, NATIVE, amount);
+        // The event carries the transport-assigned messageId, so it cannot precede the call that
+        // produced it. Yield accounting is already committed above, before any external call.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit YieldBridged(bridgeAdapter, NATIVE, amount, hubChainId, messageId);
     }
 
@@ -269,10 +274,16 @@ contract SustenanceVaultSpoke {
         tokenYieldBridged[asset] += amount;
 
         _safeApprove(asset, bridgeAdapter, amount);
-        messageId =
-            IBridgeAdapter(bridgeAdapter).bridgeYieldToken{value: msg.value}(hubVault, hubChainId, asset, amount);
+        IBridgeAdapter adapter = IBridgeAdapter(bridgeAdapter);
+        // `bridgeAdapter` is owner-allowlisted and the recipient is the immutable hub vault, so the
+        // destination is not caller-controlled; the advisory is a false positive.
+        // forge-lint: disable-next-line(arbitrary-send-eth)
+        messageId = adapter.bridgeYieldToken{value: msg.value}(hubVault, hubChainId, asset, amount);
         _safeApprove(asset, bridgeAdapter, 0);
 
+        // The event carries the transport-assigned messageId, so it cannot precede the call that
+        // produced it. Yield accounting is already committed above, before any external call.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit YieldBridged(bridgeAdapter, asset, amount, hubChainId, messageId);
     }
 
