@@ -7,3 +7,6 @@
 # The 100755 execute bit set on this path is complementary: together they make the script
 # runnable from Linux / macOS / WSL / Git Bash without a chmod or dos2unix step.
 scripts/start-alpha.sh text eol=lf
+
+# Same treatment for the Cloudflare DNS helper.
+scripts/cloudflare-dns.sh text eol=lf
