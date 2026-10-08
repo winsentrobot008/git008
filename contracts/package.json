@@ -1,0 +1,22 @@
+{
+  "name": "@maotang/contracts",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Foundry sources for the MAOTANG protocol, plus the ethers-based Alpha Testnet deployment pipeline.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "deploy:testnet": "node scripts/deploy-testnet.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "ethers": "^6.13.4",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

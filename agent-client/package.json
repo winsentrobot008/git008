@@ -11,6 +11,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./video-worker": {
+      "types": "./dist/video-worker.d.ts",
+      "import": "./dist/video-worker.js"
+    },
     "./package.json": "./package.json"
   },
   "files": ["dist"],
