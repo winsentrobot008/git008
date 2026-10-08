@@ -1,0 +1,63 @@
+name: Bug report
+description: Something in a pillar misbehaves, or a gate does not pass
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not paste API keys, tokens, private keys, `.env` contents or generated customer
+        data. Redact addresses and digests to the parts that matter.
+  - type: dropdown
+    id: pillar
+    attributes:
+      label: Which pillar or subproject
+      options:
+        - M1 Edge SLM engine or intent translator
+        - M2 Autonomous wallet, policy or enclave
+        - M3 Contracts, vault, dripper or governor
+        - M4 RPC guard, light node or web board
+        - M5 Bio-auth, WebAuthn or nullifiers
+        - Web Agent OS console (frontend slash agent)
+        - Repository tooling, scripts or gates
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Include the exact command and the exact output, not a summary of it.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: input
+    id: refusal-code
+    attributes:
+      label: Refusal code, when the answer was a refusal
+      description: Modules carry machine-readable codes such as HASH_MISMATCH, DESTINATION_NOT_ALLOWED or EnclaveUnavailableError. Paste the code rather than a paraphrase.
+      placeholder: e.g. WINDOW_CAP_EXCEEDED
+    validations:
+      required: false
+  - type: textarea
+    id: gates
+    attributes:
+      label: Gates you ran, and their result
+      description: Paste the commands and exit codes, for example the mobile-agent suite or the frontend build.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, Foundry version, browser, and whether the chain is a local Alpha node or a public endpoint.
+    validations:
+      required: true

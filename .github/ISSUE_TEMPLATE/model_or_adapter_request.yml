@@ -1,0 +1,67 @@
+name: New SLM quant model or biometric adapter
+description: Register an edge model, or add a SecureEnclave / BiometricGate backend
+title: "[adapter] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two seams are covered here because they share a rule - a stub must never be mistaken for the
+        real thing. See `.github/CONTRIBUTING.md` for the full checklists.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What are you contributing
+      options:
+        - An SLM quant model preset
+        - A SecureEnclave backend
+        - A BiometricGate or WebAuthn adapter
+        - An RPC transport or light-node backend
+    validations:
+      required: true
+  - type: input
+    id: identity
+    attributes:
+      label: Model or backend identity
+      description: For a model, the family, parameter count, quantisation and format. For a backend, the platform.
+      placeholder: e.g. Qwen2.5-0.5B-Instruct INT4 GGUF, or iOS SecureEnclave via SecKeyCreateRandomKey
+    validations:
+      required: true
+  - type: input
+    id: footprint
+    attributes:
+      label: Footprint
+      description: Model weights plus runtime overhead in MiB, against the 500 MiB default budget. For a backend, the key kind and whether attestation is available.
+    validations:
+      required: true
+  - type: input
+    id: integrity
+    attributes:
+      label: Integrity pin
+      description: For browser-loadable models, the exact byte length and the full SHA-256 you will pin. An unpinned artifact stays refused.
+      placeholder: bytes and 64-hex sha256
+    validations:
+      required: false
+  - type: textarea
+    id: offlining
+    attributes:
+      label: How the offline guarantee holds
+      description: Confirm the descriptor stays in-process, names no endpoint, host, credential or loopback model server, and that nothing is fetched until an owner gesture.
+    validations:
+      required: true
+  - type: textarea
+    id: hardware-honesty
+    attributes:
+      label: For hardware backends, what you can prove
+      description: State whether the key is non-exportable, whether the assertion is bound to the challenge, and what attestation verification is NOT implemented.
+    validations:
+      required: false
+  - type: textarea
+    id: tests
+    attributes:
+      label: Tests
+      description: Which refusal paths the tests cover, in addition to the happy path.
+      render: shell
+    validations:
+      required: true
