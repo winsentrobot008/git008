@@ -31,6 +31,8 @@ DEFAULT_RPC="http://127.0.0.1:${ANVIL_PORT}"
 # Public Anvil development key #0 (mnemonic "test test ... junk"). Not a secret: it is a
 # documented constant controlling a throwaway local account. Override with DEPLOYER_PRIVATE_KEY.
 ANVIL_DEV_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+# Address of that key, used to detect an unfunded default deployer on a public network.
+ANVIL_DEV_ADDRESS="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 # Stand-in graduation market, used when the target chain has no Uniswap deployment.
 LOCAL_MARKET_STANDIN="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
 # Stand-in registered agent address, until a real agent registers on the local chain.
@@ -86,6 +88,7 @@ if [ -t 1 ]; then
   C_OK="$(printf "\033[32m")"
   C_ERR="$(printf "\033[31m")"
   C_HEAD="$(printf "\033[35m")"
+  C_WARN="$(printf "\033[33m")"
   C_OFF="$(printf "\033[0m")"
 else
   C_STEP=""
@@ -93,12 +96,14 @@ else
   C_OK=""
   C_ERR=""
   C_HEAD=""
+  C_WARN=""
   C_OFF=""
 fi
 
 step() { printf "\n%s==> %s%s\n" "$C_STEP" "$1" "$C_OFF"; }
 note() { printf "%s    %s%s\n" "$C_NOTE" "$1" "$C_OFF"; }
 die() { printf "%sERROR: %s%s\n" "$C_ERR" "$1" "$C_OFF" >&2; exit 1; }
+warn() { printf "%s    WARNING: %s%s\n" "$C_WARN" "$1" "$C_OFF" >&2; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 run_in() {
@@ -221,8 +226,73 @@ resolve_deploy_cmd() {
   die "this Node cannot execute TypeScript directly. Install tsx or ts-node in contracts/, or use Node >= 22.18."
 }
 
+# Loopback endpoints are disposable local chains; anything else spends real funds against a real
+# graduation market, so those two inputs are validated before a single transaction is attempted.
+is_public_rpc() {
+  local rest="$1" host=""
+  rest="${rest#*://}"
+  rest="${rest%%/*}"
+  case "$rest" in
+    \[*\]*) host="${rest%%]*}"; host="${host#[}" ;;
+    *) host="${rest%%:*}" ;;
+  esac
+  case "$host" in
+    ""|localhost|::1|0.0.0.0) return 1 ;;
+    127.*) return 1 ;;
+  esac
+  return 0
+}
+
+assert_deploy_preflight() {
+  local url="$1" key=""
+
+  is_public_rpc "$url" || return 0
+
+  if [ -n "${DEPLOYER_PRIVATE_KEY:-}" ]; then
+    key="$DEPLOYER_PRIVATE_KEY"
+  elif [ -n "${PRIVATE_KEY:-}" ]; then
+    key="$PRIVATE_KEY"
+  fi
+
+  if [ -z "$key" ]; then
+    warn "MAOTANG_RPC_URL=$url is a public network, but no deployer key is set."
+    warn "The launcher would fall back to the public Anvil development key, whose address"
+    warn "$ANVIL_DEV_ADDRESS holds no funds there, so deployment would fail with INSUFFICIENT_FUNDS."
+    printf "\n" >&2
+    warn "Set a funded account, then re-run:"
+    warn "    export DEPLOYER_PRIVATE_KEY=0x..."
+    warn "    scripts/start-alpha.sh"
+    exit 1
+  fi
+
+  if [ "$(printf "%s" "$key" | tr "[:upper:]" "[:lower:]")" = "$ANVIL_DEV_KEY" ]; then
+    warn "MAOTANG_RPC_URL=$url is a public network, but the deployer is still the public Anvil"
+    warn "development key (address $ANVIL_DEV_ADDRESS). That account holds no funds there."
+    printf "\n" >&2
+    warn "Set a funded account, then re-run:"
+    warn "    export DEPLOYER_PRIVATE_KEY=0x..."
+    warn "    scripts/start-alpha.sh"
+    exit 1
+  fi
+
+  if [ -n "${PRIVATE_KEY:-}" ] && [ -z "${DEPLOYER_PRIVATE_KEY:-}" ]; then
+    export DEPLOYER_PRIVATE_KEY="$PRIVATE_KEY"
+    note "using PRIVATE_KEY as DEPLOYER_PRIVATE_KEY"
+  fi
+
+  if [ -z "${UNISWAP_V3_POSITION_MANAGER:-}" ]; then
+    warn "UNISWAP_V3_POSITION_MANAGER is unset while deploying to $url."
+    warn "Graduation would be pinned to the stand-in address $LOCAL_MARKET_STANDIN, which is not a"
+    warn "real Uniswap V3 position manager on a public chain."
+    warn "Set it to the target chain nonfungible position manager, e.g. Base Sepolia:"
+    warn "    export UNISWAP_V3_POSITION_MANAGER=0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1"
+  fi
+}
+
 invoke_deploy() {
   mkdir -p "$(dirname "$CONTRACTS_JSON")"
+
+  assert_deploy_preflight "$RPC_URL"
 
   # deploy-testnet.ts reads MAOTANG_TESTNET_RPC_URL, falling back to TESTNET_RPC_URL.
   export MAOTANG_TESTNET_RPC_URL="$RPC_URL"
@@ -231,7 +301,7 @@ invoke_deploy() {
   export MAOTANG_SHARE_BASE_URL="${MAOTANG_SHARE_BASE_URL:-http://127.0.0.1:3000}"
   if [ -z "${UNISWAP_V3_POSITION_MANAGER:-}" ]; then
     export UNISWAP_V3_POSITION_MANAGER="$LOCAL_MARKET_STANDIN"
-    note "UNISWAP_V3_POSITION_MANAGER unset; using a local stand-in market ($LOCAL_MARKET_STANDIN)"
+    note "UNISWAP_V3_POSITION_MANAGER unset; using the stand-in market ($LOCAL_MARKET_STANDIN)"
   fi
 
   resolve_deploy_cmd

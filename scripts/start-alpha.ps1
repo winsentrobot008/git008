@@ -56,6 +56,8 @@ $DefaultRpc = "http://127.0.0.1:$AnvilPort"
 # Public Anvil development key #0 (mnemonic "test test ... junk"). Not a secret: it is a documented
 # constant controlling a throwaway local account. Override with DEPLOYER_PRIVATE_KEY.
 $AnvilDevKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+# Address of that same development key, used to detect an unfunded default deployer.
+$AnvilDevAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
 # Stand-in graduation market for a chain with no Uniswap deployment. Set
 # UNISWAP_V3_POSITION_MANAGER to point at a real position manager.
 $LocalMarketStandIn = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'
@@ -78,12 +80,22 @@ function Write-Note {
     Write-Host "    $Message" -ForegroundColor DarkGray
 }
 
+function Write-Warn {
+    param([string]$Message)
+    Write-Host "    WARNING: $Message" -ForegroundColor Yellow
+}
+
+# Resolves a command to a form Start-Process can launch. PowerShell exposes shim names such as
+# `npm` as both an ExternalScript (npm.ps1) and an Application (npm.cmd); the .ps1 wins
+# Get-Command but cannot be handed to Start-Process, so executable forms are preferred.
 function Find-Command {
     param([string]$Name)
     if (Test-Path -LiteralPath $Name) { return (Resolve-Path -LiteralPath $Name).Path }
-    $found = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($found) { return $found.Source }
-    return $null
+    $found = Get-Command $Name -All -ErrorAction SilentlyContinue
+    if (-not $found) { return $null }
+    $application = $found | Where-Object { $_.CommandType -eq 'Application' } | Select-Object -First 1
+    if ($application) { return $application.Source }
+    return ($found | Select-Object -First 1).Source
 }
 
 function Get-Property {
@@ -203,10 +215,76 @@ function Resolve-DeployCommand {
     throw "this Node cannot execute TypeScript directly. Install tsx or ts-node in contracts/, or use Node >= 22.18."
 }
 
+# Loopback endpoints are disposable local chains; anything else spends real funds against a real
+# graduation market, so those two inputs are validated before a single transaction is attempted.
+function Test-PublicRpc {
+    param([string]$Url)
+
+    $uri = $null
+    try { $uri = [System.Uri]$Url } catch { return $true }
+    if (-not $uri -or -not $uri.IsAbsoluteUri) { return $true }
+
+    if ($uri.IsLoopback) { return $false }
+
+    # Uri.Host pads IPv6 literals to eight groups on .NET Framework, so canonicalise via DnsSafeHost.
+    $bare = $uri.DnsSafeHost.Trim('[', ']').ToLowerInvariant()
+    if (-not $bare) { return $false }
+    if ($bare -eq '0.0.0.0' -or $bare -eq '::' -or $bare -eq '::1') { return $false }
+    if ($bare -eq '0000:0000:0000:0000:0000:0000:0000:0001') { return $false }
+    if ($bare -match '^127\.') { return $false }
+    return $true
+}
+
+function Assert-DeployPreflight {
+    param([string]$RpcUrl)
+
+    if (-not (Test-PublicRpc -Url $RpcUrl)) { return }
+
+    $deployerKey = if ($env:DEPLOYER_PRIVATE_KEY) { $env:DEPLOYER_PRIVATE_KEY } elseif ($env:PRIVATE_KEY) { $env:PRIVATE_KEY } else { '' }
+
+    if (-not $deployerKey) {
+        throw (@(
+            "MAOTANG_RPC_URL=$RpcUrl is a public network, but no deployer key is set.",
+            'Without one the launcher falls back to the public Anvil development key, whose address',
+            "$AnvilDevAddress holds no funds there, so the deployment would fail with INSUFFICIENT_FUNDS.",
+            '',
+            'Set a funded account, then re-run:',
+            "    `$env:DEPLOYER_PRIVATE_KEY = '0x...'",
+            '    .\scripts\start-alpha.ps1'
+        ) -join [Environment]::NewLine)
+    }
+
+    if ($deployerKey.ToLowerInvariant() -eq $AnvilDevKey.ToLowerInvariant()) {
+        throw (@(
+            "MAOTANG_RPC_URL=$RpcUrl is a public network, but the deployer is still the public Anvil",
+            "development key (address $AnvilDevAddress). That account holds no funds there.",
+            '',
+            'Set a funded account, then re-run:',
+            "    `$env:DEPLOYER_PRIVATE_KEY = '0x...'",
+            '    .\scripts\start-alpha.ps1'
+        ) -join [Environment]::NewLine)
+    }
+
+    if ($env:PRIVATE_KEY -and -not $env:DEPLOYER_PRIVATE_KEY) {
+        $env:DEPLOYER_PRIVATE_KEY = $env:PRIVATE_KEY
+        Write-Note 'using PRIVATE_KEY as DEPLOYER_PRIVATE_KEY'
+    }
+
+    if (-not $env:UNISWAP_V3_POSITION_MANAGER) {
+        Write-Warn "UNISWAP_V3_POSITION_MANAGER is unset while deploying to $RpcUrl."
+        Write-Warn "Graduation would be pinned to the stand-in address $LocalMarketStandIn, which is not a"
+        Write-Warn 'real Uniswap V3 position manager on a public chain.'
+        Write-Warn 'Set it to the target chain nonfungible position manager, e.g. Base Sepolia:'
+        Write-Warn "    `$env:UNISWAP_V3_POSITION_MANAGER = '0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1'"
+    }
+}
+
 function Invoke-Deploy {
     param([string]$RpcUrl)
 
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ContractsJson) | Out-Null
+
+    Assert-DeployPreflight -RpcUrl $RpcUrl
 
     # deploy-testnet.ts reads MAOTANG_TESTNET_RPC_URL (falling back to TESTNET_RPC_URL).
     $env:MAOTANG_TESTNET_RPC_URL = $RpcUrl
@@ -217,7 +295,7 @@ function Invoke-Deploy {
     if (-not $env:MAOTANG_SHARE_BASE_URL) { $env:MAOTANG_SHARE_BASE_URL = 'http://127.0.0.1:3000' }
     if (-not $marketOverride) {
         $env:UNISWAP_V3_POSITION_MANAGER = $LocalMarketStandIn
-        Write-Note "UNISWAP_V3_POSITION_MANAGER unset; using a local stand-in market ($LocalMarketStandIn)"
+        Write-Note "UNISWAP_V3_POSITION_MANAGER unset; using the stand-in market ($LocalMarketStandIn)"
     }
 
     $deploy = Resolve-DeployCommand
@@ -263,11 +341,14 @@ function Start-Frontend {
     if (-not (Test-Path (Join-Path $FrontendDir 'node_modules'))) {
         Invoke-Checked -File 'npm' -Arguments @('install', '--no-audit', '--no-fund') -WorkingDirectory $FrontendDir
     }
+    $npm = Find-Command 'npm'
+    if (-not $npm) { throw "cannot find 'npm' on PATH" }
+
     Write-Host ''
     Write-Host '==> Next.js launchpad: http://127.0.0.1:3000  (Ctrl-C to stop)' -ForegroundColor Green
     Push-Location $FrontendDir
     try {
-        & npm run dev
+        & $npm run dev
     } finally {
         Pop-Location
     }
