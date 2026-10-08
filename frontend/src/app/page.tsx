@@ -53,6 +53,23 @@ function StatCell({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * One configured revenue beneficiary.
+ *
+ * Rendered in full rather than shortened: the addresses are public configuration, and the whole
+ * point of showing them is that an operator can compare them character by character against the
+ * deployment they expect.
+ */
+function BeneficiaryRow({ label, value, hint }: { label: string; value: string | null; hint: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="text-xs text-white/40">{label}</dt>
+      <dd className="break-all font-mono text-xs text-maotang-mint">{value ?? NO_VALUE}</dd>
+      <span className="text-xs text-white/30">{hint}</span>
+    </div>
+  );
+}
+
 function VaultRevenueCard({
   stats,
   status,
@@ -60,6 +77,9 @@ function VaultRevenueCard({
   error,
   vault,
   humanToken,
+  operator,
+  developer,
+  btcRevenueAddress,
 }: {
   stats: VaultStats | null;
   status: LiveStatus;
@@ -67,6 +87,9 @@ function VaultRevenueCard({
   error: string | null;
   vault: Address | null;
   humanToken: Address | null;
+  operator: Address | null;
+  developer: Address | null;
+  btcRevenueAddress: string | null;
 }) {
   return (
     <section className="flex flex-col gap-6 rounded-2xl border border-maotang-border bg-maotang-surface p-6">
@@ -101,6 +124,27 @@ function VaultRevenueCard({
         <StatCell label="Swap fee" value={formatBps(TRADE_FEE_BPS)} />
         <StatCell label="Graduation fee" value={formatBps(GRADUATION_FEE_BPS)} />
       </dl>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-maotang-border bg-maotang-ink px-4 py-3">
+        <span className="text-xs uppercase tracking-[0.2em] text-white/40">Revenue beneficiaries</span>
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <BeneficiaryRow
+            label="Operator (EVM)"
+            value={operator}
+            hint="receives the protocol share of vault yield"
+          />
+          <BeneficiaryRow
+            label="Developer (EVM)"
+            value={developer}
+            hint="same key unless split later"
+          />
+          <BeneficiaryRow
+            label="BTC payout (cross-chain)"
+            value={btcRevenueAddress}
+            hint="off-chain metadata, not an EVM target"
+          />
+        </dl>
+      </div>
 
       {error ? (
         <p className="rounded-xl border border-maotang-amber/40 bg-maotang-amber/10 px-3 py-2 text-xs text-maotang-amber">
@@ -296,6 +340,9 @@ export default function HomePage() {
           error={vault.error}
           vault={config?.vault ?? null}
           humanToken={config?.humanToken ?? null}
+          operator={config?.operator ?? null}
+          developer={config?.developer ?? null}
+          btcRevenueAddress={config?.btcRevenueAddress ?? null}
         />
         <GraduationPanel
           snapshot={snapshot}

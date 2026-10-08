@@ -75,6 +75,9 @@ __pycache__/
 .env.local
 .env.*
 !.env.example
+# Production frontend config is public by construction: every key in it is NEXT_PUBLIC_* and is
+# inlined into the client bundle, so it holds no secret and is safe to track.
+!.env.production
 !*.env.template
 !*.env.sample
 
