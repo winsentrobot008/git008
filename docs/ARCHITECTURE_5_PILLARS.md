@@ -56,10 +56,10 @@
 | 模块 | 拥有（owns） | 对外暴露（exposes） | 消费（consumes） | 禁止（must not） |
 | --- | --- | --- | --- | --- |
 | **M1 Edge SLM & Cell** | `agent-client/src/slm/`、`agent-client/src/intents/`、`contracts/src/HumanToken.sol`（配额语义） | `SlmEngine`、`parseToolCall()`、工具 `claim_mhuman_quota` / `swap_micro_human`、`HUMAN_QUOTA` | 链上注册状态（只读）、人格证明（M5） | 引入任何云端 LLM 端点；绕过 `parseToolCall` 校验直接把参数送到钱包 |
-| **M2 Local Wallet** | `agent-manager/src/mining/transport.mjs`、签名器注入契约、阈值策略（⬜） | 注入式 signer 接口、`eth_sendRawTransaction` 广播、fail-closed egress guard | M1 的已校验 intent、M4 的 RPC 通道 | 在应用层持有明文私钥；复用部署密钥作为节点密钥；静默降级为“无护栏发送” |
+| **M2 Local Wallet** | `mobile-agent/signer/`（阈值策略与唯一签名路径，✅ 接口层）、`agent-manager/src/mining/transport.mjs`、签名器注入契约 | 注入式 signer 接口、`eth_sendRawTransaction` 广播、fail-closed egress guard | M1 的已校验 intent、M4 的 RPC 通道 | 在应用层持有明文私钥；复用部署密钥作为节点密钥；静默降级为“无护栏发送” |
 | **M3 Yield / Sustenance / Mining** | `contracts/src/{MaoTangBondingCurve,MaoTangSustenanceVault,MaoTangSustenanceDripper,MaoTangMining,SustenanceVaultSpoke}.sol`、`sdk/src/curve-math.ts`、`agent-manager/src/mining/` | 曲线报价/买卖、`submitMiningProof`、`claimMiningRewards`、金库入账与滴灌、刹车与出流上限 | M5 的 `requireAuthorizedAgent` 闸门 | 增发奖励（奖励只能 `transferFrom` 注资）；绕过 `AgentGated` 开新入口 |
 | **M4 Light Node / RPC** | `agent-client/src/telemetry.ts`、`scripts/rpc-guard.mjs`、`scripts/cloudflare-waf.ps1`、`frontend/src/lib/{chain,protocol,hooks}.ts`、`frontend/next.config.ts` | 心跳报文与能力广播、受护栏的 JSON-RPC、看板只读读取、地址 manifest | 链上只读方法（`eth_call`/`eth_getProof`） | 转发管理方法（`anvil_*`/`evm_*`/解锁账户签名）；在看板里签名（`write()` 必须抛错） |
-| **M5 Bio-Sovereign** | `contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol`、生物通道契约（⬜） | `verifyProof`、`registerAgent`、`claimHumanQuota`、`requireAuthorizedAgent`、`lockVerificationKey` | 电路 ceremony key（运维注入） | 在 verifier 中硬编码 key；开后门跳过 nullifier 一次性消费 |
+| **M5 Bio-Sovereign** | `contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol`、`mobile-agent/bio-auth/`（生物授权通道与硬件 nullifier，✅ 接口层） | `verifyProof`、`registerAgent`、`claimHumanQuota`、`requireAuthorizedAgent`、`lockVerificationKey` | 电路 ceremony key（运维注入） | 在 verifier 中硬编码 key；开后门跳过 nullifier 一次性消费 |
 
 > **接口即契约**：上表“对外暴露”列出的符号是跨模块唯一允许的耦合点。任何新符号进入该列，都必须在本文件登记，并在同一变更里补上验收命令。
 
@@ -92,16 +92,18 @@
 
 ## 3. Module 2 — Autonomous Local Wallet
 
-**状态**：接口层 ✅ / 真实移动飞地 ⬜（M3）
+**状态**：接口层 ✅ / 真实移动飞地 ⬜（M3）。阈值策略引擎与签名路径的**接口层已落地**于 `mobile-agent/signer/`（含 72 条断言的测试）
 
-**目录归属**：`agent-manager/src/mining/transport.mjs`、`sdk/src/agent-client.ts`、阈值策略（新建，⬜）
+**目录归属**：`mobile-agent/signer/`（本次新增）、`mobile-agent/bio-auth/`（M5 侧的授权通道）、`agent-manager/src/mining/transport.mjs`、`sdk/src/agent-client.ts`
 
 **接口**
 
 - **注入式签名器**：`transport.mjs` 构建交易后交给**注入的 TEE / Secure-Enclave signer** 签名，再经 `eth_sendRawTransaction` 广播。签名器是依赖注入的接口，应用层永远不持有明文私钥。
 - **fail-closed 出站护栏**：未配置放行规则时**不发包**，而不是默认放行。
 - `AgentClient.agentLogin()` —— 派生 agent 地址、校验链上注册、要求当前账户就是该 agent、验证一次签名挑战（A2A 握手）后才允许 intent 执行。
-- 计划中的阈值策略引擎（⬜）：单笔上限 / 日累计 / 合约白名单，超阈值必须由主人确认。
+- **阈值策略引擎（接口层 ✅ 本次落地）**：`mobile-agent/signer/policy.ts` —— 目标地址白名单、selector 白名单、单笔上限、滚动窗口上限、链 ID 绑定，超阈值必须主人生物确认。**缺信息即拒绝**：空白名单拒绝一切、`null` 策略拒绝一切、上限与阈值均含等号（恰好等于上限放行、多 1 wei 拒绝）。执行顺序固定为 策略 → 授权 → 签名 → 记账；任一环拒绝都不消耗窗口额度、也不产生签名。
+- **唯一签名路径（接口层 ✅ 本次落地）**：`AutonomousWallet.signIntent()` 是唯一能产出签名的方法（刻意没有旁路 sibling）；intent digest 用 SHA-256 + 领域分隔 + 长度前缀字段（`keccak256` 不在 Node 标准库内，且该 digest 从不上链，故不假装兼容）；`SecureEnclave` 接口**不提供导出私钥的方法**。
+- **默认拒绝的飞地**：`createSecureEnclave()` 默认返回 `HardwareEnclave`，每个方法都抛 `EnclaveUnavailableError` 并点名 iOS/Android 平台 API；`DevEnclave` 仅供桌面与测试，且拒绝 `NODE_ENV=production`（除非显式豁免）。
 
 **数据契约**：已签名的 raw transaction 十六进制串；私钥只以**进程环境变量**形式注入子进程，不落盘、不缓存。
 
@@ -111,9 +113,9 @@
 
 **已知边界**：worker 私钥必须是**专用节点密钥**；复用部署密钥意味着节点密钥泄露即部署账户被清空。
 
-**验收**：`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
+**验收**：`cd D:\git008\mobile-agent; npm run typecheck; npm test`（72 条断言，含 Foundry `cast` 逐字节 calldata 向量与“拒绝路径”断言）；`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
 
-**难度**：接口层 = S（已完成）；移动端硬件飞地 + 生物门禁 + 阈值引擎 = L。
+**难度**：接口层（含阈值策略）= S（已完成）；移动端硬件飞地 + 生物门禁后端 = L。详见 `docs/MOBILE_AGENT_M2_M5.md`。
 
 ---
 
@@ -196,9 +198,9 @@ proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
 
 ## 6. Module 5 — Bio-Sovereign Anti-Sybil & Security Layer
 
-**状态**：ZK 绑定 ✅ / 生物特征通道 ⬜（M3）
+**状态**：ZK 绑定 ✅ / 生物特征通道（接口层 ✅ 本次落地于 `mobile-agent/bio-auth/`）/ 真实设备后端（Secure Enclave、FaceID/WebAuthn）⬜（M3）
 
-**目录归属**：`contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol`、`contracts/src/interfaces/IZKVerifier.sol`、`contracts/test/`
+**目录归属**：`contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol`、`contracts/src/interfaces/IZKVerifier.sol`、`contracts/test/`、`mobile-agent/bio-auth/`（本次新增）
 
 **接口**
 
@@ -218,9 +220,16 @@ proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
 
 **生物通道（⬜ M3）**：链上匿名（ZK 人格证明只证明唯一性，不暴露身份）+ 本地具名（FaceID/指纹通过后，飞地才用不可导出 P-256 密钥签发会话密钥，允许执行**超阈值**动作）。Cell 单元由 nullifier 派生绑定，防止“伪人凭空生成 Cell”。
 
-**验收**：`cd D:\git008\contracts; forge test`
+**已落地的接口层（本次变更）**
 
-**难度**：ZK 绑定 = ✅；移动端生物门禁 = L。
+- `biometric-gate.ts`：`DeviceBiometricGate`（默认实现，全部方法抛 `BiometricUnavailableError` 并点名 `LAContext` / `BiometricPrompt` / WebAuthn API）与 `SimulatedBiometricGate`（必须显式 `{ enabled: true }` 才工作；`hardwareBacked` **恒为 `false`**，因此永远无法满足 `requireHardwareBackedAuthorization`）。
+- `BiometricAuthorizationGate`：把设备断言适配到 M2 的 `AuthorizationGate`。强制三件事：断言必须**回显同一个 digest**（防止把 A 交易的指纹按到 B 交易上）、来源 key 必须一致、`grantedAt` 必须新鲜（默认 120s，含等号边界）且不得来自未来（容忍 5s 时钟偏移）。
+- `nullifier.ts`：硬件 nullifier 派生（SHA-256 + 领域分隔 + 长度前缀字段，末尾对 `SCALAR_FIELD` 取模并拒绝 0）+ 本地一次性登记表（`reserve` / `consume` / `release` / `markSpentOnChain`）。**链上 `HumanToken.nullifierUsed` 才是权威**，本地表只是乐观守卫，进程重启即为空。
+- **未做实的事**：没有生成 Groth16 证明（只按给定 proof blob 编码 calldata），没有真实设备后端，没有 PQC。
+
+**验收**：`cd D:\git008\contracts; forge test`；`cd D:\git008\mobile-agent; npm test`（生物门禁拒绝路径、断言绑定/新鲜度、nullifier 确定性与重放断言）
+
+**难度**：ZK 绑定 = ✅；生物门禁与 nullifier 接口层 = ✅（接口层）；移动端真实生物/飞地后端 = L。详见 `docs/MOBILE_AGENT_M2_M5.md`。
 
 ---
 
@@ -249,7 +258,7 @@ proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
 | M0 冻结边界 | 本文 + `docs/WHITE_PAPER.md` | — | S | ✅ 已完成 |
 | M1 SLM + 意图 | `agent-client/src/slm`、`src/intents` | — | S | ✅ 已完成 |
 | M2 曲线 + 金库刹车 | `contracts/src/*` | M1 | M | ✅ 已完成 |
-| M3 移动端飞地 + 阈值 + 生物门禁 | 新 `signer` 接口 + 平台密钥存储 | M1 | L | 需先冻结接口 |
+| M3 移动端飞地 + 阈值 + 生物门禁 | 新 `signer` 接口（✅ 接口层：`mobile-agent/signer/`）+ 平台密钥存储（⬜） | M1 | L | 🟡 接口层已冻结，硬件后端待实现 |
 | M4 免信任读取 | 多端点仲裁（S）→ `eth_getProof` 包含证明（M） | — | S→M | ✅ 与 M3 并行 |
 | M5 轻客户端 + P2P | 区块头链同步 + P2P 传输 | M4 | L | ⬜ |
 | M6 Cell 化 + 微治理 | ADR + 合约/记账 + 按 Cell 分发 | M3、M4 | L | ⬜ |

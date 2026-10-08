@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "rootDir": ".",
+    "outDir": "dist/test-build",
+    "types": ["node"]
+  },
+  "include": ["signer/**/*.ts", "bio-auth/**/*.ts", "shared/**/*.ts", "test/**/*.ts"]
+}

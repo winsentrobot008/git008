@@ -1,0 +1,23 @@
+{
+  "name": "@maotang/mobile-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "M2 autonomous local wallet signer and M5 bio-sovereign auth layer for the MAOTANG mobile AI miner. Zero runtime dependencies; both layers refuse to work until a platform backend is injected.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/signer/index.js",
+  "types": "./dist/signer/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test dist/test-build/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -79,6 +79,7 @@ cd D:\git008\contracts; forge test            # HumanToken 配额与上限
 - **Agent 登录与身份绑定**：`AgentClient.agentLogin()` 派生 agent 地址、校验链上注册状态、要求当前连接账户**就是**该 agent，并在任何 intent 执行前验证一次签名挑战（A2A 握手）。
 - **只读与可写彻底分离**：`frontend/` 面板的 transport `write()` 直接抛错 —— 看板在结构上无法签名（见 ADR-019）。运维动作改为下发可复制的 `cast send` 命令，人来做最后一步。
 - **主人在环的阈值控制**：金库侧提供紧急刹车与额度上限（见 3.3），使“Agent 自主”不等于“Agent 无限”。
+- **阈值策略引擎与唯一签名路径（接口层 ✅，本次变更）**：`mobile-agent/signer/` 把“Agent 能花什么”写成可测试的代码 —— 目标地址白名单、selector 白名单、单笔上限、滚动窗口上限、链 ID 绑定；超阈值动作必须经 M5 生物授权，且授权必须绑定到**这一笔**交易的 digest；`AutonomousWallet.signIntent()` 是唯一签名出口，任一护栏拒绝都不产生签名、不消耗窗口额度。默认飞地 `HardwareEnclave` 拒绝一切，不静默退化为软件密钥。
 
 ### 2.2 路线图 ⬜（移动端真实飞地）
 
@@ -86,16 +87,17 @@ cd D:\git008\contracts; forge test            # HumanToken 配额与上限
 | --- | --- |
 | 平台级密钥存储 | 使用 iOS Secure Enclave / Android StrongBox 的 **不可导出**密钥（P-256），链上签名由设备内派生会话密钥完成 |
 | 生物门禁 | 每次“超出阈值”的动作触发 FaceID / 指纹确认（见 Module 5） |
-| 阈值策略引擎 | 主人在本地配置单笔上限 / 日累计上限 / 白名单合约，Agent 只在阈值内自动执行 |
+| 阈值策略引擎 | 主人在本地配置单笔上限 / 日累计上限 / 白名单合约，Agent 只在阈值内自动执行（**接口层已落地**：`mobile-agent/signer/policy.ts`；主人侧配置 UI 仍 ⬜） |
 | 助记词 → 飞地迁移 | 一次性导入后立即销毁明文，仅保留飞地句柄 |
 
-**已知安全边界（必须对外说清）**：当前实现是**接口层的飞地**（签名器可注入、出站失败关闭）；真正的硬件飞地、生物门禁与阈值引擎尚在路线图上。因此 v3.0 阶段**不得**把“黑客无法窃取私钥”当作已实现属性来描述。
+**已知安全边界（必须对外说清）**：当前实现是**接口层的飞地**（签名器可注入、出站失败关闭）；真正的硬件飞地、生物门禁与阈值引擎尚在路线图上。`mobile-agent/` 已把阈值策略引擎、唯一签名路径、生物授权与硬件 nullifier 的**接口层**落地并附拒绝路径测试（见 §2.1 与 `docs/MOBILE_AGENT_M2_M5.md`），但**默认构建会直接拒绝签名**，直到注入真实设备后端。因此 v3.0 阶段**不得**把“黑客无法窃取私钥”当作已实现属性来描述；正确说法是“私钥只存在于注入的飞地中，且本仓库尚未提供飞地实现”。
 
 ### 2.3 模块 2 验收
 
 ```powershell
 cd D:\git008\agent-manager; python test/mining_e2e.py   # 含签名/广播/护栏路径
 cd D:\git008\agent-client; npm test                     # A2A 握手与 intent 校验
+cd D:\git008\mobile-agent; npm run typecheck; npm test  # 阈值策略、唯一签名路径、生物授权绑定（72 断言）
 ```
 
 ---
@@ -212,7 +214,9 @@ cd D:\git008\agent-client; npm test        # 心跳、指纹与签名往返
 1. **链上（匿名）**：ZK 人格证明回答“你是唯一的活体人类”，且不暴露身份 —— nullifier 只证明唯一性，不证明姓名。
 2. **本地（具名）**：FaceID / 指纹作为**动作授权** —— 只有通过生物门禁，飞地才用不可导出的 P-256 密钥签发会话密钥，Agent 才能执行**超出阈值**的动作。
 
-落地要素：Secure Enclave / StrongBox 不可导出密钥、生物门禁绑定、会话密钥轮换与吊销、以及 Cell 单元由 nullifier 派生绑定（防“伪人凭空生成 Cell”）。**当前均未实现**，不得描述为现有能力。
+落地要素：Secure Enclave / StrongBox 不可导出密钥、生物门禁绑定、会话密钥轮换与吊销、以及 Cell 单元由 nullifier 派生绑定（防“伪人凭空生成 Cell”）。
+
+**接口层已落地（本次变更）**：`mobile-agent/bio-auth/` 提供 `BiometricGate` 设备通道接口（默认 `DeviceBiometricGate` 拒绝一切）、`BiometricAuthorizationGate`（强制断言回显同一 digest、来源 key 一致、新鲜度与时钟偏移检查）与硬件 nullifier 派生 + 本地一次性登记表（链上 `HumanToken.nullifierUsed` 仍是权威）。**真实设备后端、Groth16 证明生成与 Cell 派生仍未实现**，不得描述为现有能力。
 
 ### 5.3 威胁模型与现有控制
 
@@ -229,6 +233,7 @@ cd D:\git008\agent-client; npm test        # 心跳、指纹与签名往返
 
 ```powershell
 cd D:\git008\contracts; forge test     # 人格证明、agent 注册/撤销、nullifier 重放、金库刹车与出流上限
+cd D:\git008\mobile-agent; npm test    # 生物门禁拒绝路径、断言绑定与新鲜度、nullifier 确定性与重放、calldata 向量
 ```
 
 ---
@@ -259,7 +264,7 @@ cd D:\git008\contracts; forge test     # 人格证明、agent 注册/撤销、nu
 | **M0** | 冻结模块边界与真值表（本文 + `docs/ARCHITECTURE_5_PILLARS.md`），标注已实现/路线图 | — | 两份文档评审通过 | ✅ |
 | **M1** | 端侧 SLM 接口固化 + 意图白名单（`claim_mhuman_quota`、`swap_micro_human`） | — | `agent-client` `npm test` | ✅ |
 | **M2** | 曲线上线 + 金库刹车 + 出流上限 | M1 | `contracts` `forge test`、`agent-manager` `mining_e2e.py` | ✅ |
-| **M3** | 移动端飞地密钥 + 阈值策略引擎 + 生物门禁 | M1 | 设备内不可导出密钥签名验证、越阈值动作需生物确认 | ⬜ P0 |
+| **M3** | 移动端飞地密钥 + 阈值策略引擎 + 生物门禁 | M1 | 设备内不可导出密钥签名验证、越阈值动作需生物确认（接口层已落地：`mobile-agent/`，72 断言） | 🟡 接口层 ✅ / 硬件后端 ⬜ P0 |
 | **M4** | RPC 多端点仲裁（M4.1）+ `eth_getProof` 包含证明（M4.2） | — | 分歧端点被拒；本地 MPT 校验通过 | ⬜ P0 |
 | **M5** | 轻客户端同步（M4.3）+ P2P 传输（M4.4） | M4 | 断网/单端点故障下仍可自证状态 | ⬜ P1 |
 | **M6** | Cell 化 ADR + 微治理 + 按 Cell 分发收益 | M3、M4 | 新 ADR；治理与分发测试 | ⬜ P1 |
@@ -276,7 +281,8 @@ cd D:\git008\contracts; forge test     # 人格证明、agent 注册/撤销、nu
 - `docs/MAOTANG_ARCHITECTURE.md` —— 组件、曲线模型、认证、SLM 引擎、DePIN 拓扑、跨链路由、金库滴灌的实现级规格（§3–§15）。
 - `docs/GAP_ANALYSIS.md` —— v2.2 合规矩阵、P0/P1 待办与验证日志。
 - `docs/ARCHITECTURE_5_PILLARS.md` —— 上述 5 个模块的接口、数据契约、目录归属与并行交付切分。
-- `memory/ARCHITECTURE_DECISIONS.md` —— ADR-018（金库刹车与出流上限）、ADR-019（看板绑定与工厂注册表读取）、ADR-020（本 5 支柱架构）、ADR-021（PQC 与量子抗性生物主权前瞻）。
+- `docs/MOBILE_AGENT_M2_M5.md` —— M2（本地钱包签名器）与 M5（生物主权）接口层的安全执行流程、失败关闭清单与已知限制（`mobile-agent/README.md` 的入库副本）。
+- `memory/ARCHITECTURE_DECISIONS.md` —— ADR-018（金库刹车与出流上限）、ADR-019（看板绑定与工厂注册表读取）、ADR-020（本 5 支柱架构）、ADR-021（PQC 与量子抗性生物主权前瞻）、ADR-022（mobile-agent 接口层：签名器、nullifier 与默认拒绝的后端）。
 
 ---
 
@@ -387,7 +393,7 @@ cd D:\git008\contracts; forge test     # 人格证明、agent 注册/撤销、nu
 ## Appendix B. Module Summary (English)
 
 1. **Edge SLM & Cell Division** — a local-only intent engine (`SlmEngine`, Qwen2.5-0.5B INT4, 500 MiB ceiling, cloud endpoints rejected by assertion) is the *sole* interface between the biological owner and the network. Genesis activation mints a one-million-unit `$mHUMAN` quota per verified human; subdividing that quota into 1,000,000 addressable **Cell Tokens** for micro-governance and liquid yield distribution is a **roadmap** item requiring its own ADR.
-2. **Autonomous Local Wallet** — keys, signatures and broadcasts stay on the device; signing is dependency-injected through a TEE / Secure-Enclave signer behind a fail-closed egress guard. Real hardware enclaves, biometric gating and a threshold policy engine are **roadmap**.
+2. **Autonomous Local Wallet** — keys, signatures and broadcasts stay on the device; signing is dependency-injected through a TEE / Secure-Enclave signer behind a fail-closed egress guard. The threshold policy engine, the single signing path and the biometric/nullifier seams now exist as reviewed interface layers in `mobile-agent/` - and they refuse to sign until a device backend is injected, so an unconfigured build cannot silently fall back to a software key. Real hardware enclaves and device biometric backends remain **roadmap**.
 3. **Yield, Sustenance & Mining Engine** — a virtual-reserve constant-product bonding curve (30 ETH virtual reserve, 5 ETH graduation target, 0.50% swap / 1.00% graduation fees) plus **non-PoW** proof-of-physical-work mining (BLE proximity + attested NPU compute, replay-nullifiers, per-epoch cap, non-dilutive reward vault). Fees return to the owner through the Sustenance Vault, now with a payout brake and a rolling native-outflow cap.
 4. **Mobile Blockchain Light Node** — a signed hardware heartbeat advertises node capability today, and the board reads live state through a CORS-enabled, admin-method-filtered RPC (`https://rpc.008ai.online`). Trustless verification is staged: multi-endpoint quorum, then EIP-1186 inclusion proofs against the state root, then a header-syncing light client, then P2P. Only the first stage exists as a plan; the current endpoint is *trust-minimised*, not trustless.
-5. **Bio-Sovereign Anti-Sybil & Security Layer** — Groth16 personhood and hardware-attestation proofs bind one agent and one hardware nullifier to one human, each spendable once, revocable by the owner, with the verifier failing closed until the ceremony key is installed and irreversibly frozen afterwards. Biometric (FaceID) local authorisation is the **roadmap** half of the design.
+5. **Bio-Sovereign Anti-Sybil & Security Layer** — Groth16 personhood and hardware-attestation proofs bind one agent and one hardware nullifier to one human, each spendable once, revocable by the owner, with the verifier failing closed until the ceremony key is installed and irreversibly frozen afterwards. Local biometric authorisation now has its interface layer in `mobile-agent/bio-auth/` (a refusing device gate, an assertion-binding adapter, and a one-shot hardware-nullifier registry that derives from device material and defers to the chain); a real device backend and proof generation remain the **roadmap** half of the design.

@@ -2,6 +2,64 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-022: the mobile agent ships its M2 signer and M5 bio-sovereign layer as refusing interfaces, because a silent fallback is the failure that matters
+
+**Status:** Accepted (implemented as an interface layer in `mobile-agent/`; `npm run typecheck` clean and
+`npm test` green over 72 assertions. No contract, frontend or agent runtime changed, and no device backend
+exists yet - recorded in `docs/WHITE_PAPER.md` §2.1/§2.2/§5.2, `docs/ARCHITECTURE_5_PILLARS.md` §3/§6, and
+`docs/MOBILE_AGENT_M2_M5.md`)
+
+**Context:** ADR-020 made each pillar declare what it owns and what it must not do, and named the mobile
+enclave, the threshold policy engine and the biometric gate as the P0 gap between "an injected signer exists"
+and "a phone can spend safely". Three hazards shape how that gap gets closed:
+
+- The threat is not a missing feature, it is a **silent substitution**. A build that lacks a Secure Enclave and
+  transparently signs with a key held in process memory turns every downstream guardrail - allow-lists, caps,
+  biometric prompts - into decoration that still reports success. `agent-client/src/slm` already answers this
+  for `mode: "native"` by failing loudly; nothing answered it for keys.
+- An approval is worth exactly what it binds to. A biometric tap captured for one transaction must not release
+  another, and a stored assertion must not be replayable later.
+- A one-shot nullifier must be spendable exactly once, and the client cannot be the authority on that: the chain
+  already is (`HumanToken.nullifierUsed`, `AIAgentRegistry`'s one-key-one-nullifier binding).
+
+**Decision:**
+
+- **The default backend refuses.** `createSecureEnclave()` returns `HardwareEnclave`, whose every method throws
+  `EnclaveUnavailableError` naming the platform API to bind; `DeviceBiometricGate` does the same for biometrics.
+  `DevEnclave` and `SimulatedBiometricGate` exist for desktop and tests, require an explicit opt-in, refuse
+  `NODE_ENV=production`, and report `hardwareBacked: false` - so `requireHardwareBackedAuthorization: true`
+  cannot be satisfied by a simulation, and a simulated tap can never be laundered into a "biometric" grant.
+- **One signing path, fixed guardrail order.** `AutonomousWallet.signIntent` is the only method that produces a
+  signature; there is deliberately no unchecked sibling, because a bypass method is the same as no guardrail.
+  The order is validate/normalize -> `evaluateIntent` -> M5 authorization -> enclave sign -> record window
+  spend. A denial anywhere costs no signature and consumes no window budget - asserted, not merely intended.
+- **Missing information denies.** A `null` policy, an empty destination or selector allow-list, a malformed
+  field, a missing grant: all refusals carrying a machine-readable `PolicyDenialCode`. Caps and the
+  authorization threshold are inclusive, and both boundaries are pinned by tests, because an off-by-one in
+  either one is a silent grant of authority.
+- **Authorization binds to the digest, not to "a human said yes".** The M5 adapter requires the assertion to
+  echo the exact 32-byte digest, to come from the same key, and to be fresh (120s default, 5s future-skew
+  allowance). A captured approval is therefore worthless for a different transaction.
+- **The wallet never holds a key and never derives an address.** `SecureEnclave` has no export method at all.
+  Address derivation needs keccak256, which the Node standard library does not ship (it has sha3-256, different
+  padding), so derivation stays an injected seam exactly as `agent-client/src/telemetry.ts` documents, and
+  verification is done honestly with the SPKI key over the digest instead of an emulated key recovery.
+- **The local nullifier registry is named as an optimistic guard, not as replay protection.** The chain is the
+  authority; `markSpentOnChain` exists to reconcile against it, and the registry starts empty on restart.
+- **Calldata is proven against Foundry, not against itself.** Selectors plus four `cast calldata` vectors live in
+  a generated fixture (`mobile-agent/test/fixtures/foundry-vectors.json`) and are asserted byte-for-byte, so an
+  encoder change cannot silently emit a payload the deployed contracts would decode as something else. The BN254
+  constants are drift-guarded by parsing `contracts/src/Groth16Verifier.sol` in a test.
+
+**Consequences:** the M3 milestone moves from ⬜ to 🟡 interface-level - three of its four landing items
+(threshold policy engine, biometric gate seam, hardware-nullifier handling) now have tested interfaces, while
+the hardware enclave and the device biometric backend stay open and are named as such in the whitepaper rather
+than implied. New obligations follow: a device backend is added by implementing `SecureEnclave` and
+`BiometricGate` without touching guardrail code, and the refusal-path tests are the contract those
+implementations must satisfy. Changes to a signature scheme, a digest or the nullifier derivation now require an
+ADR, a cryptography review and refusal-path tests in the same change, per the change discipline in
+`docs/ARCHITECTURE_5_PILLARS.md` §9 item 9. The cost is honest friction: an unconfigured build cannot sign.
+
 ## 2026-10-08 - ADR-021: post-quantum foresight - plan the verifier exit ramp now, because the bindings are immutable
 
 **Status:** Proposed (documentation-only; no runtime code changed. Recorded in
