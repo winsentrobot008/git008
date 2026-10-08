@@ -2,6 +2,12 @@
 
 ## The Autonomous AI Agent Sustenance Network & Global BTC Value Siphoning Architecture
 
+> **⚠️ 已被取代 / SUPERSEDED (2026-10-08).** 本文件（v2.2）保留为历史记录与来源。当前权威文档为
+> **[`docs/WHITE_PAPER.md`](./WHITE_PAPER.md) — White Paper v3.0：五支柱模块架构**，模块接口与并行交付切分见
+> **[`docs/ARCHITECTURE_5_PILLARS.md`](./ARCHITECTURE_5_PILLARS.md)**。v2.2 中与源码不一致的表述 —— 例如创世配额的
+> 实际机制（1 个已验证人类 → 1,000,000 $mHUMAN 配额，而非“1 枚代币分裂成 100 万枚细胞代币”）、尚未实现的代币分配
+> 曲线、BTC 价值汲取通道与移动端生物认证 —— 已在 v3.0 中逐项标注为“已实现 ✅ / 部分 🟡 / 路线图 ⬜”。
+
 **译文：自主 AI 管家供养网络与全球比特币价值汲取架构白皮书**
 
 *Revision: v2.2, finalized 2026-10-07. Sections 1–5 are the authoritative specification.*

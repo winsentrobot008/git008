@@ -2,6 +2,43 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-020: the protocol is documented and delivered as five independently verifiable pillars
+
+**Status:** Accepted (implemented as documentation; `docs/WHITE_PAPER.md` v3.0 and
+`docs/ARCHITECTURE_5_PILLARS.md` become the authoritative pair, `docs/WHITEPAPER_v2.md` carries a
+superseded banner, and no runtime code changed)
+
+**Context:** v2.2 described the protocol as one monolithic vision whose sections mixed shipped
+behaviour with unbuilt design (allocation curves, BTC siphoning, off-ramp settlement, mobile
+biometrics). That made it impossible to tell what exists from what is planned, so every reader had to
+re-derive the truth from `contracts/src` and `agent-client/src`; `docs/GAP_ANALYSIS.md` existed
+precisely because the whitepaper could not be trusted as a status source.
+
+**Decision:**
+
+- **Five pillars are the unit of both documentation and delivery.** Edge SLM & Cell Division;
+  Autonomous Local Wallet; Yield/Sustenance/Mining; Mobile Blockchain Light Node; Bio-Sovereign
+  Anti-Sybil. Each is documented with the same four fields - what it owns, what it exposes, what it
+  consumes, what it must not touch - plus an executable acceptance command.
+- **Every claim carries a status.** ✅ implemented (with the source path or command that proves it),
+  🟡 partial (with the gap named), ⬜ roadmap (with the milestone that closes it). No "implemented"
+  claim without evidence, and no roadmap item described as an existing capability.
+- **Two documented corrections to v2.2.** (1) Genesis activation is not "one HumanToken dividing into
+  1,000,000 cell tokens": one verified human receives a `HUMAN_QUOTA` of 1,000,000 `$mHUMAN` at six
+  decimals inside a single ERC-20, and the Cell subdivision is a roadmap item requiring its own ADR
+  because the representation (bookkeeping view vs. separate ERC-20 vs. NFT family) is still open.
+  (2) `https://rpc.008ai.online` is trust-minimised, not trustless: a single guarded RPC endpoint plus
+  a signed node heartbeat exists today, while multi-endpoint quorum, EIP-1186 inclusion proofs and a
+  header-syncing light client do not.
+- **Milestones are ordered by dependency, not by module number** (M0-M7 in the whitepaper), one
+  milestone per reviewable change. Cross-module coupling goes through a registered interface list; a
+  new symbol there requires a matching acceptance command in the same change.
+
+**Consequences:** Feature work can be parallelised along disjoint write sets, and a reviewer can check
+a status claim mechanically. New read methods must be registered in
+`frontend/src/lib/protocol.ts`, a new mining proof type needs its own reviewed change, and `sdk/src`
+edits must rebuild `dist/` in the same change. The cost is discipline: an unmarked "we support X"
+sentence in any new document is now a documentation defect.
 ## 2026-10-08 - ADR-019: the dashboard binds its deployment from the manifest and reads launches off the factory registry
 
 **Status:** Accepted (implemented; `frontend` `npx tsc --noEmit` clean, `next build` clean, and a

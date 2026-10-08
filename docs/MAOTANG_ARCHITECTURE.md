@@ -3,6 +3,11 @@
 Status: scaffold (v0.1). Curve constants in this document are the reference values used by
 `sdk/src/curve-math.ts` and must be re-confirmed before mainnet deployment.
 
+> **模块视图**：本文件是实现级规格（曲线数学、认证语义、SLM 引擎、DePIN 拓扑、跨链路由、滴灌治理）。
+> 面向交付的 **5 支柱模块边界、接口契约、并行写集与里程碑排序**见
+> **[`docs/ARCHITECTURE_5_PILLARS.md`](./ARCHITECTURE_5_PILLARS.md)**；愿景与「已实现 ✅ / 路线图 ⬜」真值表见
+> **[`docs/WHITE_PAPER.md`](./WHITE_PAPER.md)**（v3.0）。本文与二者冲突时，以源码为准，并同步修订其中一份。
+
 ## 1. Purpose
 
 MAOTANG (猫糖) is a meme-first DEX. Instead of opening every new token into an empty order book,

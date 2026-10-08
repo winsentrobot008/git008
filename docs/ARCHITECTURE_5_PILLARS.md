@@ -1,0 +1,292 @@
+# MAOTANG Protocol — Architecture: The 5 Pillars
+
+**移动端原生自主 AI 矿工与主权财富管家 —— 五支柱模块架构与交付切分**
+
+*Revision: 2026-10-08. 配套文档：`docs/WHITE_PAPER.md`（愿景与真值表）、`docs/MAOTANG_ARCHITECTURE.md`（实现级规格 §3–§15）、`docs/GAP_ANALYSIS.md`（合规差距）。*
+
+---
+
+## 0. 本文目的
+
+把协议切成 **5 个可以并行开工、可以独立验收** 的模块，明确每个模块**拥有什么、对外暴露什么、消费什么、禁止碰什么**，从而：
+
+- 降低单点实现难度：每个模块都能被一个开发者在一个里程碑内完成并验收；
+- 消除跨模块耦合：模块之间只通过下表的接口通信，改动一侧不需要另一侧同步重构；
+- 让“已实现 / 路线图”可被机械核对（每节都有验收命令）。
+
+状态标记沿用白皮书：**✅ 已实现**、**🟡 部分实现**、**⬜ 路线图**。
+
+### 0.1 分层视图
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│ L5  主人 (Biological Owner)  —— 只表达意图、做终极决策、消费收益          │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │ 生物门禁 (FaceID/指纹) ⬜ M3
+┌──────────────────────────────▼──────────────────────────────────────────┐
+│ L4  Mobile Terminal (设备内)                                             │
+│  ┌─ Module 1  Edge SLM  ──────────┐  ┌─ Module 2  Local Wallet ────────┐ │
+│  │ SlmEngine (llama.cpp / ONNX)   │  │ Secure-Enclave signer (注入)    │ │
+│  │ intents: claim / swap          │  │ 阈值策略引擎 ⬜                 │ │
+│  └────────────────┬───────────────┘  └───────────────┬─────────────────┘ │
+│                   │ AgentClient (A2A 握手 + intent)   │                   │
+│  ┌────────────────▼───────────────────────────────────▼─────────────────┐ │
+│  │ Module 4  Light Node / RPC 校验  ✅只读RPC 🟡 / 轻客户端 ⬜            │ │
+│  └────────────────────────────────┬─────────────────────────────────────┘ │
+└───────────────────────────────────┼──────────────────────────────────────┘
+                                    │ HTTPS JSON-RPC (方法级护栏 + CORS)
+┌───────────────────────────────────▼──────────────────────────────────────┐
+│ L3  Edge Transport                                                       │
+│  scripts/rpc-guard.mjs (拒绝 anvil_*/evm_*/eth_accounts/...)              │
+│  Cloudflare tunnel rpc.008ai.online → 本地 EVM 节点                       │
+└───────────────────────────────────┬──────────────────────────────────────┘
+                                    │ eth_call / eth_sendRawTransaction
+┌───────────────────────────────────▼──────────────────────────────────────┐
+│ L2  MAOTANG Contracts                                                    │
+│  Module 5  Bio-Sovereign: Groth16Verifier · AIAgentRegistry · HumanToken  │
+│  Module 3  Yield/Mining:  BondingCurve · SustenanceVault · Dripper ·      │
+│                           Mining · SustenanceVaultSpoke                   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. 模块边界与接口契约
+
+| 模块 | 拥有（owns） | 对外暴露（exposes） | 消费（consumes） | 禁止（must not） |
+| --- | --- | --- | --- | --- |
+| **M1 Edge SLM & Cell** | `agent-client/src/slm/`、`agent-client/src/intents/`、`contracts/src/HumanToken.sol`（配额语义） | `SlmEngine`、`parseToolCall()`、工具 `claim_mhuman_quota` / `swap_micro_human`、`HUMAN_QUOTA` | 链上注册状态（只读）、人格证明（M5） | 引入任何云端 LLM 端点；绕过 `parseToolCall` 校验直接把参数送到钱包 |
+| **M2 Local Wallet** | `agent-manager/src/mining/transport.mjs`、签名器注入契约、阈值策略（⬜） | 注入式 signer 接口、`eth_sendRawTransaction` 广播、fail-closed egress guard | M1 的已校验 intent、M4 的 RPC 通道 | 在应用层持有明文私钥；复用部署密钥作为节点密钥；静默降级为“无护栏发送” |
+| **M3 Yield / Sustenance / Mining** | `contracts/src/{MaoTangBondingCurve,MaoTangSustenanceVault,MaoTangSustenanceDripper,MaoTangMining,SustenanceVaultSpoke}.sol`、`sdk/src/curve-math.ts`、`agent-manager/src/mining/` | 曲线报价/买卖、`submitMiningProof`、`claimMiningRewards`、金库入账与滴灌、刹车与出流上限 | M5 的 `requireAuthorizedAgent` 闸门 | 增发奖励（奖励只能 `transferFrom` 注资）；绕过 `AgentGated` 开新入口 |
+| **M4 Light Node / RPC** | `agent-client/src/telemetry.ts`、`scripts/rpc-guard.mjs`、`scripts/cloudflare-waf.ps1`、`frontend/src/lib/{chain,protocol,hooks}.ts`、`frontend/next.config.ts` | 心跳报文与能力广播、受护栏的 JSON-RPC、看板只读读取、地址 manifest | 链上只读方法（`eth_call`/`eth_getProof`） | 转发管理方法（`anvil_*`/`evm_*`/解锁账户签名）；在看板里签名（`write()` 必须抛错） |
+| **M5 Bio-Sovereign** | `contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol`、生物通道契约（⬜） | `verifyProof`、`registerAgent`、`claimHumanQuota`、`requireAuthorizedAgent`、`lockVerificationKey` | 电路 ceremony key（运维注入） | 在 verifier 中硬编码 key；开后门跳过 nullifier 一次性消费 |
+
+> **接口即契约**：上表“对外暴露”列出的符号是跨模块唯一允许的耦合点。任何新符号进入该列，都必须在本文件登记，并在同一变更里补上验收命令。
+
+---
+
+## 2. Module 1 — Edge SLM & Cell Division
+
+**状态**：SLM 运行时 ✅ / Cell 化 ⬜（M6）
+
+**目录归属**：`agent-client/src/slm/`、`agent-client/src/intents/`、`agent-client/test/local-agent.test.ts`、`contracts/src/HumanToken.sol`（配额语义）
+
+**接口**
+
+- `SlmEngine` —— 单一接口，两个可选后端：`llama.cpp`（`node-llama-cpp`，GGUF）与 ONNX Runtime（`onnxruntime-node`，INT4）。两者都是**动态 import 的可选依赖**，缺失时包仍可构建。
+- 默认模型 Qwen2.5-0.5B-Instruct INT4（权重约 397 MiB）；常驻内存估算含 fp16 KV cache 与运行开销，**硬上限 500 MiB**，超预算默认拒绝（`allowOverBudget` 显式豁免）。
+- `assertNoCloudDependencies()` —— 本地性是断言而非承诺；`mode: "native"` 失败时**大声报错**。
+- 两个严格工具：`claim_mhuman_quota`、`swap_micro_human`；`parseToolCall()` 抽取、拒绝未知工具、校验每个参数后才允许触达钱包。
+
+**数据契约**：ChatML system prompt → **恰好一次** tool call JSON → 校验通过 → 结构化 intent（`AgentClient.executeIntent`）。
+
+**失败语义**：原生运行时缺失 = 明确失败（绝不静默降级到 simulated）；参数非法 = 拒绝且不产生任何链上调用。
+
+**缺口**：合约层**没有 Cell 类型**。当前创世是“1 个已验证的活体人类 → 1,000,000 $mHUMAN 配额（`decimals = 6`）”，即单一 ERC-20 余额。细胞化（1 份配额细分为 1,000,000 个可寻址单元）需先出 ADR：记账视图 / 独立 ERC-20 / NFT 家族三选一，对 gas、可组合性与反女巫边界影响不同。
+
+**验收**：`cd D:\git008\agent-client; npm test`
+
+**难度**：SLM 接口固化 = S（已完成）；Cell 化 = L（含 ADR）。
+
+---
+
+## 3. Module 2 — Autonomous Local Wallet
+
+**状态**：接口层 ✅ / 真实移动飞地 ⬜（M3）
+
+**目录归属**：`agent-manager/src/mining/transport.mjs`、`sdk/src/agent-client.ts`、阈值策略（新建，⬜）
+
+**接口**
+
+- **注入式签名器**：`transport.mjs` 构建交易后交给**注入的 TEE / Secure-Enclave signer** 签名，再经 `eth_sendRawTransaction` 广播。签名器是依赖注入的接口，应用层永远不持有明文私钥。
+- **fail-closed 出站护栏**：未配置放行规则时**不发包**，而不是默认放行。
+- `AgentClient.agentLogin()` —— 派生 agent 地址、校验链上注册、要求当前账户就是该 agent、验证一次签名挑战（A2A 握手）后才允许 intent 执行。
+- 计划中的阈值策略引擎（⬜）：单笔上限 / 日累计 / 合约白名单，超阈值必须由主人确认。
+
+**数据契约**：已签名的 raw transaction 十六进制串；私钥只以**进程环境变量**形式注入子进程，不落盘、不缓存。
+
+**环境键（仅登记键名，不登记值）**：`MAOTANG_AGENT_ID`、`MAOTANG_WORKER_PRIVATE_KEY`、`MAOTANG_HEARTBEAT_URL`、`MAOTANG_TELEMETRY_URL`、`MAOTANG_HEARTBEAT_MS`、`MAOTANG_SLM_MODEL`。
+
+**失败语义**：广播错误 → 记录并排下一次 tick（fail-soft，节点必须继续工作）；护栏未放行 → **不发送**（fail-closed）。两类失败的日志必须可区分。
+
+**已知边界**：worker 私钥必须是**专用节点密钥**；复用部署密钥意味着节点密钥泄露即部署账户被清空。
+
+**验收**：`cd D:\git008\agent-manager; python test/mining_e2e.py`；`cd D:\git008\agent-client; npm test`
+
+**难度**：接口层 = S（已完成）；移动端硬件飞地 + 生物门禁 + 阈值引擎 = L。
+
+---
+
+## 4. Module 3 — Yield, Sustenance & Mining Engine
+
+**状态**：✅（跨链 spoke 与心跳上链为 ⬜）
+
+**目录归属**：`contracts/src/{MaoTangBondingCurve,MaoTangSustenanceVault,MaoTangSustenanceDripper,MaoTangMining,SustenanceVaultSpoke}.sol`、`contracts/test/`、`sdk/src/curve-math.ts`、`agent-manager/src/mining/{constants,abi,telemetry,transport,background-miner}.mjs`
+
+**接口与常量**
+
+| 层 | 符号 | 说明 |
+| --- | --- | --- |
+| 曲线 | `calculatePrice()` / `target()` / `token()` / `creator()` / `graduateToMarket()` | 报价、目标、代币、创建者、毕业 |
+| 曲线常量 | `VIRTUAL_RESERVE_WEI` 30 ETH · `VIRTUAL_TOKEN_SUPPLY` 1,073,000,000 · `GRADUATION_TARGET_WEI` 5 ETH · `TRADE_FEE_BPS` 50 · `GRADUATION_FEE_BPS` 100 | 与 `sdk/src/curve-math.ts` 逐公式镜像 |
+| 工厂 | `launchCount()` / `launchAt(uint256)` / `createMemeToken(string,string)` | 注册表 + 发起 |
+| 挖矿 | `submitMiningProof(bytes32,bytes)` / `claimMiningRewards()` / `fundRewardVault` / `pendingMiningRewards[agent]` / `MAX_EPOCH_REWARD` / `PROOF_TYPE_BLE_PING` / `PROOF_TYPE_ZK_COMPUTE` | 非 PoW 的物理+计算工作证明 |
+| 金库 | `nativeFeesReceived()` / `availableNative()` / `pause()` / `unpause()` / `setGuardian` / `setNativeOutflowCap(cap, windowSeconds)` / `nativeOutflowRemaining()` | 入账、刹车、出流上限 |
+| 滴灌 | `MaoTangSustenanceDripper` 的签名报文与预算记账 | 分批释放，避免一次性外流 |
+
+**必须成立的不变量**
+
+1. 曲线整数除法一律**向池子截断**，因此恒定乘积不变量不会逆向漂移。
+2. 挖矿每条证明只计分一次：nullifier `keccak256(abi.encode(proofType, agent, proofData))` 在计分前落盘，重放 revert `ReplayProof`。
+3. 奖励**从已注资的奖励金库 `transferFrom` 转出，从不增发** → 挖矿不稀释持有者。
+4. `pause()` 只冻结三条出金路径，**不阻断** `receive()` / `depositFee*` / `credit*` / `fundDripBudget*`，因此暂停期间记账继续、恢复后不丢账。
+5. `guardian` 单向：只能下闸，不能松开、不能转账。
+
+**跨模块契约（防漂移）**：`agent-manager/src/mining/constants.mjs` 是链上常量的唯一真源；`test/mining_e2e.py` 用 keccak256 向量重新派生每个 selector 并断言 Solidity 与 JS 常量相等 —— 两侧不允许各自漂移。
+
+**已知缺口**：心跳**没有链上通道**（`MaoTangMining` 无能力注册入口），需要新增第三种 proof type 并**单独评审**，不得静默扩展既有形状。
+
+**验收**：`cd D:\git008\contracts; forge test`；`cd D:\git008\agent-manager; python test/mining_e2e.py`
+
+**难度**：已实现；心跳上链 = M；跨链 spoke 路由 = M。
+
+---
+
+## 5. Module 4 — Mobile Blockchain Light Node
+
+**状态**：只读 RPC + 护栏 + CORS ✅ / 心跳 ✅（链下）/ 免信任校验 ⬜（M4–M5）
+
+**目录归属**：`agent-client/src/telemetry.ts`、`agent-client/test/telemetry.test.ts`、`scripts/rpc-guard.mjs`、`scripts/cloudflare-waf.ps1`、`frontend/src/lib/{chain,protocol,hooks}.ts`、`frontend/next.config.ts`、`frontend/config/contracts.json`
+
+**心跳数据契约**
+
+```text
+HardwareProfile   = nodeVersion, platform, arch, cpuModel, cpuCount, memoryBytes,
+                    gpus[{ vendor, name, vramBytes, nvencCapable, source }],
+                    nvenc (实探测，绝不假设), ffmpegPath,
+                    slm { id, path, available, bytes, sha256 }
+TelemetryEnvelope = { proofType, agent, sequence, timestamp, hardware }
+digest            = sha256("maotang-node-telemetry-v1" + "\n" + canonicalize(envelope))
+signature         = secp256k1 ECDSA over sha256(digest)，DER 编码
+proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
+```
+
+- `sequence` 是每进程单调计数器，**干跑不递增** —— 节点无法用“构建了但没发送”的心跳让编排器失步。
+- `slm.sha256` 是权重文件的流式哈希；未配置或文件缺失时报告 `available: false`，**不编造哈希**。
+- 规范化函数与 `video-worker.ts` 的内容证明**共用同一实现**，两个独立实现不会对“哈希背后的字节”产生分歧。
+
+**已登记的诚实限制**：签名证明的是“持有节点密钥的 worker 产生该报文”，**不是**某个链上地址 —— 从公钥派生地址需要 keccak256，Node 标准库不提供。编排器把配置的 agent 地址记在签名旁，具备 keccak 的校验方日后可闭环。
+
+**RPC 通道契约**
+
+| 行为 | 结果 |
+| --- | --- |
+| 允许的读（`eth_call`、`eth_chainId`、`eth_getBalance`、`eth_getProof`、`eth_sendRawTransaction`…） | 原样转发，响应带 `x-rpc-guard: forwarded` 与 CORS 头 |
+| 拒绝的管理方法（`anvil_*`/`evm_*`/`debug_*`/`trace_*`/`admin_*`/`personal_*`/`txpool_*`/`miner_*`/`hardhat_*`/`erigon_*`/`parity_*`、`eth_accounts`、`eth_sendTransaction`、`eth_signTransaction`、`eth_sign`、`eth_signTypedData*`） | `403` + JSON-RPC `-32601` + 调用方自己的 `id` + `x-rpc-guard: blocked`，**绝不转发**；批量请求整体拒绝 |
+| `OPTIONS` 预检 | `204` + `Access-Control-Allow-Origin/Methods/Headers`（缺此项浏览器一律读不到） |
+| `GET /healthz` | `200 {"status":"ok"}` |
+
+**看板读取契约**：`frontend/src/lib/protocol.ts` 的 `CONTRACT_READS` 是**选择器登记表**（名称 → selector + 返回类型 + 元数）。transport 只认登记表，**未登记的函数直接抛错**而不是猜编码。`fetchLaunches()` 走 `launchCount()` / `launchAt(i)`，新到旧、上限 12 条、8 秒轮询；地址来自 `next.config.ts` 注入的 `NEXT_PUBLIC_MANIFEST_*`（源 = `frontend/config/contracts.json`），显式 `NEXT_PUBLIC_MAOTANG_*` 变量优先。
+
+**信任分层（⬜ 全部未实现，见白皮书 §4.2）**：M4.1 多端点仲裁（S）→ M4.2 `eth_getProof` 包含证明（M）→ M4.3 轻客户端同步（L）→ M4.4 P2P 传输（L）。**在 M4.2 落地前，不得声称“免信任状态验证”。**
+
+**验收**：见白皮书 §4.3（curl 预检 204、`eth_chainId` 通过、`anvil_reset` 被 403、`agent-client` `npm test`）。
+
+---
+
+## 6. Module 5 — Bio-Sovereign Anti-Sybil & Security Layer
+
+**状态**：ZK 绑定 ✅ / 生物特征通道 ⬜（M3）
+
+**目录归属**：`contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol`、`contracts/src/interfaces/IZKVerifier.sol`、`contracts/test/`
+
+**接口**
+
+- `IZKVerifier.verifyProof(...)` / `Groth16Verifier`
+- `AIAgentRegistry.registerAgent(agentPubKey, hardwareProof, hardwareNullifier)`、`agentAddress(agentPubKey)`、`requireAuthorizedAgent(agent)`
+- `HumanToken.claimHumanQuota(proof, nullifierHash)`、`HUMAN_QUOTA`、`MAX_GLOBAL_SUPPLY`、`decimals()`
+- `lockVerificationKey()`
+
+**必须成立的不变量**
+
+1. 一个公钥只能绑定一次；一个硬件 nullifier 只能绑定一次。
+2. 一个 nullifier 只能消费一次配额（`claimHumanQuota` 幂等拒绝重放）。
+3. 人类主人可**随时撤销**其 agent。
+4. verifier 在主人安装 ceremony key 之前**失败关闭**；`lockVerificationKey()` 之后**不可逆冻结**。
+5. `totalSupply` 永远不超过 `MAX_GLOBAL_SUPPLY`。
+6. 曲线、市场与挖矿入口继承 `AgentGated` → **M3 的每个写入口都经过同一道门**。
+
+**生物通道（⬜ M3）**：链上匿名（ZK 人格证明只证明唯一性，不暴露身份）+ 本地具名（FaceID/指纹通过后，飞地才用不可导出 P-256 密钥签发会话密钥，允许执行**超阈值**动作）。Cell 单元由 nullifier 派生绑定，防止“伪人凭空生成 Cell”。
+
+**验收**：`cd D:\git008\contracts; forge test`
+
+**难度**：ZK 绑定 = ✅；移动端生物门禁 = L。
+
+---
+
+## 7. 并行交付切分
+
+写集（write set）互斥即可并行。**共享文件 = 必须串行或先协商接口**。
+
+| 并行对 | 互斥？ | 说明 |
+| --- | --- | --- |
+| M1 × M3 | ✅ 可并行 | 目录不相交（`agent-client/` vs `contracts/`+`agent-manager/src/mining/`） |
+| M1 × M4 | ✅ 可并行 | 除 `agent-client/src/telemetry.ts` 与 `src/slm/` 同属 `agent-client/` → 同仓不同目录，注意 lint/测试一起跑 |
+| M3 × M4 | ✅ 可并行 | `contracts/` vs `frontend/`+`scripts/` |
+| M4 × M5 | ✅ 可并行 | 除 `contracts/src/Groth16Verifier.sol`（只读引用） |
+| M1 × M5 | ⚠️ 需协商 | 共享 `contracts/src/HumanToken.sol`（配额语义 vs 证明语义） |
+| M1 × M2 | ⚠️ 串行 | 共享 `sdk/src/agent-client.ts`（A2A 握手 + intent 执行） |
+| M2 × M3 | ⚠️ 串行 | 共享 `agent-manager/src/mining/transport.mjs`（签名与广播） |
+
+**建议的并行节奏**：M4（多端点仲裁）与 M3（心跳上链评审）可同时开工，因为两者写集完全不相交；M5 的生物通道依赖 M2 的飞地接口，**必须先冻结 `signer` 接口再并行**。
+
+---
+
+## 8. 里程碑与依赖
+
+| 里程碑 | 交付物 | 依赖 | 难度 | 可并行 |
+| --- | --- | --- | --- | --- |
+| M0 冻结边界 | 本文 + `docs/WHITE_PAPER.md` | — | S | ✅ 已完成 |
+| M1 SLM + 意图 | `agent-client/src/slm`、`src/intents` | — | S | ✅ 已完成 |
+| M2 曲线 + 金库刹车 | `contracts/src/*` | M1 | M | ✅ 已完成 |
+| M3 移动端飞地 + 阈值 + 生物门禁 | 新 `signer` 接口 + 平台密钥存储 | M1 | L | 需先冻结接口 |
+| M4 免信任读取 | 多端点仲裁（S）→ `eth_getProof` 包含证明（M） | — | S→M | ✅ 与 M3 并行 |
+| M5 轻客户端 + P2P | 区块头链同步 + P2P 传输 | M4 | L | ⬜ |
+| M6 Cell 化 + 微治理 | ADR + 合约/记账 + 按 Cell 分发 | M3、M4 | L | ⬜ |
+| M7 心跳上链 | 第三种 proof type（单独评审） | M2 | M | ✅ 与 M4 并行 |
+
+---
+
+## 9. 变更纪律（Change Discipline）
+
+1. **新增只读方法**：必须在同一次变更里登记到 `frontend/src/lib/protocol.ts` 的 `CONTRACT_READS`（名称 + selector + 返回类型 + 元数）。transport 对未登记函数**抛错**，不猜。
+2. **新增挖矿 proof type**：不得静默扩展 `submitMiningProof` 的既有形状；第三种类型需要自己的评分规则与单独评审（`docs/MAOTANG_ARCHITECTURE.md` §13.2）。
+3. **`sdk/src` 改动**：必须在同一次变更内重建 `sdk/dist`（前端消费的是构建产物，`dist/` 不入库）。
+4. **门禁在目标子项目目录内跑**：`contracts` 用 `forge test`，`frontend` 用 `npx tsc --noEmit`，`agent-client` / `agent-manager` 用各自测试；禁止在根目录代跑。
+5. **README.md 不得进入提交**（`pre-commit` 钩子直接拒绝）。
+6. **隧道纪律**：绝不把 `rpc.008ai.online` 指向持有真实资产的链；管理方法必须留在护栏与 WAF 之后（见 `docs/DEPLOY_MAOTANG_FRONTEND.md`）。
+7. **“已实现”双向同步**：任何新的已实现声明，必须在 `docs/WHITE_PAPER.md` 的模块状态列同步更新；任何路线图项不得写成现有能力。
+8. **安全相关改动**（金库出口、verifier、签名路径）必须同时给出拒绝路径的测试，而不只是 happy path。
+
+---
+
+## 10. 与现有规格的映射
+
+| 本文模块 | `docs/MAOTANG_ARCHITECTURE.md` | 说明 |
+| --- | --- | --- |
+| M1 Edge SLM & Cell | §11 本地 SLM 引擎、§10 认证 | 运行时细节在 §11；配额语义在 §10 |
+| M2 Local Wallet | §15.2 签名报文、§12 transport | 滴灌签名格式可复用于 Agent 授权 |
+| M3 Yield / Sustenance / Mining | §4 曲线模型、§5 生命周期、§12 挖矿、§15 滴灌与治理 | 常量与公式的权威来源 |
+| M4 Light Node / RPC | §13 多节点拓扑、§13.1 心跳、§13.2 传输限制、§14 跨链路由 | 免信任分层为本文新增 |
+| M5 Bio-Sovereign | §10 AI-agent 原生认证、§8 安全考量 | ZK 与 nullifier 语义的权威来源 |
+| 合规差距 | `docs/GAP_ANALYSIS.md` | P0/P1 待办与验证日志 |
+
+---
+
+## 11. 未决问题（按模块）
+
+- **M1**：Cell 采用记账视图 / 独立 ERC-20 / NFT 家族？影响 gas、可组合性与反女巫边界（需 ADR）。
+- **M3**：曲线储备资产最终只支持原生 ETH，还是开放 ERC-20 白名单？（`MAOTANG_ARCHITECTURE.md` §9 未决）
+- **M3**：毕业后的市场是固定 AMM 交易对，还是可配置的 venue adapter？（同上）
+- **M4**：“独立端点”的判定标准（不同运营方 / 不同 IP / 不同国家）？多端点仲裁的阈值与降权策略。
+- **M5**：硬件 attestation 的信任根取厂商 CA 还是协议自有 ceremony？撤销与轮换流程如何编排。
