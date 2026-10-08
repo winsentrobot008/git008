@@ -6,6 +6,20 @@
 > 
 > **Central Gateway 是可选组件**：仅作为多项目密钥集中托管 / 统一端点的开发者与矩阵代理，**不是任何应用的运行时必需**。
 
+> ### 🐱🍬 MAOTANG Protocol（猫糖协议）
+>
+> **MAOTANG Protocol - Autonomous Local AI Agents Working to Sustain Human Owners by Siphoning Global Crypto Value.**
+>
+> | Phase | Scope | Status |
+> | --- | --- | --- |
+> | P0 | `$mHUMAN`（6 位小数、Groth16 人格证明）、`MaoTangSustenanceVault`、`MaoTangBondingCurve`（0.5% 交易费 / 1.00% 毕业费） | ✅ 完成 |
+> | P1 | `AIAgentRegistry` + A2A Agent SDK、DePIN BLE/UWB/蜂窝覆盖证明、本地 SLM/ONNX 算力证明 | ✅ 完成 |
+> | **P2** | **Video Factory v2 & DePIN Telemetry**（端侧 Edge-TTS 配音、ComfyUI/SVD 视觉、FFmpeg NVENC 渲染与 DePIN 遥测回传、Alpha Testnet 一键启动） | 🟢 **ACTIVE** |
+>
+> 📄 [Whitepaper v2](docs/WHITEPAPER_v2.md) · [Gap Analysis](docs/GAP_ANALYSIS.md) · [Architecture](docs/MAOTANG_ARCHITECTURE.md)
+>
+> 🚀 本地 Alpha 环境一键启动：`scripts/start-alpha.ps1`（Windows）/ `scripts/start-alpha.sh`（Bash）。
+
 ---
 
 ## 📋 目录
