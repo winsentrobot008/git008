@@ -40,6 +40,10 @@ back through `eth_call` instead of assumed. The seeded smoke fee is real value i
 disposable chain; leaving it off-loopback keeps funding on public chains an operator decision tied to real
 accrued fees rather than an automatic transfer.
 
+The Alpha deployment artifact `frontend/config/contracts.json` is refreshed and committed with each
+deployment on this branch, which supersedes the "not committed" remark in ADR-016; the file stays generated
+by `contracts/scripts/deploy-testnet.ts` and is never hand-edited.
+
 ## 2026-10-08 — ADR-016: protocol revenue routes to a rotatable beneficiary, separate from the immutable authority
 
 **Status:** Accepted (implemented; `forge build` clean, `forge test` 183/183, `contracts` and `frontend`
