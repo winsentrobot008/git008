@@ -58,7 +58,8 @@ the upload so the Vercel project values win):
 
 `https://rpc.008ai.online` is a **public, unauthenticated** endpoint: the tunnel forwards whatever
 sits behind it to anyone on the internet, and the Alpha chain behind it is an Anvil development node
-that exposes, by design:
+that exposes, by design - which is why the guard in the next section is mandatory rather than
+optional. What an *unguarded* node hands out:
 
 - ten unlocked accounts pre-funded with 10 000 ETH each (`eth_accounts`, `eth_sendTransaction`), so
   any visitor can move that balance or deploy to the chain;
@@ -79,12 +80,73 @@ Requirements for operators:
 - **Keep the ingress minimal.** `~/.cloudflared/config.yml` for tunnel `008-video` maps exactly
   `rpc.008ai.online` and rejects everything else with `http_status:404`. Keep it that way instead of
   adding a catch-all origin.
-- **Check the guard, do not assume it.** While unprotected, this returns the dev accounts:
+- **Check the guard, do not assume it.** This must answer `403` with `x-rpc-guard: blocked` and a
+  `-32601` JSON-RPC error, not the dev accounts:
   `curl.exe -sS https://rpc.008ai.online -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"eth_accounts","params":[]}'`.
-  A hardened endpoint must not answer that anonymously.
+  Still returning the accounts means `scripts/rpc-guard.mjs` is not in the path - check the tunnel
+  ingress before anything else.
 - **Watch the tunnel.** `cloudflared` logs to stderr at
   `runtime_data/logs/cloudflared-008-video.err.log`; unexpected connection registrations or origin
   errors are an alert, not noise.
+
+## RPC hardening: local guard plus an edge rule
+
+Two independent layers keep `anvil_*` / `evm_*` administration off the public hostname. Neither is
+enough on its own: a local proxy is exact because it understands JSON-RPC, but it only protects while
+it runs; an edge rule keeps holding while the origin is unhealthy, but it only matches on body text.
+Run both.
+
+**Layer 1 - `scripts/rpc-guard.mjs`, the origin.** A dependency-free reverse proxy that forwards
+everything except the privileged namespaces (`anvil_*`, `evm_*`, `debug_*`, `trace_*`, `admin_*`,
+`personal_*`, `txpool_*`, `miner_*`, `hardhat_*`, `erigon_*`, `parity_*`) and the methods that sign or
+spend with Anvil's ten unlocked accounts (`eth_accounts`, `eth_sendTransaction`, `eth_signTransaction`,
+`eth_sign`, `eth_signTypedData*`). A refusal is `403` carrying a JSON-RPC error, the caller's own `id`
+and `x-rpc-guard: blocked`; a batch is refused whole rather than half-answered. `eth_sendRawTransaction`
+stays allowed, because broadcasting a signature the caller already holds is not privileged.
+
+```powershell
+# Start the guard before the tunnel, or the hostname answers Cloudflare 502.
+# `node` must be on PATH; this repo's portable runtime is under products/4DNomad/runtime/toolchain/.
+Start-Process -WindowStyle Hidden -FilePath node -ArgumentList @(
+    'scripts/rpc-guard.mjs', '--listen', '127.0.0.1:8546', '--target', 'http://127.0.0.1:8545') `
+  -RedirectStandardOutput runtime_data/logs/rpc-guard-8546.out.log `
+  -RedirectStandardError runtime_data/logs/rpc-guard-8546.err.log
+```
+
+It logs one JSON line per blocked attempt with the real client address from `Cf-Connecting-Ip`, which
+is what makes abuse triage possible behind the tunnel. Nothing else is logged unless `--log-forwards`
+is passed. `--deny` adds a stricter rule (for example `--deny eth_sendRawTransaction`) and `--allow`
+carves one back out.
+
+The tunnel ingress must point at the guard and never at the node:
+
+```yaml
+# ~/.cloudflared/config.yml
+ingress:
+  - hostname: rpc.008ai.online
+    service: http://127.0.0.1:8546
+  - service: http_status:404
+```
+
+**Layer 2 - a Cloudflare WAF custom rule, the edge.** `./scripts/cloudflare-waf.ps1` prints the rule
+and the dashboard path; `-Apply` upserts it into the zone `http_request_firewall_custom` phase (needs
+`CLOUDFLARE_API_TOKEN` with `Zone:Zone:Read` and `Zone:WAF:Edit`), and `-Remove -Apply` takes it back
+out. The expression is
+
+```
+(http.host eq "rpc.008ai.online" and http.request.method eq "POST"
+ and (http.request.body.raw contains "anvil_" or http.request.body.raw contains "evm_"))
+```
+
+A custom rule only inspects the first 128 KB of a request body, which is exactly why the method-level
+guard remains the layer that has to be correct.
+
+**Verify the result.** `200` for a read, `403` for an admin method, and the deployment still intact:
+
+```powershell
+curl.exe -sS -o NUL -w "%{http_code}`n" https://rpc.008ai.online -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+curl.exe -sS -o NUL -w "%{http_code}`n" https://rpc.008ai.online -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":2,"method":"evm_mine","params":[]}'
+```
 
 ## Verification
 
