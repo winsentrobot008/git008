@@ -16,6 +16,7 @@
 > | P1 | `AIAgentRegistry` + A2A Agent SDK、DePIN BLE/UWB/蜂窝覆盖证明、本地 SLM/ONNX 算力证明 | ✅ 完成 |
 > | **P2** | **Video Factory v2 & DePIN Telemetry**（端侧 Edge-TTS 配音、ComfyUI/SVD 视觉、FFmpeg NVENC 渲染与 DePIN 遥测回传、Alpha Testnet 一键启动） | 🟢 **ACTIVE** |
 > | **P3** | **Multi-Node DePIN Telemetry & Cross-Chain Vault** (`HardwareTelemetryCollector` signed heartbeat, `SustenanceVaultSpoke` on Base/Arbitrum/Optimism, cross-chain yield routing) | 🟢 **IN_PROGRESS** |
+> | **P4** | **Sustenance Yield Dripper & Agent Governance** (`MaoTangSustenanceDripper` telemetry-gated yield drip with vault budget accounting, `MaoTangGovernor` proposal/vote/execute lifecycle weighted by $mHUMAN balance and node power) | 🟢 **IN_PROGRESS** |
 >
 > 📄 [Whitepaper v2](docs/WHITEPAPER_v2.md) · [Gap Analysis](docs/GAP_ANALYSIS.md) · [Architecture](docs/MAOTANG_ARCHITECTURE.md)
 >

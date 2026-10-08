@@ -2,6 +2,49 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 — ADR-015: P4 drip pays only from a released budget, and governance owns itself
+
+**Status:** Accepted (implemented; `forge build` clean, `forge test` 173/173, `contracts` `tsc --noEmit`
+clean, and an end-to-end Anvil run that deployed all eight contracts, verified `dripper.vault`,
+`dripper.mHuman`, `governor.mHuman` and `governor.quorumBps` on chain, and wired `vault.setDripper`)
+
+**Context:** Phase P3 left the vault solvency-safe but still owner-adjudicated: `creditNativeSustenance`
+is the only way yield reaches a human, so payout does not scale, and every protocol parameter is a single
+authority signature. Phase P4 adds the autonomous payout path and the proposal/vote/execute lifecycle,
+which forces two questions: how much can an automated payout move, and who may change the rules after it
+has moved.
+
+**Decision:**
+
+- **Two contracts, one invariant each.** `contracts/src/MaoTangSustenanceDripper.sol` is the payout path
+  (`payout = min(telemetryWeight * weightRate + mHumanBalance * balanceRate, maxDripPerClaim)`, gated on a
+  windowed `telemetrySigner` attestation and a per-account `claimCooldown`).
+  `contracts/src/MaoTangGovernor.sol` is the decision path (`propose` / `castVote` / `execute`, weight =
+  the `$mHUMAN` balance plus optional `INodePowerSource.votingPower`).
+- **The vault, not the dripper, bounds the payout.** The owner reserves a budget with `fundDripBudget` /
+  `fundDripBudgetToken`, and `withdrawDripAllowance` pays only out of the unspent remainder, so a
+  compromised telemetry signer or dripper cannot reach the rest of the balance.
+- **Reservations and principal credit are mutually exclusive, and `availableNative()` had to change to say
+  so.** It is now `received - credited - nativeDripPaid`, so a payout that has already left the vault stops
+  being visible as creditable. Without that term `unreservedNative()` grew by the amount of every drip and
+  the same wei could be credited to a principal after being paid to a claimant. `unreservedNative()` is now
+  invariant across drips, and `contracts/test/SustenanceDripper.t.sol` asserts exactly that.
+- **Governance is self-governed.** `setVotingParams` and `setNodePowerSource` revert `NotSelfGoverned` for
+  any caller except the governor, so the deployer cannot tighten or loosen the rules afterwards; the
+  constructor only seeds the initial values.
+- **Votes are live, not snapshotted, and that is recorded as a limitation.** `HumanToken` implements no
+  checkpoints, so a snapshot block would have to be fabricated. The migration path is an ERC20Votes-style
+  checkpoint plus `votingPowerAt(account, blockNumber)`, documented in `docs/MAOTANG_ARCHITECTURE.md`
+  section 15.4.
+
+**Consequences:** The drip is bounded by the released budget rather than by the vault balance, and section
+15.3 of `docs/MAOTANG_ARCHITECTURE.md` documents the accounting with the tests pinning its invariant.
+Governance can change any parameter, including its own, but only through a passed proposal; until
+checkpoints exist a long `votingDelay` is the procedural mitigation against acquiring voting power after a
+proposal opens. The `MaoTangSustenanceVault` accounting surface changed (`availableNative`,
+`availableToken` now net of drip payouts), which supersedes the P3 description in ADR-008 and ADR-014 for
+the drip path only; the single-chain and cross-chain behaviour those entries describe is unchanged.
+
 ## 2026-10-08 — ADR-014: Phase P2 lands in the existing MAOTANG tree; video proofs stay off chain
 
 **Status:** Accepted (implemented; `contracts` `tsc --noEmit` clean, `video-factory` `tsc` build + typecheck clean,
@@ -311,3 +354,4 @@ protocol/creator/vault split is still an assumption rather than a ratified polic
 - **Decision:** Resolve FFmpeg through `src/core/ffmpeg.py`, with `FFMPEG_PATH`/`FFMPEG_BIN`/`FFMPEG_ROOT`, bundled `runtime_data/video-runtime/ffmpeg/bin`, then PATH. Resolve ComfyUI and model locations using `src/core/paths.py` and `COMFYUI_SERVER_URL`.
 - **Consequences:** Direct product binary discovery should migrate to shared helpers; integration checks must distinguish encoder presence from usable NVENC hardware.
 - **Status:** Active; product-wide migration is still in progress (see `REFACTOR_REPORT.md`).
+

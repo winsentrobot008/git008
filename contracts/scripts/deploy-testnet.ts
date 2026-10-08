@@ -28,6 +28,7 @@
  *   UNISWAP_V3_POSITION_MANAGER                 graduation market address
  * Optional environment:
  *   MAOTANG_OWNER            owner of the verifier and vault, defaults to the deployer
+ *   MAOTANG_TELEMETRY_SIGNER dripper telemetry attestation key, defaults to the owner
  *   MAOTANG_REFERENCE_CURVE  set to `0` to skip the on-chain 5 ETH graduation-threshold probe
  */
 
@@ -44,6 +45,14 @@ const GRADUATION_TARGET_WEI = parseEther("5");
 const SWAP_FEE_BPS = 50n;
 /** Graduation fee routed to the sustenance vault, in basis points. */
 const GRADUATION_FEE_BPS = 100n;
+/** Initial governor voting delay: one day between proposal creation and the start of voting. */
+const GOVERNOR_VOTING_DELAY = 86_400n;
+/** Initial governor voting period: one week of open voting. */
+const GOVERNOR_VOTING_PERIOD = 604_800n;
+/** Initial governor proposal threshold: any $mHUMAN holder may propose. */
+const GOVERNOR_PROPOSAL_THRESHOLD = 0n;
+/** Initial governor quorum: 10% of the $mHUMAN total supply. */
+const GOVERNOR_QUORUM_BPS = 1_000n;
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const CONTRACTS_DIR = resolve(SCRIPTS_DIR, "..");
@@ -242,7 +251,11 @@ async function main(): Promise<void> {
   const privateKey = normalizePrivateKey(required("DEPLOYER_PRIVATE_KEY"));
   const positionManager = getAddress(required("UNISWAP_V3_POSITION_MANAGER"));
 
-  const provider = new JsonRpcProvider(rpcUrl);
+  // `cacheTimeout: -1` disables the ethers request cache. Within its default 250 ms window, the
+  // `eth_getTransactionCount` answer fetched before one deployment is mined is reused for the next
+  // one, which on a fast chain (local Anvil, sub-second blocks) is a stale nonce and a failed
+  // deployment. The deploy loop below is sequential, so it needs a fresh count every time.
+  const provider = new JsonRpcProvider(rpcUrl, undefined, { cacheTimeout: -1 });
   const network = await provider.getNetwork();
   const wallet = new Wallet(privateKey, provider);
   const deployer = await wallet.getAddress();
@@ -266,7 +279,26 @@ async function main(): Promise<void> {
   const humanToken = await deploy("HumanToken", [await registry.getAddress(), await verifier.getAddress()], wallet);
   // 5. Mining - DePIN reward surface paying $mHUMAN for physical and compute proofs.
   const mining = await deploy("MaoTangMining", [await registry.getAddress(), await humanToken.getAddress()], wallet);
-  // 6. Bonding-curve router - deploys a curve per launch, all routing to this vault and market.
+  // 6. Sustenance dripper - telemetry-gated autonomous payout path out of the vault fee budget.
+  const telemetrySigner = getAddress(process.env.MAOTANG_TELEMETRY_SIGNER?.trim() || owner);
+  const dripper = await deploy(
+    "MaoTangSustenanceDripper",
+    [await vault.getAddress(), await humanToken.getAddress(), owner, telemetrySigner],
+    wallet,
+  );
+  // 7. Governor - proposal, voting and execution lifecycle weighted by $mHUMAN holder power.
+  const governor = await deploy(
+    "MaoTangGovernor",
+    [
+      await humanToken.getAddress(),
+      GOVERNOR_VOTING_DELAY,
+      GOVERNOR_VOTING_PERIOD,
+      GOVERNOR_PROPOSAL_THRESHOLD,
+      GOVERNOR_QUORUM_BPS,
+    ],
+    wallet,
+  );
+  // 8. Bonding-curve router - deploys a curve per launch, all routing to this vault and market.
   const factory = await deploy("MaoTangFactory", [await vault.getAddress(), positionManager], wallet);
 
   const contracts = {
@@ -275,11 +307,34 @@ async function main(): Promise<void> {
     MaoTangSustenanceVault: await vault.getAddress(),
     HumanToken: await humanToken.getAddress(),
     MaoTangMining: await mining.getAddress(),
+    MaoTangSustenanceDripper: await dripper.getAddress(),
+    MaoTangGovernor: await governor.getAddress(),
     MaoTangFactory: await factory.getAddress(),
   };
 
   expectAddress(await factory.vault(), contracts.MaoTangSustenanceVault, "factory.vault");
   expectAddress(await factory.market(), positionManager, "factory.market");
+
+  expectAddress(await dripper.vault(), contracts.MaoTangSustenanceVault, "dripper.vault");
+  expectAddress(await dripper.mHuman(), contracts.HumanToken, "dripper.mHuman");
+  expectAddress(await governor.mHuman(), contracts.HumanToken, "governor.mHuman");
+  const onChainQuorumBps = await governor.quorumBps();
+  if (onChainQuorumBps !== GOVERNOR_QUORUM_BPS) {
+    throw new Error("governor.quorumBps mismatch: " + onChainQuorumBps);
+  }
+
+  // The dripper pays only once the vault names it, and the vault names only an owner. Where the
+  // deployer is not the owner, that wiring is the owner transaction, so it is reported, not attempted.
+  if (deployer.toLowerCase() === owner.toLowerCase()) {
+    const wiring = await (await vault.setDripper(contracts.MaoTangSustenanceDripper)).wait();
+    if (!wiring || wiring.status !== 1) {
+      throw new Error("vault.setDripper did not confirm");
+    }
+    console.log("  dripper wired            vault.dripper = " + contracts.MaoTangSustenanceDripper);
+  } else {
+    console.log("  dripper wiring deferred  owner differs from the deployer; call vault.setDripper");
+  }
+  console.log("  drip budget unfunded     owner calls vault.fundDripBudget once fees have accrued");
 
   console.log("");
   const referenceCurve = await probeReferenceCurve(factory, wallet, contracts.MaoTangSustenanceVault, positionManager);
@@ -314,11 +369,22 @@ async function main(): Promise<void> {
       verified: true,
     },
     referenceCurve,
+    governance: {
+      governor: contracts.MaoTangGovernor,
+      dripper: contracts.MaoTangSustenanceDripper,
+      telemetrySigner,
+      votingDelaySeconds: Number(GOVERNOR_VOTING_DELAY),
+      votingPeriodSeconds: Number(GOVERNOR_VOTING_PERIOD),
+      proposalThreshold: GOVERNOR_PROPOSAL_THRESHOLD.toString(),
+      quorumBps: Number(GOVERNOR_QUORUM_BPS),
+    },
     frontendEnv: {
       NEXT_PUBLIC_MAOTANG_RPC_URL: exportableRpcUrl(rpcUrl),
       NEXT_PUBLIC_MAOTANG_VAULT_ADDRESS: contracts.MaoTangSustenanceVault,
       NEXT_PUBLIC_MAOTANG_HUMAN_TOKEN_ADDRESS: contracts.HumanToken,
       NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS: referenceCurve?.curve ?? "",
+      NEXT_PUBLIC_MAOTANG_DRIPPER_ADDRESS: contracts.MaoTangSustenanceDripper,
+      NEXT_PUBLIC_MAOTANG_GOVERNOR_ADDRESS: contracts.MaoTangGovernor,
     },
   };
 

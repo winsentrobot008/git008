@@ -20,6 +20,9 @@ import {IERC20} from "./interfaces/IERC20.sol";
 ///   * Cross-chain yield from a registered spoke enters through {receiveBridgedYield} /
 ///     {receiveBridgedYieldToken}, which accept only an owner-trusted bridge adapter naming the
 ///     spoke registered for the origin chain. See {setRemoteSpoke} and {setTrustedBridgeAdapter}.
+///   * The owner may reserve part of the balance for a {dripper} ({fundDripBudget}), which pays
+///     claimants directly. Reserved fees are removed from the creditable balance, so one wei can
+///     never be promised to a principal and to a dripping claimant at the same time.
 ///
 /// Fee rates are mirrored from `sdk/src/curve-math.ts` (`TRADE_FEE_BPS = 50n`,
 /// `GRADUATION_FEE_BPS = 100n`). Changing either is a protocol-economic change and requires a
@@ -74,6 +77,22 @@ contract MaoTangSustenanceVault is AgentGated {
     /// rejected rather than stored, which keeps the mapping free of a meaningless entry.
     mapping(address adapter => bool trusted) public trustedBridgeAdapters;
 
+    /// @notice Dripper authorized to pay yield to claimants without per-claim owner adjudication.
+    /// @dev Set by {setDripper}; a zero address disables the drip path entirely.
+    address public dripper;
+
+    /// @notice Native budget the owner has released to the dripper.
+    uint256 public nativeDripBudget;
+
+    /// @notice Native budget the dripper has already paid out.
+    uint256 public nativeDripPaid;
+
+    /// @notice Token budget the owner has released to the dripper, per ERC-20 asset.
+    mapping(address asset => uint256 amount) public tokenDripBudget;
+
+    /// @notice Token budget the dripper has already paid out, per ERC-20 asset.
+    mapping(address asset => uint256 amount) public tokenDripPaid;
+
     /// @notice Emitted whenever a fee is paid into the vault.
     /// @param depositor Account that funded the vault, normally a bonding curve.
     /// @param source Which fee stream the deposit belongs to.
@@ -120,6 +139,27 @@ contract MaoTangSustenanceVault is AgentGated {
         address token
     );
 
+    /// @notice Emitted when the owner sets the authorized dripper.
+    /// @param dripper Newly authorized dripper.
+    event DripperSet(address indexed dripper);
+
+    /// @notice Emitted when the owner reserves part of the vault balance for the dripper.
+    /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
+    /// @param amount Newly reserved amount, which is still held by this contract.
+    event DripBudgetFunded(address indexed asset, uint256 amount);
+
+    /// @notice Emitted when the owner takes unspent dripper budget back.
+    /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
+    /// @param amount Released back to the creditable balance.
+    event DripBudgetReclaimed(address indexed asset, uint256 amount);
+
+    /// @notice Emitted when the dripper pays a claimant out of its budget.
+    /// @param dripper Authorized dripper that triggered the payout.
+    /// @param to Claimant that received the funds.
+    /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
+    /// @param amount Amount paid, in the asset smallest unit.
+    event DripAllowanceWithdrawn(address indexed dripper, address indexed to, address indexed asset, uint256 amount);
+
     error InvalidOwner();
     error NotOwner(address caller);
     error InvalidAgentRegistry();
@@ -134,10 +174,19 @@ contract MaoTangSustenanceVault is AgentGated {
     error InvalidBridgeAdapter(address adapter);
     error UntrustedBridgeAdapter(address adapter);
     error UnknownRemoteSpoke(uint256 chainId, address spoke);
+    error NotDripper(address caller);
+    error InvalidDripper(address dripper);
+    error DripBudgetExceeded(address asset, uint256 requested, uint256 unspent);
 
     /// @dev Reverts unless the caller is the protocol authority.
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner(msg.sender);
+        _;
+    }
+
+    /// @dev Reverts unless the caller is the authorized dripper.
+    modifier onlyDripper() {
+        if (msg.sender != dripper) revert NotDripper(msg.sender);
         _;
     }
 
@@ -258,14 +307,18 @@ contract MaoTangSustenanceVault is AgentGated {
         return (grossAmount * feeRateBps(source)) / BPS_DENOMINATOR;
     }
 
-    /// @notice Native fees received but not yet routed to a principal.
+    /// @notice Native fees received but neither routed to a principal nor already dripped out.
+    /// @dev {nativeDripPaid} is subtracted because those wei have left the vault through the dripper
+    /// path; without it a drip payout would stay visible here and could be credited to a principal a
+    /// second time.
     function availableNative() public view returns (uint256) {
-        return nativeFeesReceived - nativeSustenanceCredited;
+        return nativeFeesReceived - nativeSustenanceCredited - nativeDripPaid;
     }
 
-    /// @notice Fees received in `asset` but not yet routed to a principal.
+    /// @notice Fees received in `asset` but neither routed to a principal nor already dripped out.
+    /// @dev Mirrors {availableNative}: a token drip payout is subtracted because it has left the vault.
     function availableToken(address asset) public view returns (uint256) {
-        return tokenFeesReceived[asset] - tokenSustenanceCredited[asset];
+        return tokenFeesReceived[asset] - tokenSustenanceCredited[asset] - tokenDripPaid[asset];
     }
 
     /// @notice Accrued, unclaimed sustenance for `principal` in `asset`.
@@ -275,14 +328,15 @@ contract MaoTangSustenanceVault is AgentGated {
     }
 
     /// @notice Routes accrued native fees to a human principal.
-    /// @dev Bounded by {availableNative}: the owner can never credit more than was received.
+    /// @dev Bounded by {unreservedNative}: the owner can never credit more than was received, and
+    /// never any part of the balance already reserved for the dripper.
     /// @param principal Human wallet that becomes entitled to the funds.
     /// @param amount Amount to credit, in wei.
     function creditNativeSustenance(address principal, uint256 amount) external onlyOwner {
         if (principal == address(0)) revert InvalidPrincipal();
         if (amount == 0) revert ZeroAmount();
 
-        uint256 available = availableNative();
+        uint256 available = unreservedNative();
         if (amount > available) revert InsufficientVaultBalance(amount, available);
 
         nativeSustenanceCredited += amount;
@@ -291,7 +345,7 @@ contract MaoTangSustenanceVault is AgentGated {
     }
 
     /// @notice Routes accrued ERC-20 fees to a human principal.
-    /// @dev Bounded by {availableToken}, for the same reason as {creditNativeSustenance}.
+    /// @dev Bounded by {unreservedToken}, for the same reason as {creditNativeSustenance}.
     /// @param principal Human wallet that becomes entitled to the funds.
     /// @param asset ERC-20 being credited. Reverts for {NATIVE}.
     /// @param amount Amount to credit, in the token's smallest unit.
@@ -300,7 +354,7 @@ contract MaoTangSustenanceVault is AgentGated {
         if (asset == NATIVE) revert NativeAssetRequiresDepositFee();
         if (amount == 0) revert ZeroAmount();
 
-        uint256 available = availableToken(asset);
+        uint256 available = unreservedToken(asset);
         if (amount > available) revert InsufficientVaultBalance(amount, available);
 
         tokenSustenanceCredited[asset] += amount;
@@ -331,6 +385,127 @@ contract MaoTangSustenanceVault is AgentGated {
         } else {
             _safeTransfer(asset, principal, amount);
         }
+    }
+
+    /// @notice Sets the dripper authorized to pay yield directly to claimants.
+    /// @dev The dripper can never spend more than the budget the owner released through
+    /// {fundDripBudget} / {fundDripBudgetToken}, so a compromised dripper is bounded by that budget.
+    /// @param dripper_ Dripper contract. Must not be the zero address.
+    function setDripper(address dripper_) external onlyOwner {
+        if (dripper_ == address(0)) revert InvalidDripper(dripper_);
+        dripper = dripper_;
+        emit DripperSet(dripper_);
+    }
+
+    /// @notice Native budget released to the dripper and not yet paid out.
+    function unspentDripNative() public view returns (uint256) {
+        return nativeDripBudget - nativeDripPaid;
+    }
+
+    /// @notice Token budget released to the dripper and not yet paid out.
+    function unspentDripToken(address asset) public view returns (uint256) {
+        return tokenDripBudget[asset] - tokenDripPaid[asset];
+    }
+
+    /// @notice Native fees neither credited to a principal nor reserved for the dripper.
+    /// @dev This, and not {availableNative}, is what {creditNativeSustenance} may route: reserving a
+    /// dripper budget removes those fees from the creditable balance, so the same wei can never be
+    /// promised to a principal and to a dripping claimant at once. A payout already made is gone from
+    /// the vault and from {availableNative}, while the matching release of the reservation keeps this
+    /// value invariant across drips.
+    function unreservedNative() public view returns (uint256) {
+        return availableNative() - unspentDripNative();
+    }
+
+    /// @notice Token fees neither credited to a principal nor reserved for the dripper.
+    function unreservedToken(address asset) public view returns (uint256) {
+        return availableToken(asset) - unspentDripToken(asset);
+    }
+
+    /// @notice Reserves part of the already-received native fees for the dripper.
+    /// @dev Moves no value: the fees are already in this contract. Reserving only narrows what can be
+    /// credited to principals, which is what makes the two payout paths mutually exclusive.
+    /// @param amount Amount to reserve, in wei. Bounded by {unreservedNative}.
+    function fundDripBudget(uint256 amount) external onlyOwner {
+        if (amount == 0) revert ZeroAmount();
+        uint256 reservable = unreservedNative();
+        if (amount > reservable) revert InsufficientVaultBalance(amount, reservable);
+
+        nativeDripBudget += amount;
+        emit DripBudgetFunded(NATIVE, amount);
+    }
+
+    /// @notice Reserves part of the already-received ERC-20 fees for the dripper.
+    /// @param asset ERC-20 being reserved. Reverts for {NATIVE}; use {fundDripBudget}.
+    /// @param amount Amount to reserve, in the token smallest unit. Bounded by {unreservedToken}.
+    function fundDripBudgetToken(address asset, uint256 amount) external onlyOwner {
+        if (asset == NATIVE) revert NativeAssetRequiresDepositFee();
+        if (amount == 0) revert ZeroAmount();
+        uint256 reservable = unreservedToken(asset);
+        if (amount > reservable) revert InsufficientVaultBalance(amount, reservable);
+
+        tokenDripBudget[asset] += amount;
+        emit DripBudgetFunded(asset, amount);
+    }
+
+    /// @notice Takes unspent native budget back, making it creditable again.
+    /// @param amount Amount to release, bounded by {unspentDripNative}.
+    function reclaimDripBudget(uint256 amount) external onlyOwner {
+        uint256 unspent = unspentDripNative();
+        if (amount > unspent) revert DripBudgetExceeded(NATIVE, amount, unspent);
+
+        nativeDripBudget -= amount;
+        emit DripBudgetReclaimed(NATIVE, amount);
+    }
+
+    /// @notice Takes unspent token budget back, making it creditable again.
+    /// @param asset ERC-20 being released.
+    /// @param amount Amount to release, bounded by {unspentDripToken}.
+    function reclaimDripBudgetToken(address asset, uint256 amount) external onlyOwner {
+        uint256 unspent = unspentDripToken(asset);
+        if (amount > unspent) revert DripBudgetExceeded(asset, amount, unspent);
+
+        tokenDripBudget[asset] -= amount;
+        emit DripBudgetReclaimed(asset, amount);
+    }
+
+    /// @notice Pays `amount` of `asset` to a claimant out of the dripper budget.
+    /// @dev Callable only by {dripper}. The budget, not the caller intent, is the bound, so a
+    /// compromised dripper can drain the budget the owner released and nothing more.
+    /// @param to Claimant that receives the payout. Must not be the zero address.
+    /// @param amount Payout, in the asset smallest unit.
+    /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
+    /// @return paid Amount actually transferred.
+    function withdrawDripAllowance(address to, uint256 amount, address asset)
+        external
+        onlyDripper
+        returns (uint256 paid)
+    {
+        if (to == address(0)) revert InvalidPrincipal();
+        if (amount == 0) revert ZeroAmount();
+
+        if (asset == NATIVE) {
+            uint256 unspent = unspentDripNative();
+            if (amount > unspent) revert DripBudgetExceeded(NATIVE, amount, unspent);
+            nativeDripPaid += amount;
+
+            emit DripAllowanceWithdrawn(msg.sender, to, NATIVE, amount);
+            // The destination is the claimant the dripper priced, never a caller-supplied address
+            // from an untrusted source, and the budget caps what can leave, so the advisory is a
+            // false positive.
+            // forge-lint: disable-next-line(arbitrary-send-eth)
+            (bool ok,) = to.call{value: amount}("");
+            if (!ok) revert NativeTransferFailed(to, amount);
+        } else {
+            uint256 unspent = unspentDripToken(asset);
+            if (amount > unspent) revert DripBudgetExceeded(asset, amount, unspent);
+            tokenDripPaid[asset] += amount;
+
+            emit DripAllowanceWithdrawn(msg.sender, to, asset, amount);
+            _safeTransfer(asset, to, amount);
+        }
+
+        return amount;
     }
 
     function _recordNative(FeeSource source, address depositor) private {

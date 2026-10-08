@@ -486,3 +486,177 @@ tokens, and that bridged yield becomes routable to a principal under the existin
   and its transport adapter trusted.
 - Fee rates are mirrored from `sdk/src/curve-math.ts`. Changing either side is a protocol-economic
   change and requires a superseding entry in `memory/ARCHITECTURE_DECISIONS.md`.
+
+## 15. Yield drip and agent governance (Phase P4)
+
+Phase P3 made the vault solvency-safe: fees aggregate per chain, flush to the hub, and are routed to a
+principal only when the owner says so. Phase P4 answers the two questions that leaves open - how does a
+holder actually receive yield without the owner adjudicating every claim, and who decides what the
+protocol parameters are. Two contracts answer them:
+
+- `contracts/src/MaoTangSustenanceDripper.sol` pays a holder directly out of a budget the vault owner
+  released, against a signed hardware-telemetry attestation.
+- `contracts/src/MaoTangGovernor.sol` replaces unilateral parameter changes with a proposal / vote /
+  execute lifecycle weighted by `$mHUMAN`.
+
+```text
+   hardware telemetry (agent-client)             $mHUMAN holder
+           |                                          |
+           | sign(weight, window)                     | claimDripYield(weight, signature)
+           v                                          v
+   +------------------------------------------------------------------+
+   | MaoTangSustenanceDripper                                         |
+   |   telemetrySigner      claimCooldown      weightRate/balanceRate |
+   +--------------------------------+---------------------------------+
+                                    | withdrawDripAllowance(to, amount, asset)   [onlyDripper]
+                                    v
+   +------------------------------------------------------------------+
+   | MaoTangSustenanceVault                                           |
+   |   nativeDripBudget / nativeDripPaid    tokenDripBudget/Paid      |
+   |   unreservedNative() = availableNative() - unspentDripNative()   |
+   +------------------------------------------------------------------+
+```
+
+### 15.1 Dripper math
+
+```text
+   payout = min(telemetryWeight * weightRate + mHumanBalance * balanceRate, maxDripPerClaim)
+```
+
+Both legs are linear and the cap is absolute, so the price of a claim is auditable from three stored
+numbers and a holder can predict a payout before spending gas on it (`previewDrip` for native,
+`previewDripToken` per ERC-20). The shipped defaults are:
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `weightRate` | `1e9` wei | Paid per unit of attested telemetry weight. |
+| `balanceRate` | `1e3` wei | Paid per `$mHUMAN` micro-unit held. |
+| `maxDripPerClaim` | `0.01 ether` | Absolute ceiling on one native claim. |
+| `minHumanBalance` | `1_000_000` micro-units | Holder floor: one whole `$mHUMAN` (the token has 6 decimals). |
+| `minDripAmount` | `1e12` | Dust floor; a payout below it reverts rather than costing more gas than it pays. |
+| `claimCooldown` | `1 days` | Minimum gap between two claims by the same account, bounded to `[1 hours, 30 days]`. |
+
+A holder carrying one full personhood quota has a balance leg of `1e12 * 1e3 = 1e15` wei, so the
+balance term alone is 0.001 ETH and the weight term reaches the cap at `telemetryWeight = 9e6`. The
+floor exists because a payout that is cheaper than its own gas is a griefing surface rather than a
+subsidy, and every knob above is owner-tunable (`setDripRates`, `setTokenDripRates`,
+`setClaimGuardrails`, `setClaimCooldown`) within the documented bounds.
+
+Three independent bounds keep an autonomous payout from becoming an autonomous drain:
+
+1. **Cooldown.** One claim per account per `claimCooldown`, so a valid attestation cannot be replayed
+   into a stream. `canClaim(account)` exposes the window without spending gas.
+2. **Windowed signature.** The digest binds `block.timestamp / claimCooldown`, so an attestation
+   expires by itself when the window rolls over instead of relying on a nullifier table.
+3. **Vault budget.** The dripper can only ever move what the vault owner reserved through
+   `fundDripBudget` / `fundDripBudgetToken`, so a compromise of the telemetry signer is bounded by
+   that budget rather than by the vault balance.
+
+### 15.2 Signature wire format
+
+```text
+   digest = sha256(abi.encode(CLAIM_DOMAIN, chainid, address(this), account, telemetryWeight, window))
+   window = block.timestamp / claimCooldown
+   CLAIM_DOMAIN = keccak256("maotang.drip.claim.v1")
+```
+
+Verification is `ecrecover` over the SHA-256 digest directly, which is why the off-chain producer has to
+emit a flat signature: Node `crypto` does that with `dsaEncoding: "ieee-p1363"`, while the DER encoding
+it produces by default is not accepted. Two flat forms are supported:
+
+- **65 bytes**, `r || s || v`, with `v` accepted as 27/28 or normalised from 0/1.
+- **64 bytes**, `r || s` (IEEEP1363), which omits the recovery id. Both candidates recover a valid
+  address for a given `(r, s)`, so the attestation is accepted when either one is the configured signer.
+
+Signatures with `s` above half the secp256k1 group order are rejected as malleable, and any other
+length reverts `InvalidSignatureLength`. The digest binds chain id and contract address, so an
+attestation cannot be replayed against a different deployment or a forked chain. The signer is
+rotatable through `setTelemetrySigner`, and `verifyTelemetrySignature` is exposed so an orchestrator can
+validate a vector before spending gas on a transaction.
+
+### 15.3 Budget accounting
+
+`MaoTangSustenanceVault` grew a reservation layer for the dripper:
+
+| Member | Access | Purpose |
+| --- | --- | --- |
+| `setDripper(address)` | owner | Names the only contract allowed to draw the drip budget. Zero is rejected. |
+| `fundDripBudget(uint256)` / `fundDripBudgetToken(address, uint256)` | owner | Reserves part of the already-received fees; moves no value. |
+| `reclaimDripBudget(uint256)` / `reclaimDripBudgetToken(address, uint256)` | owner | Takes unspent budget back. |
+| `unspentDripNative()` / `unspentDripToken(address)` | anyone | Reserved minus already paid. |
+| `unreservedNative()` / `unreservedToken(address)` | anyone | What `creditNativeSustenance` / `creditTokenSustenance` may route. |
+| `withdrawDripAllowance(address to, uint256 amount, address asset)` | dripper | Pays a claimant, bounded by the unspent budget. |
+
+Events: `DripperSet`, `DripBudgetFunded`, `DripBudgetReclaimed` and `DripAllowanceWithdrawn(dripper, to,
+asset, amount)`. Errors: `NotDripper`, `InvalidDripper`, `DripBudgetExceeded(asset, requested, unspent)`.
+
+What the accounting guarantees:
+
+- **The same wei is never promised twice.** `availableNative()` is received minus credited minus already
+  dripped, and `unreservedNative()` is `availableNative() - unspentDripNative()`, so a reservation
+  removes those fees from the creditable balance. Without the `nativeDripPaid` term a payout would stay
+  visible as available and could be credited to a principal a second time.
+- **Principal credit and the drip budget are mutually exclusive.** Reserving the whole unreserved
+  balance makes `creditNativeSustenance` revert `InsufficientVaultBalance` for any amount.
+- **The reservation is released by spending, not by decree.** `unreservedNative()` is invariant across
+  drips: a payout lowers both `availableNative()` and `unspentDripNative()` by the same amount, so the
+  remainder stays exactly as creditable as it was before the claim.
+- **The budget, not the caller, is the bound.** A compromised dripper can drain the released budget and
+  nothing more, and `withdrawDripAllowance` refuses any amount above the unspent remainder.
+- **Checks-effects-interactions.** The dripper arms `lastClaimTimestamp` before calling the vault, so a
+  reentrant claim finds the cooldown already active.
+
+### 15.4 Governance lifecycle
+
+```text
+   propose  ->  Pending  ->  (votingDelay)  ->  Active  ->  (votingPeriod)  ->  Succeeded / Defeated
+                                                                                     |
+                                                                                 execute
+                                                                                     v
+                                                                                 Executed
+```
+
+`propose(targets, values, calldatas, description)` requires `proposalThreshold` voting power, and the
+proposal id is `keccak256(chainid, address(this), targets, values, calldatas, description)`, so identical
+contents can only ever exist once. `castVote(proposalId, support)` records a single receipt per voter
+(0 against, 1 for, 2 abstain - the ordering Compound uses, so `0` is a real vote rather than the
+uninitialised default). `execute(proposalId)` runs every call in order and reverts the whole proposal if
+any call fails, which makes execution all-or-nothing rather than partially applied. A proposal succeeds
+when it leads and the quorum of `quorumBps` of the `$mHUMAN` total supply has voted; abstentions count
+toward quorum and not toward either side.
+
+Voting weight is `mHuman.balanceOf(voter)` plus, when `nodePowerSource` is wired, whatever that contract
+reports through `INodePowerSource`. That is what lets a human who also runs infrastructure carry more
+weight than a single personhood quota.
+
+Every parameter - `votingDelay`, `votingPeriod`, `proposalThreshold`, `quorumBps` and the node power
+source itself - is changeable only through a passed proposal (`setVotingParams`, `setNodePowerSource`
+revert `NotSelfGoverned` for any other caller), so the deployer cannot tighten or loosen the rules after
+deployment. `votingDelay` is bounded to 30 days, `votingPeriod` to `[1 hours, 60 days]`, and `quorumBps`
+to `(0, 10000]`.
+
+**Known limitation.** Votes are read live at the moment of voting rather than from a snapshot, because
+`HumanToken` implements no checkpoints, so a snapshot block would have to be fabricated. `$mHUMAN` is
+transferable, so voting power can be acquired after a proposal opens. The follow-up is an ERC20Votes-style
+checkpoint plus a `votingPowerAt(account, blockNumber)` read, after which the governor can snapshot at
+`voteStart`; until then the mitigation is procedural - keep `votingDelay` long enough that a surprise
+transfer cannot decide a vote.
+
+### 15.5 Tests and open items
+
+- `contracts/test/SustenanceDripper.t.sol` covers the drip math and its cap, the cooldown and its bounds,
+  both signature encodings, wrong signer, mangled, high-s and truncated signatures, the claimant and
+  weight bindings, the window rollover, the holder floor, the dust floor, the pause switch, the vault
+  budget bound, the reserve-accounting invariant, the ERC-20 path, signer rotation and the owner-only
+  surface.
+- `contracts/test/MaoTangGovernor.t.sol` covers the full lifecycle, duplicate and empty proposals, the
+  proposal threshold, vote windows and support guards, double voting, the quorum branch, execution
+  rollback, both self-governance entry points, invalid self-governed parameters and the node power
+  source.
+- `contracts/scripts/deploy-testnet.ts` deploys both contracts and wires the vault to the dripper when
+  the deployer is the owner. The drip budget is deliberately left unfunded: reserving it is an owner
+  decision made once fees exist, not a deployment step.
+- Open: no telemetry signer service is deployed yet, so `MaoTangSustenanceDripper.telemetrySigner`
+  defaults to the owner as a stand-in until the orchestrator key exists.
+- Open: the governor is deployed but owns nothing yet. Transferring authority over the vault, factory or
+  verifier to it would be a separate, explicit ownership change.
