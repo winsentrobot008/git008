@@ -50,8 +50,41 @@ the upload so the Vercel project values win):
   Cloudflare-proxied, so Vercel cannot create the record itself. After the deployment is `READY`,
   add a DNS record in the zone that manages `008ai.online`:
   `CNAME maotang -> cname.vercel-dns.com` (proxied off), then wait for Vercel verification.
-- `rpc.008ai.online` is also currently unregistered; the deployed bundle inlines the configured
-  value regardless of whether that hostname resolves yet.
+- `rpc.008ai.online` is live: the `008-video` Cloudflare tunnel maps it to the local EVM node on
+  `http://127.0.0.1:8545`. The deployed bundle inlines the configured value, so the endpoint has to
+  be up for the dashboard to work — and it is public, so read "RPC exposure" below before relying on it.
+
+## RPC exposure (read before every production run)
+
+`https://rpc.008ai.online` is a **public, unauthenticated** endpoint: the tunnel forwards whatever
+sits behind it to anyone on the internet, and the Alpha chain behind it is an Anvil development node
+that exposes, by design:
+
+- ten unlocked accounts pre-funded with 10 000 ETH each (`eth_accounts`, `eth_sendTransaction`), so
+  any visitor can move that balance or deploy to the chain;
+- the `anvil_*` admin namespace (`anvil_setBalance`, `anvil_reset`, `anvil_impersonateAccount`, ...),
+  which can rewrite chain state outright;
+- no caller identity at all, because ingress maps hostname to origin 1:1.
+
+Requirements for operators:
+
+- **Never point this tunnel at a chain holding value or real keys.** Anvil is a throwaway chain;
+  every address it issues is disposable, and its state dies with the process.
+- **Restrict the hostname before exposing anything real.** Choose one: (1) put **Cloudflare Access**
+  in front of `rpc.008ai.online` in the `008ai.online` zone - a service-token or identity policy -
+  and have the dashboard send `CF-Access-Client-Id` / `CF-Access-Client-Secret`; (2) add a **WAF /
+  IP rule** that allows only the origin IPs that legitimately call the RPC (dashboard egress, CI) and
+  blocks the rest; or (3) terminate the RPC behind an authenticating reverse proxy and aim the tunnel
+  at that proxy rather than at the node.
+- **Keep the ingress minimal.** `~/.cloudflared/config.yml` for tunnel `008-video` maps exactly
+  `rpc.008ai.online` and rejects everything else with `http_status:404`. Keep it that way instead of
+  adding a catch-all origin.
+- **Check the guard, do not assume it.** While unprotected, this returns the dev accounts:
+  `curl.exe -sS https://rpc.008ai.online -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"eth_accounts","params":[]}'`.
+  A hardened endpoint must not answer that anonymously.
+- **Watch the tunnel.** `cloudflared` logs to stderr at
+  `runtime_data/logs/cloudflared-008-video.err.log`; unexpected connection registrations or origin
+  errors are an alert, not noise.
 
 ## Verification
 
