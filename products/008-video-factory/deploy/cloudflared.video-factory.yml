@@ -1,0 +1,26 @@
+# 008 Video Factory Studio - Cloudflare Tunnel ingress
+#
+# 前置：
+#   cloudflared tunnel login
+#   cloudflared tunnel create 008-video-factory
+#
+# 启动：
+#   cloudflared tunnel --config deploy/cloudflared.video-factory.yml run
+#
+# 本机服务需先起：python scripts/serve_web.py   （默认 127.0.0.1:8787）
+
+tunnel: 008-video
+credentials-file: C:\Users\<you>\.cloudflared\<tunnel-id>.json
+
+ingress:
+  # 方案 A（推荐）：独立子域，零 CORS 摩擦
+  - hostname: video.008ai.online
+    service: http://127.0.0.1:8787
+
+  # 方案 B：挂主域子路径（需同时用 VF_BASE_PATH=/video-factory 启动本机服务，
+  # 并把 008ai.online 的 DNS 从 Vercel 切到本 tunnel）
+  # - hostname: 008ai.online
+  #   path: ^/video-factory(/.*)?$
+  #   service: http://127.0.0.1:8787
+
+  - service: http_status:404

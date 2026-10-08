@@ -5,15 +5,17 @@
 
 - 视频素材：9:16 中心裁切（经 src/core/ffmpeg.py 探测）后缩放目标画幅；
 - 图片素材：Ken Burns 平移缩放（zoompan）；
-- 无素材：lavfi 品牌渐变背景；
+- 无素材：ComfyUI 文生图补帧（staging 阶段）→ lavfi 品牌渐变背景兜底；
 - 文字卡：drawtext 大标题 / 副标题；
 - overlay：营养卡（Instant Macros + P/F/C 行）、App Store 徽章。
 """
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -23,11 +25,34 @@ from src.core.paths import OUTPUT_DIR, WORK_DIR
 
 from . import media, storyboard
 
+logger = logging.getLogger(__name__)
+
 _FONT_BOLD = "font_bold.ttf"
 _FONT_REGULAR = "font_regular.ttf"
+# drawtext 不会自动做 CJK 字形回退：字体一旦没有汉字，就渲染成 tofu 方框（□□□□）。
+# 因此这里按「中文 → 拉丁」顺序探测候选字体，命中者被复制进工作目录，
+# drawtext 用相对文件名引用（规避盘符冒号在 filter 语法里的歧义，见 _stage_fonts）。
 _FONT_SOURCES = {
-    _FONT_BOLD: ["C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/segoeuib.ttf"],
-    _FONT_REGULAR: ["C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf"],
+    _FONT_BOLD: [
+        "C:/Windows/Fonts/msyhbd.ttc",   # 微软雅黑 Bold
+        "C:/Windows/Fonts/msyh.ttc",     # 微软雅黑
+        "C:/Windows/Fonts/simhei.ttf",   # 黑体
+        "C:/Windows/Fonts/simsun.ttc",   # 宋体
+        "C:/Windows/Fonts/arialbd.ttf",  # 纯拉丁：最后兜底（无 CJK）
+        "C:/Windows/Fonts/segoeuib.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+    ],
+    _FONT_REGULAR: [
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/simsun.ttc",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeui.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ],
 }
 _TITLE_SCALE = 110.0   # 1080x1920 基准字号
 _SUBTITLE_SCALE = 54.0
@@ -52,27 +77,89 @@ def _filter_text(value: str) -> str:
     return str(value).replace("\\", "\\\\").replace(":", "\\:").replace("%", "%%")
 
 
+def _is_wide_char(ch: str) -> bool:
+    """全角字符（CJK / 假名 / 全角标点）判定：drawtext 下约占 1 em 宽。"""
+    return unicodedata.east_asian_width(ch) in ("W", "F")
+
+
+def _glyph_width(ch: str, fontsize: float) -> float:
+    """单字符宽度估算：全角 ≈ 1.0 em，拉丁等窄字符 ≈ 0.62 em，空格更窄。"""
+    if ch.isspace():
+        return fontsize * 0.35
+    return fontsize if _is_wide_char(ch) else fontsize * 0.62
+
+
+def _wrap_units(raw: str) -> list[tuple[str, bool]]:
+    """切成断行单元 (unit, is_word)：含全角的串逐字可断，拉丁词保持整体。"""
+    units: list[tuple[str, bool]] = []
+    for chunk in re.findall(r"\s+|\S+", raw):
+        if chunk.isspace():
+            continue
+        if any(_is_wide_char(ch) for ch in chunk):
+            units.extend((ch, False) for ch in chunk)
+        else:
+            units.append((chunk, True))
+    return units
+
+
+def _break_word(word: str, *, fontsize: float, max_width: float) -> list[str]:
+    """把放不下的长词按字硬切成多段，保证每段都不超宽。"""
+    pieces: list[str] = []
+    current = ""
+    current_w = 0.0
+    for ch in word:
+        width = _glyph_width(ch, fontsize)
+        if current and current_w + width > max_width:
+            pieces.append(current)
+            current, current_w = "", 0.0
+        current += ch
+        current_w += width
+    if current:
+        pieces.append(current)
+    return pieces
+
+
+def _wrap_line(raw: str, *, fontsize: float, max_width: float) -> list[str]:
+    """贪心折行：优先在可断点换行，仅当单个词自身超宽时才硬切。"""
+    lines: list[str] = []
+    current = ""
+    current_w = 0.0
+    for unit, is_word in _wrap_units(raw):
+        prefix = " " if (is_word and current) else ""
+        prefix_w = _glyph_width(" ", fontsize) if prefix else 0.0
+        unit_w = sum(_glyph_width(ch, fontsize) for ch in unit)
+        if current and current_w + prefix_w + unit_w > max_width:
+            lines.append(current)
+            current, current_w, prefix, prefix_w = "", 0.0, "", 0.0
+        if prefix_w + unit_w > max_width and len(unit) > 1:
+            pieces = _break_word(unit, fontsize=fontsize, max_width=max_width)
+            lines.extend(pieces[:-1])
+            current = pieces[-1]
+            current_w = sum(_glyph_width(ch, fontsize) for ch in current)
+            continue
+        current += prefix + unit
+        current_w += prefix_w + unit_w
+    if current:
+        lines.append(current)
+    return lines
+
+
 def _wrap_text(value: str, *, fontsize: int, max_width: int) -> str:
-    """按估算宽度把长英文句子折成多行（drawtext 无内置换行）。"""
+    """按估算宽度折行（drawtext 无内置换行）。
+
+    拉丁文本按词断行；中文没有空格，整句会被当成单个 token 而永不换行，
+    因此含全角字符时按字断行，确保长标题不会横向溢出画面。
+    """
     text = str(value)
     if not text or max_width <= 0:
         return text
-    # 保守估算：等宽系数 0.62 × 字号 ≈ 平均字符宽度
-    char_w = max(6.0, fontsize * 0.62)
-    max_chars = max(8, int(max_width / char_w))
-    lines: list[str] = []
+    wrapped: list[str] = []
     for raw in text.splitlines() or [text]:
-        words = raw.split()
-        current = ""
-        for word in words:
-            candidate = f"{current} {word}".strip()
-            if len(candidate) <= max_chars or not current:
-                current = candidate
-            else:
-                lines.append(current)
-                current = word
-        lines.append(current)
-    return "\n".join(lines)
+        if not raw.strip():
+            wrapped.append("")
+            continue
+        wrapped.extend(_wrap_line(raw, fontsize=fontsize, max_width=max_width))
+    return "\n".join(wrapped)
 
 
 def _stage_fonts(workdir: Path) -> None:
@@ -125,7 +212,15 @@ def _write_text(workdir: Path, name: str, lines: list[str]) -> str:
 
 
 def _crop_filter(src_w: int, src_h: int, width: int, height: int) -> str:
-    """9:16 中心裁切（与 src/core/ffmpeg.py compose_vertical 同策略）。"""
+    """按目标画幅中心裁切后缩放（与 src/core/ffmpeg.py compose_vertical 同策略）。
+
+    1:1 目标改用 ffmpeg 表达式 min(iw,ih)：无论输入是 16:9 还是 9:16，都取短边
+    居中裁成正方形（crop 默认居中），因此不会拉伸变形；随后的 scale 把边长
+    归一到目标分辨率。
+    """
+    if width == height:
+        side = "min(iw,ih)"
+        return f"crop='{side}':'{side}',scale={width}:{height},setsar=1"
     target_ratio = width / height
     src_ratio = src_w / src_h
     if target_ratio > src_ratio:
@@ -379,14 +474,22 @@ def _scene_segment(
     colors = [str(c).lstrip("#") for c in bg[:3]]
     while len(colors) < 3:
         colors.append(defaults[len(colors)])
+    # Rotate palette + gradient axis per shot index: identical gradient cards are
+    # indistinguishable in a multi-shot cut and read as "the same image again".
+    shift = index % 3
+    colors = colors[shift:] + colors[:shift]
     c0, c1, c2 = colors
+    if index % 2:
+        gx0, gy0, gx1, gy1 = width, 0, 0, height
+    else:
+        gx0, gy0, gx1, gy1 = 0, 0, width, height
     vf = vf_extra or "null"
     ffmpeg.run(
         "ffmpeg",
         [
             "-y",
             "-f", "lavfi",
-            "-i", f"gradients=s={width}x{height}:d={duration:.3f}:c0=0x{c0}:c1=0x{c1}:c2=0x{c2}:x0=0:y0=0:x1={width}:y1={height}",
+            "-i", f"gradients=s={width}x{height}:d={duration:.3f}:c0=0x{c0}:c1=0x{c1}:c2=0x{c2}:x0={gx0}:y0={gy0}:x1={gx1}:y1={gy1}",
             "-t", f"{duration:.3f}",
             "-vf", vf,
             "-r", str(fps),
@@ -401,6 +504,56 @@ def _scene_segment(
     return out
 
 
+
+
+def _mux_narration(video: Path, audio: Path, out: Path) -> None:
+    """把 Edge-TTS 旁白音轨混入无声预览（视频流直拷，只转音频）。
+
+    对齐策略：`-af apad` 把音轨无限补齐，再由 `-shortest` 以**视频**长度收尾，
+    这样旁白比画面短时不会把成片截短。同时固定 `-nostdin`，避免 FFmpeg 在服务
+    进程里等待标准输入而卡住。
+    """
+    before = ffmpeg.probe_duration(video)
+    ffmpeg.run(
+        "ffmpeg",
+        [
+            "-y",
+            "-nostdin",
+            "-i", str(video),
+            "-i", str(audio),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "copy",
+            "-af", "apad",
+            "-c:a", "aac", "-b:a", "128k",
+            "-shortest",
+            "-movflags", "+faststart",
+            str(out),
+        ],
+        timeout=300,
+    )
+    after = ffmpeg.probe_duration(out)
+    if abs(after - before) > 0.5:
+        logger.warning(
+            "[mux] 混轨后时长偏离画面：%.3fs -> %.3fs（旁白 %s）",
+            before,
+            after,
+            audio.name,
+        )
+
+
+def _resolve_narration(sb: dict, narration_path: Optional[Path]) -> Optional[Path]:
+    """显式参数优先；否则取 audio.narration[0].src（存在且非空才启用）。"""
+    candidate: Optional[Path] = Path(narration_path) if narration_path else None
+    if candidate is None:
+        for raw in (sb.get("audio") or {}).get("narration") or []:
+            if isinstance(raw, dict) and raw.get("src"):
+                candidate = Path(str(raw["src"]))
+                break
+    if candidate and candidate.exists() and candidate.stat().st_size > 0:
+        return candidate
+    return None
+
 def render_preview(
     storyboard_data: dict,
     *,
@@ -411,6 +564,7 @@ def render_preview(
     cache_dir: Optional[Path] = None,
     use_network: bool = True,
     inspect: bool = True,
+    narration_path: Optional[Path] = None,
 ) -> dict:
     """分镜 → 低清预览 MP4（纯 FFmpeg，网络媒体可用时先抓取）。"""
     sb = storyboard.resolve_media_for_storyboard(
@@ -419,17 +573,32 @@ def render_preview(
         use_network=use_network,
     )
     theme = sb.get("theme") or {}
+    narration = _resolve_narration(sb, narration_path)
     slug = storyboard.slugify(sb.get("title") or "storyboard")
     workdir = WORK_DIR / "preview" / slug
     workdir.mkdir(parents=True, exist_ok=True)
     _stage_fonts(workdir)
 
     segments: list[Path] = []
+    render_diagnostics: list[dict] = []
     for i, scene in enumerate(sb["scenes"]):
-        if scene.get("_media_via"):
+        if scene.get("source"):
             print(
-                f"[media] scene {i + 1} <- {scene['_media_via']} "
+                f"[media] scene {i + 1} <- {scene.get('_media_via') or 'preset'} "
                 f"({scene.get('_media_kind')}): {Path(scene['source']).name}"
+            )
+        else:
+            detail = scene.get("_media_diagnostics")
+            reason = str(scene.get("_media_reason") or "no_stock_match")
+            # 无素材兜底分支：把「为什么没用上真实素材」写清楚，避免只看到一片纯渐变。
+            logger.warning(
+                "[media] scene %d 回退品牌渐变背景：reason=%s queries=%s",
+                i + 1,
+                reason,
+                detail.get("queries") if isinstance(detail, dict) else None,
+            )
+            render_diagnostics.append(
+                {"index": i, "reason": reason, "diagnostics": detail}
             )
         seg = _scene_segment(
             scene,
@@ -444,6 +613,7 @@ def render_preview(
 
     staged = Path(output_path or WORK_DIR / "preview" / slug / f"{slug}_{width}x{height}_preview.mp4")
     staged.parent.mkdir(parents=True, exist_ok=True)
+    concat_out = workdir / f"{slug}_concat.mp4" if narration else staged
     concat_file = workdir / "concat.txt"
     concat_file.write_text(
         "".join(f"file '{p.name}'\n" for p in segments),
@@ -458,22 +628,31 @@ def render_preview(
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-pix_fmt", "yuv420p", "-r", str(fps),
             "-movflags", "+faststart",
-            str(staged),
+            str(concat_out),
         ],
         timeout=900,
         cwd=str(workdir),
     )
+    if narration:
+        _mux_narration(concat_out, narration, staged)
     duration = ffmpeg.probe_duration(staged)
     codec = ffmpeg.probe_codec(staged)
     size_mb = round(staged.stat().st_size / 1024 / 1024, 2)
 
     inspection = None
     if inspect:
+        qc_kwargs: dict = {"require_audio": False}  # 默认无声合成，仅断言画面质量
+        if narration:
+            # 带旁白的草稿：断言音轨存在与音画同步；静音断层门禁留给高清成片复核
+            qc_kwargs = {
+                "require_audio": True,
+                "check_silence": max(width, height) >= 1080,
+            }
         inspection = inspect_video(
             staged,
             expected={"width": width, "height": height, "fps": fps},
-            require_audio=False,  # 分镜预览为无声合成，仅断言画面质量
             quarantine=False,
+            **qc_kwargs,
         )
         if not inspection["ok"]:
             raise RuntimeError(
@@ -481,7 +660,8 @@ def render_preview(
             )
         out = Path(output_path or OUTPUT_DIR / f"{slug}_{width}x{height}_preview.mp4")
         out.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(staged, out)
+        if out.resolve() != staged.resolve():
+            shutil.copy2(staged, out)  # output_path 已指向成片时无需自拷
     else:
         out = staged
 
@@ -495,6 +675,8 @@ def render_preview(
         "fps": fps,
         "size_mb": size_mb,
         "scenes": len(segments),
+        "narration_track": str(narration) if narration else None,
+        "render_diagnostics": render_diagnostics,
         "inspector": inspection,
     }
 
@@ -514,6 +696,7 @@ def render_cover(
     ffmpeg.run(
         "ffmpeg",
         [
+            "-y",
             "-ss", f"{max(0.0, float(offset_s)):.3f}",
             "-i", str(video_path),
             "-frames:v", "1",

@@ -533,18 +533,26 @@ def resolve_media_for_storyboard(
     from . import media
 
     normalized = validate_storyboard(storyboard_data)
+    used: set = set()
     for scene in normalized["scenes"]:
         if scene.get("source"):
+            used.add(str(scene["source"]))
             continue
-        hit = media.resolve_scene_media(
+        outcome = media.resolve_scene_media_ex(
             scene,
             cache_dir=cache_dir,
             use_network=use_network,
+            allow_cache_reuse=False,
+            exclude=used,
         )
+        scene["_media_reason"] = outcome.get("reason")
+        scene["_media_diagnostics"] = outcome.get("diagnostics")
+        hit = outcome.get("hit")
         if hit:
             scene["source"] = hit["source"]
             scene["_media_kind"] = hit["kind"]
             scene["_media_via"] = hit["via"]
+            used.add(str(hit["source"]))
     return normalized
 
 

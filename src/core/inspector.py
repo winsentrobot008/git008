@@ -22,15 +22,21 @@ import re
 import shutil
 import subprocess
 import sys
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-RUNTIME_DATA = REPO_ROOT / "runtime_data"
-LOG_DIR = RUNTIME_DATA / "logs"
-QUARANTINE_DIR = RUNTIME_DATA / "quarantine"
-INSPECTOR_LOG = LOG_DIR / "inspector.log"
+# Allow direct script execution while resolving shared paths and binaries centrally.
+_BOOTSTRAP_ROOT = Path(__file__).resolve().parents[2]
+if str(_BOOTSTRAP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOOTSTRAP_ROOT))
+
+from src.core import ffmpeg
+from src.core.paths import LOGS_DIR, QUARANTINE_DIR, configured_path
+
+LOG_DIR = LOGS_DIR
+INSPECTOR_LOG = configured_path("GIT008_INSPECTOR_LOG", LOG_DIR / "inspector.log")
 
 # 默认断言阈值
 DURATION_DEVIATION_MAX_S = 0.2
@@ -54,14 +60,14 @@ def _run(cmd: list[str], *, timeout: int = 180) -> subprocess.CompletedProcess:
 
 
 def _ffprobe_bin() -> str:
-    exe = os.environ.get("FFPROBE_BIN") or shutil.which("ffprobe")
+    exe = ffmpeg.ffprobe_bin()
     if not exe:
         raise RuntimeError("ffprobe 未安装或不在 PATH（设置 FFPROBE_BIN 可显式指定）")
     return exe
 
 
 def _ffmpeg_bin() -> str:
-    exe = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg")
+    exe = ffmpeg.ffmpeg_bin()
     if not exe:
         raise RuntimeError("ffmpeg 未安装或不在 PATH（设置 FFMPEG_BIN 可显式指定）")
     return exe
@@ -210,6 +216,7 @@ def inspect_video(
     duration_deviation_max_s: float = DURATION_DEVIATION_MAX_S,
     black_min_s: float = BLACK_MIN_S,
     silence_min_s: float = SILENCE_MIN_S,
+    check_silence: bool = True,
     quarantine: bool = True,
 ) -> dict:
     """完整质检：通过返回 ok=True；失败记录日志并（可选）隔离坏片。"""
@@ -278,8 +285,10 @@ def inspect_video(
         else:
             add_check("black_screen", True, f"无 >={black_min_s}s 黑屏")
 
-        # 5) 静音断层
-        if astream:
+        # 5) 静音断层（草稿预览可关闭：带 TTS 人声的粗剪天然有句间停顿）
+        if not check_silence:
+            add_check("silence_gap", True, "跳过（草稿预览：人声句间停顿不计缺陷）")
+        elif astream:
             silence = detect_silence_segments(video, min_s=silence_min_s)
             long_silence = [s for s in silence if s.get("duration_s") is not None and s["duration_s"] >= silence_min_s]
             if long_silence:
@@ -357,8 +366,15 @@ def main(argv: Optional[list[str]] = None) -> int:
             quarantine=not args.no_quarantine,
         )
     except RuntimeError as exc:
-        _write_log({"event": "ERROR", "file": args.video, "error": str(exc)})
-        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+        failure = {
+            "event": "ERROR",
+            "file": args.video,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "traceback": traceback.format_exc(),
+        }
+        _write_log(failure)
+        print(json.dumps({"ok": False, **failure}, ensure_ascii=True))
         return 2
 
     print(json.dumps(report, ensure_ascii=False, indent=2))

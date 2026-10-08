@@ -37,6 +37,7 @@ htmlcov/
 node_modules/
 npm-debug.log
 yarn-error.log
+*.tsbuildinfo
 
 # --- Cline/治理系统缓存 ---
 .aider.tags.cache.v4
@@ -68,13 +69,15 @@ runtime_data/logs/*
 !runtime_data/logs/.gitkeep
 __pycache__/
 *.bak_*
-$null
 
 # --- env 凭证隔离（安全审计：禁止提交任何真实密钥）---
 .env
 .env.local
 .env.*
 !.env.example
+# Production frontend config is public by construction: every key in it is NEXT_PUBLIC_* and is
+# inlined into the client bundle, so it holds no secret and is safe to track.
+!.env.production
 !*.env.template
 !*.env.sample
 
@@ -86,4 +89,22 @@ runtime_data/logs/*
 !runtime_data/logs/.gitkeep
 __pycache__/
 *.bak_*
-$null
+
+# --- 大型运行时 / 归档产物（体积过大，不入库；可本地重建）---
+runtime_data/
+archive/
+products/008ai-landing/qa-logs/
+
+# --- MAOTANG protocol artifacts (root contracts/ + frontend/) ---
+/contracts/out/
+/contracts/cache/
+/contracts/broadcast/
+/.next/
+next-env.d.ts
+/frontend/.next/
+
+# --- MAOTANG agent-manager (local SLM weights and build output) ---
+/agent-manager/models/
+/agent-manager/dist/
+# --- MAOTANG node identity keystore (never commit keys) ---
+/agent-manager/.node/

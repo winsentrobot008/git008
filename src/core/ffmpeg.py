@@ -15,40 +15,94 @@ from __future__ import annotations
 
 import os
 import math
+import logging
+import json
 import re
 import shutil
+import signal
 import subprocess
+import traceback
+import urllib.parse
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Union
 
+from src.core.paths import REPO_ROOT, RUNTIME_DIR
+
 PathLike = Union[str, os.PathLike]
+logger = logging.getLogger("git008.ffmpeg")
+
+
+def _safe_diagnostic(value: str) -> str:
+    value = re.sub(
+        r"(?i)\b((?:proxy-)?authorization\s*[:=]\s*)(?:bearer|basic)\s+[^\s,;]+",
+        r"\1[REDACTED]",
+        value,
+    )
+    value = re.sub(
+        r"(?i)([?&][^=&#]*(?:key|token|secret|password|auth|sig|signature|jwt|credential|x-amz-[^=&#]*)[^=&#]*=)[^&#\s]+",
+        r"\1[REDACTED]",
+        value,
+    )
+    value = re.sub(r"\b(?:sk|AIza|gsk)-[A-Za-z0-9_-]{12,}\b", "[REDACTED]", value)
+
+    def safe_origin(match: re.Match[str]) -> str:
+        try:
+            parsed = urllib.parse.urlsplit(match.group(0))
+            hostname = parsed.hostname or ""
+            if parsed.port:
+                hostname = f"{hostname}:{parsed.port}"
+            return urllib.parse.urlunsplit((parsed.scheme, hostname, "", "", ""))
+        except ValueError:
+            return "<redacted-url>"
+
+    return re.sub(r"https?://[^\s\"'<>]+", safe_origin, value)
+
+
+def _log_fallback(event: str, exc: Exception, **context: object) -> None:
+    logger.warning(
+        json.dumps(
+            {
+                "event": event,
+                "component": "src.core.ffmpeg",
+                "exception_type": type(exc).__name__,
+                "error": _safe_diagnostic(str(exc)),
+                "traceback": _safe_diagnostic("".join(traceback.format_exception(exc))),
+                **context,
+            },
+            ensure_ascii=True,
+            default=str,
+        )
+    )
 
 
 def ffmpeg_bin() -> Optional[str]:
-    """返回 ffmpeg 可执行路径（FFMPEG_PATH → C:\ffmpeg\bin → PATH）。"""
-    return _resolve_binary("FFMPEG_PATH", "FFMPEG_BIN", name="ffmpeg")
+    """Resolve FFmpeg from explicit configuration, bundled runtime, then PATH."""
+    return _resolve_binary("FFMPEG_PATH", "FFMPEG_BIN", "FFMPEG_ROOT", name="ffmpeg")
 
 
 def ffprobe_bin() -> Optional[str]:
-    """返回 ffprobe 可执行路径（FFPROBE_PATH → C:\ffmpeg\bin → PATH）。"""
-    return _resolve_binary("FFPROBE_PATH", "FFPROBE_BIN", name="ffprobe")
+    """Resolve ffprobe from explicit configuration, bundled runtime, then PATH."""
+    return _resolve_binary("FFPROBE_PATH", "FFPROBE_BIN", "FFMPEG_ROOT", name="ffprobe")
 
 
 def _resolve_binary(*env_keys: str, name: str) -> Optional[str]:
-    """按 环境变量 → C:\ffmpeg\bin → PATH 的顺序解析可执行文件。"""
+    """Resolve environment overrides, a repository runtime bundle, and PATH."""
     suffix = ".exe" if os.name == "nt" else ""
     for key in env_keys:
         candidate = os.environ.get(key)
         if not candidate:
             continue
         path = Path(candidate)
+        if not path.is_absolute():
+            path = REPO_ROOT / path
         if path.is_dir():
-            path = path / f"{name}{suffix}"
+            direct = path / f"{name}{suffix}"
+            path = direct if direct.is_file() else path / "bin" / f"{name}{suffix}"
         if path.is_file():
             return str(path)
-    canonical = Path(r"C:\ffmpeg\bin") / f"{name}{suffix}"
-    if canonical.is_file():
-        return str(canonical)
+    bundled = RUNTIME_DIR / "video-runtime" / "ffmpeg" / "bin" / f"{name}{suffix}"
+    if bundled.is_file():
+        return str(bundled)
     return shutil.which(f"{name}{suffix}") or shutil.which(name)
 
 
@@ -59,6 +113,30 @@ def ensure_binaries() -> None:
         raise RuntimeError("ffprobe 未安装或不在 PATH（设置 FFPROBE_PATH 可显式指定）")
 
 
+def _kill_tree(proc: "subprocess.Popen") -> None:
+    """杀掉进程及其后代：孙子进程占住管道会让 timeout 形同虚设。"""
+    if proc.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+                check=False,
+            )
+        else:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:  # noqa: BLE001 - 平台差异/权限问题一律走保底 kill
+        pass
+    try:
+        proc.kill()
+    except Exception:  # noqa: BLE001 - 进程已退出
+        pass
+
+
 def run(
     cmd: str,
     args: Sequence[str],
@@ -67,23 +145,36 @@ def run(
     check: bool = True,
     cwd: Optional[Union[str, os.PathLike]] = None,
 ) -> subprocess.CompletedProcess:
-    """执行外部命令，捕获输出；check=True 时非零退出抛 RuntimeError。"""
+    """执行外部命令，捕获输出；check=True 时非零退出抛 RuntimeError。
+
+    两个防「渲染卡死」的关键点：
+    - stdin 固定接 DEVNULL：FFmpeg 等继承到不可读的 stdin 会一直等输入，在服务/
+      后台进程里表现为「渲染永远跑不完」；
+    - 超时后连同整棵进程树一起杀，再限时回收管道，保证调用方等待时间有上界
+      （只 kill 直接子进程时，孙子进程仍占着管道会让 communicate 无限阻塞）。
+    """
+    proc = subprocess.Popen(
+        [cmd, *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+    )
     try:
-        proc = subprocess.run(
-            [cmd, *args],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-            cwd=cwd,
-        )
+        stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
-        tail = (exc.stderr or "")[-1500:] if isinstance(exc.stderr, str) else ""
+        _kill_tree(proc)
+        try:
+            stdout, stderr = proc.communicate(timeout=10)
+        except Exception:  # noqa: BLE001 - 管道回收不了也不能继续阻塞调用方
+            stdout, stderr = "", ""
+        tail = (stderr or "")[-1500:]
         raise RuntimeError(f"{cmd} 超时（>{timeout}s）：{tail}") from exc
     if check and proc.returncode != 0:
-        tail = (proc.stderr or proc.stdout or "")[-2000:]
+        tail = (stderr or stdout or "")[-2000:]
         raise RuntimeError(f"{cmd} 退出码 {proc.returncode}: {tail}")
-    return proc
+    return subprocess.CompletedProcess(proc.args, proc.returncode, stdout, stderr)
 
 
 _NVENC_CACHE: Optional[bool] = None
@@ -114,7 +205,10 @@ def nvenc_enabled(refresh: bool = False) -> bool:
             try:
                 proc = run(binary, ["-hide_banner", "-encoders"])
                 _NVENC_CACHE = "h264_nvenc" in (proc.stdout or "")
-            except Exception:
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                _log_fallback(
+                    "ffmpeg.nvenc_probe_fallback", exc, fallback="software_encoder"
+                )
                 _NVENC_CACHE = False
     return _NVENC_CACHE
 
@@ -165,6 +259,9 @@ def run_encode(
             last_error = exc
             if index == len(attempts) - 1:
                 raise
+            _log_fallback(
+                "ffmpeg.encode_fallback", exc, fallback="libx264", output=str(out)
+            )
             continue
         if out.exists():
             return proc
@@ -172,6 +269,52 @@ def run_encode(
     if last_error is not None:
         raise last_error
     raise RuntimeError("run_encode: 编码失败")
+
+
+def run_ffmpeg(args: Sequence[str], *, timeout: int = 600, check: bool = True) -> subprocess.CompletedProcess:
+    """Run an FFmpeg argument vector through the shared binary/NVENC policy.
+
+    When a command explicitly requests libx264, try the equivalent NVENC encoder
+    first, then retry the original software command if hardware encoding fails.
+    Other codecs and commands are preserved while still using the shared binary
+    resolver and timeout/error handling.
+    """
+    binary = ffmpeg_bin()
+    if binary is None:
+        raise RuntimeError("ffmpeg 未安装或不在 PATH（设置 FFMPEG_PATH 可显式指定）")
+    original = list(args)
+    codec_index = next((i for i in range(len(original) - 1)
+                        if original[i] in {"-c:v", "-vcodec"} and original[i + 1] == "libx264"), None)
+    if codec_index is None or not nvenc_enabled():
+        logger.info("FFmpeg execution uses configured encoder policy (software or explicit codec)")
+        return run(binary, original, timeout=timeout, check=check)
+
+    preset = next((original[i + 1] for i in range(len(original) - 1)
+                   if original[i] == "-preset" and original[i + 1] in _X264_PRESETS), "fast")
+    crf = next((original[i + 1] for i in range(len(original) - 1)
+                if original[i] == "-crf" and original[i + 1].isdigit()), "23")
+    hardware: list[str] = []
+    i = 0
+    while i < len(original):
+        token = original[i]
+        if token in {"-preset", "-crf"} and i + 1 < len(original):
+            i += 2
+            continue
+        if token in {"-c:v", "-vcodec"} and i + 1 < len(original) and original[i + 1] == "libx264":
+            hardware += [token, "h264_nvenc", "-preset", _NVENC_PRESETS.get(preset, "p4"),
+                         "-rc", "vbr", "-cq", str(crf), "-b:v", "0"]
+            i += 2
+            continue
+        hardware.append(token)
+        i += 1
+    try:
+        logger.info("FFmpeg encoding attempt: h264_nvenc")
+        return run(binary, hardware, timeout=timeout, check=True)
+    except RuntimeError as exc:
+        _log_fallback(
+            "ffmpeg.encode_fallback", exc, fallback="libx264", output=str(args[-1]) if args else None
+        )
+        return run(binary, original, timeout=timeout, check=check)
 def probe_size(file: PathLike) -> tuple[int, int]:
     """读取视频宽高（ffprobe），返回 (width, height)。"""
     ensure_binaries()

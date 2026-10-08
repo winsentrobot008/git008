@@ -1,0 +1,106 @@
+{
+  "title": "fridge-2am",
+  "format": "short_drama",
+  "width": 1080,
+  "height": 1920,
+  "fps": 24,
+  "theme": {
+    "bg": ["#050816", "#111C3A", "#2B1B4D"],
+    "fg": "#FFFFFF",
+    "accent": "#38BDF8",
+    "highlight": "#FACC15",
+    "tag_bg": "#FACC15",
+    "tag_fg": "#111111",
+    "card_bg": "rgba(5, 8, 22, 0.82)",
+    "card_border": "rgba(56, 189, 248, 0.42)"
+  },
+  "characters": [
+    {
+      "id": "lin",
+      "name": "林岚",
+      "locked": true,
+      "ref": "products/008-video-factory/assets/stock/c25c0d3b0a50.mp4",
+      "visual_keywords": ["young woman programmer", "night desk lamp"]
+    },
+    {
+      "id": "chen",
+      "name": "陈默",
+      "locked": true,
+      "ref": "products/008-video-factory/assets/stock/2fb7e9355780.mp4",
+      "visual_keywords": ["man silhouette window night"]
+    }
+  ],
+  "locations": [
+    {
+      "id": "kitchen",
+      "name": "深夜厨房",
+      "locked": true,
+      "ref": "products/008-video-factory/assets/stock/8663e8746090.mp4",
+      "visual_keywords": ["modern kitchen at night", "refrigerator light"]
+    }
+  ],
+  "axis": {
+    "line": "lin->chen",
+    "scenes": {
+      "s1": { "side": "left" },
+      "s2": { "side": "left" }
+    }
+  },
+  "shots": [
+    {
+      "id": "s1-01",
+      "scene": "s1",
+      "kind": "hook",
+      "text": "凌晨两点，冰箱第三次亮起。",
+      "subtitle": "她一直以为，是自己在熬夜。",
+      "duration_s": 3,
+      "characters": ["lin"],
+      "location": "kitchen",
+      "camera": { "shot_size": "close", "side": "left", "movement": "push_in" },
+      "asset_queries": ["woman staring at open fridge", "cold blue kitchen light"]
+    },
+    {
+      "id": "s1-02",
+      "scene": "s1",
+      "kind": "dialogue",
+      "text": "“又是你。”",
+      "duration_s": 2.5,
+      "characters": ["lin"],
+      "location": "kitchen",
+      "camera": { "shot_size": "medium", "side": "left" },
+      "dialogue": [{ "speaker": "lin", "line": "又是你。" }]
+    },
+    {
+      "id": "s1-03",
+      "scene": "s1",
+      "kind": "insert",
+      "text": "",
+      "duration_s": 1.5,
+      "location": "kitchen",
+      "camera": { "shot_size": "extreme_close", "side": "neutral" }
+    },
+    {
+      "id": "s2-01",
+      "scene": "s2",
+      "kind": "dialogue",
+      "text": "“你昨天也这么说。”",
+      "duration_s": 3,
+      "characters": ["chen"],
+      "camera": { "shot_size": "medium_close", "side": "left", "axis_break": true },
+      "dialogue": [{ "speaker": "chen", "line": "你昨天也这么说。" }]
+    },
+    {
+      "id": "s2-02",
+      "scene": "s2",
+      "kind": "cta",
+      "text": "下一个凌晨，你会打开哪扇门？",
+      "subtitle": "《冰箱里的第二个人》 每周三更新",
+      "duration_s": 4,
+      "camera": { "shot_size": "wide", "side": "left", "movement": "pull_out" },
+      "style": { "align": "center", "color": "#FACC15", "highlight": "每周三更新" }
+    }
+  ],
+  "audio": {
+    "music": { "volume": 0.2 }
+  }
+}

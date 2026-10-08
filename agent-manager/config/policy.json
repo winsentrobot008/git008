@@ -1,0 +1,29 @@
+{
+  "network": {
+    "mode": "fail-closed",
+    "defaultRpcUrl": "http://127.0.0.1:8545",
+    "allowLoopbackRpcOnly": false,
+    "allowedProtocols": ["http:", "https:"],
+    "note": "The only permitted HTTP egress is JSON-RPC POST to the configured blockchain node. There is no cloud inference."
+  },
+  "mesh": {
+    "enabled": false,
+    "listenHost": "127.0.0.1",
+    "listenPort": 0,
+    "advertiseHost": null,
+    "maxPeers": 32,
+    "maxHops": 4,
+    "chainId": "0x1",
+    "peers": [],
+    "note": "Direct A2A peer mesh over raw TCP. Disabled by default. Peers must be listed here or added at runtime, and every dial is re-checked against this list. No rendezvous server, bootstrap URL or web server is ever used."
+  },
+  "runtime": {
+    "maxMemoryBytes": 524288000,
+    "threadsEnv": "MAOTANG_THREADS",
+    "note": "500 MiB ceiling enforced by @maotang/agent-client before the model is loaded."
+  },
+  "model": {
+    "manifest": "config/model.json",
+    "defaultDir": "models"
+  }
+}

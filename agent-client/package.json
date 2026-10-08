@@ -1,0 +1,42 @@
+{
+  "name": "@maotang/agent-client",
+  "version": "0.1.0",
+  "description": "Ultra-lightweight local SLM inference and tool-calling engine for the MAOTANG protocol. No cloud APIs.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./video-worker": {
+      "types": "./dist/video-worker.d.ts",
+      "import": "./dist/video-worker.js"
+    },
+    "./telemetry": {
+      "types": "./dist/telemetry.d.ts",
+      "import": "./dist/telemetry.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test dist/test-build/test/*.test.js"
+  },
+  "optionalDependencies": {
+    "node-llama-cpp": "^3.1.0",
+    "onnxruntime-node": "^1.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

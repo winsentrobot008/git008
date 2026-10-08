@@ -1,0 +1,43 @@
+{
+  "name": "@maotang/video-factory",
+  "version": "2.0.0",
+  "description": "Video Factory v2 - the MAOTANG protocol's local-first short-video renderer: Edge-TTS voiceover, ComfyUI/SVD b-roll with an FFmpeg NVENC fallback, creator-token watermarking and platform metadata.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./pipeline": {
+      "types": "./dist/pipeline.d.ts",
+      "import": "./dist/pipeline.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "maotang-video-factory": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "render": "node dist/cli.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
