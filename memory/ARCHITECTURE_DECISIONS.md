@@ -2,6 +2,44 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 — ADR-017: the Alpha launcher signs the owner-side initialization the deploy script defers
+
+**Status:** Accepted (implemented; `scripts/start-alpha.ps1` parse-clean, `contracts`
+`tsc -p tsconfig.json --noEmit` clean, and an end-to-end local run that deployed all eight contracts,
+seeded the labelled smoke fee and read back `dripper()`, `ownerSustenanceTarget()` on the vault and the
+dripper, and `unspentDripNative()` over `eth_call`)
+
+**Context:** `contracts/scripts/deploy-testnet.ts` deploys with the Anvil development key #0 while the vault
+and the verifier are owned by `MAOTANG_OWNER` (key #1), so it reports `vault.setDripper`,
+`setOwnerSustenanceTarget` and `fundDripBudget` as deferred and never signs them. A fresh Alpha chain
+therefore came up with a vault that had no dripper, no beneficiary and no budget: the dripper could not pay
+out at all, and an operator had to hand-sign three owner transactions after every launch.
+
+**Decision:**
+
+- **The launcher owns the deferred step.** `scripts/start-alpha.ps1` gains `Invoke-OwnerWiring`, called once
+  the deployment is resolved (fresh deploy or `-SkipDeploy`) and skipped with `-SkipOwnerWiring`. It signs
+  with `cast` and the deployment owner, so it needs no new Node dependency and no deploy-script change, and
+  `cast` already ships with the Foundry toolchain `Initialize-Anvil` prefers.
+- **The signer is confirmed, not assumed.** `MAOTANG_OWNER_PRIVATE_KEY` wins when set, and is refused unless
+  `cast wallet address` derives the deployment owner. Otherwise the public Anvil development key #1 is used
+  only on a loopback chain whose owner is that Anvil account; an off-loopback deployment with no key is left
+  to the operator, with a warning that names the three outstanding calls.
+- **Every step is idempotent.** A call is skipped when the chain already holds its target state
+  (`dripper()`, `ownerSustenanceTarget()`), so re-running against the same deployment is safe.
+- **`fundDripBudget` can only reserve fees already received, so a local chain is seeded first.** The bound is
+  `unreservedNative() = availableNative() - unspentDripNative()`, and a chain that has processed no swaps has
+  nothing to reserve. A loopback chain is therefore sent a labelled smoke value first
+  (`MAOTANG_DRIP_BUDGET_WEI`, 0.01 ETH) through the vault `receive()`, which records it as a
+  `FeeSource.Swap` fee and makes the budget exercisable; an off-loopback chain is never seeded and
+  `fundDripBudget` is simply not called while no fees have accrued.
+
+**Consequences:** a single launcher run now reaches a usable local Alpha state - `vault.dripper()`,
+`ownerSustenanceTarget()` on both contracts, and a funded `unspentDripNative()` - and each outcome is read
+back through `eth_call` instead of assumed. The seeded smoke fee is real value in the vault accounting on a
+disposable chain; leaving it off-loopback keeps funding on public chains an operator decision tied to real
+accrued fees rather than an automatic transfer.
+
 ## 2026-10-08 — ADR-016: protocol revenue routes to a rotatable beneficiary, separate from the immutable authority
 
 **Status:** Accepted (implemented; `forge build` clean, `forge test` 183/183, `contracts` and `frontend`

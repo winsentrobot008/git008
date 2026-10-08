@@ -10,7 +10,9 @@
          `anvil --block-time 2`, falling back to the built-in Node mock RPC server when Foundry
          is not installed.
       2. Build the Foundry artifacts and install the deployment toolchain when they are missing,
-         then deploy the protocol set and write frontend/config/contracts.json.
+         then deploy the protocol set, write frontend/config/contracts.json, and perform the three
+         owner-only calls the deploy script defers to the owner (setDripper,
+         setOwnerSustenanceTarget, fundDripBudget).
       3. Start the agent-client video worker, watching MemeTokenCreated on the new factory.
       4. Start the Next.js launchpad frontend in the foreground.
 
@@ -18,6 +20,17 @@
 
 .PARAMETER SkipDeploy
     Reuse the existing frontend/config/contracts.json instead of deploying again.
+
+.PARAMETER SkipOwnerWiring
+    Do not sign the owner-only initialization calls after the deployment is resolved. The deploy script
+    hands the vault and the verifier to MAOTANG_OWNER, so it reports vault.setDripper,
+    setOwnerSustenanceTarget and fundDripBudget as deferred instead of attempting them; skipping this
+    step leaves the dripper unable to pay out.
+
+    Wiring signs as the deployment owner: MAOTANG_OWNER_PRIVATE_KEY when it is set, otherwise the public
+    Anvil development key #1 on a loopback chain. Where the chain has received no native fees yet the
+    vault is seeded with MAOTANG_DRIP_BUDGET_WEI (0.01 ETH by default), because fundDripBudget only ever
+    reserves fees the vault has already received.
 
 .PARAMETER SkipWorker
     Do not start the video worker daemon.
@@ -36,6 +49,7 @@
 [CmdletBinding()]
 param(
     [switch]$SkipDeploy,
+    [switch]$SkipOwnerWiring,
     [switch]$SkipWorker,
     [switch]$SkipFrontend,
     [switch]$KeepAnvil
@@ -65,6 +79,19 @@ $AnvilDevAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
 $LocalMarketStandIn = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'
 # Stand-in registered agent address proofs are attributed to, until a real agent registers.
 $LocalAgent = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+
+# Public Anvil development key #1, the owner `deploy-testnet.ts` hands the verifier and the vault to. Like
+# the deployer key above this is a documented constant for a throwaway local account, not a secret.
+# Override with MAOTANG_OWNER_PRIVATE_KEY when the owner is a different account.
+$AnvilOwnerKey = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
+# Address of that same development key, checked against the deployment owner before anything is signed.
+$AnvilOwnerAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+# Native budget the owner releases to the dripper during owner wiring, in wei (0.01 ETH). On a loopback
+# chain that has received no fees yet this is also seeded into the vault, because `fundDripBudget` only
+# ever reserves fees the vault has already received.
+$OwnerDripBudgetWei = if ($env:MAOTANG_DRIP_BUDGET_WEI) { $env:MAOTANG_DRIP_BUDGET_WEI } else { '10000000000000000' }
+# Zero address, used to detect an owner-side setting that is not wired yet.
+$ZeroAddress = '0x0000000000000000000000000000000000000000'
 
 $script:AnvilProcess = $null
 $script:MockRpcProcess = $null
@@ -334,6 +361,174 @@ function Invoke-Deploy {
     return Get-Content $ContractsJson -Raw | ConvertFrom-Json
 }
 
+# Runs `cast` and returns its last non-empty stdout line. Foundry loads a `.env` from the working directory
+# and warns about the repository one on stderr, and a native command's stderr would terminate the launcher
+# while `$ErrorActionPreference` is Stop, so the call runs from a scratch directory with a relaxed
+# preference and the exit code alone decides success.
+function Invoke-Cast {
+    param([string]$Cast, [string[]]$Arguments, [string]$Operation)
+
+    $previous = $ErrorActionPreference
+    Push-Location ([System.IO.Path]::GetTempPath())
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $Cast @Arguments 2>$null
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+        Pop-Location
+    }
+    if ($exitCode -ne 0) { throw ('cast {0} failed with exit code {1}' -f $Operation, $exitCode) }
+    return (@($output) | Where-Object { $_ -ne '' } | Select-Object -Last 1)
+}
+
+# Reads a contract view function through eth_call. `cast` prints the value followed by a human-readable
+# annotation when an integer is large, so only the first whitespace-delimited token is the value.
+function Read-Contract {
+    param([string]$Cast, [string]$RpcUrl, [string]$Target, [string]$Signature)
+
+    $line = Invoke-Cast -Cast $Cast -Operation $Signature -Arguments @('call', $Target, $Signature, '--rpc-url', $RpcUrl)
+    if (-not $line) { throw ('cast call {0} on {1} returned nothing' -f $Signature, $Target) }
+    return ($line -split '\s+')[0]
+}
+
+# Signs and sends an owner transaction with `cast`. The private key is passed on the argument list, so this
+# helper never echoes that list; callers log the operation they intended instead.
+function Send-Contract {
+    param([string]$Cast, [string]$RpcUrl, [string]$OwnerKey, [string]$Target, [string]$Signature,
+        [string[]]$Arguments = @(), [string]$ValueWei)
+
+    $castArguments = @('send', $Target)
+    if ($Signature) { $castArguments += $Signature }
+    if ($Arguments.Count -gt 0) { $castArguments += $Arguments }
+    if ($ValueWei) { $castArguments += @('--value', $ValueWei) }
+    $castArguments += @('--private-key', $OwnerKey, '--rpc-url', $RpcUrl)
+
+    $operation = if ($Signature) { $Signature } else { 'native value transfer' }
+    Invoke-Cast -Cast $Cast -Operation $operation -Arguments $castArguments | Out-Null
+}
+
+# Owner-side deferred initialization. `deploy-testnet.ts` deploys with the Anvil development key #0 but hands
+# the vault and the verifier to MAOTANG_OWNER, so the three owner-only calls it reports as deferred are owner
+# transactions rather than deployer transactions:
+#
+#   1. vault.setDripper(dripper)                  - bounds what the dripper may ever pay out
+#   2. vault.setOwnerSustenanceTarget(operator)   - names the revenue beneficiary, on the vault and on the
+#      dripper.setOwnerSustenanceTarget(operator)   dripper, that the deploy script would have wired itself
+#                                                   if the deployer had been the owner
+#   3. vault.fundDripBudget(amount)               - releases native fees the vault has already received
+#
+# Every step is skipped when the chain already holds the target state, so re-running against the same
+# deployment is safe, and each result is read back through eth_call before the launcher continues.
+function Invoke-OwnerWiring {
+    param([string]$RpcUrl, $Deployment)
+
+    $owner = Get-Property $Deployment 'owner'
+    $contracts = Get-Property $Deployment 'contracts'
+    $beneficiaries = Get-Property $Deployment 'beneficiaries'
+    $vault = Get-Property $contracts 'MaoTangSustenanceVault'
+    $dripper = Get-Property $contracts 'MaoTangSustenanceDripper'
+    $operator = Get-Property $beneficiaries 'operator'
+
+    if (-not $owner -or -not $vault -or -not $dripper -or -not $operator) {
+        throw 'the deployment is missing owner, contracts.MaoTangSustenanceVault, contracts.MaoTangSustenanceDripper or beneficiaries.operator'
+    }
+
+    $cast = Find-Command 'cast'
+    if (-not $cast) {
+        Write-Warn 'Foundry `cast` is not on PATH, so the three owner-only calls were NOT performed.'
+        Write-Warn ('The owner ({0}) still has to call vault.setDripper, setOwnerSustenanceTarget and fundDripBudget.' -f $owner)
+        return
+    }
+
+    $ownerKey = $env:MAOTANG_OWNER_PRIVATE_KEY
+    if (-not $ownerKey) {
+        if ((Test-PublicRpc -Url $RpcUrl) -or ($owner.ToLowerInvariant() -ne $AnvilOwnerAddress.ToLowerInvariant())) {
+            Write-Warn 'MAOTANG_OWNER_PRIVATE_KEY is unset and the deployment owner is not the local Anvil owner,'
+            Write-Warn ('so the three owner-only calls were NOT performed. Owner: {0}.' -f $owner)
+            return
+        }
+        $ownerKey = $AnvilOwnerKey
+        Write-Note 'signing owner wiring with the public Anvil development key #1'
+    }
+
+    $signer = Invoke-Cast -Cast $cast -Operation 'wallet address' -Arguments @('wallet', 'address', '--private-key', $ownerKey)
+    if (-not $signer) { throw 'cast wallet address returned nothing, so the owner signer could not be confirmed' }
+    $signer = $signer.Trim()
+    if ($signer.ToLowerInvariant() -ne $owner.ToLowerInvariant()) {
+        throw ('the owner key signs as {0} but the deployment owner is {1}' -f $signer, $owner)
+    }
+
+    # 1. vault.setDripper - without it the dripper cannot reach the budget step 3 releases.
+    $wireDripper = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'dripper()(address)'
+    if ($wireDripper.ToLowerInvariant() -ne $dripper.ToLowerInvariant()) {
+        Write-Note ('vault.setDripper({0})' -f $dripper)
+        Send-Contract -Cast $cast -RpcUrl $RpcUrl -OwnerKey $ownerKey -Target $vault `
+            -Signature 'setDripper(address)' -Arguments @($dripper)
+        $wireDripper = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'dripper()(address)'
+    }
+    if ($wireDripper.ToLowerInvariant() -ne $dripper.ToLowerInvariant()) {
+        throw ('vault.dripper() is {0}, expected {1}' -f $wireDripper, $dripper)
+    }
+    Write-Note ('verified vault.dripper() = {0}' -f $wireDripper)
+
+    # 2. name the revenue beneficiary on the vault and on the dripper.
+    $vaultTarget = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'ownerSustenanceTarget()(address)'
+    if ($vaultTarget.ToLowerInvariant() -eq $ZeroAddress) {
+        Write-Note ('vault.setOwnerSustenanceTarget({0})' -f $operator)
+        Send-Contract -Cast $cast -RpcUrl $RpcUrl -OwnerKey $ownerKey -Target $vault `
+            -Signature 'setOwnerSustenanceTarget(address)' -Arguments @($operator)
+        $vaultTarget = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'ownerSustenanceTarget()(address)'
+    }
+    $dripperTarget = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $dripper -Signature 'ownerSustenanceTarget()(address)'
+    if ($dripperTarget.ToLowerInvariant() -eq $ZeroAddress) {
+        Write-Note ('dripper.setOwnerSustenanceTarget({0})' -f $operator)
+        Send-Contract -Cast $cast -RpcUrl $RpcUrl -OwnerKey $ownerKey -Target $dripper `
+            -Signature 'setOwnerSustenanceTarget(address)' -Arguments @($operator)
+        $dripperTarget = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $dripper -Signature 'ownerSustenanceTarget()(address)'
+    }
+    if ($vaultTarget.ToLowerInvariant() -ne $operator.ToLowerInvariant() -or
+        $dripperTarget.ToLowerInvariant() -ne $operator.ToLowerInvariant()) {
+        throw ('ownerSustenanceTarget is vault={0} dripper={1}, expected {2} on both' -f $vaultTarget, $dripperTarget, $operator)
+    }
+    Write-Note ('verified vault + dripper ownerSustenanceTarget() = {0}' -f $operator)
+
+    # 3. release native fees to the dripper. fundDripBudget only ever reserves fees the vault has already
+    # received, so a chain that has processed no swaps has nothing to reserve: a loopback chain is seeded
+    # with a small, labelled smoke value first, while a public chain is left for the owner to fund once real
+    # fees have accrued.
+    $unspent = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'unspentDripNative()(uint256)'
+    if ([decimal]$unspent -gt 0) {
+        Write-Note ('vault drip budget already funded; unspentDripNative() = {0}' -f $unspent)
+    } else {
+        $unreserved = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'unreservedNative()(uint256)'
+        if ([decimal]$unreserved -le 0) {
+            if (Test-PublicRpc -Url $RpcUrl) {
+                Write-Warn 'the vault holds no unreserved native fees, so vault.fundDripBudget was NOT called.'
+                Write-Warn 'Reserving fees the vault has not received would revert; the owner funds the budget once fees accrue.'
+            } else {
+                Write-Note ('seeding {0} wei of native fees on the local chain (smoke value) so the drip budget is exercisable' -f $OwnerDripBudgetWei)
+                Send-Contract -Cast $cast -RpcUrl $RpcUrl -OwnerKey $ownerKey -Target $vault -ValueWei $OwnerDripBudgetWei
+                $unreserved = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'unreservedNative()(uint256)'
+            }
+        }
+        if ([decimal]$unreserved -gt 0) {
+            $amount = if ([decimal]$OwnerDripBudgetWei -lt [decimal]$unreserved) { [decimal]$OwnerDripBudgetWei } else { [decimal]$unreserved }
+            $amountWei = $amount.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+            Write-Note ('vault.fundDripBudget({0})' -f $amountWei)
+            Send-Contract -Cast $cast -RpcUrl $RpcUrl -OwnerKey $ownerKey -Target $vault `
+                -Signature 'fundDripBudget(uint256)' -Arguments @($amountWei)
+        }
+    }
+
+    $unspent = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'unspentDripNative()(uint256)'
+    $available = Read-Contract -Cast $cast -RpcUrl $RpcUrl -Target $vault -Signature 'availableNative()(uint256)'
+    Write-Note ('verified vault.unspentDripNative() = {0}; uncredited availableNative() = {1}' -f $unspent, $available)
+    if ([decimal]$unspent -le 0) {
+        Write-Warn 'the dripper budget is unfunded, so the dripper cannot pay out until the owner funds it.'
+    }
+}
+
 function Start-VideoWorker {
     param([string]$RpcUrl, [string]$FactoryAddress)
 
@@ -413,6 +608,13 @@ try {
         Write-Step '2/4  building and deploying the protocol set'
         Initialize-Contracts
         $deployment = Invoke-Deploy -RpcUrl $rpcUrl
+    }
+
+    if ($SkipOwnerWiring) {
+        Write-Note 'owner-side initialization skipped (-SkipOwnerWiring); the dripper is unusable until the owner wires it'
+    } else {
+        Write-Note 'owner-side initialization: vault.setDripper, setOwnerSustenanceTarget, fundDripBudget'
+        Invoke-OwnerWiring -RpcUrl $rpcUrl -Deployment $deployment
     }
 
     $contracts = Get-Property $deployment 'contracts'
