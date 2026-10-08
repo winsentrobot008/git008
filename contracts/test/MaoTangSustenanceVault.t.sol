@@ -22,8 +22,13 @@ contract MaoTangSustenanceVaultTest is Test {
     address internal ghostAgent = address(0xDEAD);
     address internal treasury = address(0x7E50);
     address internal agent;
+    address internal guardian = address(0x6A4D);
+    address internal dripperAddr = address(0xD81);
+    address internal bob = address(0xB0B);
 
     uint256 internal constant ONE = 1 ether;
+    /// @dev Fixed clock for the rolling-window tests, so warp arithmetic never reads the environment.
+    uint256 internal constant OUTFLOW_CLOCK = 1_700_000_000;
 
     function setUp() public {
         verifier = new MockNullifierVerifier();
@@ -263,5 +268,328 @@ contract MaoTangSustenanceVaultTest is Test {
         assertEq(vault.tokenOwnerRevenuePaid(address(feeToken)), 10 ether);
         assertEq(vault.availableToken(address(feeToken)), 0);
         assertEq(vault.unreservedToken(address(feeToken)), 0);
+    }
+
+    // --------------------------------------------------------------- payout brake
+
+    function test_SetGuardianStoresAndEmits() public {
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.GuardianSet(guardian);
+
+        vm.prank(authority);
+        vault.setGuardian(guardian);
+
+        assertEq(vault.guardian(), guardian);
+    }
+
+    function test_SetGuardianRejectsZero() public {
+        vm.prank(authority);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceVault.InvalidGuardian.selector, address(0)));
+        vault.setGuardian(address(0));
+    }
+
+    function test_SetGuardianRejectsNonOwner() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceVault.NotOwner.selector, alice));
+        vault.setGuardian(guardian);
+    }
+
+    function test_GuardianAndOwnerCanPause() public {
+        vm.prank(authority);
+        vault.setGuardian(guardian);
+
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.PayoutsPaused(true, guardian);
+        vm.prank(guardian);
+        vault.pause();
+        assertTrue(vault.paused());
+
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.PayoutsPaused(false, authority);
+        vm.prank(authority);
+        vault.unpause();
+        assertFalse(vault.paused());
+
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.PayoutsPaused(true, authority);
+        vm.prank(authority);
+        vault.pause();
+        assertTrue(vault.paused());
+    }
+
+    function test_StrangerCannotPause() public {
+        vm.prank(authority);
+        vault.setGuardian(guardian);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceVault.NotOwner.selector, alice));
+        vault.pause();
+    }
+
+    function test_OwnerCanBrakeWithoutAGuardian() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceVault.NotOwner.selector, alice));
+        vault.pause();
+
+        vm.prank(authority);
+        vault.pause();
+        assertTrue(vault.paused());
+    }
+
+    function test_GuardianCannotUnpause() public {
+        vm.prank(authority);
+        vault.setGuardian(guardian);
+        vm.prank(guardian);
+        vault.pause();
+
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceVault.NotOwner.selector, guardian));
+        vault.unpause();
+
+        assertTrue(vault.paused());
+    }
+
+    function test_PauseAndUnpauseAreIdempotent() public {
+        vm.prank(authority);
+        vault.setGuardian(guardian);
+
+        // A guardian racing to apply the brake must never revert, so a second call is a no-op.
+        vm.prank(guardian);
+        vault.pause();
+        vm.prank(guardian);
+        vault.pause();
+        assertTrue(vault.paused());
+
+        vm.prank(authority);
+        vault.unpause();
+        vm.prank(authority);
+        vault.unpause();
+        assertFalse(vault.paused());
+    }
+
+    function test_PauseBlocksAllThreeNativeExits() public {
+        vault.depositFee{value: 10 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+
+        vm.prank(authority);
+        vault.creditNativeSustenance(alice, 1 ether);
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+        vm.prank(authority);
+        vault.setDripper(dripperAddr);
+        vm.prank(authority);
+        vault.fundDripBudget(2 ether);
+        vm.prank(authority);
+        vault.setGuardian(guardian);
+
+        vm.prank(guardian);
+        vault.pause();
+
+        vm.prank(agent);
+        vm.expectRevert(MaoTangSustenanceVault.PayoutsHalted.selector);
+        vault.withdrawSustenance(address(0));
+
+        vm.prank(authority);
+        vm.expectRevert(MaoTangSustenanceVault.PayoutsHalted.selector);
+        vault.withdrawOwnerRevenue(address(0));
+
+        vm.prank(dripperAddr);
+        vm.expectRevert(MaoTangSustenanceVault.PayoutsHalted.selector);
+        vault.withdrawDripAllowance(bob, 1 ether, address(0));
+    }
+
+    function test_PauseLeavesIntakeOpen() public {
+        vm.prank(authority);
+        vault.setGuardian(guardian);
+        vm.prank(guardian);
+        vault.pause();
+
+        // The brake stops value leaving; fee intake and accounting keep flowing so a halted vault
+        // does not lose track of what it is owed.
+        (bool ok,) = address(vault).call{value: ONE}("");
+        assertTrue(ok);
+        vault.depositFee{value: ONE}(MaoTangSustenanceVault.FeeSource.Swap);
+
+        vm.prank(authority);
+        vault.creditNativeSustenance(alice, ONE);
+        vm.prank(authority);
+        vault.fundDripBudget(ONE);
+
+        assertEq(vault.nativeFeesReceived(), 2 * ONE);
+        assertEq(vault.pendingSustenance(alice, address(0)), ONE);
+        assertEq(vault.unspentDripNative(), ONE);
+    }
+
+    // --------------------------------------------------------------- native outflow cap
+
+    function test_NativeOutflowCapIsDisabledByDefault() public view {
+        assertEq(vault.nativeOutflowCap(), 0);
+        assertEq(vault.outflowWindowSeconds(), 0);
+        assertEq(vault.nativeOutflowRemaining(), type(uint256).max);
+    }
+
+    function test_SetNativeOutflowCapStoresAndEmits() public {
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.NativeOutflowCapSet(5 ether, 1 days);
+
+        vm.prank(authority);
+        vault.setNativeOutflowCap(5 ether, 1 days);
+
+        assertEq(vault.nativeOutflowCap(), 5 ether);
+        assertEq(vault.outflowWindowSeconds(), 1 days);
+        assertEq(vault.nativeOutflowInWindow(), 0);
+        assertEq(vault.nativeOutflowRemaining(), 5 ether);
+    }
+
+    function test_SetNativeOutflowCapRejectsNonOwner() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceVault.NotOwner.selector, alice));
+        vault.setNativeOutflowCap(1 ether, 1 days);
+    }
+
+    function test_SetNativeOutflowCapRejectsOutOfRangeWindow() public {
+        vm.prank(authority);
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangSustenanceVault.InvalidOutflowCap.selector, 1 ether, 30 minutes)
+        );
+        vault.setNativeOutflowCap(1 ether, 30 minutes);
+
+        vm.prank(authority);
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangSustenanceVault.InvalidOutflowCap.selector, 1 ether, 31 days)
+        );
+        vault.setNativeOutflowCap(1 ether, 31 days);
+    }
+
+    function test_SetNativeOutflowCapZeroDisables() public {
+        vm.prank(authority);
+        vault.setNativeOutflowCap(5 ether, 1 days);
+
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.NativeOutflowCapSet(0, 0);
+        vm.prank(authority);
+        vault.setNativeOutflowCap(0, 0);
+
+        assertEq(vault.nativeOutflowCap(), 0);
+        assertEq(vault.outflowWindowSeconds(), 0);
+        assertEq(vault.nativeOutflowRemaining(), type(uint256).max);
+    }
+
+    function test_NativeOutflowCapBoundsOwnerRevenue() public {
+        vault.depositFee{value: 3 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+        vm.prank(authority);
+        vault.setNativeOutflowCap(5 ether, 1 days);
+
+        vm.prank(authority);
+        uint256 firstPaid = vault.withdrawOwnerRevenue(address(0));
+
+        assertEq(firstPaid, 3 ether);
+        assertEq(vault.nativeOutflowInWindow(), 3 ether);
+        assertEq(vault.nativeOutflowRemaining(), 2 ether);
+
+        vault.depositFee{value: 2 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+        vm.prank(authority);
+        uint256 secondPaid = vault.withdrawOwnerRevenue(address(0));
+
+        assertEq(secondPaid, 2 ether);
+        assertEq(vault.nativeOutflowRemaining(), 0);
+
+        vault.depositFee{value: 1 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+        vm.prank(authority);
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangSustenanceVault.NativeOutflowCapExceeded.selector, 1 ether, 0)
+        );
+        vault.withdrawOwnerRevenue(address(0));
+    }
+
+    function test_NativeOutflowCapBoundsAgentWithdrawal() public {
+        vault.depositFee{value: 4 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+        vm.prank(authority);
+        vault.creditNativeSustenance(alice, 4 ether);
+        vm.prank(authority);
+        vault.setNativeOutflowCap(3 ether, 1 days);
+
+        vm.prank(agent);
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangSustenanceVault.NativeOutflowCapExceeded.selector, 4 ether, 3 ether)
+        );
+        vault.withdrawSustenance(address(0));
+
+        // Raising the cap restarts the window, so the pending payout now fits inside it.
+        vm.prank(authority);
+        vault.setNativeOutflowCap(5 ether, 1 days);
+
+        vm.prank(agent);
+        uint256 paid = vault.withdrawSustenance(address(0));
+
+        assertEq(paid, 4 ether);
+        assertEq(vault.nativeOutflowRemaining(), 1 ether);
+    }
+
+    function test_NativeOutflowCapBoundsDripAllowance() public {
+        vault.depositFee{value: 5 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+        vm.prank(authority);
+        vault.setDripper(dripperAddr);
+        vm.prank(authority);
+        vault.fundDripBudget(5 ether);
+        vm.prank(authority);
+        vault.setNativeOutflowCap(2 ether, 1 days);
+
+        vm.prank(dripperAddr);
+        uint256 paid = vault.withdrawDripAllowance(bob, 2 ether, address(0));
+
+        assertEq(paid, 2 ether);
+        assertEq(bob.balance, 2 ether);
+        assertEq(vault.nativeOutflowRemaining(), 0);
+
+        vm.prank(dripperAddr);
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangSustenanceVault.NativeOutflowCapExceeded.selector, 1 ether, 0)
+        );
+        vault.withdrawDripAllowance(bob, 1 ether, address(0));
+    }
+
+    function test_NativeOutflowCapWindowExpiryRestoresAllowance() public {
+        vm.warp(OUTFLOW_CLOCK);
+        vault.depositFee{value: 3 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+        vm.prank(authority);
+        vault.setNativeOutflowCap(5 ether, 1 days);
+
+        vm.prank(authority);
+        uint256 paid = vault.withdrawOwnerRevenue(address(0));
+        assertEq(paid, 3 ether);
+        assertEq(vault.nativeOutflowRemaining(), 2 ether);
+
+        // One second before the window closes the spent amount still counts against the cap.
+        vm.warp(OUTFLOW_CLOCK + 1 days - 1);
+        assertEq(vault.nativeOutflowRemaining(), 2 ether);
+
+        // Once it closes the full cap is available again, with no owner transaction.
+        vm.warp(OUTFLOW_CLOCK + 1 days);
+        assertEq(vault.nativeOutflowRemaining(), 5 ether);
+    }
+
+    function test_LoweringCapRestartsTheWindow() public {
+        vault.depositFee{value: 5 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+        vm.prank(authority);
+        vault.setNativeOutflowCap(5 ether, 1 days);
+
+        vm.prank(authority);
+        uint256 paid = vault.withdrawOwnerRevenue(address(0));
+        assertEq(paid, 5 ether);
+        assertEq(vault.nativeOutflowRemaining(), 0);
+
+        // A new policy starts a fresh window, so the smaller cap is spendable immediately rather
+        // than being blocked by carry-over from the previous one.
+        vm.prank(authority);
+        vault.setNativeOutflowCap(1 ether, 1 days);
+
+        assertEq(vault.nativeOutflowInWindow(), 0);
+        assertEq(vault.nativeOutflowRemaining(), 1 ether);
     }
 }

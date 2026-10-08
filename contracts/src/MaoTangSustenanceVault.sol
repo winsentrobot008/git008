@@ -48,6 +48,12 @@ contract MaoTangSustenanceVault is AgentGated {
     /// @notice Sentinel used for the native asset (ETH) in token-keyed accounting.
     address public constant NATIVE = address(0);
 
+    /// @notice Lower bound on the native-outflow window: a shorter span cannot rate-limit anything.
+    uint256 public constant MIN_OUTFLOW_WINDOW_SECONDS = 1 hours;
+
+    /// @notice Upper bound on the native-outflow window, so a cap cannot be stretched past a month.
+    uint256 public constant MAX_OUTFLOW_WINDOW_SECONDS = 30 days;
+
     /// @notice Protocol authority allowed to route accrued fees to principals.
     /// @dev Immutable: there is no admin takeover path. The owner cannot withdraw to itself, only
     /// credit principals, and only up to what the vault has actually received.
@@ -104,6 +110,32 @@ contract MaoTangSustenanceVault is AgentGated {
 
     /// @notice Token fees already paid out to {ownerSustenanceTarget}, per ERC-20 asset.
     mapping(address asset => uint256 amount) public tokenOwnerRevenuePaid;
+
+    /// @notice Address allowed to halt payouts without the authority key.
+    /// @dev Set by {setGuardian}. While it is `address(0)` no guardian is installed and only {owner}
+    /// can brake. The guardian is deliberately one-way: it can halt payouts, never release the brake,
+    /// so a compromised guardian key can freeze the vault's outflows but can never move value.
+    address public guardian;
+
+    /// @notice True while every value-moving payout path is halted.
+    /// @dev Set by {pause}, cleared by {unpause}. Fee intake, cross-chain yield receipt and the
+    /// accounting setters keep working, so a halted vault still records what it is owed and can
+    /// resume without losing the bookkeeping.
+    bool public paused;
+
+    /// @notice Maximum native value that may leave the vault per {outflowWindowSeconds}.
+    /// @dev Zero disables the cap, which is the behaviour of a vault that has not been hardened yet.
+    /// Set by {setNativeOutflowCap}.
+    uint256 public nativeOutflowCap;
+
+    /// @notice Window {nativeOutflowCap} is measured over. Zero while the cap is disabled.
+    uint256 public outflowWindowSeconds;
+
+    /// @notice Timestamp the current native-outflow window opened.
+    uint256 public outflowWindowStart;
+
+    /// @notice Native value already paid out inside the current window.
+    uint256 public nativeOutflowInWindow;
 
     /// @notice Emitted whenever a fee is paid into the vault.
     /// @param depositor Account that funded the vault, normally a bonding curve.
@@ -182,6 +214,20 @@ contract MaoTangSustenanceVault is AgentGated {
     /// @param amount Amount paid, in the asset smallest unit.
     event OwnerRevenueWithdrawn(address indexed asset, address indexed target, uint256 amount);
 
+    /// @notice Emitted when the address allowed to halt payouts changes.
+    /// @param guardian New guardian; never the zero address.
+    event GuardianSet(address indexed guardian);
+
+    /// @notice Emitted when the payout brake is applied or released.
+    /// @param paused True when payouts are halted.
+    /// @param by Caller that moved the brake.
+    event PayoutsPaused(bool paused, address indexed by);
+
+    /// @notice Emitted when the rolling native-outflow cap changes.
+    /// @param cap New cap in wei; zero means uncapped.
+    /// @param windowSeconds Window the cap is measured over; zero when uncapped.
+    event NativeOutflowCapSet(uint256 cap, uint256 windowSeconds);
+
     error InvalidOwner();
     error NotOwner(address caller);
     error InvalidAgentRegistry();
@@ -201,6 +247,10 @@ contract MaoTangSustenanceVault is AgentGated {
     error DripBudgetExceeded(address asset, uint256 requested, uint256 unspent);
     error InvalidSustenanceTarget(address target);
     error NoSustenanceTarget();
+    error InvalidGuardian(address guardian);
+    error InvalidOutflowCap(uint256 cap, uint256 windowSeconds);
+    error PayoutsHalted();
+    error NativeOutflowCapExceeded(uint256 requested, uint256 remaining);
 
     /// @dev Reverts unless the caller is the protocol authority.
     modifier onlyOwner() {
@@ -211,6 +261,12 @@ contract MaoTangSustenanceVault is AgentGated {
     /// @dev Reverts unless the caller is the authorized dripper.
     modifier onlyDripper() {
         if (msg.sender != dripper) revert NotDripper(msg.sender);
+        _;
+    }
+
+    /// @dev Reverts while {guardian} or {owner} has halted payouts.
+    modifier whenNotPaused() {
+        if (paused) revert PayoutsHalted();
         _;
     }
 
@@ -395,7 +451,7 @@ contract MaoTangSustenanceVault is AgentGated {
     /// funds always land in the human wallet that agent was registered for.
     /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
     /// @return amount Amount paid to the principal.
-    function withdrawSustenance(address asset) external onlyAuthorizedAgent returns (uint256 amount) {
+    function withdrawSustenance(address asset) external onlyAuthorizedAgent whenNotPaused returns (uint256 amount) {
         address principal = _agentOwner();
 
         amount = claimableSustenance[principal][asset];
@@ -405,6 +461,7 @@ contract MaoTangSustenanceVault is AgentGated {
         emit SustenanceDisbursed(msg.sender, principal, asset, amount);
 
         if (asset == NATIVE) {
+            _chargeNativeOutflow(amount);
             // The payout destination is the principal bound to the calling agent, never a
             // caller-supplied address, so the advisory is a false positive.
             // forge-lint: disable-next-line(arbitrary-send-eth)
@@ -434,6 +491,102 @@ contract MaoTangSustenanceVault is AgentGated {
         if (target == address(0)) revert InvalidSustenanceTarget(target);
         ownerSustenanceTarget = target;
         emit OwnerSustenanceTargetSet(target);
+    }
+
+    /// @notice Installs the address allowed to halt payouts.
+    /// @dev Rotating a compromised guardian is one owner transaction. The zero address is rejected
+    /// rather than stored, so once set the field always names a real brake holder; rotate to a new
+    /// address instead of clearing it.
+    /// @param guardian_ Address that may call {pause}. Must not be the zero address.
+    function setGuardian(address guardian_) external onlyOwner {
+        if (guardian_ == address(0)) revert InvalidGuardian(guardian_);
+        guardian = guardian_;
+        emit GuardianSet(guardian_);
+    }
+
+    /// @notice Halts every payout path. Callable by {guardian} or {owner}.
+    /// @dev Deliberately idempotent: this is the emergency brake, so a caller racing to apply it must
+    /// never fail, and a guardian cannot be locked out by someone else calling it first.
+    function pause() external {
+        if (msg.sender != guardian && msg.sender != owner) revert NotOwner(msg.sender);
+        paused = true;
+        emit PayoutsPaused(true, msg.sender);
+    }
+
+    /// @notice Releases the brake. Owner only.
+    /// @dev One-way by design: a guardian can stop the vault from paying out, but only the authority
+    /// can let it pay again. Idempotent for the same reason as {pause}.
+    function unpause() external onlyOwner {
+        paused = false;
+        emit PayoutsPaused(false, msg.sender);
+    }
+
+    /// @notice Sets the rolling cap on native value leaving the vault.
+    /// @dev A `cap` of zero removes the cap. A non-zero cap needs a window between
+    /// {MIN_OUTFLOW_WINDOW_SECONDS} and {MAX_OUTFLOW_WINDOW_SECONDS}. Changing the policy restarts the
+    /// window, so a raised cap is immediately usable and a lowered one cannot be spent by carry-over.
+    /// The bound covers native value only, which is where the vault's real exposure sits; ERC-20
+    /// outflows are bounded by their own per-asset budgets instead.
+    /// @param cap Maximum native wei per window. Zero disables the cap.
+    /// @param windowSeconds Window length. Ignored when `cap` is zero.
+    function setNativeOutflowCap(uint256 cap, uint256 windowSeconds) external onlyOwner {
+        if (cap == 0) {
+            nativeOutflowCap = 0;
+            outflowWindowSeconds = 0;
+            outflowWindowStart = 0;
+            nativeOutflowInWindow = 0;
+            emit NativeOutflowCapSet(0, 0);
+            return;
+        }
+        if (windowSeconds < MIN_OUTFLOW_WINDOW_SECONDS || windowSeconds > MAX_OUTFLOW_WINDOW_SECONDS) {
+            revert InvalidOutflowCap(cap, windowSeconds);
+        }
+
+        nativeOutflowCap = cap;
+        outflowWindowSeconds = windowSeconds;
+        // forge-lint: disable-next-line(block-timestamp)
+        outflowWindowStart = block.timestamp;
+        nativeOutflowInWindow = 0;
+        emit NativeOutflowCapSet(cap, windowSeconds);
+    }
+
+    /// @notice Native value that may still leave the vault in the current window.
+    /// @dev Returns `type(uint256).max` while no cap is configured, so a monitor can tell "uncapped"
+    /// apart from "nothing left" without reading a second getter.
+    function nativeOutflowRemaining() public view returns (uint256) {
+        uint256 cap = nativeOutflowCap;
+        if (cap == 0) {
+            return type(uint256).max;
+        }
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp >= outflowWindowStart + outflowWindowSeconds) {
+            return cap;
+        }
+        return nativeOutflowInWindow >= cap ? 0 : cap - nativeOutflowInWindow;
+    }
+
+    /// @dev Charges `amount` against the rolling native-outflow window, reverting when the configured
+    /// cap would be exceeded. A zero cap means the vault is not rate limited, which is the behaviour
+    /// of a vault whose owner has not called {setNativeOutflowCap}.
+    /// @param amount Native wei about to leave the vault.
+    function _chargeNativeOutflow(uint256 amount) private {
+        uint256 cap = nativeOutflowCap;
+        if (cap == 0) {
+            return;
+        }
+
+        // forge-lint: disable-next-line(block-timestamp)
+        uint256 windowEndsAt = outflowWindowStart + outflowWindowSeconds;
+        // forge-lint: disable-next-line(block-timestamp)
+        uint256 spent = block.timestamp >= windowEndsAt ? 0 : nativeOutflowInWindow;
+        uint256 remaining = spent >= cap ? 0 : cap - spent;
+        if (amount > remaining) revert NativeOutflowCapExceeded(amount, remaining);
+
+        if (spent == 0) {
+            // forge-lint: disable-next-line(block-timestamp)
+            outflowWindowStart = block.timestamp;
+        }
+        nativeOutflowInWindow = spent + amount;
     }
 
     /// @notice Native budget released to the dripper and not yet paid out.
@@ -514,7 +667,7 @@ contract MaoTangSustenanceVault is AgentGated {
     /// the protocol share can never be paid out of funds that belong to a claimant.
     /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
     /// @return amount Amount transferred to the beneficiary.
-    function withdrawOwnerRevenue(address asset) external onlyOwner returns (uint256 amount) {
+    function withdrawOwnerRevenue(address asset) external onlyOwner whenNotPaused returns (uint256 amount) {
         address target = ownerSustenanceTarget;
         if (target == address(0)) revert NoSustenanceTarget();
 
@@ -522,6 +675,7 @@ contract MaoTangSustenanceVault is AgentGated {
         if (amount == 0) revert NothingToWithdraw(target, asset);
 
         if (asset == NATIVE) {
+            _chargeNativeOutflow(amount);
             nativeOwnerRevenuePaid += amount;
             emit OwnerRevenueWithdrawn(NATIVE, target, amount);
             // The destination is the owner-registered beneficiary, not caller input, and the amount is
@@ -546,6 +700,7 @@ contract MaoTangSustenanceVault is AgentGated {
     function withdrawDripAllowance(address to, uint256 amount, address asset)
         external
         onlyDripper
+        whenNotPaused
         returns (uint256 paid)
     {
         if (to == address(0)) revert InvalidPrincipal();
@@ -554,6 +709,7 @@ contract MaoTangSustenanceVault is AgentGated {
         if (asset == NATIVE) {
             uint256 unspent = unspentDripNative();
             if (amount > unspent) revert DripBudgetExceeded(NATIVE, amount, unspent);
+            _chargeNativeOutflow(amount);
             nativeDripPaid += amount;
 
             emit DripAllowanceWithdrawn(msg.sender, to, NATIVE, amount);

@@ -2,6 +2,57 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 — ADR-018: the sustenance vault gains an emergency payout brake and a native-outflow cap
+
+**Status:** Accepted (implemented; `forge build` clean with no new lint warnings, `forge test` 203/203 up
+from 183, `contracts` `tsc -p tsconfig.json --noEmit` clean, and an end-to-end
+`contracts/scripts/deploy-testnet.ts` run against a disposable Anvil chain that deployed all eight
+contracts, wired `vault.setGuardian`, and read back `owner()`, `guardian()`, `paused()`,
+`nativeOutflowCap()` and `outflowWindowSeconds()`)
+
+**Context:** `MaoTangSustenanceVault` holds every fee the protocol receives, and its `owner` and the
+dripper's `owner` are `immutable` with no `transferOwnership`. Three paths move value out - `withdrawSustenance`
+(agent-gated), `withdrawOwnerRevenue` (owner) and `withdrawDripAllowance` (dripper) - and before this change
+the only brake on a compromised key was none at all: a hostile or stolen owner, dripper or agent key could
+drain the vault as fast as the accounting allowed, with no circuit breaker to halt the outflow while a
+response was organised.
+
+**Decision:**
+
+- **A guardian can halt payouts, and only halt them.** `setGuardian(address)` (owner-only, zero rejected)
+  installs an address that may call `pause()`. The guardian is deliberately one-way: it cannot `unpause`, so a
+  compromised guardian key can freeze the vault's outflows but can never release the brake and never move
+  value. `unpause()` stays owner-only.
+- **The brake is deliberately idempotent.** `pause()` and `unpause()` do not revert when the state already
+  matches, so a guardian racing to apply the brake can never be locked out by another caller landing first.
+- **The brake stops outflows, never intake.** `whenNotPaused` guards exactly the three value-moving exits.
+  `receive()`, `depositFee`, `depositFeeToken`, `creditNativeSustenance`, `creditTokenSustenance`,
+  `receiveBridgedYield*` and `fundDripBudget*` keep working, so a halted vault still records what it is owed
+  and resumes without losing bookkeeping.
+- **A rolling cap bounds native outflow, read lazily.** `setNativeOutflowCap(cap, windowSeconds)` (owner-only)
+  bounds native value leaving the vault inside a window of between 1 hour and 30 days; changing the cap
+  restarts the window, so a raised cap is immediately usable and a lowered one cannot be spent by carry-over.
+  `nativeOutflowRemaining()` reports what is left and returns `type(uint256).max` while uncapped, so a monitor
+  can tell "uncapped" from "exhausted". `cap == 0` disables the bound, which preserves the pre-hardening
+  behaviour and keeps every existing test valid.
+- **The cap covers native value only.** ERC-20 outflow is already bounded per asset by the drip budget, and
+  native is where the vault's real exposure sits; a second per-token rate limiter was not worth the surface.
+- **The deploy script records custody it can prove.** `contracts/scripts/deploy-testnet.ts` resolves the owner
+  kind (`MAOTANG_OWNER_TYPE`, inferred from `eth_getCode` when unset), requires
+  `MAOTANG_TIMELOCK_DELAY_SECONDS` for a timelock and rejects it for every other kind, and refuses a declared
+  Safe/timelock at an address carrying no code or an address declared `eoa` that carries code. It wires
+  `MAOTANG_GUARDIAN` when the deployer is the owner, then reads the deployed state back off the chain, so the
+  export's `governance` block carries the owner kind/label/delay, the installed guardian, the brake state and
+  the outflow cap.
+
+**Consequences:** a fresh deployment can hand the immutable authority to a Safe or a Timelock without the
+manifest merely asserting it - `vault.owner()` is verified on chain - and the vault now has a halt an operator
+can delegate to a monitoring key, plus a rate limit on the asset class whose loss is unrecoverable. The
+guardian is a new trust position: it can freeze payouts, so its key must be monitored and rotated through
+`setGuardian`, and an unset guardian means only the owner can brake. `MAOTANG_GUARDIAN` appears as `null` in
+the export until a guardian is installed, which is the honest "no separate brake exists" state rather than an
+implied one.
+
 ## 2026-10-08 — ADR-017: the Alpha launcher signs the owner-side initialization the deploy script defers
 
 **Status:** Accepted (implemented; `scripts/start-alpha.ps1` parse-clean, `contracts`

@@ -2,6 +2,21 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-08 - forge-lint flags a `block.timestamp` read reused across `vm.warp`; warp to a fixed clock
+
+- **Observation:** `forge build` stays green but its linter reports `environment-read-across-mutation` for
+  `vm.warp(block.timestamp + 1 days)` in a Foundry test, and still reports it after the value is hoisted into
+  a local (`uint256 t = block.timestamp; vm.warp(t + 1 days)`). What the linter asks for is to stop reading
+  the environment: warp to an absolute constant instead.
+- **Lesson:** In this repo's Foundry tests the block timestamp is a fixed input, not a value to read back, so
+  window arithmetic is written `vm.warp(START_TIMESTAMP + 1 days)` against a constant. The lint is a warning
+  and never fails the build, which is exactly why it has to be read from the full output rather than inferred
+  from the exit code - an exit code of 0 says nothing about new warnings.
+- **Application:** `contracts/test/MaoTangSustenanceVault.t.sol` declares
+  `uint256 internal constant OUTFLOW_CLOCK = 1_700_000_000` and warps to absolute times, matching the clock
+  convention in `SustenanceDripper.t.sol`; `forge build --force` is back to its six pre-existing warnings,
+  none of them from the new tests.
+
 ## 2026-10-08 - ethers v6 coalesces JSON-RPC calls for 250 ms; on a fast chain that is a stale nonce
 
 - **Observation:** `contracts/scripts/deploy-testnet.ts` deployed the first contract and then failed with

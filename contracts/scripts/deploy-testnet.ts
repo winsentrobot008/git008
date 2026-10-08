@@ -32,6 +32,20 @@
  *   MAOTANG_REFERENCE_CURVE  set to `0` to skip the on-chain 5 ETH graduation-threshold probe
  *   MAOTANG_OPERATOR_ADDRESS  operator/developer revenue beneficiary, defaults to the wired address
  *   MAOTANG_BTC_REVENUE_ADDRESS  BTC payout metadata recorded in the export
+ *
+ * Owner custody. `MAOTANG_OWNER` is written into the contracts as an `immutable`, so the chain this
+ * script deploys to has no ownership-transfer path: whichever address is passed here holds the protocol
+ * authority for the life of those contracts. Pass a Safe or a Timelock contract address in production
+ * and declare what it is, so the export records a custody claim instead of guessing one:
+ *   MAOTANG_OWNER_TYPE             eoa | safe | timelock | contract; inferred from chain code when unset
+ *   MAOTANG_OWNER_LABEL            free-text label recorded in the export
+ *   MAOTANG_TIMELOCK_DELAY_SECONDS required for a timelock owner, rejected for every other kind
+ *   MAOTANG_GUARDIAN               address allowed to halt vault payouts; wired by this script when the
+ *                                  deployer is the owner, and recorded either way
+ *
+ * The export's `governance` block is read back from the chain, so it reports what was deployed rather
+ * than what was requested: the vault owner, the installed guardian, the payout brake state and the
+ * rolling native-outflow cap.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -60,6 +74,21 @@ const GOVERNOR_QUORUM_BPS = 1_000n;
 const DEFAULT_OPERATOR_ADDRESS = "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea";
 /** BTC destination recorded as cross-chain payout metadata; this script never deploys to it. */
 const DEFAULT_BTC_REVENUE_ADDRESS = "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe";
+
+/** The zero address, used to tell a configured guardian from an unset one in the export. */
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+/** Custody kinds an operator may declare for the immutable protocol authority. */
+const OWNER_KINDS = ["eoa", "safe", "timelock", "contract"] as const;
+type OwnerKind = (typeof OWNER_KINDS)[number];
+
+/** Default human label per owner kind, used when MAOTANG_OWNER_LABEL is unset. */
+const OWNER_KIND_LABELS: Record<OwnerKind, string> = {
+  eoa: "externally owned account",
+  safe: "Safe multisig",
+  timelock: "timelock controller",
+  contract: "unlabelled contract",
+};
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const CONTRACTS_DIR = resolve(SCRIPTS_DIR, "..");
@@ -104,6 +133,88 @@ function booleanEnv(key: string, fallback: boolean): boolean {
     return fallback;
   }
   return !["0", "false", "no", "off"].includes(raw);
+}
+
+/** Normalises `MAOTANG_OWNER_TYPE`, accepting the common multisig aliases and rejecting anything else. */
+function parseOwnerKind(raw: string | undefined): OwnerKind | null {
+  const value = raw?.trim().toLowerCase();
+  if (value === undefined || value === "") {
+    return null;
+  }
+  if (value === "multisig" || value === "gnosis-safe") {
+    return "safe";
+  }
+  if (!(OWNER_KINDS as readonly string[]).includes(value)) {
+    throw new Error(`MAOTANG_OWNER_TYPE is ${raw}; expected one of ${OWNER_KINDS.join(", ")}`);
+  }
+  return value as OwnerKind;
+}
+
+/**
+ * Parses a non-negative integer environment value, returning `null` when unset.
+ *
+ * Used for the timelock delay, where a typo silently becoming `NaN` or `0` would misreport a custody
+ * guarantee, so anything that is not plain digits is rejected rather than coerced.
+ */
+function nonNegativeIntegerEnv(key: string): number | null {
+  const raw = process.env[key]?.trim();
+  if (raw === undefined || raw === "") {
+    return null;
+  }
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`${key} is ${raw}; expected a non-negative integer`);
+  }
+  return Number(raw);
+}
+
+/**
+ * Determines how the immutable protocol authority is held.
+ *
+ * `MAOTANG_OWNER_TYPE` wins when set, but it is checked against the chain: a Safe or timelock declared
+ * at an address carrying no code, or an address declared `eoa` that carries code, is a custody claim the
+ * chain contradicts, so the deployment stops instead of exporting a label nobody can trust.
+ */
+async function resolveOwnerKind(provider: JsonRpcProvider, owner: string): Promise<OwnerKind> {
+  const declared = parseOwnerKind(process.env.MAOTANG_OWNER_TYPE);
+  const hasCode = (await provider.getCode(owner)) !== "0x";
+  if (declared === null) {
+    return hasCode ? "contract" : "eoa";
+  }
+  if (!hasCode && declared !== "eoa") {
+    throw new Error(`MAOTANG_OWNER_TYPE is ${declared} but ${owner} carries no contract code`);
+  }
+  if (hasCode && declared === "eoa") {
+    throw new Error(`MAOTANG_OWNER_TYPE is eoa but ${owner} carries contract code`);
+  }
+  return declared;
+}
+
+/** Reads `MAOTANG_TIMELOCK_DELAY_SECONDS`, requiring it for a timelock and rejecting it elsewhere. */
+function resolveTimelockDelay(ownerKind: OwnerKind): number {
+  const declared = nonNegativeIntegerEnv("MAOTANG_TIMELOCK_DELAY_SECONDS");
+  if (ownerKind === "timelock") {
+    if (declared === null) {
+      throw new Error("MAOTANG_OWNER_TYPE is timelock but MAOTANG_TIMELOCK_DELAY_SECONDS is unset");
+    }
+    return declared;
+  }
+  if (declared !== null && declared > 0) {
+    throw new Error("MAOTANG_TIMELOCK_DELAY_SECONDS is set but the owner is not a timelock");
+  }
+  return 0;
+}
+
+/** Reads `MAOTANG_GUARDIAN`, rejecting the owner because the owner already holds the brake. */
+function resolveGuardian(raw: string | undefined, owner: string): string | null {
+  const value = raw?.trim();
+  if (value === undefined || value === "") {
+    return null;
+  }
+  const guardian = getAddress(value);
+  if (guardian.toLowerCase() === owner.toLowerCase()) {
+    throw new Error("MAOTANG_GUARDIAN must differ from the owner, which already holds the brake");
+  }
+  return guardian;
 }
 
 /** Accepts a private key with or without the `0x` prefix. */
@@ -269,12 +380,21 @@ async function main(): Promise<void> {
   const owner = getAddress(process.env.MAOTANG_OWNER?.trim() || deployer);
   const operator = getAddress(process.env.MAOTANG_OPERATOR_ADDRESS?.trim() || DEFAULT_OPERATOR_ADDRESS);
   const btcRevenueAddress = process.env.MAOTANG_BTC_REVENUE_ADDRESS?.trim() || DEFAULT_BTC_REVENUE_ADDRESS;
+  const ownerKind = await resolveOwnerKind(provider, owner);
+  const timelockDelaySeconds = resolveTimelockDelay(ownerKind);
+  const ownerLabel = process.env.MAOTANG_OWNER_LABEL?.trim() || OWNER_KIND_LABELS[ownerKind];
+  const guardian = resolveGuardian(process.env.MAOTANG_GUARDIAN, owner);
+  const deployerIsOwner = deployer.toLowerCase() === owner.toLowerCase();
 
   console.log("MAOTANG alpha testnet deployment");
   console.log(`  rpc                      ${redactRpcUrl(rpcUrl)}`);
   console.log(`  chainId                  ${network.chainId}`);
   console.log(`  deployer                 ${deployer}`);
-  console.log(`  owner                    ${owner}`);
+  console.log(`  owner                    ${owner} (${ownerKind}, ${ownerLabel})`);
+  if (ownerKind === "timelock") {
+    console.log(`  timelock delay           ${timelockDelaySeconds} s`);
+  }
+  console.log(`  guardian                 ${guardian ?? "none; only the owner can halt payouts"}`);
   console.log(`  graduation market        ${positionManager}`);
   console.log(`  operator beneficiary     ${operator}`);
   console.log(`  btc payout metadata      ${btcRevenueAddress}`);
@@ -336,7 +456,7 @@ async function main(): Promise<void> {
 
   // The dripper pays only once the vault names it, and the vault names only an owner. Where the
   // deployer is not the owner, that wiring is the owner transaction, so it is reported, not attempted.
-  if (deployer.toLowerCase() === owner.toLowerCase()) {
+  if (deployerIsOwner) {
     const wiring = await (await vault.setDripper(contracts.MaoTangSustenanceDripper)).wait();
     if (!wiring || wiring.status !== 1) {
       throw new Error("vault.setDripper did not confirm");
@@ -354,11 +474,42 @@ async function main(): Promise<void> {
     expectAddress(await vault.ownerSustenanceTarget(), operator, "vault.ownerSustenanceTarget");
     expectAddress(await dripper.ownerSustenanceTarget(), operator, "dripper.ownerSustenanceTarget");
     console.log("  beneficiary wired        vault + dripper target = " + operator);
+
+    if (guardian !== null) {
+      const guardianWiring = await (await vault.setGuardian(guardian)).wait();
+      if (!guardianWiring || guardianWiring.status !== 1) {
+        throw new Error("vault.setGuardian did not confirm");
+      }
+      console.log("  guardian wired           vault.guardian = " + guardian);
+    }
   } else {
     console.log("  dripper wiring deferred  owner differs from the deployer; call vault.setDripper");
     console.log("  beneficiary deferred     call setOwnerSustenanceTarget from the owner");
+    console.log("  owner wiring deferred    the owner contract performs the deferred steps above");
+    if (guardian !== null) {
+      console.log("  guardian deferred        owner calls vault.setGuardian");
+    }
   }
   console.log("  drip budget unfunded     owner calls vault.fundDripBudget once fees have accrued");
+
+  // Read the custody facts back off the chain so the export records the deployed state rather than the
+  // request. `vault.owner()` is immutable, so this is the last chance to catch a deployment that handed
+  // the protocol authority to an address nobody intended.
+  const [vaultAuthority, onChainGuardian, payoutsPaused, nativeOutflowCap, outflowWindowSeconds] =
+    await Promise.all([
+      vault.owner() as Promise<string>,
+      vault.guardian() as Promise<string>,
+      vault.paused() as Promise<boolean>,
+      vault.nativeOutflowCap() as Promise<bigint>,
+      vault.outflowWindowSeconds() as Promise<bigint>,
+    ]);
+  expectAddress(vaultAuthority, owner, "vault.owner");
+  const guardianInstalled = onChainGuardian !== ZERO_ADDRESS;
+  const capSummary =
+    nativeOutflowCap === 0n ? "uncapped" : `${nativeOutflowCap} wei per ${outflowWindowSeconds} s`;
+  console.log(`  payout brake             ${payoutsPaused ? "PAUSED" : "released"}`);
+  console.log(`  guardian on chain        ${guardianInstalled ? onChainGuardian : "unset; the owner brakes"}`);
+  console.log("  native outflow cap       " + capSummary);
 
   console.log("");
   const referenceCurve = await probeReferenceCurve(factory, wallet, contracts.MaoTangSustenanceVault, positionManager);
@@ -399,6 +550,18 @@ async function main(): Promise<void> {
     },
     referenceCurve,
     governance: {
+      owner: {
+        address: owner,
+        kind: ownerKind,
+        label: ownerLabel,
+        timelockDelaySeconds,
+      },
+      ownerWiringDeferred: !deployerIsOwner,
+      guardian: guardianInstalled ? onChainGuardian : null,
+      guardianInstalled,
+      payoutsPaused,
+      nativeOutflowCapWei: nativeOutflowCap.toString(),
+      nativeOutflowWindowSeconds: Number(outflowWindowSeconds),
       governor: contracts.MaoTangGovernor,
       dripper: contracts.MaoTangSustenanceDripper,
       telemetrySigner,
