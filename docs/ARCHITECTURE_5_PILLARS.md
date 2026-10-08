@@ -363,3 +363,23 @@ proofType         = ASCII "maotang.telemetry.node.v1" 右填充至 32 字节
 3. 迁移纪元由谁触发 —— owner 多签 / 治理投票 / 时间锁？如何避免迁移窗口本身成为新的攻击面？
 4. 生物认证失败（设备丢失、受伤、丧失决策能力）时的恢复与继承流程如何设计，且不引入可被滥用的后门？
 5. 混合签名“两边都通过才放行”在移动端是否带来不可接受的延迟？是否需要分级：**高价值动作双签、低价值动作单签**？
+
+
+---
+
+## 13. Web 端控制台（Web Agent OS，`frontend/src/app/agent`）
+
+M1–M5 在浏览器里的可操作入口；完整说明与实测证据见 `docs/WEB_AGENT_CONSOLE.md`。
+
+| 交付物 | 支柱 | 说明 |
+| --- | --- | --- |
+| `src/app/api/agent/intent/route.ts` | M1 + M2 | 服务端运行真实 `LocalSlmEngineAdapter` / `IntentTranslator` / `AutonomousWallet.preview`，返回 intent、policy 决策与 digest；签名请求一律被 `HardwareEnclave` 拒绝（fail-closed） |
+| `src/app/api/agent/status/route.ts` | M2 | 上报绑定（chain / RPC / manifest）、上限、滚动窗口与 enclave 可达性；可达性由 `attest()` 实测得出，不假设 |
+| `src/lib/slm/lazy-model-loader.ts` | M1 | 显式触发、流式下载进度、SHA-256 校验；未固定摘要即 `MODEL_NOT_CONFIGURED`，绝不自动下载 |
+| `src/components/agent-console/BioAuthGuard.tsx` | M5 | WebAuthn 平台认证器绑定与凭据派生的 "web 侧 nullifier"（**不是**链上 Groth16 nullifier） |
+| `src/components/agent-console/AutonomousWalletCard.tsx` | M2 | 余额、滚动窗口、单笔上限、白名单与 fail-closed 状态 |
+| `src/components/agent-console/MiningEngineConsole.tsx` | M1 | 一键激活边缘模型 + 自然语言意图预览 |
+
+**关键边界**：控制台**不持有密钥**，因此不能签名、也不能广播；服务端只做 preview，digest 只算一次并原样传给 M5 作为挑战值。浏览器端对 `@maotang/mobile-agent` 只做 `import type`，`next build` 必须同时产出 `○ /agent` 与两条 `ƒ /api/agent/*` 路由——这就是"Node 专用代码没有进入客户端包"的验收方式。
+
+**验收**：`cd D:\git008\frontend; npx tsc --noEmit; npm run build`。

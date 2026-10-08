@@ -2,6 +2,61 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-026: the web console runs M1/M2 on the server and imports only their types, because a browser cannot hold the key and must not re-derive the digest
+
+**Status:** Accepted (implemented in `frontend/src/lib/agent/`, `frontend/src/lib/slm/lazy-model-loader.ts`,
+`frontend/src/components/agent-console/` and `frontend/src/app/api/agent/*`; `npx tsc --noEmit` clean and
+`npm run build` green in `frontend/`, with both agent routes and the `/agent` page produced. Documented in
+`docs/WEB_AGENT_CONSOLE.md`. No contract, SDK or mobile-agent source changed)
+
+**Context:** ADR-022 through ADR-025 landed M1/M2/M5 and proved them in-process. The remaining question was
+whether the owner can drive them from a browser without weakening any of them. Three forces collide:
+
+- **The modules are Node modules.** `signer/wallet.ts` hashes the intent digest with `node:crypto`, and the
+  M1/M2 sources are compiled with `module: NodeNext` and `.js` specifiers, so bundling them into a client
+  component means a polyfill, a duplicate implementation, or a build that lies about where code runs.
+- **A web server must not hold the owner's key.** M2's whole design is "keys never leave the device", so a
+  route handler that could sign would be the exact anti-pattern the architecture exists to prevent.
+- **A preview is the product.** M2 already ships the right primitive: `preview()` returns the policy decision
+  plus the digest that *would* be signed, precisely so a UI can show the owner what they are authorizing.
+
+**Decision:**
+
+- **M1/M2 run in Node route handlers; the client imports only types.** `frontend/src/lib/agent/runtime.ts`
+  composes `LocalSlmEngineAdapter`, `IntentTranslator` and `AutonomousWallet` over the deployment manifest,
+  and `/api/agent/{intent,status}` are the only surface. The browser's shared wire contract
+  (`src/lib/agent/types.ts`) imports nothing and re-declares `Address`/`Hex` as plain template literals, so
+  no value import can pull the Node package into the client graph. `next build` is the enforcement: it must
+  keep emitting `ƒ /api/agent/*` beside a static `/agent`.
+- **The server holds no key, so the console cannot sign.** The wallet is constructed over `HardwareEnclave`,
+  the refusing default, and `attemptSign` returns the enclave's own `EnclaveUnavailableError` rather than a
+  signature. The console renders that as the fail-closed state. Signing on the web edge is a WebAuthn
+  assertion (M5) plus a device-held key; it is not a server capability, and the API is shaped so it cannot
+  accidentally become one.
+- **The digest crosses the wire and is never recomputed.** One digest per preview, computed once by the
+  wallet; M5's assertion is requested over that exact value, so the biometric is bound to destination,
+  value, calldata and chain. A browser that re-derived it could disagree with the wallet that signs it.
+- **The edge model loader refuses to be automatic.** Activation requires a runtime grant from a module-private
+  `WeakSet`, pinned by a click handler, and the artifact must carry a full 64-hex SHA-256; a missing pin is
+  `MODEL_NOT_CONFIGURED` and a mismatch is `HASH_MISMATCH` with nothing returned. A `WeakSet` rather than a
+  type-level brand because the question is "did a gesture really happen?" at runtime, and a brand is erased by
+  the first `as` cast it meets.
+- **The M1 production guard is preserved, not bypassed.** The deterministic stub refuses
+  `NODE_ENV=production` on its own; that stays the default, and a deployment that knowingly has no real
+  `SlmRuntimeBackend` opts in with `AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION=1`. The engine then reports
+  `kind: "mock"` on screen, so the stub can never be mistaken for a model in a screenshot.
+- **Spend caps are server-side (`AGENT_*`), limits live with the manifest.** No `NEXT_PUBLIC_` prefix on a
+  cap: a cap published in the client bundle invites trust in a number the browser could have edited. The
+  destination and selector allow-lists come from the deployment, not from configuration, so the manifest
+  remains the single source of truth for what may be targeted.
+
+**Consequences:** the owner gets one screen that previews real intents against the real policy and shows the
+real reason for every refusal, and the console adds no new signing capability. The cost is a build-order
+dependency (mobile-agent's `dist` must exist, exactly as `@maotang/sdk`'s already does) and a client bundle
+that cannot run the pipeline offline - so the console complements a device build, it does not replace one.
+The web-edge nullifier in `webauthn.ts` is explicitly **not** the on-chain Groth16 nullifier (ADR-009), and
+the UI says so under the value rather than leaving the reader to assume otherwise.
+
 ## 2026-10-08 - ADR-025: the sandbox proves the five modules compose by decoding what it signs, not by trusting the encoder that signed it
 
 **Status:** Accepted (implemented in `mobile-agent/test/e2e-sandbox.test.ts`; `npm run typecheck` clean and
