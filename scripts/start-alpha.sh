@@ -4,7 +4,8 @@
 #
 # Brings the protocol up on a local chain:
 #   1. Reuse MAOTANG_RPC_URL, or a node already listening on :8545; otherwise spawn
-#      `anvil --block-time 2` in the background.
+#      `anvil --block-time 2`, falling back to the built-in Node mock RPC server when Foundry
+#      is not installed.
 #   2. Build the contract artifacts when they are missing, deploy the protocol set, and
 #      write frontend/config/contracts.json.
 #   3. Start the agent-client video worker, watching MemeTokenCreated on the new factory.
@@ -50,8 +51,10 @@ FACTORY_ADDRESS=""
 VAULT_ADDRESS=""
 HUMAN_TOKEN_ADDRESS=""
 ANVIL_PID=""
+MOCK_RPC_PID=""
 WORKER_PID=""
 ANVIL_LOG=""
+MOCK_RPC_LOG=""
 WORKER_LOG=""
 DEPLOY_CMD=()
 
@@ -175,20 +178,43 @@ initialize_anvil() {
     return 0
   fi
 
-  if ! have anvil; then
-    die "no RPC endpoint is reachable and anvil is not on PATH. Install Foundry (https://getfoundry.sh) or set MAOTANG_RPC_URL."
+  mkdir -p "$LOG_DIR"
+
+  if have anvil; then
+    ANVIL_LOG="$LOG_DIR/alpha-anvil.log"
+    note "spawning: anvil --block-time $ANVIL_BLOCK_TIME --port $ANVIL_PORT"
+    anvil --block-time "$ANVIL_BLOCK_TIME" --port "$ANVIL_PORT" >"$ANVIL_LOG" 2>&1 &
+    ANVIL_PID=$!
+    note "anvil pid $ANVIL_PID, log: $ANVIL_LOG"
+
+    if ! wait_rpc "$DEFAULT_RPC" 40; then
+      die "anvil did not become reachable on $DEFAULT_RPC; see $ANVIL_LOG"
+    fi
+    RPC_URL="$DEFAULT_RPC"
+    return 0
   fi
 
-  mkdir -p "$LOG_DIR"
-  ANVIL_LOG="$LOG_DIR/alpha-anvil.log"
-  note "spawning: anvil --block-time $ANVIL_BLOCK_TIME --port $ANVIL_PORT"
-  anvil --block-time "$ANVIL_BLOCK_TIME" --port "$ANVIL_PORT" >"$ANVIL_LOG" 2>&1 &
-  ANVIL_PID=$!
-  note "anvil pid $ANVIL_PID, log: $ANVIL_LOG"
+  # No chain binary on PATH: fall back to the zero-dependency Node mock so the deployment pipeline
+  # can still be exercised end to end.
+  printf "[Notice] 'anvil' not found. Launching built-in Node Mock RPC server (%s)...\n" "$DEFAULT_RPC"
+
+  if ! have node; then
+    die "no RPC endpoint is reachable, anvil is not on PATH and node is not on PATH either. Install Foundry (https://getfoundry.sh), install Node, or set MAOTANG_RPC_URL."
+  fi
+  if [ ! -f "$REPO_ROOT/scripts/mock-rpc.js" ]; then
+    die "missing $REPO_ROOT/scripts/mock-rpc.js"
+  fi
+
+  MOCK_RPC_LOG="$LOG_DIR/alpha-mock-rpc.log"
+  export MOCK_RPC_PORT="$ANVIL_PORT"
+  node "$REPO_ROOT/scripts/mock-rpc.js" >"$MOCK_RPC_LOG" 2>&1 &
+  MOCK_RPC_PID=$!
+  note "mock RPC pid $MOCK_RPC_PID, log: $MOCK_RPC_LOG"
 
   if ! wait_rpc "$DEFAULT_RPC" 40; then
-    die "anvil did not become reachable on $DEFAULT_RPC; see $ANVIL_LOG"
+    die "the built-in mock RPC server did not become reachable on $DEFAULT_RPC; see $MOCK_RPC_LOG"
   fi
+  export MAOTANG_RPC_URL="$DEFAULT_RPC"
   RPC_URL="$DEFAULT_RPC"
 }
 
@@ -350,6 +376,11 @@ cleanup() {
   if [ -n "$ANVIL_PID" ] && [ "$KEEP_ANVIL" -eq 0 ] && kill -0 "$ANVIL_PID" 2>/dev/null; then
     note "stopping anvil (pid $ANVIL_PID)"
     kill "$ANVIL_PID" 2>/dev/null || true
+  fi  # The mock is an ephemeral dry-run fixture with no state worth keeping, so it always stops.
+  if [ -n "$MOCK_RPC_PID" ] && kill -0 "$MOCK_RPC_PID" 2>/dev/null; then
+    note "stopping mock RPC (pid $MOCK_RPC_PID)"
+    kill "$MOCK_RPC_PID" 2>/dev/null || true
+    wait "$MOCK_RPC_PID" 2>/dev/null || true
   fi
   return "$code"
 }

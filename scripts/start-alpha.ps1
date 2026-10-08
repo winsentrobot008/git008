@@ -7,7 +7,8 @@
     Brings the protocol up on a local chain:
 
       1. Reuse MAOTANG_RPC_URL, or a node already listening on :8545; otherwise spawn
-         `anvil --block-time 2` in the background.
+         `anvil --block-time 2`, falling back to the built-in Node mock RPC server when Foundry
+         is not installed.
       2. Build the Foundry artifacts and install the deployment toolchain when they are missing,
          then deploy the protocol set and write frontend/config/contracts.json.
       3. Start the agent-client video worker, watching MemeTokenCreated on the new factory.
@@ -25,7 +26,8 @@
     Do not start Next.js; exit once the worker is up.
 
 .PARAMETER KeepAnvil
-    Leave a spawned anvil running after the script exits.
+    Leave a spawned anvil running after the script exits. Does not apply to the built-in mock RPC
+    server, which is always stopped.
 
 .EXAMPLE
     ./scripts/start-alpha.ps1
@@ -65,8 +67,10 @@ $LocalMarketStandIn = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'
 $LocalAgent = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
 
 $script:AnvilProcess = $null
+$script:MockRpcProcess = $null
 $script:WorkerProcess = $null
 $script:AnvilLog = $null
+$script:MockRpcLog = $null
 $script:WorkerLog = $null
 
 function Write-Step {
@@ -165,23 +169,48 @@ function Initialize-Anvil {
         return $DefaultRpc
     }
 
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+
     $anvil = Find-Command 'anvil'
-    if (-not $anvil) {
-        throw "no RPC endpoint is reachable and 'anvil' is not on PATH. Install Foundry (https://getfoundry.sh) or set MAOTANG_RPC_URL."
+    if ($anvil) {
+        $script:AnvilLog = Join-Path $LogDir 'alpha-anvil.log'
+        Write-Note "spawning: anvil --block-time $AnvilBlockTime --port $AnvilPort"
+        $script:AnvilProcess = Start-Process -FilePath $anvil `
+            -ArgumentList @('--block-time', "$AnvilBlockTime", '--port', "$AnvilPort") `
+            -PassThru -WindowStyle Hidden `
+            -RedirectStandardOutput $script:AnvilLog `
+            -RedirectStandardError "$($script:AnvilLog).err"
+
+        if (-not (Wait-Rpc -Url $DefaultRpc)) {
+            throw "anvil did not become reachable on $DefaultRpc; see $($script:AnvilLog)"
+        }
+        return $DefaultRpc
     }
 
-    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
-    $script:AnvilLog = Join-Path $LogDir 'alpha-anvil.log'
-    Write-Note "spawning: anvil --block-time $AnvilBlockTime --port $AnvilPort"
-    $script:AnvilProcess = Start-Process -FilePath $anvil `
-        -ArgumentList @('--block-time', "$AnvilBlockTime", '--port', "$AnvilPort") `
-        -PassThru -WindowStyle Hidden `
-        -RedirectStandardOutput $script:AnvilLog `
-        -RedirectStandardError "$($script:AnvilLog).err"
+    # No chain binary on PATH: fall back to the zero-dependency Node mock so the deployment pipeline
+    # can still be exercised end to end.
+    Write-Host "[Notice] 'anvil' not found. Launching built-in Node Mock RPC server ($DefaultRpc)..."
+
+    $node = Find-Command 'node'
+    if (-not $node) {
+        throw "no RPC endpoint is reachable, 'anvil' is not on PATH and 'node' is not on PATH either. Install Foundry (https://getfoundry.sh), install Node, or set MAOTANG_RPC_URL."
+    }
+    $mockRpc = Join-Path $RepoRoot 'scripts/mock-rpc.js'
+    if (-not (Test-Path -LiteralPath $mockRpc)) { throw "missing $mockRpc" }
+
+    $script:MockRpcLog = Join-Path $LogDir 'alpha-mock-rpc.log'
+    $env:MOCK_RPC_PORT = "$AnvilPort"
+    $script:MockRpcProcess = Start-Process -FilePath $node `
+        -ArgumentList @("`"$mockRpc`"") `
+        -WorkingDirectory $RepoRoot -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput "$($script:MockRpcLog).out" `
+        -RedirectStandardError $script:MockRpcLog
 
     if (-not (Wait-Rpc -Url $DefaultRpc)) {
-        throw "anvil did not become reachable on $DefaultRpc; see $($script:AnvilLog)"
+        throw "the built-in mock RPC server did not become reachable on $DefaultRpc; see $($script:MockRpcLog)"
     }
+    Write-Note "mock RPC pid $($script:MockRpcProcess.Id), log: $($script:MockRpcLog)"
+    $env:MAOTANG_RPC_URL = $DefaultRpc
     return $DefaultRpc
 }
 
@@ -362,6 +391,10 @@ function Stop-Spawned {
     if ($script:AnvilProcess -and -not $KeepAnvil -and -not $script:AnvilProcess.HasExited) {
         Write-Note "stopping anvil (pid $($script:AnvilProcess.Id))"
         Stop-Process -Id $script:AnvilProcess.Id -Force -ErrorAction SilentlyContinue
+    }    # The mock is an ephemeral dry-run fixture with no state worth keeping, so it always stops.
+    if ($script:MockRpcProcess -and -not $script:MockRpcProcess.HasExited) {
+        Write-Note "stopping mock RPC (pid $($script:MockRpcProcess.Id))"
+        Stop-Process -Id $script:MockRpcProcess.Id -Force -ErrorAction SilentlyContinue
     }
 }
 
