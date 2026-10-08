@@ -1,16 +1,13 @@
-import type { MemeToken } from "@maotang/sdk";
-
-/** On-chain identity of a launch plus the raw curve numbers used for display. */
-export interface LaunchCard extends MemeToken {
-  /** Reserve held by the curve, in wei. */
-  reserveWei: bigint;
-  /** Spot price in reserve wei per one whole meme token. */
-  priceWei: bigint;
-}
+import type { LaunchCard } from "./protocol";
 
 /**
- * Placeholder board used until the factory is deployed and the SDK transport is wired to a
- * wallet. The shape mirrors what `MaoTangClient.getCurveState` returns.
+ * Fallback board.
+ *
+ * The live board is `useLaunches`, which walks `MaoTangFactory.launchCount()` / `launchAt(i)` over the
+ * configured RPC. These rows render only while that read has not landed - the first paint, a board
+ * with no factory configured, or an RPC that stopped answering - so the layout is never empty and an
+ * unread chain is never shown as if it had been read. Every value below is fixed fixture data, and
+ * the board labels it as sample data instead of presenting it as a launch.
  */
 export const demoLaunches: LaunchCard[] = [
   {

@@ -2,6 +2,47 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 - ADR-019: the dashboard binds its deployment from the manifest and reads launches off the factory registry
+
+**Status:** Accepted (implemented; `frontend` `npx tsc --noEmit` clean, `next build` clean, and a
+headless Chromium render of the production bundle against a live Anvil chain through
+`https://rpc.008ai.online` that showed one real launch - `Mao Tang` / `$MAOTANG`, reserve
+0.357023 ETH, 7.14% of the 5 ETH target - with the three sample tiles gone)
+
+**Context:** The dashboard shipped with three hard-coded sample tiles and read its curve/vault
+addresses from a mix of environment variables and a local `demoLaunches` array, so it could not show
+a token a real `createMemeToken` call had created. Two further gaps made the live path unusable even
+once addresses were configured: the factory - the one contract that knows every launch - was never
+wired in, and the guard in front of the tunnel (`scripts/rpc-guard.mjs`) answered every `OPTIONS`
+preflight with `405`, so a browser could never read the RPC at all.
+
+**Decision:**
+
+- **The manifest is the source of truth; `next.config.ts` is the only reader.** `frontend/config/contracts.json`
+  already carries the factory, vault, reference curve, `HumanToken` and chain id that
+  `contracts/scripts/deploy-testnet.ts` wrote at deploy time, so `next.config.ts` reads it in Node and
+  forwards the addresses as `NEXT_PUBLIC_MANIFEST_*` values. A `NEXT_PUBLIC_MAOTANG_*` variable still
+  wins when set, and a missing manifest degrades to empty panels rather than a build failure.
+- **Launches are discovered, never listed.** The board walks `MaoTangFactory.launchCount()` and
+  `launchAt(i)` newest-first, capped at twelve, and reads each curve's reserve/price plus the token's
+  `name()`/`symbol()` in one poll. A token created by any caller - CLI, script, another operator -
+  appears within one poll interval with no rebuild and no address list to maintain.
+- **The sample tiles stay as a labelled fallback.** They render only before the first successful read,
+  or when no factory is configured, under a `Launches (sample)` label; once a live read lands the
+  header switches to `Live launches` with an `on chain` count, and a genuinely empty registry shows an
+  explicit empty state instead of the samples.
+- **The board stays read-only and hands the write to the operator.** `createMemeToken` needs a signer
+  and the board deliberately has none, so the launch panel emits a copyable `cast send` command
+  instead of a submit button; the transport's `write()` throws by construction.
+- **The guard terminates CORS.** `scripts/rpc-guard.mjs` now answers `OPTIONS` with `204` plus
+  `Access-Control-Allow-Origin/Methods/Headers` and stamps the same headers on forwarded responses.
+  Without this the tunnel answered curl but no browser, which is the failure this ADR closes.
+
+**Consequences:** The dashboard shows real chain state with the only operator action being "set
+`NEXT_PUBLIC_MAOTANG_FACTORY_ADDRESS`, or rely on the manifest". New read methods must be added to the
+pinned selector registry in `frontend/src/lib/protocol.ts` (name, selector, kind, arity); the
+transport refuses an unregistered function rather than guessing. `Access-Control-Allow-Origin: *` on
+the guard is no wider than the node's own default and covers read-only methods only.
 ## 2026-10-08 — ADR-018: the sustenance vault gains an emergency payout brake and a native-outflow cap
 
 **Status:** Accepted (implemented; `forge build` clean with no new lint warnings, `forge test` 203/203 up

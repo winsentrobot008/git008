@@ -8,7 +8,7 @@ import {
   graduationProgressBps,
   type Address,
 } from "@maotang/sdk";
-import { demoLaunches, type LaunchCard } from "@/lib/launches";
+import { demoLaunches } from "@/lib/launches";
 import {
   formatAge,
   formatBps,
@@ -17,8 +17,21 @@ import {
   formatTokenPrice,
   shortAddress,
 } from "@/lib/format";
-import { graduationGap, SOVEREIGN_SHARE_LABEL, type CurveSnapshot, type VaultStats } from "@/lib/protocol";
-import { POLL_INTERVAL_MS, useChainConfig, useCurveSnapshot, useVaultStats, type LiveStatus } from "@/lib/hooks";
+import {
+  graduationGap,
+  SOVEREIGN_SHARE_LABEL,
+  type CurveSnapshot,
+  type LaunchCard,
+  type VaultStats,
+} from "@/lib/protocol";
+import {
+  POLL_INTERVAL_MS,
+  useChainConfig,
+  useCurveSnapshot,
+  useLaunches,
+  useVaultStats,
+  type LiveStatus,
+} from "@/lib/hooks";
 
 /** Rendered whenever a live read has not landed yet, so the board never invents a number. */
 const NO_VALUE = "\u2014";
@@ -161,20 +174,28 @@ function GraduationPanel({
   updatedAt,
   curve,
 }: {
-  snapshot: CurveSnapshot;
+  snapshot: CurveSnapshot | null;
   status: LiveStatus;
   updatedAt: number | null;
   curve: Address | null;
 }) {
-  const gap = graduationGap(snapshot.reserve, snapshot.target);
-  const completion = Math.min(gap.progressBps / 100, 100);
+  const gap = snapshot === null ? null : graduationGap(snapshot.reserve, snapshot.target);
+  const graduated = gap?.graduated ?? false;
+  const completion = gap === null ? 0 : Math.min(gap.progressBps / 100, 100);
+  const remainingLabel =
+    gap === null
+      ? "no curve read yet - set NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS or point the board at one"
+      : gap.graduated
+        ? "Target reached - migration ready"
+        : `${formatEth(gap.remainingWei)} still required`;
   return (
     <section className="flex flex-col gap-6 rounded-2xl border border-maotang-border bg-maotang-surface p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex max-w-md flex-col gap-1">
           <h2 className="text-xl font-semibold">Graduation progress</h2>
           <p className="text-sm text-white/50">
-            Curve reserve against the {formatEth(snapshot.target)} raise target. At 100% the curve
+            Curve reserve against the {formatEth(snapshot?.target ?? GRADUATION_TARGET_WEI)} raise
+            target. At 100% the curve
             migrates into the open market and charges the graduation fee.
           </p>
         </div>
@@ -184,20 +205,16 @@ function GraduationPanel({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-xs uppercase tracking-[0.2em] text-white/40">Curve reserve</span>
-          <span className="font-mono text-3xl">{formatEth(snapshot.reserve)}</span>
-          <span className="text-xs text-white/40">
-            {gap.graduated
-              ? "Target reached - migration ready"
-              : `${formatEth(gap.remainingWei)} still required`}
-          </span>
+          <span className="font-mono text-3xl">{snapshot ? formatEth(snapshot.reserve) : NO_VALUE}</span>
+          <span className="text-xs text-white/40">{remainingLabel}</span>
         </div>
         <div className="text-right">
           <div
             className={
-              gap.graduated ? "font-mono text-3xl text-maotang-mint" : "font-mono text-3xl text-maotang-pink"
+              graduated ? "font-mono text-3xl text-maotang-mint" : "font-mono text-3xl text-maotang-pink"
             }
           >
-            {formatPercentBps(gap.progressBps)}
+            {gap ? formatPercentBps(gap.progressBps) : NO_VALUE}
           </div>
           <div className="text-xs text-white/40">towards graduation</div>
         </div>
@@ -213,7 +230,7 @@ function GraduationPanel({
       >
         <div
           className={
-            gap.graduated
+            graduated
               ? "h-full rounded-full bg-maotang-mint"
               : "h-full rounded-full bg-linear-to-r from-maotang-pink to-maotang-mint"
           }
@@ -222,9 +239,9 @@ function GraduationPanel({
       </div>
 
       <dl className="grid gap-4 sm:grid-cols-3">
-        <StatCell label="Spot price" value={formatTokenPrice(snapshot.price)} />
-        <StatCell label="Token" value={shortAddress(snapshot.token)} />
-        <StatCell label="Curve" value={curve ? shortAddress(curve) : "demo board curve"} />
+        <StatCell label="Spot price" value={snapshot ? formatTokenPrice(snapshot.price) : NO_VALUE} />
+        <StatCell label="Token" value={snapshot ? shortAddress(snapshot.token) : NO_VALUE} />
+        <StatCell label="Curve" value={curve ? shortAddress(curve) : "not configured"} />
       </dl>
     </section>
   );
@@ -275,6 +292,10 @@ function LaunchTile({ launch }: { launch: LaunchCard }) {
           />
         </div>
       </div>
+
+      <p className="text-xs text-white/30">
+        token {shortAddress(launch.address)} - curve {shortAddress(launch.curve)}
+      </p>
     </article>
   );
 }
@@ -287,15 +308,19 @@ export default function HomePage() {
   const config = useChainConfig();
   const vault = useVaultStats();
   const curve = useCurveSnapshot();
+  const launches = useLaunches();
 
-  // Until the deployment is wired the panels fall back to the same placeholder board the tiles use.
-  const fallback = demoLaunches[0];
-  const snapshot: CurveSnapshot = curve.value ?? {
-    token: fallback.address,
-    reserve: fallback.reserveWei,
-    target: GRADUATION_TARGET_WEI,
-    price: fallback.priceWei,
-  };
+  // The live board replaces the sample rows the moment the factory answers. Until then the sample
+  // rows keep the layout, labelled as sample data, so an unread chain is never shown as a read one.
+  const liveLaunches = launches.value;
+  const boardLaunches = liveLaunches ?? demoLaunches;
+  const launchCountLabel = liveLaunches === null ? "Launches (sample)" : "Live launches";
+  const launchCommand = [
+    `cast send ${config?.factory ?? "<factory address>"} "createMemeToken(string,string)"`,
+    `"${name.trim()}" "${symbol.trim()}"`,
+    "--private-key $PRIVATE_KEY",
+    `--rpc-url ${config?.rpcUrl ?? "<rpc url>"}`,
+  ].join(" ");
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-14 px-6 py-16">
@@ -322,8 +347,8 @@ export default function HomePage() {
             <dd className="mt-1 font-mono text-xl">{formatEth(GRADUATION_TARGET_WEI)}</dd>
           </div>
           <div className="rounded-2xl border border-maotang-border bg-maotang-surface p-5">
-            <dt className="text-xs text-white/40">Live launches</dt>
-            <dd className="mt-1 font-mono text-xl">{demoLaunches.length}</dd>
+            <dt className="text-xs text-white/40">{launchCountLabel}</dt>
+            <dd className="mt-1 font-mono text-xl">{boardLaunches.length}</dd>
           </div>
           <div className="rounded-2xl border border-maotang-border bg-maotang-surface p-5">
             <dt className="text-xs text-white/40">Trade fee</dt>
@@ -345,7 +370,7 @@ export default function HomePage() {
           btcRevenueAddress={config?.btcRevenueAddress ?? null}
         />
         <GraduationPanel
-          snapshot={snapshot}
+          snapshot={curve.value}
           status={curve.status}
           updatedAt={curve.updatedAt}
           curve={config?.curve ?? null}
@@ -354,12 +379,28 @@ export default function HomePage() {
 
       <section className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-4">
-          <h2 className="text-xl font-semibold">Board</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {demoLaunches.map((launch) => (
-              <LaunchTile key={launch.address} launch={launch} />
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold">Board</h2>
+            <span className="rounded-full border border-maotang-border px-3 py-1 text-xs text-white/50">
+              {liveLaunches === null
+                ? config?.factory
+                  ? "reading the factory..."
+                  : "sample data - no factory configured"
+                : `${liveLaunches.length} on chain`}
+            </span>
           </div>
+          {liveLaunches !== null && liveLaunches.length === 0 ? (
+            <p className="rounded-xl border border-maotang-border bg-maotang-ink px-4 py-6 text-sm text-white/50">
+              The factory has no launches yet. The first <code>createMemeToken</code> call appears here
+              within one poll interval.
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {boardLaunches.map((launch) => (
+                <LaunchTile key={launch.address} launch={launch} />
+              ))}
+            </div>
+          )}
         </div>
 
         <aside className="flex h-fit flex-col gap-4 rounded-2xl border border-maotang-border bg-maotang-surface p-5">
@@ -382,20 +423,25 @@ export default function HomePage() {
               className="rounded-xl border border-maotang-border bg-maotang-ink px-3 py-2 outline-none focus:border-maotang-pink"
             />
           </label>
-          <button
-            type="button"
-            disabled
-            title="Wallet wiring lands with the factory deployment."
-            className="rounded-xl bg-maotang-pink px-4 py-2 font-medium text-maotang-ink disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {canSubmit ? "Connect wallet to launch" : "Enter name and symbol"}
-          </button>
+          {canSubmit ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs uppercase tracking-[0.2em] text-white/40">Operator command</span>
+              <pre className="overflow-x-auto rounded-xl border border-maotang-border bg-maotang-ink px-3 py-2 text-xs text-maotang-mint">{launchCommand}</pre>
+              <span className="text-xs text-white/40">
+                Creating a token is a signed transaction, so it is sent from a funded wallet or the CLI;
+                this board reads the chain and never signs. The new launch appears above within{" "}
+                {Math.round(POLL_INTERVAL_MS / 1000)}s of being mined.
+              </span>
+            </div>
+          ) : (
+            <p className="text-xs text-white/40">Enter a name and a symbol to get the launch command.</p>
+          )}
           <p className="text-xs text-white/40">
-            The tiles above are placeholder data. The vault and graduation panels read live state
-            (every {Math.round(POLL_INTERVAL_MS / 1000)}s) once{" "}
-            <code>NEXT_PUBLIC_MAOTANG_RPC_URL</code>, <code>NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS</code> and{" "}
-            <code>NEXT_PUBLIC_MAOTANG_VAULT_ADDRESS</code> are set; outside production the RPC URL falls
-            back to local anvil (see <code>frontend/.env.example</code>).
+            The board walks <code>MaoTangFactory.launchCount()</code> and <code>launchAt(i)</code> over{" "}
+            <code>NEXT_PUBLIC_MAOTANG_RPC_URL</code>, refreshing every{" "}
+            {Math.round(POLL_INTERVAL_MS / 1000)}s. Addresses come from{" "}
+            <code>frontend/config/contracts.json</code> unless a <code>NEXT_PUBLIC_MAOTANG_*</code>{" "}
+            variable overrides them.
           </p>
         </aside>
       </section>

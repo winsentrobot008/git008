@@ -2,6 +2,23 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-08 - a JSON-RPC proxy that rejects non-POST breaks browsers while curl still passes
+
+- **Observation:** `scripts/rpc-guard.mjs` answered `OPTIONS https://rpc.008ai.online` with
+  `405 {"error":{"code":-32600,"message":"only POST JSON-RPC is served"}}`, because the handler
+  rejected every method except `POST` and its `sendJson` helper set only `content-type`. `curl`
+  posted straight to the endpoint and received `200`, so the hostname looked healthy end to end. A
+  browser sending `content-type: application/json` issues a CORS preflight first and never sends the
+  POST at all, so the dashboard could not read the chain even though every manual check passed.
+- **Lesson:** For a browser consumer on a different origin, "works in curl" proves nothing about a
+  JSON-RPC edge. A reverse proxy in front of a node must answer `OPTIONS` with `204` and the CORS
+  headers, and must stamp `Access-Control-Allow-Origin` on forwarded responses too - the upstream
+  node's own headers do not survive a proxy that writes its own `writeHead`.
+- **Application:** `scripts/rpc-guard.mjs` gained a `CORS_HEADERS` block, an `OPTIONS` branch ahead
+  of the method check, and CORS headers on both the error paths (`sendJson`) and the forwarded path
+  (`forward`). Verify with
+  `curl.exe -i -X OPTIONS -H 'origin: https://example.com' -H 'access-control-request-method: POST' https://rpc.008ai.online`
+  and expect `204` plus `access-control-allow-origin`, rather than with a plain POST.
 ## 2026-10-08 - forge-lint flags a `block.timestamp` read reused across `vm.warp`; warp to a fixed clock
 
 - **Observation:** `forge build` stays green but its linter reports `environment-read-across-mutation` for

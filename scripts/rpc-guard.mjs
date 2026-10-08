@@ -25,6 +25,11 @@
  *   node scripts/rpc-guard.mjs --allow eth_accounts           # carve one exception out of the deny list
  *   node scripts/rpc-guard.mjs --deny eth_sendRawTransaction  # stricter: refuse writes entirely
  *
+ * It also terminates CORS. The board is served from a different origin (`008ai.online`) than the RPC
+ * (`rpc.008ai.online`), so every response carries `Access-Control-Allow-Origin` and an `OPTIONS`
+ * preflight is answered here rather than rejected. Without this the tunnel answers curl but no
+ * browser can read it.
+ *
  * Deny patterns are case-insensitive and take a trailing `*` wildcard. Repeated `--deny` / `--allow`
  * flags extend the built-in lists rather than replacing them, and `--allow` always wins.
  */
@@ -37,6 +42,19 @@ const DEFAULT_TARGET = "http://127.0.0.1:8545";
 const MAX_BODY_BYTES = 1024 * 1024;
 /** Give up on a node that has stopped answering rather than holding the socket open. */
 const UPSTREAM_TIMEOUT_MS = 30_000;
+/**
+ * CORS headers on every response.
+ *
+ * `*` is deliberate and no wider than the node's own default: the guard only ever exposes read
+ * methods, so any origin may read the chain but none can administer it. The preflight allow-lists
+ * are exactly what the browser needs to send a JSON-RPC POST.
+ */
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "86400",
+};
 
 /**
  * Privileged administration surfaces Anvil answers without authentication, plus the methods that
@@ -149,9 +167,16 @@ function sendJson(response, status, payload, headers = {}) {
   response.writeHead(status, {
     "content-type": "application/json",
     "content-length": Buffer.byteLength(body),
+    ...CORS_HEADERS,
     ...headers,
   });
   response.end(body);
+}
+
+/** An empty response, used for the CORS preflight: the browser wants headers, not a body. */
+function sendNoContent(response, status) {
+  response.writeHead(status, { ...CORS_HEADERS });
+  response.end();
 }
 
 function rpcError(id, code, message) {
@@ -177,6 +202,7 @@ function forward(body, response, client, methods) {
     (upstreamResponse) => {
       response.writeHead(upstreamResponse.statusCode ?? 502, {
         "content-type": upstreamResponse.headers["content-type"] ?? "application/json",
+        ...CORS_HEADERS,
         "x-rpc-guard": "forwarded",
       });
       upstreamResponse.pipe(response);
@@ -200,6 +226,13 @@ const server = http.createServer((request, response) => {
 
   if (request.method === "GET" && request.url === "/healthz") {
     sendJson(response, 200, { status: "ok" });
+    return;
+  }
+  if (request.method === "OPTIONS") {
+    // CORS preflight. The browser sends this before the real JSON-RPC POST and refuses to send the
+    // POST at all unless the answer allow-lists the method and the json content-type, so it is
+    // answered here - never logged as a rejected request and never forwarded to the node.
+    sendNoContent(response, 204);
     return;
   }
   if (request.method !== "POST") {

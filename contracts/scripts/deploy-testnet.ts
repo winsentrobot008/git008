@@ -572,6 +572,8 @@ async function main(): Promise<void> {
     },
     frontendEnv: {
       NEXT_PUBLIC_MAOTANG_RPC_URL: exportableRpcUrl(rpcUrl),
+      NEXT_PUBLIC_CHAIN_ID: network.chainId.toString(),
+      NEXT_PUBLIC_MAOTANG_FACTORY_ADDRESS: contracts.MaoTangFactory,
       NEXT_PUBLIC_MAOTANG_VAULT_ADDRESS: contracts.MaoTangSustenanceVault,
       NEXT_PUBLIC_MAOTANG_HUMAN_TOKEN_ADDRESS: contracts.HumanToken,
       NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS: referenceCurve?.curve ?? "",

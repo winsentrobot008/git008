@@ -39,6 +39,31 @@ the upload so the Vercel project values win):
 | `NEXT_PUBLIC_DEVELOPER_ADDRESS` | `0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea` |
 | `NEXT_PUBLIC_BTC_REVENUE_ADDRESS` | `1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe` |
 
+## How the board binds addresses
+
+Addresses do not have to be copied into the Vercel project by hand. `frontend/next.config.ts` reads
+`frontend/config/contracts.json` (rewritten by `contracts/scripts/deploy-testnet.ts` on every
+deployment) at build time and forwards `MaoTangFactory`, `MaoTangSustenanceVault`, `HumanToken`, the
+reference curve and the chain id as `NEXT_PUBLIC_MANIFEST_*` values. A `NEXT_PUBLIC_MAOTANG_*`
+variable set on the project still wins; when neither is present the affected panel stays in its
+`awaiting rpc` state instead of inventing a number.
+
+The launch board is read live from `MaoTangFactory.launchCount()` / `launchAt(i)` and each curve, so a
+token created by any caller shows up within one poll interval (8 s) with no redeploy. The board is
+read-only: it renders a copyable `cast send ... "createMemeToken(string,string)"` command for the
+operator instead of a submit button.
+
+**CORS is part of the contract.** The bundle runs on `maotang.008ai.online` and calls
+`https://rpc.008ai.online` - a different origin - so `scripts/rpc-guard.mjs` answers the browser's
+`OPTIONS` preflight (`204` plus `Access-Control-Allow-*`) and stamps those headers on forwarded
+responses. A guard that rejects non-POST requests is invisible to `curl` and fatal to the dashboard,
+so when the board shows `rpc unreachable`, check the preflight and not only a POST:
+
+```powershell
+curl.exe -i -X OPTIONS -H 'origin: https://maotang.008ai.online' `
+  -H 'access-control-request-method: POST' -H 'access-control-request-headers: content-type' `
+  https://rpc.008ai.online
+```
 ## Prerequisites
 
 - **Token scope.** `VERCEL_TOKEN` must be able to create projects. A token scoped to the

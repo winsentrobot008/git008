@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchCurveState, fetchVaultStats, readChainConfig, toCurveSnapshot, type ChainConfig } from "./chain";
-import type { CurveSnapshot, VaultStats } from "./protocol";
+import {
+  fetchCurveState,
+  fetchLaunches,
+  fetchVaultStats,
+  readChainConfig,
+  toCurveSnapshot,
+  type ChainConfig,
+} from "./chain";
+import type { CurveSnapshot, LaunchCard, VaultStats } from "./protocol";
 
 /** Polling cadence for the live panels: fast enough to feel live, slow enough to spare public RPCs. */
 export const POLL_INTERVAL_MS = 8_000;
@@ -124,6 +131,25 @@ export function useCurveSnapshot(): LiveValue<CurveSnapshot> {
     }
     const curve = config.curve;
     return async (signal: AbortSignal) => toCurveSnapshot(await fetchCurveState(config, curve, signal));
+  }, [config]);
+  return usePolledResource(load);
+}
+
+/**
+ * Live launches recorded by the factory, newest first.
+ *
+ * Read straight off the factory's own registry, so a launch created from anywhere - this machine's
+ * CLI, another operator, a script - shows up on the board within one poll interval, with no rebuild
+ * and no address list to edit.
+ */
+export function useLaunches(): LiveValue<LaunchCard[]> {
+  const config = useChainConfig();
+  const load = useMemo(() => {
+    if (config === null || config.factory === null) {
+      return null;
+    }
+    const factory = config.factory;
+    return (signal: AbortSignal) => fetchLaunches(config, factory, signal);
   }, [config]);
   return usePolledResource(load);
 }
