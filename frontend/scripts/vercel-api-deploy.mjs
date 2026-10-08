@@ -20,6 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const TOKEN = process.env.VERCEL_TOKEN || "";
 const TEAM_ID = process.env.VERCEL_TEAM_ID || "team_yziFzTtkDBBAkujUR0JQOpRk";
@@ -29,7 +30,9 @@ const ROOT_DIRECTORY = "frontend";
 const PACKAGE_NAME = "@maotang/frontend";
 const API = "https://api.vercel.com";
 
-const CWD = process.cwd();
+// Resolve the service root from this file so the pipeline can be invoked from anywhere,
+// including the repository root (`node frontend/scripts/vercel-api-deploy.mjs`).
+const CWD = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = path.resolve(CWD, "..");
 
 /** Public production variables, inlined into the client bundle at build time. */
@@ -64,7 +67,8 @@ const SKIP_DIRS = new Set([
   "test-results",
   "qa-logs",
 ]);
-const SKIP_FILES = (name) => name.startsWith(".env") && name !== ".env.example";
+const SKIP_FILES = (name) =>
+  (name.startsWith(".env") && name !== ".env.example") || name.endsWith(".tsbuildinfo");
 
 async function vcall(method, urlPath, { body, raw, headers = {} } = {}) {
   const res = await fetch(`${API}${urlPath}`, {
@@ -120,7 +124,7 @@ function preflight(requireToken = true) {
   } catch {}
   if (!pkg || pkg.name !== PACKAGE_NAME) {
     throw new Error(
-      `ERR_WRONG_CWD: run from frontend/ - cd frontend (current cwd: ${CWD})`
+      `ERR_WRONG_CWD: expected the frontend package at ${CWD} (resolved from the script location)`
     );
   }
   if (!fs.existsSync(UPLOAD_TREES[1].dir)) {
