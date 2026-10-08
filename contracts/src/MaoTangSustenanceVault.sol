@@ -93,6 +93,18 @@ contract MaoTangSustenanceVault is AgentGated {
     /// @notice Token budget the dripper has already paid out, per ERC-20 asset.
     mapping(address asset => uint256 amount) public tokenDripPaid;
 
+    /// @notice Beneficiary that receives the protocol share of the vault fee residual.
+    /// @dev Set by {setOwnerSustenanceTarget}, which is the operator/developer revenue address. While
+    /// it is `address(0)` the residual stays in the vault and {withdrawOwnerRevenue} reverts, so an
+    /// unconfigured vault never pays an unintended address.
+    address public ownerSustenanceTarget;
+
+    /// @notice Native fees already paid out to {ownerSustenanceTarget}.
+    uint256 public nativeOwnerRevenuePaid;
+
+    /// @notice Token fees already paid out to {ownerSustenanceTarget}, per ERC-20 asset.
+    mapping(address asset => uint256 amount) public tokenOwnerRevenuePaid;
+
     /// @notice Emitted whenever a fee is paid into the vault.
     /// @param depositor Account that funded the vault, normally a bonding curve.
     /// @param source Which fee stream the deposit belongs to.
@@ -160,6 +172,16 @@ contract MaoTangSustenanceVault is AgentGated {
     /// @param amount Amount paid, in the asset smallest unit.
     event DripAllowanceWithdrawn(address indexed dripper, address indexed to, address indexed asset, uint256 amount);
 
+    /// @notice Emitted when the owner points the protocol revenue share at a beneficiary.
+    /// @param target Address that now receives the operator share; never the zero address.
+    event OwnerSustenanceTargetSet(address indexed target);
+
+    /// @notice Emitted when the owner routes the vault fee residual to the beneficiary.
+    /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
+    /// @param target Beneficiary that received the funds.
+    /// @param amount Amount paid, in the asset smallest unit.
+    event OwnerRevenueWithdrawn(address indexed asset, address indexed target, uint256 amount);
+
     error InvalidOwner();
     error NotOwner(address caller);
     error InvalidAgentRegistry();
@@ -177,6 +199,8 @@ contract MaoTangSustenanceVault is AgentGated {
     error NotDripper(address caller);
     error InvalidDripper(address dripper);
     error DripBudgetExceeded(address asset, uint256 requested, uint256 unspent);
+    error InvalidSustenanceTarget(address target);
+    error NoSustenanceTarget();
 
     /// @dev Reverts unless the caller is the protocol authority.
     modifier onlyOwner() {
@@ -307,18 +331,22 @@ contract MaoTangSustenanceVault is AgentGated {
         return (grossAmount * feeRateBps(source)) / BPS_DENOMINATOR;
     }
 
-    /// @notice Native fees received but neither routed to a principal nor already dripped out.
+    /// @notice Native fees received but neither routed to a principal, already dripped out, nor paid
+    /// to the operator beneficiary.
     /// @dev {nativeDripPaid} is subtracted because those wei have left the vault through the dripper
     /// path; without it a drip payout would stay visible here and could be credited to a principal a
-    /// second time.
+    /// second time. {nativeOwnerRevenuePaid} is subtracted for the same reason on the operator path.
     function availableNative() public view returns (uint256) {
-        return nativeFeesReceived - nativeSustenanceCredited - nativeDripPaid;
+        return nativeFeesReceived - nativeSustenanceCredited - nativeDripPaid - nativeOwnerRevenuePaid;
     }
 
-    /// @notice Fees received in `asset` but neither routed to a principal nor already dripped out.
-    /// @dev Mirrors {availableNative}: a token drip payout is subtracted because it has left the vault.
+    /// @notice Fees received in `asset` but neither routed to a principal, already dripped out, nor
+    /// paid to the operator beneficiary.
+    /// @dev Mirrors {availableNative}: a token drip or operator payout is subtracted because it has
+    /// left the vault.
     function availableToken(address asset) public view returns (uint256) {
-        return tokenFeesReceived[asset] - tokenSustenanceCredited[asset] - tokenDripPaid[asset];
+        return tokenFeesReceived[asset] - tokenSustenanceCredited[asset] - tokenDripPaid[asset]
+            - tokenOwnerRevenuePaid[asset];
     }
 
     /// @notice Accrued, unclaimed sustenance for `principal` in `asset`.
@@ -397,6 +425,17 @@ contract MaoTangSustenanceVault is AgentGated {
         emit DripperSet(dripper_);
     }
 
+    /// @notice Sets the beneficiary that receives the protocol share of the vault residual.
+    /// @dev Mutable, unlike {owner}: the authority key is immutable for safety, while the revenue
+    /// destination is operational and has to be rotatable. Must not be the zero address, so the
+    /// configured state always names a real destination.
+    /// @param target Beneficiary that will receive protocol revenue.
+    function setOwnerSustenanceTarget(address target) external onlyOwner {
+        if (target == address(0)) revert InvalidSustenanceTarget(target);
+        ownerSustenanceTarget = target;
+        emit OwnerSustenanceTargetSet(target);
+    }
+
     /// @notice Native budget released to the dripper and not yet paid out.
     function unspentDripNative() public view returns (uint256) {
         return nativeDripBudget - nativeDripPaid;
@@ -467,6 +506,34 @@ contract MaoTangSustenanceVault is AgentGated {
 
         tokenDripBudget[asset] -= amount;
         emit DripBudgetReclaimed(asset, amount);
+    }
+
+    /// @notice Routes the vault fee residual in `asset` to {ownerSustenanceTarget}.
+    /// @dev Pays the residual, not the whole balance: {unreservedNative} / {unreservedToken} exclude
+    /// both the sustenance already promised to principals and the budget reserved for the dripper, so
+    /// the protocol share can never be paid out of funds that belong to a claimant.
+    /// @param asset `NATIVE` for ETH, otherwise the ERC-20 address.
+    /// @return amount Amount transferred to the beneficiary.
+    function withdrawOwnerRevenue(address asset) external onlyOwner returns (uint256 amount) {
+        address target = ownerSustenanceTarget;
+        if (target == address(0)) revert NoSustenanceTarget();
+
+        amount = asset == NATIVE ? unreservedNative() : unreservedToken(asset);
+        if (amount == 0) revert NothingToWithdraw(target, asset);
+
+        if (asset == NATIVE) {
+            nativeOwnerRevenuePaid += amount;
+            emit OwnerRevenueWithdrawn(NATIVE, target, amount);
+            // The destination is the owner-registered beneficiary, not caller input, and the amount is
+            // bounded by the residual this vault actually holds, so the advisory is a false positive.
+            // forge-lint: disable-next-line(arbitrary-send-eth)
+            (bool ok,) = target.call{value: amount}("");
+            if (!ok) revert NativeTransferFailed(target, amount);
+        } else {
+            tokenOwnerRevenuePaid[asset] += amount;
+            emit OwnerRevenueWithdrawn(asset, target, amount);
+            _safeTransfer(asset, target, amount);
+        }
     }
 
     /// @notice Pays `amount` of `asset` to a claimant out of the dripper budget.

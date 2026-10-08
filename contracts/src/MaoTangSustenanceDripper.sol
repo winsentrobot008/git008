@@ -67,6 +67,12 @@ contract MaoTangSustenanceDripper {
     /// @notice Address whose signature attests to a telemetry weight.
     address public telemetrySigner;
 
+    /// @notice Beneficiary that receives the protocol owner share of a drip when the owner claims.
+    /// @dev Set by {setOwnerSustenanceTarget}. While it is `address(0)` an owner claim pays the owner
+    /// directly; every other account always pays itself, so the target can never redirect a third
+    /// party yield.
+    address public ownerSustenanceTarget;
+
     /// @notice Native wei paid per unit of telemetry weight.
     uint256 public weightRate = 1e9;
 
@@ -109,6 +115,10 @@ contract MaoTangSustenanceDripper {
     /// @notice Emitted when the owner rotates the telemetry attestation key.
     event TelemetrySignerSet(address indexed signer);
 
+    /// @notice Emitted when the owner points the protocol drip share at a beneficiary.
+    /// @param target Address that now receives the operator drip share; never the zero address.
+    event OwnerSustenanceTargetSet(address indexed target);
+
     /// @notice Emitted when the owner changes the claim cooldown.
     event ClaimCooldownSet(uint256 cooldown);
 
@@ -129,6 +139,7 @@ contract MaoTangSustenanceDripper {
     error InvalidVault();
     error InvalidHumanToken();
     error InvalidTelemetrySigner();
+    error InvalidSustenanceTarget(address target);
     error InvalidDripAsset(address asset);
     error InvalidClaimCooldown(uint256 cooldown);
     error UnsupportedDripAsset(address asset);
@@ -250,6 +261,17 @@ contract MaoTangSustenanceDripper {
         emit TelemetrySignerSet(signer);
     }
 
+    /// @notice Sets the beneficiary that receives the owner drip share.
+    /// @dev Mutable, unlike {owner}: the authority key is immutable for safety, while the revenue
+    /// destination is operational and has to be rotatable. Must not be the zero address, so the
+    /// configured state always names a real destination.
+    /// @param target Beneficiary that will receive the protocol drip share.
+    function setOwnerSustenanceTarget(address target) external onlyOwner {
+        if (target == address(0)) revert InvalidSustenanceTarget(target);
+        ownerSustenanceTarget = target;
+        emit OwnerSustenanceTargetSet(target);
+    }
+
     /// @notice Changes the minimum gap between two claims by the same account.
     /// @param cooldown New cooldown, in seconds, within the documented bounds.
     function setClaimCooldown(uint256 cooldown) external onlyOwner {
@@ -331,10 +353,19 @@ contract MaoTangSustenanceDripper {
 
         // Effects before the vault interaction, so a reentrant claim sees the cooldown already armed.
         lastClaimTimestamp[account] = block.timestamp;
-        paid = vault.withdrawDripAllowance(account, payout, asset);
+        paid = vault.withdrawDripAllowance(_payoutDestination(account), payout, asset);
 
         // forge-lint: disable-next-line(reentrancy-events)
         emit YieldClaimed(account, paid, telemetryWeight);
+    }
+
+    /// @dev Destination a claim pays. Normally the claimant, but the protocol owner may delegate
+    /// receipt of its own drip to the configured {ownerSustenanceTarget} beneficiary. Any other
+    /// account always pays itself, so the target can never divert a third party payout.
+    function _payoutDestination(address account) private view returns (address) {
+        address target = ownerSustenanceTarget;
+        if (target != address(0) && account == owner) return target;
+        return account;
     }
 
     /// @dev `min(weight * weightRate + balance * balanceRate, cap)`. Both legs are linear so the

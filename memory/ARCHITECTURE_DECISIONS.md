@@ -2,6 +2,45 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-08 — ADR-016: protocol revenue routes to a rotatable beneficiary, separate from the immutable authority
+
+**Status:** Accepted (implemented; `forge build` clean, `forge test` 183/183, `contracts` and `frontend`
+`tsc --noEmit` clean, and an end-to-end Anvil run that deployed all eight contracts, wired
+`setOwnerSustenanceTarget` on the vault and the dripper, and read back
+`ownerSustenanceTarget() == 0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea` on both)
+
+**Context:** The operator/developer revenue address must be configurable, but `MaoTangSustenanceVault.owner`
+and `MaoTangSustenanceDripper.owner` are immutable by design (no admin takeover path). The vault also had
+no way to move the fee residual it keeps: `unreservedNative()` / `unreservedToken(asset)` accumulated
+forever, with no payout path at all.
+
+**Decision:**
+
+- **A mutable beneficiary next to the immutable authority.** Both contracts gain
+  `address public ownerSustenanceTarget` plus `setOwnerSustenanceTarget(address)` (`onlyOwner`, rejects the
+  zero address, emits `OwnerSustenanceTargetSet`). Rotation is one owner transaction; the authority key
+  stays immutable.
+- **The vault pays its residual to the beneficiary.** `withdrawOwnerRevenue(asset)` (`onlyOwner`) transfers
+  `unreservedNative()` / `unreservedToken(asset)` to the target, so the operator share can never be paid
+  out of the sustenance promised to principals or the budget reserved for the dripper.
+  `availableNative()` / `availableToken()` now also net out `nativeOwnerRevenuePaid` /
+  `tokenOwnerRevenuePaid`, which keeps `unreserved*` invariant across operator payouts the same way the
+  drip term does for drip payouts.
+- **The dripper delegates only the owner own drip.** `_payoutDestination(account)` returns the beneficiary
+  only when the claimant is the protocol owner; every other account is always paid itself, so the target
+  can never divert a third party yield.
+- **BTC metadata is recorded, never deployed to.** `NEXT_PUBLIC_BTC_REVENUE_ADDRESS`
+  (`1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe`) is an off-chain payout label carried in the deployment export
+  `beneficiaries` block; it is not, and cannot be, an EVM target.
+
+**Consequences:** `contracts/scripts/deploy-testnet.ts` wires `setOwnerSustenanceTarget` when the deployer
+is the owner, verifies the stored value on chain, and exports `beneficiaries` plus the three
+`NEXT_PUBLIC_*` keys; it honours `MAOTANG_OPERATOR_ADDRESS` / `MAOTANG_BTC_REVENUE_ADDRESS`. Clearing the
+target is unsupported: the zero address is rejected, so an operator rotates to a new beneficiary rather
+than unsetting it. `frontend/config/contracts.json` stays a generated artifact and is not committed; the
+durable source is the deploy script.
+
+
 ## 2026-10-08 — ADR-015: P4 drip pays only from a released budget, and governance owns itself
 
 **Status:** Accepted (implemented; `forge build` clean, `forge test` 173/173, `contracts` `tsc --noEmit`

@@ -464,6 +464,8 @@ contract SustenanceDripperTest is Test {
         dripper.setPaused(true);
         vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceDripper.NotOwner.selector, stranger));
         dripper.setTokenDripRates(address(dripToken), 1, 1, 1);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceDripper.NotOwner.selector, stranger));
+        dripper.setOwnerSustenanceTarget(stranger);
         vm.stopPrank();
     }
 
@@ -483,6 +485,55 @@ contract SustenanceDripperTest is Test {
         assertEq(dripper.previewDrip(alice, WEIGHT), WEIGHT * 1e9);
         assertEq(_claim(alice, WEIGHT), WEIGHT * 1e9);
     }
+
+    // ------------------------------------------------------------------ owner sustenance target
+
+    function test_SetOwnerSustenanceTargetRejectsZero() public {
+        vm.prank(authority);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceDripper.InvalidSustenanceTarget.selector, address(0)));
+        dripper.setOwnerSustenanceTarget(address(0));
+    }
+
+    function test_OwnerClaimRoutesPayoutToTheBeneficiary() public {
+        address treasury = address(0x7E50);
+
+        vm.startPrank(authority);
+        dripper.setClaimGuardrails(0, 1);
+        dripper.setOwnerSustenanceTarget(treasury);
+        vm.stopPrank();
+
+        assertEq(dripper.ownerSustenanceTarget(), treasury);
+
+        uint256 expected = dripper.previewDrip(authority, WEIGHT);
+        assertEq(expected, WEIGHT * dripper.weightRate());
+
+        bytes memory signature = _sign(signerPk, authority, WEIGHT);
+
+        vm.prank(authority);
+        uint256 paid = dripper.claimDripYield(WEIGHT, signature);
+
+        assertEq(paid, expected);
+        assertEq(treasury.balance, expected);
+        assertEq(authority.balance, 0);
+        assertEq(dripper.lastClaimTimestamp(authority), clock);
+        assertEq(vault.nativeDripPaid(), expected);
+    }
+
+    function test_OwnerTargetNeverDivertsAnotherAccountPayout() public {
+        address treasury = address(0x7E50);
+        vm.prank(authority);
+        dripper.setOwnerSustenanceTarget(treasury);
+
+        uint256 expected = dripper.previewDrip(alice, WEIGHT);
+        bytes memory signature = _sign(signerPk, alice, WEIGHT);
+
+        vm.prank(alice);
+        dripper.claimDripYield(WEIGHT, signature);
+
+        assertEq(alice.balance, expected);
+        assertEq(treasury.balance, 0);
+    }
+
 
     // ----------------------------------------------------------------------------------------- helpers
 

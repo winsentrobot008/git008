@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {AIAgentRegistry} from "../src/AIAgentRegistry.sol";
 import {MockNullifierVerifier} from "./mocks/MockZKVerifier.sol";
+import {MockErc20} from "./mocks/MockErc20.sol";
 import {HumanToken} from "../src/HumanToken.sol";
 import {MaoTangSustenanceVault} from "../src/MaoTangSustenanceVault.sol";
 
@@ -19,6 +20,7 @@ contract MaoTangSustenanceVaultTest is Test {
     address internal alice = address(0xA11CE);
     address internal authority = address(0xA00);
     address internal ghostAgent = address(0xDEAD);
+    address internal treasury = address(0x7E50);
     address internal agent;
 
     uint256 internal constant ONE = 1 ether;
@@ -171,5 +173,95 @@ contract MaoTangSustenanceVaultTest is Test {
     function test_NativeSentinelIsRejectedForTokenDeposits() public {
         vm.expectRevert(MaoTangSustenanceVault.NativeAssetRequiresDepositFee.selector);
         vault.depositFeeToken(MaoTangSustenanceVault.FeeSource.Swap, address(0), ONE);
+    }
+
+    // --------------------------------------------------------------- operator revenue beneficiary
+
+    function test_SetOwnerSustenanceTargetRejectsNonOwner() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MaoTangSustenanceVault.NotOwner.selector, alice));
+        vault.setOwnerSustenanceTarget(treasury);
+    }
+
+    function test_SetOwnerSustenanceTargetRejectsZero() public {
+        vm.prank(authority);
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangSustenanceVault.InvalidSustenanceTarget.selector, address(0))
+        );
+        vault.setOwnerSustenanceTarget(address(0));
+    }
+
+    function test_SetOwnerSustenanceTargetStoresAndEmits() public {
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.OwnerSustenanceTargetSet(treasury);
+
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+
+        assertEq(vault.ownerSustenanceTarget(), treasury);
+    }
+
+    function test_WithdrawOwnerRevenueRequiresAConfiguredTarget() public {
+        vm.prank(authority);
+        vm.expectRevert(MaoTangSustenanceVault.NoSustenanceTarget.selector);
+        vault.withdrawOwnerRevenue(address(0));
+    }
+
+    function test_WithdrawOwnerRevenuePaysOnlyTheResidual() public {
+        vault.depositFee{value: 10 ether}(MaoTangSustenanceVault.FeeSource.Swap);
+
+        vm.prank(authority);
+        vault.fundDripBudget(4 ether);
+        vm.prank(authority);
+        vault.creditNativeSustenance(alice, 1 ether);
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+
+        assertEq(vault.unreservedNative(), 5 ether);
+
+        vm.expectEmit(true, true, true, true, address(vault));
+        emit MaoTangSustenanceVault.OwnerRevenueWithdrawn(address(0), treasury, 5 ether);
+
+        vm.prank(authority);
+        uint256 paid = vault.withdrawOwnerRevenue(address(0));
+
+        assertEq(paid, 5 ether);
+        assertEq(treasury.balance, 5 ether);
+        assertEq(vault.nativeOwnerRevenuePaid(), 5 ether);
+        assertEq(vault.unreservedNative(), 0);
+        assertEq(vault.availableNative(), 4 ether);
+        assertEq(vault.unspentDripNative(), 4 ether);
+        assertEq(vault.pendingSustenance(alice, address(0)), 1 ether);
+        assertEq(address(vault).balance, 5 ether);
+    }
+
+    function test_WithdrawOwnerRevenueRevertsWhenNothingIsReserved() public {
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+
+        vm.prank(authority);
+        vm.expectRevert(
+            abi.encodeWithSelector(MaoTangSustenanceVault.NothingToWithdraw.selector, treasury, address(0))
+        );
+        vault.withdrawOwnerRevenue(address(0));
+    }
+
+    function test_WithdrawOwnerRevenueRoutesTokenResidualToTheBeneficiary() public {
+        MockErc20 feeToken = new MockErc20();
+        feeToken.mint(address(this), 10 ether);
+        feeToken.approve(address(vault), 10 ether);
+        vault.depositFeeToken(MaoTangSustenanceVault.FeeSource.Graduation, address(feeToken), 10 ether);
+
+        vm.prank(authority);
+        vault.setOwnerSustenanceTarget(treasury);
+
+        vm.prank(authority);
+        uint256 paid = vault.withdrawOwnerRevenue(address(feeToken));
+
+        assertEq(paid, 10 ether);
+        assertEq(feeToken.balanceOf(treasury), 10 ether);
+        assertEq(vault.tokenOwnerRevenuePaid(address(feeToken)), 10 ether);
+        assertEq(vault.availableToken(address(feeToken)), 0);
+        assertEq(vault.unreservedToken(address(feeToken)), 0);
     }
 }

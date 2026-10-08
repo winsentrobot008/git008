@@ -30,6 +30,8 @@
  *   MAOTANG_OWNER            owner of the verifier and vault, defaults to the deployer
  *   MAOTANG_TELEMETRY_SIGNER dripper telemetry attestation key, defaults to the owner
  *   MAOTANG_REFERENCE_CURVE  set to `0` to skip the on-chain 5 ETH graduation-threshold probe
+ *   MAOTANG_OPERATOR_ADDRESS  operator/developer revenue beneficiary, defaults to the wired address
+ *   MAOTANG_BTC_REVENUE_ADDRESS  BTC payout metadata recorded in the export
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -53,6 +55,11 @@ const GOVERNOR_VOTING_PERIOD = 604_800n;
 const GOVERNOR_PROPOSAL_THRESHOLD = 0n;
 /** Initial governor quorum: 10% of the $mHUMAN total supply. */
 const GOVERNOR_QUORUM_BPS = 1_000n;
+
+/** Operator/developer revenue beneficiary that receives the protocol share of vault yield. */
+const DEFAULT_OPERATOR_ADDRESS = "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea";
+/** BTC destination recorded as cross-chain payout metadata; this script never deploys to it. */
+const DEFAULT_BTC_REVENUE_ADDRESS = "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe";
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const CONTRACTS_DIR = resolve(SCRIPTS_DIR, "..");
@@ -260,6 +267,8 @@ async function main(): Promise<void> {
   const wallet = new Wallet(privateKey, provider);
   const deployer = await wallet.getAddress();
   const owner = getAddress(process.env.MAOTANG_OWNER?.trim() || deployer);
+  const operator = getAddress(process.env.MAOTANG_OPERATOR_ADDRESS?.trim() || DEFAULT_OPERATOR_ADDRESS);
+  const btcRevenueAddress = process.env.MAOTANG_BTC_REVENUE_ADDRESS?.trim() || DEFAULT_BTC_REVENUE_ADDRESS;
 
   console.log("MAOTANG alpha testnet deployment");
   console.log(`  rpc                      ${redactRpcUrl(rpcUrl)}`);
@@ -267,6 +276,8 @@ async function main(): Promise<void> {
   console.log(`  deployer                 ${deployer}`);
   console.log(`  owner                    ${owner}`);
   console.log(`  graduation market        ${positionManager}`);
+  console.log(`  operator beneficiary     ${operator}`);
+  console.log(`  btc payout metadata      ${btcRevenueAddress}`);
   console.log("");
 
   // 1. ZK verifier - fails closed until the trusted-setup key is installed and locked.
@@ -331,8 +342,21 @@ async function main(): Promise<void> {
       throw new Error("vault.setDripper did not confirm");
     }
     console.log("  dripper wired            vault.dripper = " + contracts.MaoTangSustenanceDripper);
+
+    const vaultTarget = await (await vault.setOwnerSustenanceTarget(operator)).wait();
+    if (!vaultTarget || vaultTarget.status !== 1) {
+      throw new Error("vault.setOwnerSustenanceTarget did not confirm");
+    }
+    const dripperTarget = await (await dripper.setOwnerSustenanceTarget(operator)).wait();
+    if (!dripperTarget || dripperTarget.status !== 1) {
+      throw new Error("dripper.setOwnerSustenanceTarget did not confirm");
+    }
+    expectAddress(await vault.ownerSustenanceTarget(), operator, "vault.ownerSustenanceTarget");
+    expectAddress(await dripper.ownerSustenanceTarget(), operator, "dripper.ownerSustenanceTarget");
+    console.log("  beneficiary wired        vault + dripper target = " + operator);
   } else {
     console.log("  dripper wiring deferred  owner differs from the deployer; call vault.setDripper");
+    console.log("  beneficiary deferred     call setOwnerSustenanceTarget from the owner");
   }
   console.log("  drip budget unfunded     owner calls vault.fundDripBudget once fees have accrued");
 
@@ -350,6 +374,11 @@ async function main(): Promise<void> {
     deployedAt: new Date().toISOString(),
     deployer,
     owner,
+    beneficiaries: {
+      operator,
+      developer: operator,
+      btcRevenueAddress,
+    },
     contracts,
     tokens: {
       mHUMAN: {
@@ -385,6 +414,9 @@ async function main(): Promise<void> {
       NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS: referenceCurve?.curve ?? "",
       NEXT_PUBLIC_MAOTANG_DRIPPER_ADDRESS: contracts.MaoTangSustenanceDripper,
       NEXT_PUBLIC_MAOTANG_GOVERNOR_ADDRESS: contracts.MaoTangGovernor,
+      NEXT_PUBLIC_OPERATOR_ADDRESS: operator,
+      NEXT_PUBLIC_DEVELOPER_ADDRESS: operator,
+      NEXT_PUBLIC_BTC_REVENUE_ADDRESS: btcRevenueAddress,
     },
   };
 
