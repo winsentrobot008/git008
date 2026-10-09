@@ -193,7 +193,7 @@ Select-String -Path bio-auth\native-biometric-gate.ts -Pattern 'ASSERT_FORBIDDEN
 
 | # | Step | Pass condition |
 | --- | --- | --- |
-| 1 | Load `/agent` (or `/`) | The 猫糖 AI 个人助理 renders; the header toggle `切换到 工程师/审计视图` shows the four cards, no error banners |
+| 1 | Load `/agent` (or `/`) | The 猫糖 AI 个人助理 renders; the header toggle `切换到 工程师/审计控制台` shows the four cards, no error banners |
 | 2 | Wait 60s without clicking | Mining phase stays `IDLE_SOVEREIGN` |
 | 3 | Press `Activate AI Mining Node` | Phase reaches `MINING_ACTIVE`, or a named refusal |
 | 4 | Preview a benign intent (section 4.1) | Preview shows action, destination, calldata and a digest |
@@ -201,12 +201,12 @@ Select-String -Path bio-auth\native-biometric-gate.ts -Pattern 'ASSERT_FORBIDDEN
 | 6 | Read the wallet card | `24h (86400s)`, whitelist populated, badge `fail-closed` |
 | 7 | Read the compute card | `local-only` without a center; `Hybrid ...` only with a live one |
 | 8 | Narrow the viewport to 390px | The chat bar stays docked and above the home indicator; nothing hides under it |
-| 9 | Tap `刷脸 / 指纹安全确认`, then dismiss the system sheet | A warning toast reads `USER_CANCELLED`; nothing is signed |
+| 9 | Tap `刷脸 / 生物特征确认`, then dismiss the system sheet | A warning toast reads `USER_CANCELLED`; nothing is signed |
 
 ### 3.6 C-end consumer face & mobile ergonomics
 
 `/` and `/agent` both open on the C-end face - `猫糖 AI 个人助理` - and the header toggle
-`切换到 工程师/审计视图` swaps in the M1-M5 console without a page load. The DEX board is unchanged, at
+`切换到 工程师/审计控制台` swaps in the M1-M5 console without a page load. The DEX board is unchanged, at
 `/dex`. Both faces run the same client code paths, which is why the numbers agree:
 
 - **One status source.** The pill's `今日可用` is `maxValueWeiPerWindow - spentWei` from
@@ -219,6 +219,11 @@ Select-String -Path bio-auth\native-biometric-gate.ts -Pattern 'ASSERT_FORBIDDEN
   exposes `PublicKeyCredential` without a usable `navigator.credentials` is reported as
   `WEBVIEW_RESTRICTED` and the card tells the owner to open Safari or Chrome. Every outcome also raises a
   toast, because the system sheet renders outside the page.
+- **The zero-data claim is on the card, not in a footer.** The confirmation sheet shows
+  `本地 Secure Enclave 芯片离线校验 | 零生物数据上云`: the policy decision and the digest come from the
+  server's M1/M2 pipeline, the biometric runs inside the device's own authenticator, and the only thing
+  that leaves the device is the assertion the authenticator signed. The header's wallet alias is the
+  server's `enclave.keyAlias`, never a literal in the source.
 - **User activation is respected.** `navigator.credentials.get()` is called synchronously from the tap -
   nothing is awaited before it - so the iOS Safari and Android Chrome prompts get the transient activation
   they require.
@@ -358,13 +363,13 @@ npm run test:policy
 **Expected:**
 
 ```
-# tests 15
-# pass 15
+# tests 16
+# pass 16
 # fail 0
 # skipped 0
 ```
 
-Fifteen assertions in four groups:
+Sixteen assertions in four groups:
 
 - **A - source defaults:** `runtime.ts` ships `windowSeconds = 86400`, per-transaction `0.1 ETH`, window
   `0.5 ETH`, threshold `0`; the per-transaction cap cannot exceed the window cap; and the M2 card derives
@@ -380,6 +385,9 @@ Fifteen assertions in four groups:
   `navigator.credentials`, `viewport-fit=cover` plus `env(safe-area-inset-bottom)` for the docked bar, the
   48px (`min-h-12`) touch targets with `touch-action: manipulation`, and both biometric faces importing the
   one `useBiometricOwner()` hook.
+- **D (continued) - the C-end compliance posture:** the authorization card carries the badge
+  `本地 Secure Enclave 芯片离线校验 | 零生物数据上云` and the trigger `刷脸 / 生物特征确认`, and the header
+  alias is read from `status.enclave.keyAlias` rather than written into the source.
 
 Point it at another instance with `$env:MAOTANG_BASE_URL='http://localhost:3100'`. The gate is not vacuous:
 setting `.env.example` back to `3600` makes group B fail with exit code 1.

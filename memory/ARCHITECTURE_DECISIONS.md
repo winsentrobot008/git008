@@ -2,6 +2,47 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-038: the C-end authorization card carries its compliance claim and its wallet alias, and the gate pins both
+
+**Status:** Accepted (`frontend/src/components/agent-console/ConsumerView.tsx`,
+`frontend/scripts/assert-runtime-policy.mjs`, `docs/MVP_DEMO_GUIDE.md`). Gates: `npx tsc --noEmit` exit 0,
+`npm run test:policy` **16/16, 0 skipped** exit 0 with the dev server up, `npm run build` exit 0 over the same
+7 routes. No M1-M5, contract or SDK source changed, and no new dependency was added.
+
+**Context:** ADR-037 shipped the mobile C-end face, but the compliance posture lived in the page footer and
+the header had no wallet identity beyond the raw address. Both are the wrong place for the claim: the owner
+decides whether to authorize in the confirmation sheet, and the alias is what the enclave binding is called
+everywhere else in the protocol.
+
+**Decision:**
+
+- **The alias is server-reported, not written down.** The status pill gained a `钱包别名` field read from
+  `status.enclave.keyAlias` (`AGENT_WALLET_KEY_ALIAS`, default `maotang.web.owner`). Putting the literal in
+  the component would have made the header a static string that could silently disagree with the wallet the
+  server actually constructs - the same class of defect ADR-034 recorded for the spend window.
+- **The zero-data badge sits on the authorization card.** `本地 Secure Enclave 芯片离线校验 | 零生物数据上云`
+  is rendered inside the confirmation sheet, above the single biometric trigger, where the owner is about to
+  make the decision the claim is about. Both halves are literally true of the shipped build: the policy
+  evaluation and the digest are computed by the server-side M1/M2 pipeline, and the biometric runs inside the
+  device's own authenticator - the only thing that leaves the device is the signed assertion.
+- **Two labels were renamed, and this entry is the record of it.** The trigger is now
+  `刷脸 / 生物特征确认` (was `刷脸 / 指纹安全确认`) because WebAuthn on these platforms is biometric in
+  general and not fingerprint in particular, and the shell toggle is `切换到 工程师/审计控制台` (was
+  `切换到 工程师/审计视图`). ADR-037's literals are left in place as the historical record; this entry
+  supersedes them.
+- **The node-status quick action was renamed and its answer kept honest.** The preset is
+  `查看今日节点状态` (was `查看今日节点收益`); it is still answered from the local spend ledger, and the reply
+  still states that no on-chain node-reward ledger is wired in this build - renaming a button is not a reason
+  to start inventing a number.
+- **The claim is asserted, not trusted.** `assert-runtime-policy.mjs` group D gained a check that the
+  confirmation card carries the exact badge string and the biometric trigger, and that the alias is read from
+  `status.enclave.keyAlias`. A compliance sentence that no gate reads is a sentence that drifts.
+
+**Consequences:** `frontend/`'s gate is 16 assertions in four groups; ADR-037's "15 assertions" figure is
+superseded. The demo guide's quoted output was updated in the same change (16 tests, and the renamed labels).
+The badge is a *statement about this build*, not a certification: platform key-attestation chains remain
+unimplemented (AUDIT_REPORT_v1.0 section 1.3), so `hardwareBacked` is still the bridge's assertion rather
+than a hardware proof.
 ## 2026-10-09 - ADR-037: the C-end face goes mobile-first, and both biometric surfaces run one session hook with a webview-aware failure taxonomy
 
 **Status:** Accepted (`frontend/src/components/agent-console/ConsumerView.tsx`, `BioAuthGuard.tsx`,

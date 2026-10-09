@@ -241,3 +241,17 @@ test("D. both biometric faces run the one shared session hook", () => {
   assert.match(consumerView, /useBiometricOwner\(\)/, "the C-end sheet uses the shared session");
   assert.match(bioGuard, /useBiometricOwner\(\)/, "the M5 card uses the same shared session");
 });
+
+test("D. the C-end authorization card states the zero-data compliance posture", () => {
+  assert.match(
+    consumerView,
+    /本地 Secure Enclave 芯片离线校验 \| 零生物数据上云/,
+    "the confirmation card must carry the zero-data badge, not just a footer note",
+  );
+  assert.match(consumerView, /刷脸 \/ 生物特征确认/, "the biometric trigger is the card's primary action");
+  assert.match(
+    consumerView,
+    /status\.enclave\.keyAlias/,
+    "the wallet alias must come from the server report, never from a literal",
+  );
+});

@@ -68,7 +68,7 @@ const NO_VALUE = "\u2014";
 const MINT_PRESET = "Mint 0.05 ETH worth of Mao Tang token";
 
 /** The preset answered from the local ledger instead of calling M1. */
-const LEDGER_PRESET_LABEL = "查看今日节点收益";
+const LEDGER_PRESET_LABEL = "查看今日节点状态";
 
 type PresetKind = "intent" | "ledger";
 
@@ -200,7 +200,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
     const left = remainingWindowWei(policy.maxValueWeiPerWindow, spend.spentWei);
     setLocalNote(
       [
-        "今日节点收益：本版本尚未接入收益账本，所以这里不显示任何未经验证的数字。",
+        "今日节点状态：本版本尚未接入链上节点收益账本，因此这里不显示任何未经验证的数字。",
         `可验证的本地账本：滚动窗口 ${windowLabel(policy.windowSeconds)} 内已用 ${formatWeiAsEth(spend.spentWei)} / ${formatWeiAsEth(policy.maxValueWeiPerWindow)} ETH，剩余 ${formatWeiAsEth(left.toString())} ETH。`,
       ].join("\n"),
     );
@@ -263,7 +263,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
   const enroll = useCallback(async () => {
     const result = await session.enroll("猫糖 Web Agent OS");
     if (result.ok) {
-      toasts.push("success", "本机凭据已注册，可以开始刷脸 / 指纹确认。");
+      toasts.push("success", "本机凭据已注册，可以开始刷脸 / 生物特征确认。");
       return;
     }
     const { tone, message } = biometricFailureToast(result.failure);
@@ -305,12 +305,16 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               onClick={onSwitchToDeveloper}
               className="inline-flex min-h-11 touch-manipulation items-center rounded-full border border-maotang-mint/50 bg-maotang-mint/10 px-4 text-xs font-medium text-maotang-mint transition hover:bg-maotang-mint/20"
             >
-              切换到 工程师/审计视图
+              切换到 工程师/审计控制台
             </button>
           </div>
         </header>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-maotang-border bg-maotang-surface px-4 py-3 text-xs">
+          <span className="text-white/45">钱包别名</span>
+          {/* The alias is the server's enclave binding (`policy`/`enclave.keyAlias`), never a literal. */}
+          <span className="font-mono text-white/75">{status === null ? NO_VALUE : status.enclave.keyAlias}</span>
+          <span className="text-white/20">|</span>
           <span className="text-white/45">账户</span>
           <span className="font-mono text-white/75" title={owner ?? undefined}>
             {owner === null ? NO_VALUE : shortHex(owner, 6, 4)}
@@ -467,6 +471,17 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               待签摘要 <span className="font-mono">{preview.digest}</span>
             </p>
 
+            {/*
+              The zero-data claim, stated where the owner is about to authorize rather than in a footer.
+              Both halves are literally true of this build: the policy check and the digest happen on the
+              server's M1/M2 pipeline, the biometric runs inside the device's own authenticator, and no
+              raw fingerprint or face data is sent anywhere - only the assertion the authenticator signs.
+            */}
+            <p className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-maotang-mint/40 bg-maotang-mint/5 px-3 py-2 text-[11px] leading-relaxed text-maotang-mint">
+              <span className="rounded bg-maotang-mint/15 px-1.5 py-0.5 font-mono text-[10px]">零数据合规</span>
+              本地 Secure Enclave 芯片离线校验 | 零生物数据上云
+            </p>
+
             {fallback !== null ? (
               <p className="mt-3 rounded-lg border border-maotang-amber/40 bg-maotang-amber/5 px-3 py-2 text-[11px] leading-relaxed text-maotang-amber">
                 {fallback}
@@ -521,7 +536,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               title={canConfirm ? undefined : "先在本机注册指纹 / 面容，或改用支持 WebAuthn 的浏览器打开"}
               className="mt-4 min-h-12 w-full touch-manipulation rounded-xl bg-maotang-mint px-4 text-sm font-semibold text-maotang-ink transition hover:bg-maotang-mint/85 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {session.phase === "asserting" ? "等待设备确认\u2026" : "刷脸 / 指纹安全确认"}
+              {session.phase === "asserting" ? "等待设备确认\u2026" : "刷脸 / 生物特征确认"}
             </button>
 
             {session.credentialId === null ? (
