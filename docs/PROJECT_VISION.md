@@ -193,7 +193,89 @@ Recorded as **ADR-044** in `memory/ARCHITECTURE_DECISIONS.md`.
 
 ---
 
-## 3. Where each pillar is enforced
+## 3. Hybrid Cloud-Edge SLM Pipeline & Hardware Roadmap
+
+Sections 1 and 2 say where authority lives. This one says where the *language* comes from - because the honest
+answer changes as the hardware does, and the protocol must be able to rent fluency without ever renting
+authority. Two questions: how does a 0.5B edge model handle a request it is too small to parse, and what happens
+when phones get big enough that it no longer matters?
+
+### 3.1 Bootstrapping phase - the hybrid pipeline
+
+**Why a cloud leg exists at all.** A 0.5B INT4 model inside a 500 MiB ceiling is excellent at "one sentence ->
+one action" and poor at "five chained clauses, a conditional and an implied beneficiary". The deterministic stub
+in this build shows the shape of that limit honestly: it recognises a handful of utterance templates and answers
+`{"action":"unsupported"}` for everything else rather than guessing. The bootstrapping phase closes the gap with
+a reasoning-grade cloud model - **not** by weakening the edge gate.
+
+**Hardware Gate Inversion (enforced today).** The cloud model is a **proposer**. Its output re-enters through
+exactly the seam a third-party agent stack already uses: it is validated into a `TransactionIntent`, the local
+M2 policy rules on it, and the device-owner assertion authorises it. Nothing a cloud model returns can change
+what gets signed.
+
+- **The local inference path never phones home, and cannot be configured to.** M1 reports
+  `networkIsolation: "enforced"` - "there is no configuration that switches the sentinel off" - and
+  `assertNoCloudDependencies` rejects endpoints, cloud SDK markers and any non-local backend kind
+  (`LOCAL_BACKEND_KINDS`). A cloud model is therefore **never** an in-process SLM backend; it is unreachable
+  from inside an inference call. **Enforced today** (`mobile-agent/slm/slm-engine.ts`).
+- **A cloud proposal is untrusted input.** Custody-shaped fields are refused (`CUSTODY_MATERIAL`), naming an
+  asset is refused rather than priced (`MALFORMED_PROPOSAL`), an unknown verb is refused
+  (`UNKNOWN_ACTION`), and a provider cannot propose an action it did not advertise. **Enforced today**
+  (`mobile-agent/slm/agent-action-bridge.ts`).
+- **The off-device round trip already has a shape.** `RemoteComputeAdapter` (`COMPUTE_MODE = "hybrid"`)
+  exists for exactly this - heavy inference and proof generation off-device - and its responses are *unsigned
+  candidates* that still have to pass the local wallet before signing.
+  **Enforced today** (`mobile-agent/slm/compute-center-adapter.ts`).
+- **The sentinel's boundary is stated, not stretched.** The network sentinel covers the JS-visible ways to reach
+  a network (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`) and cannot cover a native addon opening
+  a raw socket below it - which is why the descriptor allow-list is the second half of the guarantee. The cloud
+  leg lives deliberately *outside* that boundary, as an explicit, reviewable outbound call, rather than being
+  smuggled through an inference backend.
+
+The inversion is literal: **authority stays on the device; fluency is rented.** Concretely, the cloud model may
+decide *which* catalog action a sentence maps to and decompose a multi-intent request into several proposals; it
+may never choose a destination, a chain id or calldata, because those are not inputs the translator accepts from
+a model at all.
+
+**SLM Distillation Loop (specified, not implemented).** Anonymised intent-action pairs would feed the edge
+fine-tuning dataset, so the local model improves on exactly the requests the cloud leg was needed for. The export
+is constrained by the catalog: a pair carries **slot types, not slot values** - an utterance shape and the
+resulting action plus schema. Destinations, amounts, proofs, nullifiers, free-form prose and anything
+biometric are excluded, and the export would run only under explicit owner opt-in. It is listed here as
+*specified* because it would be the first path in the protocol by which anything derived from a conversation
+leaves the device; that deserves its own review and its own ADR, not a paragraph of implied consent.
+
+### 3.2 Hardware evolution roadmap - the 32 GB+ unified-memory era
+
+**Today's sweet spot: 0.5B-1.5B INT4.** The shipped artifact is `qwen2.5-0.5b-instruct-int4` - 379.4 MiB on
+disk, roughly 400 MiB resident, inside the **500 MiB** runtime ceiling the whitepaper sets and the lazy loader
+restates. One `SlmEngine` interface fronts both runtimes (`llama.cpp` / GGUF and ONNX Runtime / INT4), and both
+storage forms are optional so the package still builds without them. The band that a phone can keep resident
+while the rest of the OS lives, and that a current NPU accelerates usefully, is roughly **300 MB - 1 GB**: that
+is the memory/NPU sweet spot, not a compromise.
+
+**The transition: 3B-7B native, 100% offline.** As 32 GB+ unified-memory AI phones become the norm, the same
+interface hosts a 3B-7B native model with no cloud leg at all. The system then runs the entire pipeline offline:
+the intent engine, the translator, the policy gate and the enclave signing path never touch a network, so
+*zero-leakage* stops being an enforced property and becomes a structural one. At that point the bootstrapping
+cloud path retires to, at most, an optional fallback that is still only ever a proposer.
+
+| Era | Model class | Footprint (estimates) | Cloud leg | Status |
+| --- | --- | --- | --- | --- |
+| **Now** | 0.5B-1.5B INT4 | ~300 MB - 1 GB (shipped: 379.4 MiB / 500 MiB ceiling) | Optional proposer only | **Shipped** |
+| **Transition** | 3B-7B INT4/INT8 | ~2-5 GB | Not needed for routine intents | **Specified** |
+| **32 GB+ unified memory** | 3B-7B native, full context | ~4-8 GB resident | Retired | **Specified / roadmap** |
+
+**What does not change with model size.** The interface, not the parameter count, is the contract:
+`SLM_ACTIONS` stays closed, the translator stays the only producer of a `TransactionIntent`, the network
+sentinel stays enforced, and the local policy plus the device-owner gate stay the only authority. A bigger model
+buys fluency. It never buys authority.
+
+Recorded as **ADR-045** in `memory/ARCHITECTURE_DECISIONS.md`.
+
+---
+
+## 4. Where each pillar is enforced
 
 | Pillar | Product promise | Artifact | The gate that proves it |
 | --- | --- | --- | --- |
@@ -203,7 +285,7 @@ Recorded as **ADR-044** in `memory/ARCHITECTURE_DECISIONS.md`.
 
 ---
 
-## 4. What this vision does not claim
+## 5. What this vision does not claim
 
 - **Not a financial service, and never custodial.** MAOTANG is software. It does not hold user assets, and
   nothing here is an offer, a solicitation or a promise of return.
@@ -219,7 +301,7 @@ Recorded as **ADR-044** in `memory/ARCHITECTURE_DECISIONS.md`.
 
 ---
 
-## 5. Where to go next
+## 6. Where to go next
 
 | Document | What it answers |
 | --- | --- |

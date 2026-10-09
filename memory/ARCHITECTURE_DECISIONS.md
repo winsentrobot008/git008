@@ -2,6 +2,54 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-045: the bootstrapping SLM pipeline rents fluency from a cloud model but keeps executive authority on the device, and the roadmap moves the whole pipeline on-device as unified memory grows
+
+**Status:** Accepted (`docs/PROJECT_VISION.md` section 3; `docs/WHITE_PAPER.md` 500 MiB ceiling;
+`mobile-agent/slm/slm-engine.ts`, `mobile-agent/slm/agent-action-bridge.ts`,
+`mobile-agent/slm/compute-center-adapter.ts`, `frontend/src/lib/slm/lazy-model-loader.ts`,
+`agent-manager/config/model.json`). Documentation-only: this ADR changes no runtime behaviour.
+
+**Context:** a 0.5B INT4 model inside a 500 MiB ceiling parses "one sentence -> one action" well and multi-intent
+requests poorly; the deterministic stub in the current build answers `{"action":"unsupported"}` rather than
+guessing, which is honest but limited. Two ways to close that gap: enlarge the edge model now, or borrow a
+reasoning-grade cloud model during bootstrapping. The first is impossible inside today's memory budget; the
+second is only acceptable if it cannot move authority off the device. Separately, the roadmap needed a stated
+position on when the cloud leg goes away, rather than leaving "hybrid" as a permanent assumption.
+
+**Decision:**
+
+- **Cloud models propose; the device disposes.** A bootstrapping cloud LLM may do multi-intent semantic parsing
+  and action decomposition, and its output re-enters through the same seam a third-party agent stack uses:
+  validated into a `TransactionIntent`, ruled on by the local M2 policy, authorised by the device-owner
+  assertion. It may never choose a destination, a chain id or calldata, because the translator does not accept
+  those from a model at all. This is the hardware gate inversion, and its *shape* is already enforced by
+  `agent-action-bridge.ts` (`CUSTODY_MATERIAL` / `MALFORMED_PROPOSAL` / `UNKNOWN_ACTION`, and an
+  advertised-actions check) and `compute-center-adapter.ts` (`COMPUTE_MODE = "hybrid"`, unsigned candidates
+  only).
+- **The cloud leg is never an in-process SLM backend.** M1 reports `networkIsolation: "enforced"` with no
+  configuration that switches the sentinel off, and `assertNoCloudDependencies` rejects endpoints, cloud SDK
+  markers and non-local backend kinds. The cloud call is therefore an explicit, reviewable outbound request
+  *outside* the sentinel's boundary - the boundary the module already documents as covering JS-visible network
+  APIs only - rather than something smuggled through a runtime descriptor.
+- **SLM distillation is specified, not implemented, and carries slot types rather than slot values.** Exporting
+  intent-action pairs would be the first path by which anything derived from a conversation leaves the device, so
+  it is scoped to catalog shapes (utterance shape -> action + schema) with destinations, amounts, proofs,
+  nullifiers, prose and anything biometric excluded, behind explicit owner opt-in. It needs its own ADR and
+  privacy review before it is wired up.
+- **Model size is a roadmap variable; the interface is the contract.** The shipped artifact stays
+  `qwen2.5-0.5b-instruct-int4` (379.4 MiB on disk, ~400 MiB resident, 500 MiB ceiling) - the ~300 MB - 1 GB
+  memory/NPU sweet spot. As 32 GB+ unified-memory phones mature, the same `SlmEngine` interface hosts a 3B-7B
+  native model and the pipeline runs fully offline, making zero-leakage structural instead of enforced; the cloud
+  leg retires to at most an optional proposer. `SLM_ACTIONS` stays closed, the translator stays the only
+  producer of a `TransactionIntent`, and the local policy plus device-owner gate stay the only authority
+  regardless of parameter count.
+
+**Consequences:** the docs now state a staged position instead of an unqualified "hybrid", and a reader can tell
+what ships today (the local-only intent engine, the proposer-only seams, the 500 MiB ceiling) from what is
+planned (the distillation loop, 3B-7B on-device models). The cost is a written commitment to retire the cloud
+leg as hardware allows, and a deferred, explicitly-flagged privacy decision on distillation; both are recorded
+here rather than left implicit.
+
 ## 2026-10-09 - ADR-044: the M5 gate is generalised to *device-owner* authentication, and humanity is proven in three stacked layers instead of by any single signal
 
 **Status:** Accepted (`docs/PROJECT_VISION.md` section 2; `docs/THREAT_MODEL.md`;
