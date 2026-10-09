@@ -2,6 +2,56 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-032: the console phase is named `MINING_ACTIVE`, and the M2 card states its spend window as a derived duration
+
+**Status:** Accepted (implemented in `frontend/src/lib/slm/mining-engine-state.ts`,
+`frontend/src/components/agent-console/MiningEngineConsole.tsx`,
+`frontend/src/components/agent-console/AutonomousWalletCard.tsx` and
+`frontend/src/components/agent-console/BioAuthGuard.tsx`; `frontend` `npx tsc --noEmit` clean and `next build`
+green over `/`, `/agent` and the three `/api/agent/*` routes, `mobile-agent` `npm test` green over 174 tests
+(173 passing, 1 opt-in live leg skipped) with `npm run build` and `npm run typecheck` clean. No contract, SDK or
+mobile-agent source changed)
+
+**Context:** Three small drifts, each of the same kind: a name that was true but did not say what it meant.
+(1) The Web Agent OS MVP gate names the state machine's terminal phase `MINING_ACTIVE`; the code called it
+`ACTIVE`. `ACTIVE` is a generic word - it does not tell a caller that this is the one phase in which compute may
+be consumed - and the console was already labelling it "mining node live". Two names for one state is exactly the
+drift `SLM_ENGINE_PHASE_LABEL` exists to prevent. (2) The M2 card printed `Rolling window spent x / y ETH` and a
+separate `Window length 86400s`. Both numbers were correct, but the 24h meaning was left as arithmetic for the
+reader, and a hard-coded "24h" label would have been a lie the moment a deployment shortened the policy window.
+(3) The M5 nullifier row was labelled in prose while the mobile-agent type that models it is `HardwareNullifier`,
+so the card and the type it reports on did not share a word.
+
+**Decision:**
+
+- **One name per phase, renamed rather than aliased.** `SlmEnginePhase` now ends in `MINING_ACTIVE`, and the
+  token is changed at every site that named it: the type union, `SLM_ENGINE_PHASE_LABEL`, `mayConsumeEdgeCompute`,
+  the `gpu-bound` transition (which is the only edge into it) and the console branch that prints the verified
+  digest. No deprecated alias is kept: an alias would let a caller keep saying `ACTIVE` and read as if the machine
+  had two mounted phases. ADR-029 described this sequence as `FETCHING_CORE` -> `MOUNTING_GPU` -> `ACTIVE`; that
+  text is left as written, and this entry is the pointer that supersedes the name.
+- **The spend window is derived from the policy, not asserted.** `spendWindowLabel` renders `24h` only when
+  `windowSeconds` is a positive whole number of hours, and falls back to raw seconds otherwise, so the shipped
+  86400s policy reads as 24h while a shortened test policy cannot be described as 24h. The row label carries the
+  duration (`Spend window (24h) spent`) and the rolling ledger's tick length is in the tooltip, so the cap and the
+  period it applies over are on one line.
+- **The card uses the policy's own words.** `Destinations allowed` becomes `Destination whitelist`, matching the
+  brief and the field's actual semantics - an empty list refuses every destination, not merely "allows none".
+- **The nullifier row carries the identifier.** `Hardware nullifier` becomes `HardwareNullifier`. The paragraph
+  below it is unchanged: the value shown is the device-edge handle, and the chain's one-shot handle is still the
+  Groth16 nullifier the M5 circuit proves. Renaming the row must not be read as claiming the two are the same.
+
+**Consequences:** `rg MINING_ACTIVE` now returns exactly the five code sites and nothing else, and the console's
+wording matches the machine instead of paraphrasing it. The cost is that ADR-029's older text still says `ACTIVE`,
+which is why this entry records the rename rather than editing that one; a reader who greps the old token finds
+this note one entry above it. Nothing about the gates changed: `frontend/` still has no test runner, so the guard
+remains `npx tsc --noEmit` plus `next build` plus a transition table that fits on one screen.
+
+**References:** `frontend/src/lib/slm/mining-engine-state.ts`,
+`frontend/src/components/agent-console/MiningEngineConsole.tsx`,
+`frontend/src/components/agent-console/AutonomousWalletCard.tsx`,
+`frontend/src/components/agent-console/BioAuthGuard.tsx`, `mobile-agent/bio-auth/nullifier.ts`,
+`memory/ARCHITECTURE_DECISIONS.md` ADR-029.
 ## 2026-10-09 - ADR-031: execution evidence is a signed trace whose provenance is declared rather than assumed, and background compute is gated on charging + Wi-Fi
 
 **Status:** Accepted (implemented in `mobile-agent/signer/hardware-attestation.ts` +

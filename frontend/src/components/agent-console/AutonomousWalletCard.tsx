@@ -119,6 +119,11 @@ export function AutonomousWalletCard() {
   const closed = !status.enclave.reachable;
   const spent = formatWeiAsEth(status.spend.spentWei);
   const windowCap = formatWeiAsEth(status.policy.maxValueWeiPerWindow);
+  // The window is a policy number, so the label is derived from it instead of hard-coded: the shipped
+  // policy is 86400s (24h), but a shortened test deployment must not be described as 24h.
+  const windowSeconds = status.policy.windowSeconds;
+  const spendWindowLabel =
+    windowSeconds > 0 && windowSeconds % 3600 === 0 ? `${windowSeconds / 3600}h` : `${windowSeconds}s`;
 
   return (
     <section className="rounded-2xl border border-maotang-border bg-maotang-surface p-5">
@@ -145,13 +150,17 @@ export function AutonomousWalletCard() {
           value={balance === null ? NO_VALUE : `${balance} ETH`}
           title={status.deployment.owner ?? undefined}
         />
-        <Row label="Rolling window spent" value={`${spent} / ${windowCap} ETH`} />
+        <Row
+          label={`Spend window (${spendWindowLabel}) spent`}
+          value={`${spent} / ${windowCap} ETH`}
+          title={`rolling ${windowSeconds}s ledger`}
+        />
         <Row label="Per-transaction cap" value={`${formatWeiAsEth(status.policy.maxValueWeiPerTransaction)} ETH`} />
         <Row
           label="Human authorization at"
           value={status.policy.biometricThresholdWei === "0" ? "every leg" : `${formatWeiAsEth(status.policy.biometricThresholdWei)} ETH`}
         />
-        <Row label="Window length" value={`${status.policy.windowSeconds}s`} />
+        <Row label="Spend window length" value={`${spendWindowLabel} (${windowSeconds}s)`} />
         <Row label="Hardware-backed grant" value={status.policy.requireHardwareBackedAuthorization ? "required" : "off"} />
         <Row label="Wallet key alias" value={status.enclave.keyAlias} />
         <Row label="Enclave mode" value={status.enclave.mode} />
@@ -160,7 +169,7 @@ export function AutonomousWalletCard() {
 
       <div className="mt-4 space-y-2 text-[11px]">
         <p className="text-white/45">
-          Destinations allowed ({status.policy.allowedDestinations.length}):{" "}
+          Destination whitelist ({status.policy.allowedDestinations.length}):{" "}
           <span className="font-mono">
             {status.policy.allowedDestinations.length === 0
               ? "none - every destination is refused"

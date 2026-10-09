@@ -257,7 +257,7 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
         </div>
       ) : null}
 
-      {engineState.phase === "ACTIVE" ? (
+      {engineState.phase === "MINING_ACTIVE" ? (
         <p className="mt-3 break-all text-[11px] text-maotang-mint">
           Verified SHA-256 <span className="font-mono">{engineState.verifiedSha256}</span> over{" "}
           {engineState.verifiedBytes} bytes, backend <span className="font-mono">{engineState.backend}</span>.

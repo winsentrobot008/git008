@@ -134,7 +134,7 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
         <dd className="text-right font-mono">{capability === null ? NO_VALUE : capability.secureContext ? "yes" : "no"}</dd>
         <dt className="text-white/50">Enrolled credential</dt>
         <dd className="text-right font-mono">{credentialId === null ? "none" : shortHex(credentialId, 8, 6)}</dd>
-        <dt className="text-white/50">Hardware nullifier</dt>
+        <dt className="text-white/50">HardwareNullifier</dt>
         <dd className="text-right font-mono" title={nullifier ?? undefined}>
           {nullifier === null ? NO_VALUE : shortHex(nullifier, 10, 8)}
         </dd>

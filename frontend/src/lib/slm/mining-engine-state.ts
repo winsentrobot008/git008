@@ -19,7 +19,7 @@
  *
  *   The wake-up walks exactly two steps, so the console can say honestly what it is doing:
  *   `FETCHING_CORE` (transfer, length-check and SHA-256 verify the pinned artifact) then `MOUNTING_GPU`
- *   (bind the compute backend). `ACTIVE` is the only phase in which a compute-consuming action may run.
+ *   (bind the compute backend). `MINING_ACTIVE` is the only phase in which a compute-consuming action may run.
  *
  * Every other transition is a refusal, and refusals are values: the reducer reports `ok: false` with a
  * stable code and leaves the phase untouched. Two of them are load-bearing rather than defensive:
@@ -34,7 +34,7 @@
  */
 
 /** The phase the console is in. `IDLE_SOVEREIGN` is the only zero-energy one. */
-export type SlmEnginePhase = "IDLE_SOVEREIGN" | "FETCHING_CORE" | "MOUNTING_GPU" | "ACTIVE" | "FAULT";
+export type SlmEnginePhase = "IDLE_SOVEREIGN" | "FETCHING_CORE" | "MOUNTING_GPU" | "MINING_ACTIVE" | "FAULT";
 
 /** The two - and only two - reasons the device is allowed to leave its zero-energy preview. */
 export type ComputeGateKind = "network-transaction" | "mining-activation";
@@ -62,7 +62,7 @@ export const SLM_ENGINE_PHASE_LABEL: Readonly<Record<SlmEnginePhase, string>> = 
   IDLE_SOVEREIGN: "IDLE_SOVEREIGN \u00b7 zero-energy preview",
   FETCHING_CORE: "FETCHING_CORE \u00b7 verifying pinned weights",
   MOUNTING_GPU: "MOUNTING_GPU \u00b7 binding compute backend",
-  ACTIVE: "ACTIVE \u00b7 mining node live",
+  MINING_ACTIVE: "MINING_ACTIVE \u00b7 mining node live",
   FAULT: "FAULT \u00b7 compute halted",
 });
 
@@ -129,7 +129,7 @@ export function isZeroEnergyPhase(phase: SlmEnginePhase): boolean {
 
 /** True when a compute-consuming action is allowed to run. Only the fully mounted phase qualifies. */
 export function mayConsumeEdgeCompute(snapshot: SlmEngineSnapshot): boolean {
-  return snapshot.phase === "ACTIVE";
+  return snapshot.phase === "MINING_ACTIVE";
 }
 
 /** True for the two owner gates, and false for every other string a caller might pass. */
@@ -256,7 +256,7 @@ export function reduceSlmEngine(
       if (from !== "MOUNTING_GPU") {
         return refuse(snapshot, "COMPUTE_ALREADY_ENGAGED", `the compute backend is already bound in ${from}`);
       }
-      return advance(snapshot, "ACTIVE", `backend ${trigger.backend} bound`, nowMs, { backend: trigger.backend });
+      return advance(snapshot, "MINING_ACTIVE", `backend ${trigger.backend} bound`, nowMs, { backend: trigger.backend });
 
     default: {
       // `SlmEngineTrigger` is closed; this branch exists so an untyped caller cannot reach the machine.
