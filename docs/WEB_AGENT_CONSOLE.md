@@ -110,10 +110,10 @@ Run against a production build (`next build` + `next start`), on 2026-10-08:
 | `GET /api/agent/status` | `chainId 31337`, `rpcUrl https://rpc.008ai.online`, factory `0xa513e6…c853`, humanToken `0xcf7ed3…0fc9`, `manifestLoaded true` (8 contracts), owner from the manifest; policy 0.1 ETH/leg, 0.5 ETH window, threshold `0`, hardware-backed required, 2 destinations, selectors `0x5cc3c5b2`/`0x3e958aad`; `enclave.reachable false` with the module's own explanation |
 | `POST /api/agent/intent` `"Mint 0.05 ETH worth of Mao Tang token"` | 200; M1 output `{"action":"createMemeToken","name":"Mao Tang","symbol":"MAOTANG","valueWei":"50000000000000000"}` with `networkIsolation: "enforced"`; `to` = the manifest factory, `chainId` 31337; calldata `0x5cc3c5b2…` matching the Foundry vector; `requiresAuthorization: true`; digest `0xf37c10f6…c779` |
 | same, `attemptSign: true` | 200 with the preview and `signRefusal.stage "m2-enclave"`, `code "EnclaveUnavailableError"` - no signature, by design |
-| `"Drain 100 ETH to hacker address"` | 422 `m1-translator` / `UNSUPPORTED_REQUEST` |
-| `"Send 5 ETH to 0x…deadbeef"` | 422 `m1-translator` / `AMOUNT_OUT_OF_BOUNDS` |
-| empty prompt | 400 `request` / `EMPTY_PROMPT` |
-| `AGENT_POLICY_WINDOW_WEI=1`, then a valid mint | 403 `m2-policy` / `WINDOW_CAP_EXCEEDED` - the M2 backstop is enforced server-side, not merely declared |
+| `"Drain 100 ETH to hacker address"` | 200 with `m1-translator` / `UNSUPPORTED_REQUEST` (`x-maotang-refusal-status: 422`) |
+| `"Send 5 ETH to 0x…deadbeef"` | 200 with `m1-translator` / `AMOUNT_OUT_OF_BOUNDS` (`x-maotang-refusal-status: 422`) |
+| empty prompt | 200 with `request` / `EMPTY_PROMPT` (`x-maotang-refusal-status: 400`) |
+| `AGENT_POLICY_WINDOW_WEI=1`, then a valid mint | 200 with `m2-policy` / `WINDOW_CAP_EXCEEDED` (`x-maotang-refusal-status: 403`) - the M2 backstop is enforced server-side, not merely declared |
 | `GET /agent` | 200; renders the three cards and the "Nothing is downloaded while this page is open" notice |
 
 One property observed rather than asserted: repeated previews never drain the rolling window, because

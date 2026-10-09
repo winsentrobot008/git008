@@ -76,9 +76,15 @@ export interface InferenceReport {
   readonly raw: string;
 }
 
-/** What `/api/agent/intent` answers on success. */
+/**
+ * What `/api/agent/intent` answers on success.
+ *
+ * `success` mirrors `ok` as the flat flag the route also sends, so a caller can branch on one boolean
+ * without knowing the staged shape.
+ */
 export interface IntentSuccess {
   readonly ok: true;
+  readonly success: true;
   readonly inference: InferenceReport;
   readonly preview: IntentPreview;
   readonly decision: PolicyReport;
@@ -103,9 +109,19 @@ export interface SignedReport {
   readonly signedAt: number;
 }
 
-/** What `/api/agent/intent` answers on refusal. */
+/**
+ * What `/api/agent/intent` answers on refusal.
+ *
+ * The route answers **HTTP 200** here: a deterministic M1/M2 verdict is a business answer, and a 4xx
+ * would make the browser log a failed request that no JS can un-log (see the route's header comment).
+ * `code`/`message` are the flat form and `refusal` keeps the stage the console points at; the pillar's
+ * severity still travels, in the `x-maotang-refusal-status` response header.
+ */
 export interface IntentFailure {
   readonly ok: false;
+  readonly success: false;
+  readonly code: string;
+  readonly message: string;
   readonly refusal: AgentRefusal;
 }
 

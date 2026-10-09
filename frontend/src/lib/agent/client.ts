@@ -8,7 +8,7 @@
  * that blanks the panel.
  */
 
-import type { Address, AgentRefusal, Hex, IntentResponse } from "./types";
+import type { Address, AgentRefusal, Hex, IntentFailure, IntentResponse, IntentSuccess } from "./types";
 
 /** What `GET /api/agent/status` answers. Mirrors the route field for field. */
 export interface AgentStatus {
@@ -65,15 +65,54 @@ async function readJson(response: Response): Promise<unknown> {
 
 /** A response that is not the JSON this client expects is itself a refusal, never a silent default. */
 function transportRefusal(response: Response, payload: unknown): AgentRefusal {
-  const refusal = (payload as { refusal?: AgentRefusal } | null)?.refusal;
+  const record = payload as { refusal?: AgentRefusal; code?: unknown; message?: unknown } | null;
+  const refusal = record?.refusal;
   if (refusal !== undefined && typeof refusal.code === "string") {
     return refusal;
+  }
+  // The flat shape (`success: false` + `code` + `message`) is the same verdict restated, so it is a
+  // refusal with the route's own code - not an "unexpected response".
+  if (typeof record?.code === "string") {
+    return {
+      stage: "request",
+      code: record.code,
+      reason: typeof record.message === "string" ? record.message : "",
+    };
   }
   return {
     stage: "request",
     code: "UNEXPECTED_RESPONSE",
     reason: `the agent route answered ${response.status} without a refusal body`,
   };
+}
+
+/**
+ * A refusal the *client* raises (a dead route, an unreadable body) in the wire shape.
+ *
+ * The route always sends `success`, `code` and `message` next to `refusal`, so a locally built answer has
+ * to carry the same four fields or the two refusal sources would not be interchangeable.
+ */
+function localRefusal(refusal: AgentRefusal): IntentResponse {
+  return { ok: false, success: false, code: refusal.code, message: refusal.reason, refusal };
+}
+
+/**
+ * The route's verdict, read from either flag it sends.
+ *
+ * `ok` is the staged contract and `success` is the flat mirror the route sends alongside it. Reading both
+ * means a policy rejection still lands here as a *value* when only the flat pair
+ * (`success: false`, `code`, `message`) arrives - the shape the endpoint promises - instead of being
+ * mistaken for a broken response and surfacing as a transport fault.
+ */
+function payloadVerdict(payload: unknown): boolean | null {
+  const record = payload as { ok?: unknown; success?: unknown } | null;
+  if (typeof record?.ok === "boolean") {
+    return record.ok;
+  }
+  if (typeof record?.success === "boolean") {
+    return record.success;
+  }
+  return null;
 }
 
 export async function fetchAgentStatus(signal?: AbortSignal): Promise<AgentStatusResult> {
@@ -105,25 +144,25 @@ export async function requestIntent(
       cache: "no-store",
     });
   } catch (error) {
-    return {
-      ok: false,
-      refusal: {
-        stage: "request",
-        code: "NETWORK_UNREACHABLE",
-        reason: `the agent route is unreachable: ${(error as Error).message}`,
-      },
-    };
+    return localRefusal({
+      stage: "request",
+      code: "NETWORK_UNREACHABLE",
+      reason: `the agent route is unreachable: ${(error as Error).message}`,
+    });
   }
 
   const payload = await readJson(response);
   const body = payload as IntentResponse | null;
-  if (body === null || typeof body.ok !== "boolean") {
-    return { ok: false, refusal: transportRefusal(response, payload) };
+  const verdict = payloadVerdict(payload);
+  // A refusal arrives as a 200 with `success: false`, so it is read here as the answer it is: no throw,
+  // no `NETWORK_UNREACHABLE`, and nothing for the browser to log as a failed request.
+  if (body === null || verdict === null) {
+    return localRefusal(transportRefusal(response, payload));
   }
-  if (body.ok === false) {
-    return body;
+  if (!verdict) {
+    return localRefusal((body as IntentFailure).refusal ?? transportRefusal(response, payload));
   }
-  return body;
+  return body as IntentSuccess;
 }
 
 /**

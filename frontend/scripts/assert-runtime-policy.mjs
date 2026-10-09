@@ -218,6 +218,7 @@ const DEX_ROUTE = path.join(frontendRoot, "src", "app", "dex", "page.tsx");
 // whether or not the JS catches it). See ADR-041.
 const CLIENT_SOURCE = path.join(frontendRoot, "src", "lib", "agent", "client.ts");
 const RPC_ROUTE = path.join(frontendRoot, "src", "app", "api", "rpc", "route.ts");
+const INTENT_ROUTE = path.join(frontendRoot, "src", "app", "api", "agent", "intent", "route.ts");
 
 const i18nSource = readFileSync(I18N_SOURCE, "utf8");
 const languageSource = readFileSync(LANGUAGE_SOURCE, "utf8");
@@ -225,6 +226,7 @@ const menuDrawer = readFileSync(MENU_DRAWER, "utf8");
 const bioGuard = readFileSync(BIO_GUARD, "utf8");
 const clientSource = readFileSync(CLIENT_SOURCE, "utf8");
 const rpcRoute = readFileSync(RPC_ROUTE, "utf8");
+const intentRoute = readFileSync(INTENT_ROUTE, "utf8");
 
 test("D. a cancelled biometric prompt has its own code, not a generic failure", () => {
   assert.match(webauthnSource, /\| "USER_CANCELLED"/, "the code union must carry USER_CANCELLED");
@@ -281,7 +283,7 @@ test("D. both biometric faces run the one shared session hook", () => {
   assert.match(bioGuard, /useBiometricOwner\(\)/, "the M5 card uses the same shared session");
 });
 
-test("D. the C-end card states the zero-data posture and its reads stay same-origin", () => {
+test("D. the C-end posture holds: zero data, same-origin reads, no failure statuses", () => {
   // The claim is a statement about this build, so each language writes it once in the dictionary...
   assert.match(
     i18nSource,
@@ -320,4 +322,31 @@ test("D. the C-end card states the zero-data posture and its reads stay same-ori
   assert.match(rpcRoute, /readChainConfig\(\)/, "the upstream comes from the server config, never the request");
   assert.match(rpcRoute, /no RPC endpoint is configured for this build/, "an unconfigured endpoint fails closed");
   assert.match(rpcRoute, /AbortSignal\.timeout\(/, "a silent node cannot hang the request forever");
+
+  // The refusal half of "no red DevTools entries" (ADR-042). A browser logs any 4xx/5xx resource
+  // response and no JS can un-log it, so a deterministic policy verdict is a 200 whose body carries the
+  // bad news, with the pillar's severity moved into a header.
+  assert.equal(existsSync(INTENT_ROUTE), true, "the intent route must be part of the build");
+  assert.match(intentRoute, /success: true,/, "a successful intent states the flat success flag");
+  assert.match(intentRoute, /success: false,/, "a refused intent states the flat success flag");
+  assert.match(intentRoute, /message: refusal\.reason/, "the flat message is the module's own reason");
+  assert.match(intentRoute, /status: 200,/, "a refusal is answered 200, so the browser logs nothing");
+  assert.match(intentRoute, /x-maotang-refusal-status/, "the pillar's severity survives in a header");
+  assert.doesNotMatch(
+    intentRoute,
+    /Response\.json\(body, \{ status \}\)/,
+    "no refusal may fall back to a 4xx status",
+  );
+  assert.match(clientSource, /payloadVerdict/, "the client reads the verdict from ok or success");
+  assert.match(
+    clientSource,
+    /typeof record\?\.success === "boolean"/,
+    "the flat success flag is read as a verdict, not ignored",
+  );
+  const rpcVerdicts200 = (rpcRoute.match(/, 200\)/g) ?? []).length;
+  assert.ok(
+    rpcVerdicts200 >= 3,
+    "each well-formed-read verdict (off-allowlist, unconfigured, node down) is a 200",
+  );
+  assert.doesNotMatch(rpcRoute, /, (403|502|503)\)/, "no business verdict may carry an error status");
 });

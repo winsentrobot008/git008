@@ -18,7 +18,14 @@
  *   2. **No endpoint, no call.** With no configured RPC URL this answers `503` instead of guessing -
  *      the same rule `readChainConfig()` applies in production.
  *   3. **Errors are values.** A dead node, a timeout or a non-JSON answer becomes a JSON-RPC error
- *      object with a real HTTP status, so the client renders "no balance" instead of throwing.
+ *      object, so the client renders "no balance" instead of throwing.
+ *
+ * **HTTP status is transport; the JSON-RPC `error` object is the verdict.** A well-formed single read is
+ * answered `200` even when the news is bad - method not on the allowlist, no endpoint configured, node
+ * down, node answering `530` - because a browser logs *any* 4xx/5xx resource response to the console and
+ * no JS can un-log it, which is the exact noise this route exists to remove. Only a body that is not a
+ * valid JSON-RPC request at all (empty, not JSON, a batch array, no method) is answered `400`/`413`, and
+ * a `GET` is answered `405`; the console can produce none of those, so they cost no console noise.
  *
  * Node runtime, not edge: the chain config comes from `process.env`, and the upstream fetch relies on
  * Node's timers via `AbortSignal.timeout`.
@@ -61,7 +68,12 @@ interface JsonRpcCall {
   readonly method?: unknown;
 }
 
-/** A JSON-RPC error object, so the client's own parser sees a protocol answer rather than HTML. */
+/**
+ * A JSON-RPC error object, so the client's own parser sees a protocol answer rather than HTML.
+ *
+ * `status` stays a parameter because a malformed *request* is still a transport error; every outcome of a
+ * well-formed one passes `200`.
+ */
 function rpcError(id: unknown, code: number, message: string, status: number): Response {
   return Response.json(
     { jsonrpc: "2.0", id: id ?? null, error: { code, message } },
@@ -108,12 +120,13 @@ export async function POST(request: Request): Promise<Response> {
     return rpcError(call.id, -32600, "the request carries no method", 400);
   }
   if (!READ_METHOD_SET.has(call.method)) {
-    return rpcError(call.id, -32601, `"${call.method}" is not on the read allowlist`, 403);
+    // A guardrail verdict, not a transport fault: 200 keeps the browser from logging a failed request.
+    return rpcError(call.id, -32601, `"${call.method}" is not on the read allowlist`, 200);
   }
 
   const config = readChainConfig();
   if (config === null) {
-    return rpcError(call.id, -32603, "no RPC endpoint is configured for this build", 503);
+    return rpcError(call.id, -32603, "no RPC endpoint is configured for this build", 200);
   }
 
   let upstream: Response;
@@ -131,18 +144,20 @@ export async function POST(request: Request): Promise<Response> {
       name === "TimeoutError"
         ? `the node did not answer within ${UPSTREAM_TIMEOUT_MS}ms`
         : `the node could not be reached (${name ?? "network error"})`;
-    return rpcError(call.id, -32603, detail, 502);
+    return rpcError(call.id, -32603, detail, 200);
   }
 
   if (!upstream.ok) {
-    return rpcError(call.id, -32603, `the node answered HTTP ${upstream.status}`, 502);
+    // The node's own failure (a Cloudflare `530`, say) is reported in the error object. It is not the
+    // page's failure, and answering it as a 5xx would put a red line in a console that is working.
+    return rpcError(call.id, -32603, `the node answered HTTP ${upstream.status}`, 200);
   }
 
   const body = await upstream.text();
   try {
     JSON.parse(body);
   } catch {
-    return rpcError(call.id, -32603, "the node answered with something that is not JSON", 502);
+    return rpcError(call.id, -32603, "the node answered with something that is not JSON", 200);
   }
 
   return new Response(body, {

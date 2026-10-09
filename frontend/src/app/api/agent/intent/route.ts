@@ -15,13 +15,19 @@
  *   2. **A refusal is a first-class answer.** Each failure carries the stage and the module's own
  *      error code (`UNKNOWN_ACTION`, `DESTINATION_NOT_ALLOWED`, `EnclaveUnavailableError`, ...), so
  *      the console names the pillar that said no instead of rendering a generic failure.
+ *   3. **A refusal is answered `200`, not `4xx`.** A deterministic M1/M2 verdict is a business answer,
+ *      and a browser logs *any* 4xx/5xx resource response to the console - a red `POST 422` entry no JS
+ *      can remove, next to a card that is behaving correctly. So the verdict travels in the body
+ *      (`success: false`, `code`, `message` plus the staged `refusal`) and the pillar's severity rides
+ *      along in `x-maotang-refusal-status` for curl and ops. Only a malformed request body - which the
+ *      console never sends - would be a transport-level error.
  */
 
 import type { SlmInferenceResult, TranslatedIntent } from "@maotang/mobile-agent/dist/slm/index.js";
 
 import { createRuntime, toRefusal } from "@/lib/agent/runtime";
 
-import type { AgentRefusal, IntentResponse, SignedReport } from "@/lib/agent/types";
+import type { AgentRefusal, AgentRefusalStage, IntentResponse, SignedReport } from "@/lib/agent/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +35,14 @@ export const dynamic = "force-dynamic";
 /** Longest prompt accepted. A model input box is not a file transfer; bound it at the edge. */
 const MAX_PROMPT_CHARS = 2000;
 
-const STATUS_BY_STAGE: Record<string, number> = {
+/**
+ * The severity a refusal *would* have carried as an HTTP status.
+ *
+ * Kept, but no longer sent as one: the verdict is the response body, and this mapping travels in the
+ * `x-maotang-refusal-status` header so a curl or an ops filter can still tell "the caller sent
+ * nonsense" (400) from "the enclave cannot sign" (501) without the browser logging a failed request.
+ */
+const STATUS_BY_STAGE: Record<AgentRefusalStage, number> = {
   request: 400,
   "m1-engine": 503,
   "m1-translator": 422,
@@ -39,9 +52,20 @@ const STATUS_BY_STAGE: Record<string, number> = {
 };
 
 function refuse(refusal: AgentRefusal): Response {
-  const status = STATUS_BY_STAGE[refusal.stage] ?? 400;
-  const body: IntentResponse = { ok: false, refusal };
-  return Response.json(body, { status });
+  const body: IntentResponse = {
+    ok: false,
+    success: false,
+    code: refusal.code,
+    message: refusal.reason,
+    refusal,
+  };
+  return Response.json(body, {
+    status: 200,
+    headers: {
+      "x-maotang-refusal-stage": refusal.stage,
+      "x-maotang-refusal-status": String(STATUS_BY_STAGE[refusal.stage] ?? 400),
+    },
+  });
 }
 
 interface IntentRequest {
@@ -119,6 +143,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const response: IntentResponse = {
     ok: true,
+    success: true,
     inference: {
       backend: inference.backend,
       modelId: inference.modelId,

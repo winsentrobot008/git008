@@ -220,7 +220,9 @@ numbers agree:
   the node URL directly. A cross-origin JSON-RPC call needs CORS headers a public node rarely sends, and
   the browser logs the blocked request whether or not the code catches it - so the server dials the node
   instead. The proxy forwards only read methods, resolves the upstream from the server config (never from
-  the request), and turns a dead or silent node into a named `502` that the card renders as "no balance".
+  the request), and turns a dead or silent node into a named JSON-RPC error that the card renders as
+  "no balance". That verdict is a `200` with the error in the body, not a `502`: a browser logs every
+  error status it receives, and an offline node is not a failure of the page.
 - **One biometric conversation.** The confirmation sheet and `BioAuthGuard` both call
   `useBiometricOwner()` (`@/lib/agent/biometric-session`). A dismissed Face ID / Touch ID sheet is reported
   as `USER_CANCELLED` (iOS Safari raises `NotAllowedError` for both a cancel and a timeout); a webview that
@@ -295,6 +297,9 @@ Input: a prompt asking to send a large amount to an address the policy does not 
 ```json
 {
   "ok": false,
+  "success": false,
+  "code": "UNSUPPORTED_REQUEST",
+  "message": "UNSUPPORTED_REQUEST: the model reported that the input does not request a supported action",
   "refusal": {
     "stage": "m1-translator",
     "code": "UNSUPPORTED_REQUEST",
@@ -303,8 +308,11 @@ Input: a prompt asking to send a large amount to an address the policy does not 
 }
 ```
 
-HTTP `422`. The prompt is refused at the **M1 schema gate** - the model reported "unsupported" and the
-translator will not guess. Nothing reaches M2, M5 or the network. Even a model that *did* emit a spend would
+HTTP `200`, with `x-maotang-refusal-status: 422` and `x-maotang-refusal-stage: m1-translator` in
+the response headers. A refusal is a business answer, so it is deliberately not a `4xx`: a browser logs any
+4xx/5xx resource response and no JS can un-log it, which would put a red entry in DevTools next to a card
+that is working exactly as designed. The prompt is refused at the **M1 schema gate** - the model reported
+"unsupported" and the translator will not guess. Nothing reaches M2, M5 or the network. Even a model that *did* emit a spend would
 still be stopped by the M2 policy, which is what `mobile-agent`'s test
 `a compromised model that does emit a spend still fails closed at M2, before signing or sending` asserts.
 

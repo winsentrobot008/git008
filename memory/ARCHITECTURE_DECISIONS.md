@@ -2,12 +2,52 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-042: a deterministic policy verdict is answered HTTP 200 with the refusal in the body, because a browser logs every 4xx/5xx response the page cannot un-log
+
+**Status:** Accepted (`frontend/src/app/api/agent/intent/route.ts`, `frontend/src/lib/agent/types.ts`,
+`frontend/src/lib/agent/client.ts`, `frontend/src/app/api/rpc/route.ts`,
+`frontend/scripts/assert-runtime-policy.mjs`, `docs/MVP_DEMO_GUIDE.md`, `docs/WEB_AGENT_CONSOLE.md`).
+Amends ADR-041. Gates: `npx tsc --noEmit` exit 0; `npm run test:policy` 16/16.
+
+**Context:** a browser writes a console entry for *any* resource response carrying a 4xx/5xx status -
+`POST /api/agent/intent 422 (Unprocessable Entity)` - whether or not the JS catches, handles and renders it.
+The console was therefore painted red for the two outcomes that mean the system is working exactly as
+designed:
+
+1. a prompt the M1 schema gate refuses (the stub reports `unsupported`; the translator will not guess), and
+2. the balance poll while the RPC node is unreachable.
+
+Neither is a transport error. `422` said "your request was malformed" and `502` said "the gateway failed",
+about answers that are first-class verdicts in this system.
+
+**Decision:** one rule for both surfaces - **HTTP status is transport; the body is the verdict**.
+
+- `POST /api/agent/intent` answers `200` for every outcome of a well-formed prompt. A refusal carries
+  `{ ok: false, success: false, code, message, refusal }` and success carries `success: true` next to
+  `ok: true`. The stage's severity is not discarded: `x-maotang-refusal-status` (400/403/422/501/503 by
+  stage) and `x-maotang-refusal-stage` travel as headers, so curl and ops can still separate "the caller
+  sent nonsense" from "the enclave cannot sign" without a red console.
+- `POST /api/rpc` answers `200` for every outcome of a well-formed single read, including a method off the
+  read allowlist (`-32601`), no configured endpoint (`-32603`) and a node that is down or answering `530`
+  (`-32603`). Only a body that is not a valid JSON-RPC request at all stays `400`/`413`, and `GET` stays
+  `405`; the console can produce none of those, so they cost no console noise.
+- The client reads the verdict from `ok` **or** `success` (`payloadVerdict`), so a flat refusal body is
+  still a value rather than a transport fault, and the refusals the client raises itself
+  (`NETWORK_UNREACHABLE`, `UNEXPECTED_RESPONSE`) are built in the same five-field shape.
+
+**Consequences:** DevTools no longer shows a failed request for a policy rejection or an offline node - the
+card renders the refusal it always rendered. The cost is that the HTTP status stops being a
+machine-readable severity for these two endpoints, which is why the severity moved into a response header
+and the body states the verdict explicitly. Nothing about M1/M2/M5 policy, signing or the enclave changed:
+this is transport ergonomics. `/api/agent/status` keeps its `503` for a runtime that cannot be built, which
+is a genuine server fault rather than a business verdict.
+
 ## 2026-10-09 - ADR-041: the browser reads the chain through a same-origin `/api/rpc` proxy, because a cross-origin JSON-RPC call cannot be silenced from the page
 
 **Status:** Accepted (`frontend/src/app/api/rpc/route.ts`, `frontend/src/lib/agent/client.ts`,
 `frontend/scripts/assert-runtime-policy.mjs`, `frontend/.env.example`, `docs/MVP_DEMO_GUIDE.md`).
 Gates: `npx tsc --noEmit` exit 0; `npm run test:policy` 16/16; `npm run build` exit 0 with
-`/api/rpc` in the route table.
+`/api/rpc` in the route table. The failure-status rule below is amended by ADR-042.
 
 **Context:** `NEXT_PUBLIC_MAOTANG_RPC_URL` is `https://rpc.008ai.online`, and the wallet card read the
 owner's live balance by POSTing to that URL *from the page* served at `https://maotang.008ai.online`.
@@ -30,8 +70,9 @@ Two things follow and neither is fixable inside the component:
 - `client.ts` exports `clientRpcEndpoint()`, which routes a *browser* read to `/api/rpc` and leaves a
   server-side or already-same-origin read untouched; `fetchNativeBalance` uses it and converts a
   rejected fetch into a named `Error`, keeping `AbortError` for the caller's own cancellation.
-- Every failure is a JSON-RPC error value with a real HTTP status: `503` with no configured endpoint,
-  `502` when the node is dead, silent or non-JSON. The card already renders "no balance" for a refusal.
+- Every failure is a JSON-RPC error value: `-32603` with no configured endpoint, and the same when the
+  node is dead, silent or non-JSON. The card already renders "no balance" for a refusal. (The HTTP status
+  those carried was amended to `200` by ADR-042, so the browser does not log the proxy's honest bad news.)
 
 **Consequences:** the console makes no cross-origin RPC call, so the DevTools CORS failure is gone by
 construction, and a dead node degrades to a named same-origin refusal the card can show. The proxy adds one
