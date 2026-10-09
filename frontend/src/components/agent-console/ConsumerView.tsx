@@ -15,20 +15,37 @@
  *     owner sees the pillar and the module's own code (`UNSUPPORTED_REQUEST`, `DESTINATION_NOT_ALLOWED`,
  *     ...) instead of a blank card.
  *   - it does not fabricate a number. The balance is the manifest owner's live `eth_getBalance`; the
- *     "today's remaining allowance" is `maxValueWeiPerWindow - spentWei` from the server-ledger; the
+ *     "today's remaining allowance" is `maxValueWeiPerWindow - spentWei` from the server ledger; the
  *     window label is derived from `windowSeconds`, so a shortened test deployment is never described
  *     as "24h".
  *   - it does not claim a signature happened. The web host has no secure-enclave bridge, so
  *     `attemptSign` comes back refused - and this sheet shows that refusal rather than a green tick
  *     nobody earned. The biometric assertion proves the owner is present; it is not a private key.
  *
- * The one prompt preset exists because the shipped M1 stub parses a fixed grammar. The preset label is
- * Chinese for the owner; the text M1 receives is the exact English sentence the stub accepts.
+ * Three bridges to the engineer console, so the mobile face cannot drift from it:
+ *
+ *   - the biometric conversation is `useBiometricOwner()` (`@/lib/agent/biometric-session`), the same
+ *     hook `BioAuthGuard` runs, so the iOS Safari / Android webview handling exists once;
+ *   - the device-interaction copy and toast tones come from `biometric-ux.ts`, so both faces explain
+ *     one refusal the same way;
+ *   - the window label and the "remaining allowance" arithmetic come from `spend-view.ts`, shared with
+ *     `AutonomousWalletCard`.
+ *
+ * The layout is mobile-first: the chat bar is docked to the bottom of the viewport and padded by
+ * `env(safe-area-inset-bottom)`, so on a 390px iPhone it clears the home indicator instead of sitting
+ * under it, and every primary target is at least 48px tall for a thumb.
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ToastStack, useToastQueue } from "@/components/agent-console/Toast";
+import {
+  BIOMETRIC_PROMPT_NOTICE,
+  biometricFailureToast,
+  biometricFallbackCopy,
+  biometricSuccessToast,
+} from "@/components/agent-console/biometric-ux";
 import {
   fetchAgentStatus,
   fetchNativeBalance,
@@ -37,17 +54,9 @@ import {
   shortHex,
   type AgentStatus,
 } from "@/lib/agent/client";
-import type { AgentRefusal, Hex, IntentSuccess } from "@/lib/agent/types";
-import {
-  WebBiometricError,
-  deriveOwnerNullifier,
-  enrollOwnerCredential,
-  readBiometricCapability,
-  readEnrolledCredentialId,
-  requestOwnerAssertion,
-  type BiometricCapability,
-  type OwnerAssertion,
-} from "@/lib/agent/webauthn";
+import { useBiometricOwner } from "@/lib/agent/biometric-session";
+import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
+import type { AgentRefusal, IntentSuccess } from "@/lib/agent/types";
 
 /** Rendered when a value has not landed yet. Never a fabricated zero. */
 const NO_VALUE = "\u2014";
@@ -74,30 +83,6 @@ type StatusState =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly status: AgentStatus }
   | { readonly kind: "unavailable"; readonly code: string; readonly reason: string };
-
-function windowLabel(seconds: number): string {
-  if (seconds > 0 && seconds % 3600 === 0) {
-    return `${seconds / 3600}h`;
-  }
-  return `${seconds}s`;
-}
-
-/** Remaining window allowance, clamped at zero. Integer-exact: no float ever touches an amount. */
-function remainingWei(capWei: string, spentWei: string): bigint {
-  try {
-    const left = BigInt(capWei) - BigInt(spentWei);
-    return left > 0n ? left : 0n;
-  } catch {
-    return 0n;
-  }
-}
-
-function authErrorOf(error: unknown): { code: string; message: string } {
-  if (error instanceof WebBiometricError) {
-    return { code: error.code, message: error.message };
-  }
-  return { code: "ASSERTION_FAILED", message: (error as Error).message };
-}
 export interface ConsumerViewProps {
   /** Flips the shell to the M1-M5 engineer/audit view. */
   readonly onSwitchToDeveloper: () => void;
@@ -107,21 +92,16 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
   const [statusState, setStatusState] = useState<StatusState>({ kind: "loading" });
   const [balance, setBalance] = useState<string | null>(null);
 
-  const [capability, setCapability] = useState<BiometricCapability | null>(null);
-  const [credentialId, setCredentialId] = useState<string | null>(null);
-  const [nullifier, setNullifier] = useState<Hex | null>(null);
-
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<IntentSuccess | null>(null);
   const [refusal, setRefusal] = useState<AgentRefusal | null>(null);
   const [localNote, setLocalNote] = useState<string | null>(null);
-
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [asserting, setAsserting] = useState(false);
-  const [assertion, setAssertion] = useState<OwnerAssertion | null>(null);
-  const [authError, setAuthError] = useState<{ code: string; message: string } | null>(null);
-  const [enrolling, setEnrolling] = useState(false);
+
+  // One shared biometric session and one shared toast queue, mirroring the engineer console.
+  const session = useBiometricOwner();
+  const toasts = useToastQueue();
 
   // -- reads ------------------------------------------------------------------------------------
 
@@ -147,31 +127,6 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
       }
     })();
     return () => controller.abort();
-  }, []);
-
-  // Probing a platform authenticator and reading the enrolled credential id are capability *reads*;
-  // neither raises a biometric sheet, so both are safe without an owner gesture.
-  useEffect(() => {
-    let cancelled = false;
-    const enrolled = readEnrolledCredentialId();
-    setCredentialId(enrolled);
-    void (async () => {
-      const report = await readBiometricCapability();
-      if (cancelled) {
-        return;
-      }
-      setCapability(report);
-      if (enrolled !== null) {
-        try {
-          setNullifier(await deriveOwnerNullifier(enrolled));
-        } catch {
-          setNullifier(null);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   // The balance is a second, independent read: a dead RPC must not blank the status pill.
@@ -202,51 +157,54 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
 
   // -- intent -----------------------------------------------------------------------------------
 
-  const submit = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (trimmed === "") {
-      return;
-    }
-    setBusy(true);
-    setRefusal(null);
-    setPreview(null);
-    setLocalNote(null);
-    setAssertion(null);
-    setAuthError(null);
-    try {
-      const answer = await requestIntent({ prompt: trimmed });
-      if (answer.ok) {
-        setPreview(answer);
-        setConfirmOpen(true);
-      } else {
-        setRefusal(answer.refusal);
+  const submit = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (trimmed === "") {
+        return;
       }
-    } catch (error) {
-      // `requestIntent` already folds a transport failure into a refusal value; this is belt-and-braces.
-      setRefusal({ stage: "request", code: "NETWORK_UNREACHABLE", reason: (error as Error).message });
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+      setBusy(true);
+      setRefusal(null);
+      setPreview(null);
+      setLocalNote(null);
+      session.reset();
+      try {
+        const answer = await requestIntent({ prompt: trimmed });
+        if (answer.ok) {
+          setPreview(answer);
+          setConfirmOpen(true);
+        } else {
+          setRefusal(answer.refusal);
+          // The refusal panel is easy to miss above a docked bar, so the verdict also gets a toast.
+          toasts.push("warn", `已被本地策略拦截：${answer.refusal.code}（未生成交易）`);
+        }
+      } catch (error) {
+        setRefusal({ stage: "request", code: "NETWORK_UNREACHABLE", reason: (error as Error).message });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session, toasts],
+  );
 
   const showLedger = useCallback(() => {
     setPreview(null);
     setRefusal(null);
     setConfirmOpen(false);
-    setAssertion(null);
+    session.reset();
     if (statusState.kind !== "ready") {
       setLocalNote("本地策略账本还没读回来，稍后再试。");
       return;
     }
     const { policy, spend } = statusState.status;
-    const left = remainingWei(policy.maxValueWeiPerWindow, spend.spentWei);
+    const left = remainingWindowWei(policy.maxValueWeiPerWindow, spend.spentWei);
     setLocalNote(
       [
         "今日节点收益：本版本尚未接入收益账本，所以这里不显示任何未经验证的数字。",
         `可验证的本地账本：滚动窗口 ${windowLabel(policy.windowSeconds)} 内已用 ${formatWeiAsEth(spend.spentWei)} / ${formatWeiAsEth(policy.maxValueWeiPerWindow)} ETH，剩余 ${formatWeiAsEth(left.toString())} ETH。`,
       ].join("\n"),
     );
-  }, [statusState]);
+  }, [session, statusState]);
 
   const presets = useMemo<readonly Preset[]>(() => {
     const list: Preset[] = [{ label: "铸造 0.05 ETH 的猫糖代币", kind: "intent", text: MINT_PRESET }];
@@ -281,174 +239,208 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
     if (preview === null) {
       return;
     }
-    setAsserting(true);
-    setAuthError(null);
-    try {
-      const asserted = await requestOwnerAssertion(preview.digest, "确认这笔交易");
-      setAssertion(asserted);
-      // Ask for the signature too, so the sheet shows the real enclave answer: on a web host with no
-      // bridge that answer is a refusal, and the owner reads the module's own code instead of a tick.
-      const signed = await requestIntent({ prompt: preview.inference.prompt, attemptSign: true });
-      if (signed.ok) {
-        setPreview(signed);
-      }
-    } catch (error) {
-      setAuthError(authErrorOf(error));
-    } finally {
-      setAsserting(false);
+    // Announce the request first: the system sheet renders outside the document, so without this the
+    // owner has no on-screen evidence the tap landed.
+    toasts.push("info", BIOMETRIC_PROMPT_NOTICE);
+    // Nothing is awaited before `authorize` on purpose - WebAuthn needs the tap's user activation, and
+    // an `await` here is how iOS Safari turns the prompt into a silent NotAllowedError.
+    const outcome = await session.authorize(preview.digest, "确认这笔交易");
+    if (!outcome.ok) {
+      const { tone, message } = biometricFailureToast(outcome.failure);
+      toasts.push(tone, message);
+      return;
     }
-  }, [preview]);
+    const { tone, message } = biometricSuccessToast(outcome.assertion);
+    toasts.push(tone, message);
+    // Ask for the signature too, so the sheet shows the real enclave answer: on a web host with no
+    // bridge that answer is a refusal, and the owner reads the module's own code instead of a tick.
+    const signed = await requestIntent({ prompt: preview.inference.prompt, attemptSign: true });
+    if (signed.ok) {
+      setPreview(signed);
+    }
+  }, [preview, session, toasts]);
 
   const enroll = useCallback(async () => {
-    setEnrolling(true);
-    setAuthError(null);
-    try {
-      const created = await enrollOwnerCredential("猫糖 Web Agent OS");
-      setCredentialId(created.credentialId);
-      setNullifier(await deriveOwnerNullifier(created.credentialId));
-    } catch (error) {
-      setAuthError(authErrorOf(error));
-    } finally {
-      setEnrolling(false);
+    const result = await session.enroll("猫糖 Web Agent OS");
+    if (result.ok) {
+      toasts.push("success", "本机凭据已注册，可以开始刷脸 / 指纹确认。");
+      return;
     }
-  }, []);
+    const { tone, message } = biometricFailureToast(result.failure);
+    toasts.push(tone, message);
+  }, [session, toasts]);
   // -- render -----------------------------------------------------------------------------------
 
   const status = statusState.kind === "ready" ? statusState.status : null;
   const owner = status?.deployment.owner ?? null;
   const windowText = status === null ? NO_VALUE : windowLabel(status.policy.windowSeconds);
-  const leftWei = status === null ? null : remainingWei(status.policy.maxValueWeiPerWindow, status.spend.spentWei);
+  const leftWei =
+    status === null ? null : remainingWindowWei(status.policy.maxValueWeiPerWindow, status.spend.spentWei);
+  // The one guidance line for an environment that cannot raise a prompt (WeChat webview, no enrolled
+  // authenticator, insecure origin). `null` when the prompt can run.
+  const fallback = biometricFallbackCopy(session.capability);
+  const canConfirm = session.credentialId !== null && session.capability?.platformAuthenticator === true;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-5 py-10">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-maotang-mint">MAOTANG Protocol</p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">猫糖 AI 个人助理</h1>
-          <p className="mt-1 text-sm text-white/50">说一句话，本地策略先过一遍，再由你的指纹 / 面容确认。</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/dex"
-            className="rounded-full border border-maotang-border px-3 py-1.5 text-xs text-white/60 transition hover:border-maotang-mint/50 hover:text-maotang-mint"
-          >
-            DEX 看板
-          </Link>
-          <button
-            type="button"
-            onClick={onSwitchToDeveloper}
-            className="rounded-full border border-maotang-mint/50 bg-maotang-mint/10 px-3 py-1.5 text-xs font-medium text-maotang-mint transition hover:bg-maotang-mint/20"
-          >
-            切换到 工程师/审计视图
-          </button>
-        </div>
-      </header>
+    <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col">
+      <ToastStack toasts={toasts.toasts} onDismiss={toasts.dismiss} />
 
-      {statusState.kind === "unavailable" ? (
-        <div className="mb-4 rounded-2xl border border-maotang-amber/40 bg-maotang-surface px-4 py-3 text-xs">
-          <p className="text-maotang-amber">
-            本地策略账本未就绪：<span className="font-mono">{statusState.code}</span>
+      {/* Scroll region. `pb-safe-content` clears the docked bar plus the home indicator. */}
+      <div className="flex-1 px-4 pb-safe-content pt-5">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-maotang-mint">MAOTANG Protocol</p>
+            <h1 className="mt-2 text-xl font-semibold text-white sm:text-2xl">猫糖 AI 个人助理</h1>
+            <p className="mt-1 text-sm text-white/50">说一句话，本地策略先过一遍，再由你的指纹 / 面容确认。</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/dex"
+              className="inline-flex min-h-11 touch-manipulation items-center rounded-full border border-maotang-border px-4 text-xs text-white/60 transition hover:border-maotang-mint/50 hover:text-maotang-mint"
+            >
+              DEX 看板
+            </Link>
+            <button
+              type="button"
+              onClick={onSwitchToDeveloper}
+              className="inline-flex min-h-11 touch-manipulation items-center rounded-full border border-maotang-mint/50 bg-maotang-mint/10 px-4 text-xs font-medium text-maotang-mint transition hover:bg-maotang-mint/20"
+            >
+              切换到 工程师/审计视图
+            </button>
+          </div>
+        </header>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-maotang-border bg-maotang-surface px-4 py-3 text-xs">
+          <span className="text-white/45">账户</span>
+          <span className="font-mono text-white/75" title={owner ?? undefined}>
+            {owner === null ? NO_VALUE : shortHex(owner, 6, 4)}
+          </span>
+          <span className="text-white/20">|</span>
+          <span className="text-white/45">余额</span>
+          <span className="font-mono text-white">{balance === null ? NO_VALUE : `${balance} ETH`}</span>
+          <span className="text-white/20">|</span>
+          <span className="text-white/45">今日可用:</span>
+          <span className="font-mono text-maotang-mint">
+            {leftWei === null ? NO_VALUE : `${formatWeiAsEth(leftWei.toString())} ETH`}
+          </span>
+          <span className="font-mono text-white/50">/ {windowText}</span>
+        </div>
+
+        {statusState.kind === "unavailable" ? (
+          <div className="mt-3 rounded-2xl border border-maotang-amber/40 bg-maotang-surface px-4 py-3 text-xs">
+            <p className="text-maotang-amber">
+              本地策略账本未就绪：<span className="font-mono">{statusState.code}</span>
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-white/45">{statusState.reason}</p>
+          </div>
+        ) : null}
+
+        {fallback !== null ? (
+          <div className="mt-3 rounded-2xl border border-maotang-amber/40 bg-maotang-amber/5 px-4 py-3 text-[11px] leading-relaxed text-maotang-amber">
+            {fallback}
+          </div>
+        ) : null}
+
+        {localNote !== null ? (
+          <div className="mt-3 whitespace-pre-line rounded-2xl border border-maotang-mint/30 bg-maotang-mint/5 px-4 py-3 text-xs leading-relaxed text-white/70">
+            {localNote}
+          </div>
+        ) : null}
+
+        {refusal !== null ? (
+          <div className="mt-3 rounded-2xl border border-maotang-pink/40 bg-maotang-pink/5 px-4 py-3">
+            <p className="flex flex-wrap items-center gap-2 text-xs text-maotang-pink">
+              <span className="rounded bg-maotang-pink/15 px-1.5 py-0.5 font-mono text-[10px]">
+                {refusal.stage}
+              </span>
+              <span className="font-mono">{refusal.code}</span>
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-white/55">{refusal.reason}</p>
+            <p className="mt-2 text-[11px] leading-relaxed text-white/35">
+              这条请求在本地被拦下了，没有生成交易，也没有要求你签名。
+            </p>
+          </div>
+        ) : null}
+
+        <footer className="mt-5 text-[11px] leading-relaxed text-white/35">
+          <p>
+            设备生物识别：
+            {session.capability === null ? "检测中\u2026" : session.capability.detail}
+            {session.credentialId === null ? " \u00b7 尚未在本机注册凭据" : " \u00b7 已注册本机凭据"}
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-white/45">{statusState.reason}</p>
-        </div>
-      ) : null}
+          <p className="mt-1">
+            本页只调用 <span className="font-mono">/api/agent/*</span>；短语翻译、策略判定与摘要都发生在服务端的 M1/M2，
+            浏览器不参与任何签名计算。原始指纹 / 面容数据不会离开设备。
+          </p>
+        </footer>
+      </div>
+      {/*
+        The docked chat bar. `fixed` (not `sticky`) is what guarantees it is at the bottom on a short
+        page, and `pb-safe-bottom` lifts it above the iPhone home indicator / Android gesture bar.
+        `touch-manipulation` on every trigger kills the 300ms double-tap-zoom delay on iOS, so a second
+        tap cannot zoom the page instead of re-running the action.
+      */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-maotang-border bg-maotang-ink/95 backdrop-blur">
+        <div className="mx-auto w-full max-w-3xl px-4 pb-safe-bottom pt-3">
+          <div className="-mx-1 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {presets.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => runPreset(preset)}
+                disabled={busy}
+                className="min-h-10 shrink-0 touch-manipulation rounded-full border border-maotang-border bg-maotang-ink/60 px-3 text-xs text-white/65 transition hover:border-maotang-mint/50 hover:text-maotang-mint disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-maotang-border bg-maotang-surface px-4 py-3 text-xs">
-        <span className="text-white/45">账户</span>
-        <span className="font-mono text-white/75" title={owner ?? undefined}>
-          {owner === null ? NO_VALUE : shortHex(owner, 6, 4)}
-        </span>
-        <span className="text-white/20">|</span>
-        <span className="text-white/45">余额</span>
-        <span className="font-mono text-white">{balance === null ? NO_VALUE : `${balance} ETH`}</span>
-        <span className="text-white/20">|</span>
-        <span className="text-white/45">今日可用:</span>
-        <span className="font-mono text-maotang-mint">
-          {leftWei === null ? NO_VALUE : `${formatWeiAsEth(leftWei.toString())} ETH`}
-        </span>
-        <span className="font-mono text-white/50">/ {windowText}</span>
+          <div className="mt-2 flex items-end gap-2">
+            <label className="sr-only" htmlFor="consumer-prompt">
+              告诉猫糖助理你想做什么
+            </label>
+            <input
+              id="consumer-prompt"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void submit(prompt);
+                }
+              }}
+              placeholder={MINT_PRESET}
+              spellCheck={false}
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              enterKeyHint="send"
+              inputMode="text"
+              /* text-base (16px): anything smaller makes iOS Safari zoom the viewport on focus. */
+              className="min-h-12 min-w-0 flex-1 touch-manipulation rounded-xl border border-maotang-border bg-maotang-ink px-3 py-3 text-base text-white outline-none focus:border-maotang-mint/60"
+            />
+            <button
+              type="button"
+              onClick={() => void submit(prompt)}
+              disabled={busy || prompt.trim() === ""}
+              className="min-h-12 shrink-0 touch-manipulation rounded-xl bg-maotang-mint/20 px-4 text-sm font-semibold text-maotang-mint transition hover:bg-maotang-mint/30 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? "思考中\u2026" : "发送"}
+            </button>
+          </div>
+        </div>
       </div>
 
-      <section className="mt-5 rounded-2xl border border-maotang-border bg-maotang-surface p-5">
-        <h2 className="text-sm font-semibold text-white">告诉我你想做什么</h2>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                void submit(prompt);
-              }
-            }}
-            placeholder={MINT_PRESET}
-            spellCheck={false}
-            className="min-w-0 flex-1 rounded-xl border border-maotang-border bg-maotang-ink px-3 py-2.5 text-sm text-white outline-none focus:border-maotang-mint/60"
-          />
-          <button
-            type="button"
-            onClick={() => void submit(prompt)}
-            disabled={busy || prompt.trim() === ""}
-            className="rounded-xl bg-maotang-mint/20 px-4 py-2.5 text-sm font-semibold text-maotang-mint transition hover:bg-maotang-mint/30 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {busy ? "思考中\u2026" : "发送"}
-          </button>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {presets.map((preset) => (
-            <button
-              key={preset.label}
-              type="button"
-              onClick={() => runPreset(preset)}
-              disabled={busy}
-              className="rounded-full border border-maotang-border bg-maotang-ink/60 px-3 py-1.5 text-xs text-white/65 transition hover:border-maotang-mint/50 hover:text-maotang-mint disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-3 text-[11px] leading-relaxed text-white/35">
-          离线 M1 只识别固定句式，例如 <span className="font-mono">Send 0.05 ETH to 0x\u2026</span>。其他句子会被本地策略直接拒绝，
-          这正是护栏在起作用。
-        </p>
-      </section>
-
-      {localNote !== null ? (
-        <div className="mt-4 whitespace-pre-line rounded-2xl border border-maotang-mint/30 bg-maotang-mint/5 px-4 py-3 text-xs leading-relaxed text-white/70">
-          {localNote}
-        </div>
-      ) : null}
-
-      {refusal !== null ? (
-        <div className="mt-4 rounded-2xl border border-maotang-pink/40 bg-maotang-pink/5 px-4 py-3">
-          <p className="flex flex-wrap items-center gap-2 text-xs text-maotang-pink">
-            <span className="rounded bg-maotang-pink/15 px-1.5 py-0.5 font-mono text-[10px]">
-              {refusal.stage}
-            </span>
-            <span className="font-mono">{refusal.code}</span>
-          </p>
-          <p className="mt-2 text-[11px] leading-relaxed text-white/55">{refusal.reason}</p>
-          <p className="mt-2 text-[11px] leading-relaxed text-white/35">
-            这条请求在本地被拦下了，没有生成交易，也没有要求你签名。
-          </p>
-        </div>
-      ) : null}
-      <footer className="mt-6 text-[11px] leading-relaxed text-white/35">
-        <p>
-          设备生物识别：
-          {capability === null ? "检测中\u2026" : capability.detail}
-          {credentialId === null ? " \u00b7 尚未在本机注册凭据" : " \u00b7 已注册本机凭据"}
-        </p>
-        <p className="mt-1">
-          本页只调用 <span className="font-mono">/api/agent/*</span>；短语翻译、策略判定与摘要都发生在服务端的 M1/M2，
-          浏览器不参与任何签名计算。
-        </p>
-      </footer>
-
       {confirmOpen && preview !== null ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-maotang-border bg-maotang-surface p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="确认这笔交易"
+            className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-maotang-border bg-maotang-surface p-5 pb-safe-sheet sm:rounded-2xl"
+          >
+            {/* A grab handle: on a phone this sheet is a bottom drawer, not a floating dialog. */}
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
             <h2 className="text-base font-semibold text-white">确认这笔交易</h2>
             <p className="mt-2 text-xs leading-relaxed text-white/60">{preview.preview.description}</p>
 
@@ -475,27 +467,33 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               待签摘要 <span className="font-mono">{preview.digest}</span>
             </p>
 
-            {authError !== null ? (
+            {fallback !== null ? (
+              <p className="mt-3 rounded-lg border border-maotang-amber/40 bg-maotang-amber/5 px-3 py-2 text-[11px] leading-relaxed text-maotang-amber">
+                {fallback}
+              </p>
+            ) : null}
+
+            {session.failure !== null && session.failure.code !== "NO_CHALLENGE" ? (
               <div className="mt-3 rounded-lg border border-maotang-amber/40 bg-maotang-amber/5 px-3 py-2">
                 <p className="text-[11px] text-maotang-amber">
-                  <span className="font-mono">{authError.code}</span>
+                  <span className="font-mono">{session.failure.code}</span>
                 </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-white/50">{authError.message}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-white/50">{session.failure.message}</p>
               </div>
             ) : null}
 
-            {assertion !== null ? (
+            {session.assertion !== null ? (
               <div className="mt-3 rounded-lg border border-maotang-mint/40 bg-maotang-mint/5 px-3 py-2 text-[11px]">
                 <p className="text-maotang-mint">
-                  设备已在 {new Date(assertion.assertedAt).toLocaleTimeString()} 完成验证
+                  设备已在 {new Date(session.assertion.assertedAt).toLocaleTimeString()} 完成验证
                 </p>
                 <p className="mt-1 text-white/55">
-                  用户已验证：{assertion.userVerified ? "是" : "否"} \u00b7 硬件凭据：
-                  {assertion.hardwareBacked ? "是" : "否"}
+                  用户已验证：{session.assertion.userVerified ? "是" : "否"} \u00b7 硬件凭据：
+                  {session.assertion.hardwareBacked ? "是" : "否"}
                 </p>
-                {nullifier !== null ? (
+                {session.nullifier !== null ? (
                   <p className="mt-1 break-all text-white/40">
-                    HardwareNullifier <span className="font-mono">{shortHex(nullifier, 14, 10)}</span>
+                    HardwareNullifier <span className="font-mono">{shortHex(session.nullifier, 14, 10)}</span>
                   </p>
                 ) : null}
               </div>
@@ -519,27 +517,28 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
             <button
               type="button"
               onClick={() => void confirm()}
-              disabled={asserting}
-              className="mt-4 w-full rounded-xl bg-maotang-mint px-4 py-3 text-sm font-semibold text-maotang-ink transition hover:bg-maotang-mint/85 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={session.busy || !canConfirm}
+              title={canConfirm ? undefined : "先在本机注册指纹 / 面容，或改用支持 WebAuthn 的浏览器打开"}
+              className="mt-4 min-h-12 w-full touch-manipulation rounded-xl bg-maotang-mint px-4 text-sm font-semibold text-maotang-ink transition hover:bg-maotang-mint/85 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {asserting ? "等待设备确认\u2026" : "刷脸 / 指纹安全确认"}
+              {session.phase === "asserting" ? "等待设备确认\u2026" : "刷脸 / 指纹安全确认"}
             </button>
 
-            {credentialId === null ? (
+            {session.credentialId === null ? (
               <button
                 type="button"
                 onClick={() => void enroll()}
-                disabled={enrolling}
-                className="mt-2 w-full rounded-xl border border-maotang-border px-4 py-2.5 text-xs text-white/60 transition hover:border-maotang-mint/50 hover:text-maotang-mint disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={session.busy || session.capability?.platformAuthenticator !== true}
+                className="mt-2 min-h-12 w-full touch-manipulation rounded-xl border border-maotang-border px-4 text-xs text-white/60 transition hover:border-maotang-mint/50 hover:text-maotang-mint disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {enrolling ? "正在注册\u2026" : "先在本机注册指纹 / 面容"}
+                {session.phase === "enrolling" ? "正在注册\u2026" : "先在本机注册指纹 / 面容"}
               </button>
             ) : null}
 
             <button
               type="button"
               onClick={() => setConfirmOpen(false)}
-              className="mt-2 w-full rounded-xl px-4 py-2 text-xs text-white/45 transition hover:text-white/70"
+              className="mt-2 min-h-12 w-full touch-manipulation rounded-xl px-4 text-xs text-white/45 transition hover:text-white/70"
             >
               取消
             </button>

@@ -14,3 +14,38 @@ body {
   color: #f6f6fb;
   font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
+
+/* ------------------------------------------------------------------------------------------------
+ * Mobile safe-area helpers.
+ *
+ * `env(safe-area-inset-*)` only resolves to a non-zero value when the document opts in with
+ * `viewport-fit=cover` (see the `viewport` export in `layout.tsx`), which is what lets a bottom-docked
+ * chat bar sit above the iPhone home indicator and Android gesture bar instead of under them. The
+ * `0px` fallback keeps every rule valid on desktop, where the variables do not exist at all.
+ *
+ * These are plain (unlayered) rules on purpose: they must beat the Tailwind spacing utility they are
+ * paired with, and unlayered author CSS outranks `@layer utilities`.
+ * ---------------------------------------------------------------------------------------------- */
+.pb-safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+}
+
+/* Bottom padding for scroll content that has to clear the docked chat bar (~9.5rem tall). */
+.pb-safe-content {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 9.5rem);
+}
+
+.pt-safe-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+}
+
+.pb-safe-sheet {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem);
+}
+
+/* A biometric sheet is a system overlay; the grey flash on tap is noise, and iOS paints it late. */
+button,
+input,
+a {
+  -webkit-tap-highlight-color: transparent;
+}

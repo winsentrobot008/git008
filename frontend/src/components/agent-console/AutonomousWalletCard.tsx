@@ -22,6 +22,7 @@ import {
   shortHex,
   type AgentStatus,
 } from "@/lib/agent/client";
+import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
 import type { AgentRefusal } from "@/lib/agent/types";
 
 const NO_VALUE = "\u2014";
@@ -121,9 +122,11 @@ export function AutonomousWalletCard() {
   const windowCap = formatWeiAsEth(status.policy.maxValueWeiPerWindow);
   // The window is a policy number, so the label is derived from it instead of hard-coded: the shipped
   // policy is 86400s (24h), but a shortened test deployment must not be described as 24h.
+  // The label rule and the "what is left" arithmetic are shared with the C-end status pill
+  // (`@/lib/agent/spend-view`), so the two faces cannot describe one policy two different ways.
   const windowSeconds = status.policy.windowSeconds;
-  const spendWindowLabel =
-    windowSeconds > 0 && windowSeconds % 3600 === 0 ? `${windowSeconds / 3600}h` : `${windowSeconds}s`;
+  const spendWindowLabel = windowLabel(windowSeconds);
+  const windowRemainingWei = remainingWindowWei(status.policy.maxValueWeiPerWindow, status.spend.spentWei);
 
   return (
     <section className="rounded-2xl border border-maotang-border bg-maotang-surface p-5">
@@ -154,6 +157,11 @@ export function AutonomousWalletCard() {
           label={`Spend window (${spendWindowLabel}) spent`}
           value={`${spent} / ${windowCap} ETH`}
           title={`rolling ${windowSeconds}s ledger`}
+        />
+        <Row
+          label="Spend window remaining"
+          value={`${formatWeiAsEth(windowRemainingWei.toString())} ETH`}
+          title={`cap ${windowCap} ETH minus spent ${spent} ETH`}
         />
         <Row label="Per-transaction cap" value={`${formatWeiAsEth(status.policy.maxValueWeiPerTransaction)} ETH`} />
         <Row

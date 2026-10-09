@@ -17,6 +17,13 @@
  *   - the assertion is verified *here* for shape and binding. Verifying the signature against the
  *     enrolled public key is the M2/M5 verifier's job (it needs the SPKI), and this file does not
  *     pretend to do it.
+ *
+ * Two mobile-shell realities shape the error surface. A cancelled or timed-out prompt is reported as
+ * `USER_CANCELLED` rather than a generic `ASSERTION_FAILED`, because "you dismissed the Face ID sheet"
+ * and "the authenticator returned garbage" need different words on screen. And a page running inside
+ * WeChat's or another in-app webview is reported as `WEBVIEW_RESTRICTED` when the shell exposes
+ * `PublicKeyCredential` without a usable `navigator.credentials`, so the UI can point the owner at
+ * Safari / Chrome instead of failing silently.
  */
 
 import type { Hex } from "./types";
@@ -34,6 +41,8 @@ export type WebBiometricCode =
   | "NO_CREDENTIAL"
   | "ENROLL_FAILED"
   | "ASSERTION_FAILED"
+  | "USER_CANCELLED"
+  | "WEBVIEW_RESTRICTED"
   | "VERIFICATION_NOT_PERFORMED";
 
 export class WebBiometricError extends Error {
@@ -52,7 +61,37 @@ export interface BiometricCapability {
   readonly secureContext: boolean;
   /** True when a platform authenticator (Touch ID / Face ID / Hello) is available *and* user-verifying. */
   readonly platformAuthenticator: boolean;
+  /**
+   * True when the page is running inside an embedded webview (WeChat, Facebook, Instagram, ...).
+   * Those shells are the ones that restrict passkeys, so the card can name the shell instead of
+   * printing a generic failure the owner cannot act on.
+   */
+  readonly embeddedWebview: boolean;
+  /** The shell's name when it is a known one, for the fallback copy. `null` in a normal browser. */
+  readonly embeddingLabel: string | null;
   readonly detail: string;
+}
+
+/** A named embedded browser shell, or the absence of one. */
+export interface EmbeddingContext {
+  readonly embedded: boolean;
+  readonly label: string | null;
+}
+
+/**
+ * Names the embedded browser this page runs inside.
+ *
+ * A UA hint used for **copy only**: it never decides whether to attempt a WebAuthn call, because a UA
+ * string is spoofable and the platform's own answer is the only thing that can authorize a spend.
+ */
+export function detectEmbeddingContext(userAgent: string): EmbeddingContext {
+  if (/MicroMessenger/i.test(userAgent)) {
+    return { embedded: true, label: "WeChat" };
+  }
+  if (/FBAN|FBAV|Instagram|Line\/|SnapChat|; wv\)/i.test(userAgent)) {
+    return { embedded: true, label: "an in-app browser" };
+  }
+  return { embedded: false, label: null };
 }
 
 function assertWebAuthn(): void {
@@ -61,6 +100,15 @@ function assertWebAuthn(): void {
   }
   if (typeof PublicKeyCredential === "undefined") {
     throw new WebBiometricError("UNSUPPORTED", "this browser exposes no PublicKeyCredential");
+  }
+  // Some in-app webviews (WeChat's Android shell among them) ship the `PublicKeyCredential`
+  // constructor but no usable credential manager. Testing the entry point, not just the constructor,
+  // is what turns a raw TypeError into a refusal the owner can act on.
+  if (typeof navigator.credentials?.get !== "function") {
+    throw new WebBiometricError(
+      "WEBVIEW_RESTRICTED",
+      "this shell exposes PublicKeyCredential but no navigator.credentials.get; open the page in the system browser",
+    );
   }
   if (window.isSecureContext !== true) {
     throw new WebBiometricError(
@@ -72,21 +120,39 @@ function assertWebAuthn(): void {
 
 /** Probes the device. Returns a report instead of throwing, so the card can render "unsupported". */
 export async function readBiometricCapability(): Promise<BiometricCapability> {
-  if (typeof window === "undefined" || typeof PublicKeyCredential === "undefined") {
+  if (typeof window === "undefined" || typeof navigator === "undefined" || typeof PublicKeyCredential === "undefined") {
     return {
       supported: false,
       secureContext: false,
       platformAuthenticator: false,
+      embeddedWebview: false,
+      embeddingLabel: null,
       detail: "no WebAuthn in this environment",
     };
   }
+  const embedding = detectEmbeddingContext(navigator.userAgent);
   const secureContext = window.isSecureContext === true;
   if (!secureContext) {
     return {
       supported: false,
       secureContext: false,
       platformAuthenticator: false,
+      embeddedWebview: embedding.embedded,
+      embeddingLabel: embedding.label,
       detail: "the origin is not a secure context, so no biometric assertion can be requested",
+    };
+  }
+  // iOS Safari before 16 and several webviews expose `PublicKeyCredential` without the probe. Calling a
+  // missing function would raise a TypeError that reads like a crash; reporting "no platform
+  // authenticator" is the same answer, stated honestly.
+  if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== "function") {
+    return {
+      supported: false,
+      secureContext: true,
+      platformAuthenticator: false,
+      embeddedWebview: embedding.embedded,
+      embeddingLabel: embedding.label,
+      detail: "this build has no isUserVerifyingPlatformAuthenticatorAvailable(), so no platform authenticator can be confirmed",
     };
   }
   try {
@@ -95,17 +161,54 @@ export async function readBiometricCapability(): Promise<BiometricCapability> {
       supported: true,
       secureContext: true,
       platformAuthenticator: available,
+      embeddedWebview: embedding.embedded,
+      embeddingLabel: embedding.label,
       detail: available
-        ? "a user-verifying platform authenticator is present"
-        : "WebAuthn works here, but no user-verifying platform authenticator was reported",
+        ? embedding.embedded
+          ? `a user-verifying platform authenticator is present (running in ${embedding.label})`
+          : "a user-verifying platform authenticator is present"
+        : embedding.embedded
+          ? `no platform authenticator was reported; ${embedding.label} restricts passkeys, so open the page in Safari or Chrome`
+          : "WebAuthn works here, but no user-verifying platform authenticator was reported",
     };
   } catch (error) {
     return {
       supported: true,
       secureContext: true,
       platformAuthenticator: false,
+      embeddedWebview: embedding.embedded,
+      embeddingLabel: embedding.label,
       detail: `the platform authenticator probe failed: ${(error as Error).message}`,
     };
+  }
+}
+
+/**
+ * Maps a DOMException raised by `navigator.credentials.*` onto our own codes.
+ *
+ * The case that matters for the UI: a dismissed or timed-out prompt raises `NotAllowedError`, which on
+ * iOS Safari is also how a *cancelled* Face ID sheet surfaces. Naming it `USER_CANCELLED` is what lets
+ * the sheet say "you cancelled" and leave the retry button in place, instead of printing a raw
+ * DOMException the owner reads as a crash. `AbortError` / `TimeoutError` are the same story on other
+ * engines (Android Chrome reports a dismissed sheet as `NotAllowedError`, a timeout as `AbortError`).
+ */
+function classifyCredentialFailure(error: unknown, fallback: WebBiometricCode): WebBiometricError {
+  if (error instanceof WebBiometricError) {
+    return error;
+  }
+  const name = (error as { name?: string } | null)?.name ?? "";
+  const message = (error as { message?: string } | null)?.message ?? String(error);
+  switch (name) {
+    case "NotAllowedError":
+    case "AbortError":
+    case "TimeoutError":
+      return new WebBiometricError("USER_CANCELLED", `the device did not complete the biometric prompt: ${message}`);
+    case "SecurityError":
+      return new WebBiometricError("NOT_SECURE_CONTEXT", message);
+    case "NotSupportedError":
+      return new WebBiometricError("WEBVIEW_RESTRICTED", message);
+    default:
+      return new WebBiometricError(fallback, message);
   }
 }
 
@@ -201,7 +304,7 @@ export async function enrollOwnerCredential(ownerLabel: string): Promise<EnrollR
       },
     });
   } catch (error) {
-    throw new WebBiometricError("ENROLL_FAILED", (error as Error).message);
+    throw classifyCredentialFailure(error, "ENROLL_FAILED");
   }
 
   if (credential === null || !(credential instanceof PublicKeyCredential)) {
@@ -264,7 +367,7 @@ export async function requestOwnerAssertion(challenge: Hex, reason: string): Pro
       },
     });
   } catch (error) {
-    throw new WebBiometricError("ASSERTION_FAILED", (error as Error).message);
+    throw classifyCredentialFailure(error, "ASSERTION_FAILED");
   }
 
   if (assertion === null || !(assertion instanceof PublicKeyCredential)) {

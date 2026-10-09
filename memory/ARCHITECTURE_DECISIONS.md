@@ -2,6 +2,64 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-037: the C-end face goes mobile-first, and both biometric surfaces run one session hook with a webview-aware failure taxonomy
+
+**Status:** Accepted (`frontend/src/components/agent-console/ConsumerView.tsx`, `BioAuthGuard.tsx`,
+`Toast.tsx`, `biometric-ux.ts`, `AutonomousWalletCard.tsx`, `frontend/src/lib/agent/webauthn.ts`,
+`biometric-session.ts`, `spend-view.ts`, `frontend/src/app/layout.tsx`, `frontend/src/app/globals.css`,
+`frontend/scripts/assert-runtime-policy.mjs`, `docs/MVP_DEMO_GUIDE.md`). Gates: `npx tsc --noEmit` exit 0,
+`npm run test:policy` **15/15, 0 skipped** exit 0 with the dev server up, `npm run build` exit 0 over the same
+7 routes (`/`, `/agent`, `/dex` static), `mobile-agent` `npm test` 174 tests / 173 pass / 1 skip / 0 fail and
+`npm run typecheck` exit 0. No M1-M5 source, contract or SDK source changed. The demo guide's quoted gate
+output moved from 10 to 15 assertions and from 6 to 7 routes in the same change.
+
+**Context:** The C-end face (ADR-036) shipped as a desktop-shaped page: the prompt box scrolled with the
+content instead of being reachable under a thumb, nothing reserved room for the iPhone home indicator, and
+the biometric path treated every failure as one generic `ASSERTION_FAILED`. On a phone that is the wrong
+default twice over - the input is the primary affordance, and "the owner dismissed the Face ID sheet" versus
+"this shell has no passkeys at all" need different words, because only one of them is retryable.
+
+**Decision:**
+
+- **The chat bar is docked, not scrolled.** It is `position: fixed` at the bottom (a `sticky` last child
+  sits mid-page on short content, which defeats the point), and scroll content reserves
+  `calc(env(safe-area-inset-bottom) + 9.5rem)`. `layout.tsx` now exports
+  `viewportFit: "cover"`, without which `env(safe-area-inset-*)` resolves to `0px` and the bar hides under
+  the home indicator. The label is left untouched, so `scripts/maotang-smoke.mjs`'s exact-title assertion
+  is unaffected.
+- **Touch targets are floored at 48px, and double-tap zoom is disabled.** Primary triggers use `min-h-12`
+  and `touch-manipulation`; the prompt input is `text-base` (16px) because anything smaller makes iOS
+  Safari zoom the viewport on focus, which on a 390px screen is a layout bug masquerading as a feature.
+- **One biometric session, shared.** `useBiometricOwner()` (`@/lib/agent/biometric-session`) owns the probe
+  / enroll / assert state machine that `ConsumerView` and `BioAuthGuard` previously each reimplemented.
+  The hook's interface documents the load-bearing constraint: it must be called directly from the tap and
+  never after an `await`, because WebAuthn requires transient user activation and an intervening `await` is
+  how an iOS Safari or Android webview prompt silently degrades into `NotAllowedError`.
+- **The failure taxonomy is webview-aware.** `webauthn.ts` gained `USER_CANCELLED` (a dismissed or
+  timed-out sheet - iOS Safari raises `NotAllowedError` for both) and `WEBVIEW_RESTRICTED` (a shell that
+  exposes `PublicKeyCredential` without a usable `navigator.credentials`, which is WeChat's Android
+  webview). It also detects the shell from the UA *for copy only*: a UA string is spoofable and never
+  decides whether to attempt the call. Capability probing now tests
+  `isUserVerifyingPlatformAuthenticatorAvailable` for existence before calling it, so an older engine's
+  `TypeError` is reported as "no platform authenticator" rather than as a crash.
+- **Device events get toasts, because the sheet is outside the DOM.** A new `Toast.tsx` primitive and a
+  shared `biometric-ux.ts` copy table mean the C-end sheet and the M5 card word one refusal identically. The
+  toast for a request fires *before* `authorize` so the owner has on-screen evidence the tap landed, and
+  every auto-dismiss is capped at 3 visible toasts so a burst cannot cover the confirm button.
+- **The shared spend rules moved out of the card.** `windowLabel()` and `remainingWindowWei()` now live in
+  `@/lib/agent/spend-view` and are imported by both `AutonomousWalletCard` and the C-end pill, so the two
+  faces cannot re-describe one policy differently - the drift ADR-034/035 was about.
+- **The gate grew a group rather than trusting inspection.** `assert-runtime-policy.mjs` group D asserts
+  the source still carries each guard (the two codes, the webview probe, the `viewport-fit=cover` ->
+  `env(safe-area-inset-bottom)` chain, the 48px/`touch-manipulation`/`text-base` ergonomics, and both faces
+  importing `useBiometricOwner`), in the same read-the-shipped-source idiom as groups A and B and for the
+  same reason: `frontend/` has no TypeScript executor.
+
+**Consequences:** `frontend/`'s gate is 15 assertions in four groups, and `ADR-035`'s "ten assertions in
+three groups" is superseded by this entry. A third biometric surface must consume `useBiometricOwner` and
+`biometric-ux.ts` rather than calling `webauthn.ts` directly, or the taxonomy forks again. Safe-area
+padding is a CSS-layer choice: the helpers in `globals.css` are deliberately unlayered so they outrank the
+Tailwind spacing utility they replace.
 ## 2026-10-09 - ADR-036: the C-end consumer view is the default face of `/` and `/agent`; the DEX board moves to `/dex`
 
 **Status:** Accepted (`frontend/src/components/agent-console/ConsumerView.tsx`,

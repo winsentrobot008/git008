@@ -193,13 +193,44 @@ Select-String -Path bio-auth\native-biometric-gate.ts -Pattern 'ASSERT_FORBIDDEN
 
 | # | Step | Pass condition |
 | --- | --- | --- |
-| 1 | Load `/agent` | Four cards render; no error banners |
+| 1 | Load `/agent` (or `/`) | The 猫糖 AI 个人助理 renders; the header toggle `切换到 工程师/审计视图` shows the four cards, no error banners |
 | 2 | Wait 60s without clicking | Mining phase stays `IDLE_SOVEREIGN` |
 | 3 | Press `Activate AI Mining Node` | Phase reaches `MINING_ACTIVE`, or a named refusal |
 | 4 | Preview a benign intent (section 4.1) | Preview shows action, destination, calldata and a digest |
 | 5 | Preview a hostile intent (section 4.2) | Refused at the `M1 schema gate`, nothing signed |
 | 6 | Read the wallet card | `24h (86400s)`, whitelist populated, badge `fail-closed` |
 | 7 | Read the compute card | `local-only` without a center; `Hybrid ...` only with a live one |
+| 8 | Narrow the viewport to 390px | The chat bar stays docked and above the home indicator; nothing hides under it |
+| 9 | Tap `刷脸 / 指纹安全确认`, then dismiss the system sheet | A warning toast reads `USER_CANCELLED`; nothing is signed |
+
+### 3.6 C-end consumer face & mobile ergonomics
+
+`/` and `/agent` both open on the C-end face - `猫糖 AI 个人助理` - and the header toggle
+`切换到 工程师/审计视图` swaps in the M1-M5 console without a page load. The DEX board is unchanged, at
+`/dex`. Both faces run the same client code paths, which is why the numbers agree:
+
+- **One status source.** The pill's `今日可用` is `maxValueWeiPerWindow - spentWei` from
+  `/api/agent/status`, formatted with the same wei -> ETH rule as the M2 card
+  (`@/lib/agent/spend-view`), and the window label is derived from `windowSeconds`, so it reads `24h` only
+  because the policy says `86400`.
+- **One biometric conversation.** The confirmation sheet and `BioAuthGuard` both call
+  `useBiometricOwner()` (`@/lib/agent/biometric-session`). A dismissed Face ID / Touch ID sheet is reported
+  as `USER_CANCELLED` (iOS Safari raises `NotAllowedError` for both a cancel and a timeout); a webview that
+  exposes `PublicKeyCredential` without a usable `navigator.credentials` is reported as
+  `WEBVIEW_RESTRICTED` and the card tells the owner to open Safari or Chrome. Every outcome also raises a
+  toast, because the system sheet renders outside the page.
+- **User activation is respected.** `navigator.credentials.get()` is called synchronously from the tap -
+  nothing is awaited before it - so the iOS Safari and Android Chrome prompts get the transient activation
+  they require.
+- **Touch ergonomics.** The chat bar is docked to the bottom of the viewport and padded by
+  `env(safe-area-inset-bottom)`, which only resolves because `layout.tsx` exports
+  `viewportFit: "cover"`. Primary targets are at least 48px (`min-h-12`), triggers set
+  `touch-action: manipulation` so a second tap cannot zoom the page, and the prompt input is 16px
+  (`text-base`) so iOS Safari does not zoom the viewport on focus.
+
+To render the 390px case without a phone: open DevTools, switch to a device profile, and confirm the bar
+clears the simulated home indicator.
+
 ---
 
 ## 4. Natural-language intent testing
@@ -327,13 +358,13 @@ npm run test:policy
 **Expected:**
 
 ```
-# tests 10
-# pass 10
+# tests 15
+# pass 15
 # fail 0
 # skipped 0
 ```
 
-Ten assertions in three groups:
+Fifteen assertions in four groups:
 
 - **A - source defaults:** `runtime.ts` ships `windowSeconds = 86400`, per-transaction `0.1 ETH`, window
   `0.5 ETH`, threshold `0`; the per-transaction cap cannot exceed the window cap; and the M2 card derives
@@ -344,6 +375,11 @@ Ten assertions in three groups:
 - **C - live console:** `http://localhost:3000/api/agent/status` agrees, plus the destination whitelist is
   manifest-derived and lowercased. **Group C skips with a printed reason when no dev server is running** -
   the same opt-in posture as the `mobile-agent` live leg. Groups A and B always run.
+- **D - mobile / biometric guards:** the shipped source still carries the codes and plumbing a phone
+  depends on - `USER_CANCELLED` for a dismissed Face ID sheet, `WEBVIEW_RESTRICTED` for a shell that hides
+  `navigator.credentials`, `viewport-fit=cover` plus `env(safe-area-inset-bottom)` for the docked bar, the
+  48px (`min-h-12`) touch targets with `touch-action: manipulation`, and both biometric faces importing the
+  one `useBiometricOwner()` hook.
 
 Point it at another instance with `$env:MAOTANG_BASE_URL='http://localhost:3100'`. The gate is not vacuous:
 setting `.env.example` back to `3600` makes group B fail with exit code 1.
@@ -353,7 +389,7 @@ setting `.env.example` back to `3600` makes group B fail with exit code 1.
 ```powershell
 cd D:\git008\frontend
 npx tsc --noEmit      # expect exit 0
-npm run build         # expect 6 routes, exit 0
+npm run build         # expect 7 routes, exit 0
 ```
 
 ---

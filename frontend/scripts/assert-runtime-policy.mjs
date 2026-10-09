@@ -12,6 +12,10 @@
  *      drift apart the way they did;
  *   C. a live console's `/api/agent/status` agrees - skipped, with its reason printed, when no server is
  *      listening, which is the same opt-in posture `mobile-agent` takes toward its live RPC leg.
+ *   D. the mobile / biometric guards a phone actually depends on are still in the shipped source: a
+ *      cancelled Face ID sheet having its own code, an embedded webview being refused by name, the
+ *      safe-area chain from `viewport-fit=cover` to the docked bar, the 48px touch targets, and both
+ *      biometric faces running the one shared session hook.
  *
  * Plain ESM on purpose: `frontend/` has no test runner or TypeScript executor wired in, and Node 20
  * cannot execute `.ts` directly. `node --test` runs this file as-is, with no new dependency.
@@ -179,4 +183,61 @@ test("C. the live destination whitelist is manifest-derived and lowercased", { s
   for (const entry of live.status.policy.allowedDestinations) {
     assert.match(entry, /^0x[0-9a-f]{40}$/, "whitelist entries are lowercased 20-byte addresses");
   }
+});
+
+// ---------------------------------------------------------------------------------------------------
+// D. the mobile / biometric guards (source-level, the same idiom as A and B)
+//
+// These read the shipped files rather than importing them, for the same reason group A does: `frontend/`
+// has no TypeScript executor, and the point is that the expectation and the implementation are two
+// independent statements that must agree. Each one would have failed before the 2026-10-09 mobile work.
+// ---------------------------------------------------------------------------------------------------
+
+const WEBAUTHN_SOURCE = path.join(frontendRoot, "src", "lib", "agent", "webauthn.ts");
+const GLOBALS_CSS = path.join(frontendRoot, "src", "app", "globals.css");
+const LAYOUT_SOURCE = path.join(frontendRoot, "src", "app", "layout.tsx");
+const CONSUMER_VIEW = path.join(frontendRoot, "src", "components", "agent-console", "ConsumerView.tsx");
+const BIO_GUARD = path.join(frontendRoot, "src", "components", "agent-console", "BioAuthGuard.tsx");
+
+const webauthnSource = readFileSync(WEBAUTHN_SOURCE, "utf8");
+const globalsCss = readFileSync(GLOBALS_CSS, "utf8");
+const layoutSource = readFileSync(LAYOUT_SOURCE, "utf8");
+const consumerView = readFileSync(CONSUMER_VIEW, "utf8");
+const bioGuard = readFileSync(BIO_GUARD, "utf8");
+
+test("D. a cancelled biometric prompt has its own code, not a generic failure", () => {
+  assert.match(webauthnSource, /\| "USER_CANCELLED"/, "the code union must carry USER_CANCELLED");
+  assert.match(
+    webauthnSource,
+    /case "NotAllowedError":/,
+    "iOS Safari reports a dismissed or timed-out sheet as NotAllowedError",
+  );
+});
+
+test("D. an embedded webview that restricts WebAuthn is detected and refused by name", () => {
+  assert.match(webauthnSource, /MicroMessenger/, "WeChat's webview must be recognised");
+  assert.match(webauthnSource, /embeddedWebview/, "the capability report must carry the webview flag");
+  assert.match(
+    webauthnSource,
+    /navigator\.credentials\?\.get/,
+    "the credential entry point, not just the constructor, must be probed",
+  );
+  assert.match(webauthnSource, /"WEBVIEW_RESTRICTED"/, "a restricted shell gets its own refusal code");
+});
+
+test("D. the safe-area chain runs from the viewport export to the docked bar", () => {
+  assert.match(layoutSource, /viewportFit: "cover"/, "env(safe-area-inset-*) needs viewport-fit=cover");
+  assert.match(globalsCss, /env\(safe-area-inset-bottom/, "the bottom inset must have a CSS helper");
+  assert.match(consumerView, /pb-safe-bottom/, "the docked chat bar must use the bottom inset");
+});
+
+test("D. the mobile chat bar is touch-sized and cannot double-tap zoom", () => {
+  assert.match(consumerView, /touch-manipulation/, "primary triggers must set touch-action: manipulation");
+  assert.match(consumerView, /min-h-12/, "primary targets must be at least 48px tall");
+  assert.match(consumerView, /text-base/, "a 16px input keeps iOS Safari from zooming on focus");
+});
+
+test("D. both biometric faces run the one shared session hook", () => {
+  assert.match(consumerView, /useBiometricOwner\(\)/, "the C-end sheet uses the shared session");
+  assert.match(bioGuard, /useBiometricOwner\(\)/, "the M5 card uses the same shared session");
 });
