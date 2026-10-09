@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
-import { DEFAULT_LANGUAGE } from "@/lib/i18n/dictionary";
+import { parseAcceptLanguage } from "@/lib/i18n/dictionary";
 import { LanguageProvider } from "@/lib/i18n/language";
 import "./globals.css";
 
@@ -33,16 +34,20 @@ export const viewport: Viewport = {
 /**
  * The root layout.
  *
- * It no longer reads `Accept-Language`: the console is the global English edition, so the HTML is
- * rendered once and served to everyone, and `中文` is an explicit in-app choice. Dropping the header
- * read also takes these routes out of dynamic rendering, which is what lets `/` and `/agent` open from
- * static HTML inside an Add-to-Home-Screen window.
+ * It resolves the first paint's language from `Accept-Language` and hands it to the client provider,
+ * which re-resolves from `navigator.language` and any stored choice once running. Doing it here rather
+ * than only in an effect is what stops the page from flashing the wrong language at a visitor: the HTML
+ * that arrives is already in the language they asked for. Reading a request header opts these routes into
+ * dynamic rendering, which is the documented cost of a correct first paint.
  */
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const requested = (await headers()).get("accept-language");
+  const language = parseAcceptLanguage(requested);
+
   return (
-    <html lang={DEFAULT_LANGUAGE}>
+    <html lang={language === "zh" ? "zh-CN" : "en"}>
       <body className="min-h-screen antialiased">
-        <LanguageProvider initialLanguage={DEFAULT_LANGUAGE}>{children}</LanguageProvider>
+        <LanguageProvider initialLanguage={language}>{children}</LanguageProvider>
       </body>
     </html>
   );

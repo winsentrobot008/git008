@@ -21,25 +21,49 @@
 export type Language = "zh" | "en";
 
 /**
- * What the owner picked.
- *
- * `"auto"` is the global default and resolves to English, never to the browser tag: this console is the
- * global edition, so a first-time visitor gets the English face on the first paint. `中文` is an explicit
- * choice in the menu drawer, which means a Chinese reader still gets Chinese - by asking for it, rather
- * than having it guessed from a locale header.
+ * What the owner picked. `"auto"` follows the browser.
  */
 export type LanguagePreference = "auto" | Language;
 
 export const LANGUAGE_STORAGE_KEY = "maotang.console.language";
 
-/**
- * The one language a visitor gets without asking: English.
- *
- * It is also the server's first-paint language. Because the choice no longer depends on a request
- * header, `/` and `/agent` render from static HTML - which is what lets the console open instantly in an
- * Add-to-Home-Screen window instead of waiting for a per-request render.
- */
+/** What a browser that is not Chinese gets: English, per the C-end auto-detect rule. */
 export const DEFAULT_LANGUAGE: Language = "en";
+
+/**
+ * `["zh-CN", "en-US"]` -> `zh`; a list with no `zh*` tag -> `en`.
+ *
+ * A list that carries any `zh*` tag is served Chinese, wherever it sits in the order; everything else
+ * falls back to English, the documented default for "not Zh/zh-CN". `navigator.languages` and the parsed
+ * `Accept-Language` both go through here, so the first paint and the hydrated render agree.
+ */
+export function detectLanguage(tags: readonly string[]): Language {
+  for (const tag of tags) {
+    if (typeof tag === "string" && tag.toLowerCase().startsWith("zh")) {
+      return "zh";
+    }
+  }
+  return DEFAULT_LANGUAGE;
+}
+
+/**
+ * The `Accept-Language` header in preference order, for the server's first paint.
+ *
+ * The server cannot see `navigator.language`, so it guesses from this header and the client re-resolves
+ * from the browser once running. Both paths apply the same `zh*` rule, so in the common case the client
+ * writes back the value that is already on screen and nothing visibly changes.
+ */
+export function parseAcceptLanguage(header: string | null | undefined): Language {
+  if (header === null || header === undefined) {
+    return DEFAULT_LANGUAGE;
+  }
+  const tags = header
+    .split(",")
+    .map((entry) => (entry.split(";")[0] ?? "").trim())
+    .filter((tag) => tag !== "");
+  return detectLanguage(tags);
+}
+
 export function isLanguagePreference(value: unknown): value is LanguagePreference {
   return value === "auto" || value === "zh" || value === "en";
 }
@@ -148,7 +172,7 @@ const ZH = {
   "menu.title": "菜单",
   "menu.close": "关闭菜单",
   "menu.language": "语言",
-  "menu.languageHint": "默认全球英文界面；选中文则整个控制台以中文呈现。",
+  "menu.languageHint": "默认跟随系统语言；也可手动选择中文或 English 呈现整个控制台。",
   "menu.languageAuto": "跟随系统",
   "menu.languageZh": "中文",
   "menu.languageEn": "English",
@@ -301,7 +325,7 @@ const EN: Messages = {
   "menu.close": "Close menu",
   "menu.language": "Language",
   "menu.languageHint":
-    "English is the global default. Pick Chinese to read the console in Chinese.",
+    "Follows your system language by default. Pick Chinese or English to switch the whole console.",
   "menu.languageAuto": "Follow system",
   "menu.languageZh": "Chinese",
   "menu.languageEn": "English",

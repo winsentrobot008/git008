@@ -11,8 +11,9 @@
  *
  * What the drawer holds:
  *
- *   - Language: Follow system / 中文 / English. `Follow system` is the global default and resolves to
- *     English; the chosen value is persisted by `useLanguage`.
+ *   - Language: Follow system / 中文 / English. `Follow system` matches the browser tag - a `zh*` tag
+ *     selects Chinese and anything else falls back to English; the chosen value is persisted by
+ *     `useLanguage`.
  *   - Console: the engineer/audit toggle. The active face is marked `aria-pressed` and the drawer closes
  *     on switch, so the mode never appears to be both.
  *   - System status & compliance: the zero-data claim, plus the live Secure Enclave report *when the

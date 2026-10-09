@@ -3,16 +3,18 @@
 /**
  * The active language, and the one place it changes.
  *
- * The server always renders English (`layout.tsx` -> `DEFAULT_LANGUAGE`) and hands that here as
- * `initialLanguage`, so the HTML that arrives is already the global face and nothing is re-laid-out after
- * hydration. The client then resolves the *final* answer once, on mount:
+ * The server picks the first paint from `Accept-Language` (`layout.tsx` -> `parseAcceptLanguage`) and hands
+ * it here as `initialLanguage`, so the HTML that arrives is already in the right language and nothing has
+ * to be re-laid-out after hydration. The client then resolves the *final* answer once, on mount:
  *
  *   1. an explicit choice stored under `LANGUAGE_STORAGE_KEY` wins;
- *   2. otherwise English - the global default, regardless of the browser tag.
+ *   2. otherwise `navigator.language` / `navigator.languages`, which is the signal the C-end auto-detect
+ *      requirement names and is more accurate than the header;
+ *   3. otherwise the server's `Accept-Language` guess already in state.
  *
- * There is deliberately no locale sniffing any more: the consumer face is the global edition, so a
- * zh-CN browser must not be guessed into a Chinese console it did not ask for. `中文` in the drawer is
- * how a reader opts in.
+ * Because (2) and the server's guess apply the same `zh*` rule, step 1 is normally the only one that
+ * changes anything - and only for someone who deliberately picked a language. That is what keeps the
+ * switch from jumping the layout: a resolved language never re-resolves itself.
  *
  * A blocked `localStorage` (Safari private mode, an embedded webview) is not an error here: it just means
  * "no stored choice", so the detected language stands.
@@ -22,7 +24,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 
 import {
-  DEFAULT_LANGUAGE,
+  detectLanguage,
   isLanguagePreference,
   LANGUAGE_STORAGE_KEY,
   translate,
@@ -43,6 +45,15 @@ export interface LanguageController {
 }
 
 const LanguageContext = createContext<LanguageController | null>(null);
+
+/** `navigator.languages` when the browser offers it, else the single `navigator.language`. */
+function browserLanguages(): readonly string[] {
+  const { languages, language } = window.navigator;
+  if (Array.isArray(languages) && languages.length > 0) {
+    return languages;
+  }
+  return typeof language === "string" && language !== "" ? [language] : [];
+}
 
 export interface LanguageProviderProps {
   /** Chosen by the server from `Accept-Language`; the pre-hydration value. */
@@ -67,9 +78,9 @@ export function LanguageProvider({ initialLanguage, children }: LanguageProvider
       // No storage access means no stored choice; the detected language stands.
     }
     setPreferenceState(stored);
-    // `"auto"` is English, not the browser tag: the console is the global edition. The Chinese face is
-    // one explicit tap away in the drawer, so a zh-CN visitor is never guessed into it.
-    setLanguage(stored === "auto" ? DEFAULT_LANGUAGE : stored);
+    // `"auto"` follows the browser tag, and the server already guessed from the header, so in the common
+    // case this writes back the language that is already on screen.
+    setLanguage(stored === "auto" ? detectLanguage(browserLanguages()) : stored);
   }, []);
 
   // Keep the document language in step, so a screen reader and the browser's own hyphenation follow the
@@ -80,7 +91,7 @@ export function LanguageProvider({ initialLanguage, children }: LanguageProvider
 
   const setPreference = useCallback((next: LanguagePreference) => {
     setPreferenceState(next);
-    setLanguage(next === "auto" ? DEFAULT_LANGUAGE : next);
+    setLanguage(next === "auto" ? detectLanguage(browserLanguages()) : next);
     try {
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, next);
     } catch {

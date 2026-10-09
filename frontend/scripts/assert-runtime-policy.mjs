@@ -283,17 +283,31 @@ test("D. the mobile chat bar is touch-sized and cannot double-tap zoom", () => {
   // The legacy DEX route is gone, so `/` and `/agent` render nothing but the consumer view.
   assert.equal(existsSync(DEX_ROUTE), false, "the legacy /dex route must not be part of the build");
 
-  // Global English is the rule now (the C-end face is the global edition): English is the one default,
-  // and no layer sniffs the browser locale to override it. 中文 stays reachable as an explicit choice.
-  assert.match(i18nSource, /DEFAULT_LANGUAGE: Language = "en"/, "English is the one default");
-  assert.doesNotMatch(i18nSource, /navigator\.language/, "the dictionary must not sniff the browser locale");
-  assert.doesNotMatch(languageSource, /navigator\.language/, "the runtime must not sniff the browser locale");
-  assert.doesNotMatch(i18nSource, /parseAcceptLanguage/, "the first paint no longer depends on a header");
+  // Multi-language is the rule (the C-end face is a global edition): `Follow system` resolves from the
+  // browser tag, only a `zh*` tag selects Chinese, and anything else falls back to English. The server
+  // guesses the same way from `Accept-Language`, so the first paint is already in the visitor's language
+  // and the drawer's manual switch never has to fight a stale default.
+  assert.match(i18nSource, /DEFAULT_LANGUAGE: Language = "en"/, "English is the fallback, not a guess");
+  assert.match(i18nSource, /export function detectLanguage\(/, "the browser-tag resolver lives in the dictionary");
+  assert.match(
+    i18nSource,
+    /tag\.toLowerCase\(\)\.startsWith\("zh"\)/,
+    "only a zh* tag selects Chinese, per the documented default",
+  );
+  assert.match(i18nSource, /export function parseAcceptLanguage\(/, "the server derives its first paint from the header");
+  assert.match(languageSource, /navigator\.languages/, "the runtime re-resolves from navigator.languages");
   assert.match(
     languageSource,
-    /setLanguage\(stored === "auto" \? DEFAULT_LANGUAGE : stored\)/,
-    "\"auto\" resolves to English, so a zh-CN browser is never guessed into Chinese",
+    /setLanguage\(stored === "auto" \? detectLanguage\(browserLanguages\(\)\) : stored\)/,
+    "\"auto\" follows the browser tag once running",
   );
+  assert.match(
+    languageSource,
+    /setLanguage\(next === "auto" \? detectLanguage\(browserLanguages\(\)\) : next\)/,
+    "an explicit choice wins immediately; Auto returns to the browser tag",
+  );
+  assert.match(menuDrawer, /menu\.languageZh/, "the drawer offers an explicit Chinese column");
+  assert.match(menuDrawer, /menu\.languageEn/, "the drawer offers an explicit English column");
 });
 
 test("D. both biometric faces run the one shared session hook", () => {
