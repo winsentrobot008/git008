@@ -2,6 +2,65 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-031: execution evidence is a signed trace whose provenance is declared rather than assumed, and background compute is gated on charging + Wi-Fi
+
+**Status:** Accepted (implemented in `mobile-agent/signer/hardware-attestation.ts` +
+`mobile-agent/test/hardware-attestation.test.ts` (14 tests) and `frontend/src/lib/system/battery-guard.ts`;
+`mobile-agent` `npm test` green over 174 tests (173 passing, 1 opt-in live leg skipped) and `npm run typecheck`
+clean, `frontend` `npx tsc --noEmit` clean. No contract or SDK source changed)
+
+**Context:** Two foundation pieces for federated learning and nightly mining were missing. (1) Nothing produced
+evidence that a given inference or Groth16 proof actually ran, on which model, at which site, and for how much
+work - so an "offloaded" computation (ADR-027) was unverifiable beyond the candidate transaction it proposed.
+(2) Background DePIN compute and model pre-fetching are the two phone workloads that quietly spend the owner's
+battery, thermals and data plan, and "only when it is free" lived nowhere in code.
+
+**Decision:**
+
+- **Attestation separates integrity from provenance, and never lets the second ride on the first.**
+  `ExecutionTrace` records workload, site, model id, SHA-256 of the exact input and output bytes, compute units,
+  the time window and (only for `compute-center`) the center id; the last two are cross-checked so a trace cannot
+  claim to be local while naming a remote center. `digestExecutionTrace` is a domain-separated, length-prefixed,
+  field-labelled SHA-256, so moving bytes between two fields changes the digest.
+- **The signature covers the envelope, not just the trace.** `digestAttestationEnvelope` covers version, trace
+  digest, mode, `hardwareBacked`, key id and public key, and *that* digest is what the ECDSA signature is over -
+  otherwise an attacker could flip `hardwareBacked` to `true` without touching the signature. Envelope fields that
+  are attacker-controlled are re-validated before use, so a malformed envelope is `MALFORMED_ATTESTATION` and never
+  reaches the ECDSA path.
+- **The shipped generator is an honest mock.** `createMockTeeAttestationAuthority` signs with a real in-process
+  secp256k1 key (`DevEnclave`), so every integrity path is exercisable in CI, while declaring `mode: "mock"`,
+  `hardwareBacked: false` and refusing `NODE_ENV=production` unless a caller overrides explicitly - the same posture
+  as `DeterministicSlmBackend` and `DevEnclave`. `EnclaveAttestationAuthority` binds an injected `SecureEnclave` as
+  the production seam, so the mock is a stand-in for something real rather than an untethered fake.
+- **A verifier's default answer is "integrity only".** `verifyHardwareAttestation` returns a verdict with a stable
+  code (`OK`, `TRACE_DIGEST_MISMATCH`, `ENVELOPE_DIGEST_MISMATCH`, `SIGNER_NOT_PINNED`, `SIGNATURE_INVALID`,
+  `HARDWARE_BACKED_REQUIRED`, `MALFORMED_ATTESTATION`) and exposes each check. Pinning `expectedSignerPublicKey` is
+  what turns "some key signed this" into "this key signed this"; `requireHardwareBacked` is what refuses a mock.
+  The residual is stated in the module: a valid hardware signature proves a key signed, not that the key lives in
+  silicon - closing that gap needs the platform attestation root pinned out of band, as `docs/LEGAL_COMPLIANCE.md`
+  and `docs/THREAT_MODEL.md` already say.
+- **Background work is refused unless the device is charging on Wi-Fi.** `battery-guard.ts` exports `isCharging`,
+  `isWifiConnected` and `isBackgroundComputeAllowed` (their conjunction), plus `readDeviceCondition`,
+  `evaluateBackgroundCompute`, `runBackgroundComputeIfAllowed` and `watchDeviceCondition`. Missing platform APIs
+  (`navigator.getBattery`, `navigator.connection.type`) produce an *unknown* reading that is refused with its own
+  code (`BATTERY_STATUS_UNAVAILABLE` / `CONNECTION_STATUS_UNAVAILABLE`) rather than being defaulted to `true`, and
+  `runBackgroundComputeIfAllowed` takes a thunk so a caller cannot accidentally start the work while evaluating the
+  condition.
+- **Not wired into the console, deliberately.** The console's ~400 MiB model fetch is an explicit owner gesture and
+  must *not* be gated on a charger; there is no background prefetch or DePIN loop in `frontend/` today. The guard is
+  the required entry point for the future ones, and saying so is more useful than wiring it to a poll that is not
+  background work.
+
+**Consequences:** an offloaded computation can now ship verifiable evidence, and a strict consumer can prove it is
+not looking at a mock; background work has one named condition to satisfy. The costs are stated rather than hidden:
+the platform attestation root is not pinned yet, and on a browser that exposes neither `getBattery` nor a connection
+type the guard's answer is always "refuse" until a native bridge supplies a reading - which is the intended
+fail-closed behaviour, not a bug to route around.
+
+**References:** `mobile-agent/signer/hardware-attestation.ts`, `mobile-agent/signer/enclave.ts`,
+`mobile-agent/test/hardware-attestation.test.ts`, `frontend/src/lib/system/battery-guard.ts`,
+`docs/THREAT_MODEL.md`, `docs/LEGAL_COMPLIANCE.md`, `memory/ARCHITECTURE_DECISIONS.md` ADR-027.
+
 ## 2026-10-09 - ADR-030: public documentation adopts the decentralized-AI-edge-node framework - Sovereign Edge Node and Protocol Compute & Verification Rewards - and states the non-custodial position explicitly
 
 **Status:** Accepted (implemented in `README.md`, `docs/WHITE_PAPER.md` §0.3 plus the module tables, and
