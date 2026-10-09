@@ -31,19 +31,30 @@
  *   - the window label and the "remaining allowance" arithmetic come from `spend-view.ts`, shared with
  *     `AutonomousWalletCard`.
  *
- * The layout is mobile-first: the chat bar is docked to the bottom of the viewport and padded by
- * `env(safe-area-inset-bottom)`, so on a 390px iPhone it clears the home indicator instead of sitting
- * under it, and every primary target is at least 48px tall for a thumb.
+ * Two rules about language, since this face is bilingual (ADR-040):
+ *
+ *   - every visible string is a dictionary lookup (`useLanguage()`), never a literal, so `中文` and
+ *     English cannot drift apart one sentence at a time;
+ *   - only *labels* are translated. The two presets are captioned in the active language but the text
+ *     they hand to M1 stays the English grammar the deterministic stub parses, because a translated
+ *     intent sentence is a different (and rejected) input, not the same intent in another language.
+ *     The server's own `description` / `reason` strings are likewise rendered verbatim.
+ *
+ * The header carries exactly one control - the {@link MenuDrawer} hamburger - so the consumer face
+ * advertises no second product and no operator affordance. The layout is mobile-first: the chat bar is
+ * docked to the bottom of the viewport and padded by `env(safe-area-inset-bottom)`, so on a 390px iPhone
+ * it clears the home indicator instead of sitting under it, and every primary target is at least 48px
+ * tall for a thumb.
  */
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { MenuDrawer } from "@/components/agent-console/MenuDrawer";
 import { ToastStack, useToastQueue } from "@/components/agent-console/Toast";
 import {
-  BIOMETRIC_PROMPT_NOTICE,
   biometricFailureToast,
   biometricFallbackCopy,
+  biometricPromptNotice,
   biometricSuccessToast,
 } from "@/components/agent-console/biometric-ux";
 import {
@@ -55,8 +66,10 @@ import {
   type AgentStatus,
 } from "@/lib/agent/client";
 import { useBiometricOwner } from "@/lib/agent/biometric-session";
+import type { ConsoleMode } from "@/lib/agent/console-mode";
 import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
 import type { AgentRefusal, IntentSuccess } from "@/lib/agent/types";
+import { useLanguage } from "@/lib/i18n/language";
 
 /** Rendered when a value has not landed yet. Never a fabricated zero. */
 const NO_VALUE = "\u2014";
@@ -64,15 +77,24 @@ const NO_VALUE = "\u2014";
 /**
  * The exact sentence the deterministic M1 stub parses for a mint. Shown to the owner verbatim, because
  * the stub's grammar is fixed (`mobile-agent/slm/slm-engine.ts`) and a paraphrase would be refused.
+ * It is also the input's placeholder in both languages, on purpose: the placeholder is a grammar
+ * example, not a sentence to translate.
  */
 const MINT_PRESET = "Mint 0.05 ETH worth of Mao Tang token";
 
-/** The preset answered from the local ledger instead of calling M1. */
-const LEDGER_PRESET_LABEL = "查看今日节点状态";
+/**
+ * The label the OS credential list shows for this site's enrolled authenticator.
+ *
+ * An identifier, not copy: it is written into the credential at enrollment and must not change when the
+ * owner flips the interface language, or the same device would look like two different credentials.
+ */
+const CREDENTIAL_LABEL = "猫糖 Web Agent OS";
 
 type PresetKind = "intent" | "ledger";
 
 interface Preset {
+  /** Stable React key. The label changes with the language, the id does not. */
+  readonly id: string;
   readonly label: string;
   readonly kind: PresetKind;
   /** The exact text M1 receives. Empty for `ledger` presets, which never reach M1. */
@@ -83,12 +105,16 @@ type StatusState =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly status: AgentStatus }
   | { readonly kind: "unavailable"; readonly code: string; readonly reason: string };
+
 export interface ConsumerViewProps {
+  /** The face currently rendered. Always `"consumer"` here; the drawer marks it as active. */
+  readonly mode: ConsoleMode;
   /** Flips the shell to the M1-M5 engineer/audit view. */
-  readonly onSwitchToDeveloper: () => void;
+  readonly onSwitchMode: (next: ConsoleMode) => void;
 }
 
-export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
+export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
+  const { language, t } = useLanguage();
   const [statusState, setStatusState] = useState<StatusState>({ kind: "loading" });
   const [balance, setBalance] = useState<string | null>(null);
 
@@ -176,7 +202,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
         } else {
           setRefusal(answer.refusal);
           // The refusal panel is easy to miss above a docked bar, so the verdict also gets a toast.
-          toasts.push("warn", `已被本地策略拦截：${answer.refusal.code}（未生成交易）`);
+          toasts.push("warn", t("toast.policyBlocked", { code: answer.refusal.code }));
         }
       } catch (error) {
         setRefusal({ stage: "request", code: "NETWORK_UNREACHABLE", reason: (error as Error).message });
@@ -184,7 +210,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
         setBusy(false);
       }
     },
-    [session, toasts],
+    [session, t, toasts],
   );
 
   const showLedger = useCallback(() => {
@@ -193,33 +219,39 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
     setConfirmOpen(false);
     session.reset();
     if (statusState.kind !== "ready") {
-      setLocalNote("本地策略账本还没读回来，稍后再试。");
+      setLocalNote(t("ledger.pending"));
       return;
     }
     const { policy, spend } = statusState.status;
     const left = remainingWindowWei(policy.maxValueWeiPerWindow, spend.spentWei);
     setLocalNote(
       [
-        "今日节点状态：本版本尚未接入链上节点收益账本，因此这里不显示任何未经验证的数字。",
-        `可验证的本地账本：滚动窗口 ${windowLabel(policy.windowSeconds)} 内已用 ${formatWeiAsEth(spend.spentWei)} / ${formatWeiAsEth(policy.maxValueWeiPerWindow)} ETH，剩余 ${formatWeiAsEth(left.toString())} ETH。`,
+        t("ledger.notConnected"),
+        t("ledger.summary", {
+          window: windowLabel(policy.windowSeconds),
+          spent: formatWeiAsEth(spend.spentWei),
+          cap: formatWeiAsEth(policy.maxValueWeiPerWindow),
+          left: formatWeiAsEth(left.toString()),
+        }),
       ].join("\n"),
     );
-  }, [session, statusState]);
+  }, [session, statusState, t]);
 
   const presets = useMemo<readonly Preset[]>(() => {
-    const list: Preset[] = [{ label: "铸造 0.05 ETH 的猫糖代币", kind: "intent", text: MINT_PRESET }];
+    const list: Preset[] = [{ id: "mint", label: t("preset.mint"), kind: "intent", text: MINT_PRESET }];
     const destination =
       statusState.kind === "ready" ? statusState.status.policy.allowedDestinations[0] : undefined;
     if (destination !== undefined) {
       list.push({
-        label: "给白名单地址转账 0.05 ETH",
+        id: "transfer",
+        label: t("preset.transfer"),
         kind: "intent",
         text: `Send 0.05 ETH to ${destination}`,
       });
     }
-    list.push({ label: LEDGER_PRESET_LABEL, kind: "ledger", text: "" });
+    list.push({ id: "ledger", label: t("preset.ledger"), kind: "ledger", text: "" });
     return list;
-  }, [statusState]);
+  }, [statusState, t]);
 
   const runPreset = useCallback(
     (preset: Preset) => {
@@ -241,16 +273,16 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
     }
     // Announce the request first: the system sheet renders outside the document, so without this the
     // owner has no on-screen evidence the tap landed.
-    toasts.push("info", BIOMETRIC_PROMPT_NOTICE);
+    toasts.push("info", biometricPromptNotice(language));
     // Nothing is awaited before `authorize` on purpose - WebAuthn needs the tap's user activation, and
     // an `await` here is how iOS Safari turns the prompt into a silent NotAllowedError.
-    const outcome = await session.authorize(preview.digest, "确认这笔交易");
+    const outcome = await session.authorize(preview.digest, t("sheet.title"));
     if (!outcome.ok) {
-      const { tone, message } = biometricFailureToast(outcome.failure);
+      const { tone, message } = biometricFailureToast(outcome.failure, language);
       toasts.push(tone, message);
       return;
     }
-    const { tone, message } = biometricSuccessToast(outcome.assertion);
+    const { tone, message } = biometricSuccessToast(outcome.assertion, language);
     toasts.push(tone, message);
     // Ask for the signature too, so the sheet shows the real enclave answer: on a web host with no
     // bridge that answer is a refusal, and the owner reads the module's own code instead of a tick.
@@ -258,17 +290,18 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
     if (signed.ok) {
       setPreview(signed);
     }
-  }, [preview, session, toasts]);
+  }, [language, preview, session, t, toasts]);
 
   const enroll = useCallback(async () => {
-    const result = await session.enroll("猫糖 Web Agent OS");
+    const result = await session.enroll(CREDENTIAL_LABEL);
     if (result.ok) {
-      toasts.push("success", "本机凭据已注册，可以开始刷脸 / 生物特征确认。");
+      toasts.push("success", t("toast.enrolled"));
       return;
     }
-    const { tone, message } = biometricFailureToast(result.failure);
+    const { tone, message } = biometricFailureToast(result.failure, language);
     toasts.push(tone, message);
-  }, [session, toasts]);
+  }, [language, session, t, toasts]);
+
   // -- render -----------------------------------------------------------------------------------
 
   const status = statusState.kind === "ready" ? statusState.status : null;
@@ -278,7 +311,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
     status === null ? null : remainingWindowWei(status.policy.maxValueWeiPerWindow, status.spend.spentWei);
   // The one guidance line for an environment that cannot raise a prompt (WeChat webview, no enrolled
   // authenticator, insecure origin). `null` when the prompt can run.
-  const fallback = biometricFallbackCopy(session.capability);
+  const fallback = biometricFallbackCopy(session.capability, language);
   const canConfirm = session.credentialId !== null && session.capability?.platformAuthenticator === true;
 
   return (
@@ -287,43 +320,33 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
 
       {/* Scroll region. `pb-safe-content` clears the docked bar plus the home indicator. */}
       <div className="flex-1 px-4 pb-safe-content pt-5">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-maotang-mint">MAOTANG Protocol</p>
-            <h1 className="mt-2 text-xl font-semibold text-white sm:text-2xl">猫糖 AI 个人助理</h1>
-            <p className="mt-1 text-sm text-white/50">说一句话，本地策略先过一遍，再由你的指纹 / 面容确认。</p>
+        <header className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-maotang-mint">
+              {t("brand")}
+            </p>
+            <h1 className="mt-2 text-xl font-semibold text-white sm:text-2xl">{t("consumer.title")}</h1>
+            <p className="mt-1 text-sm text-white/50">{t("consumer.subtitle")}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/dex"
-              className="inline-flex min-h-11 touch-manipulation items-center rounded-full border border-maotang-border px-4 text-xs text-white/60 transition hover:border-maotang-mint/50 hover:text-maotang-mint"
-            >
-              DEX 看板
-            </Link>
-            <button
-              type="button"
-              onClick={onSwitchToDeveloper}
-              className="inline-flex min-h-11 touch-manipulation items-center rounded-full border border-maotang-mint/50 bg-maotang-mint/10 px-4 text-xs font-medium text-maotang-mint transition hover:bg-maotang-mint/20"
-            >
-              切换到 工程师/审计控制台
-            </button>
-          </div>
+          {/* The header's one control. Language, the engineer console and the compliance status all
+              live behind it, so nothing here is a naked second-product button. */}
+          <MenuDrawer mode={mode} onSwitchMode={onSwitchMode} enclave={status?.enclave ?? null} />
         </header>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-maotang-border bg-maotang-surface px-4 py-3 text-xs">
-          <span className="text-white/45">钱包别名</span>
+          <span className="text-white/45">{t("pill.walletAlias")}</span>
           {/* The alias is the server's enclave binding (`policy`/`enclave.keyAlias`), never a literal. */}
           <span className="font-mono text-white/75">{status === null ? NO_VALUE : status.enclave.keyAlias}</span>
           <span className="text-white/20">|</span>
-          <span className="text-white/45">账户</span>
+          <span className="text-white/45">{t("pill.account")}</span>
           <span className="font-mono text-white/75" title={owner ?? undefined}>
             {owner === null ? NO_VALUE : shortHex(owner, 6, 4)}
           </span>
           <span className="text-white/20">|</span>
-          <span className="text-white/45">余额</span>
+          <span className="text-white/45">{t("pill.balance")}</span>
           <span className="font-mono text-white">{balance === null ? NO_VALUE : `${balance} ETH`}</span>
           <span className="text-white/20">|</span>
-          <span className="text-white/45">今日可用:</span>
+          <span className="text-white/45">{t("pill.availableToday")}</span>
           <span className="font-mono text-maotang-mint">
             {leftWei === null ? NO_VALUE : `${formatWeiAsEth(leftWei.toString())} ETH`}
           </span>
@@ -333,7 +356,8 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
         {statusState.kind === "unavailable" ? (
           <div className="mt-3 rounded-2xl border border-maotang-amber/40 bg-maotang-surface px-4 py-3 text-xs">
             <p className="text-maotang-amber">
-              本地策略账本未就绪：<span className="font-mono">{statusState.code}</span>
+              {t("status.ledgerNotReady")}
+              <span className="font-mono">{statusState.code}</span>
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-white/45">{statusState.reason}</p>
           </div>
@@ -360,22 +384,17 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               <span className="font-mono">{refusal.code}</span>
             </p>
             <p className="mt-2 text-[11px] leading-relaxed text-white/55">{refusal.reason}</p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/35">
-              这条请求在本地被拦下了，没有生成交易，也没有要求你签名。
-            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-white/35">{t("refusal.explainer")}</p>
           </div>
         ) : null}
 
         <footer className="mt-5 text-[11px] leading-relaxed text-white/35">
           <p>
-            设备生物识别：
-            {session.capability === null ? "检测中\u2026" : session.capability.detail}
-            {session.credentialId === null ? " \u00b7 尚未在本机注册凭据" : " \u00b7 已注册本机凭据"}
+            {t("status.biometrics")}
+            {session.capability === null ? t("status.detecting") : session.capability.detail}
+            {session.credentialId === null ? t("status.notEnrolled") : t("status.enrolled")}
           </p>
-          <p className="mt-1">
-            本页只调用 <span className="font-mono">/api/agent/*</span>；短语翻译、策略判定与摘要都发生在服务端的 M1/M2，
-            浏览器不参与任何签名计算。原始指纹 / 面容数据不会离开设备。
-          </p>
+          <p className="mt-1">{t("status.scope")}</p>
         </footer>
       </div>
       {/*
@@ -389,7 +408,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
           <div className="-mx-1 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {presets.map((preset) => (
               <button
-                key={preset.label}
+                key={preset.id}
                 type="button"
                 onClick={() => runPreset(preset)}
                 disabled={busy}
@@ -402,7 +421,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
 
           <div className="mt-2 flex items-end gap-2">
             <label className="sr-only" htmlFor="consumer-prompt">
-              告诉猫糖助理你想做什么
+              {t("chat.label")}
             </label>
             <input
               id="consumer-prompt"
@@ -414,6 +433,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
                 }
               }}
               placeholder={MINT_PRESET}
+              title={t("chat.grammarHint")}
               spellCheck={false}
               autoComplete="off"
               autoCapitalize="none"
@@ -429,7 +449,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               disabled={busy || prompt.trim() === ""}
               className="min-h-12 shrink-0 touch-manipulation rounded-xl bg-maotang-mint/20 px-4 text-sm font-semibold text-maotang-mint transition hover:bg-maotang-mint/30 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy ? "思考中\u2026" : "发送"}
+              {busy ? t("chat.thinking") : t("chat.send")}
             </button>
           </div>
         </div>
@@ -440,26 +460,26 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="确认这笔交易"
+            aria-label={t("sheet.title")}
             className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-maotang-border bg-maotang-surface p-5 pb-safe-sheet sm:rounded-2xl"
           >
             {/* A grab handle: on a phone this sheet is a bottom drawer, not a floating dialog. */}
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
-            <h2 className="text-base font-semibold text-white">确认这笔交易</h2>
+            <h2 className="text-base font-semibold text-white">{t("sheet.title")}</h2>
             <p className="mt-2 text-xs leading-relaxed text-white/60">{preview.preview.description}</p>
 
             <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-              <dt className="text-white/45">操作</dt>
+              <dt className="text-white/45">{t("sheet.action")}</dt>
               <dd className="text-right font-mono text-white/80">{preview.preview.action}</dd>
-              <dt className="text-white/45">接收地址</dt>
+              <dt className="text-white/45">{t("sheet.to")}</dt>
               <dd className="text-right font-mono text-white/80">{shortHex(preview.preview.to, 10, 6)}</dd>
-              <dt className="text-white/45">金额</dt>
+              <dt className="text-white/45">{t("sheet.amount")}</dt>
               <dd className="text-right font-mono text-white/80">
                 {formatWeiAsEth(preview.preview.valueWei)} ETH
               </dd>
-              <dt className="text-white/45">链</dt>
+              <dt className="text-white/45">{t("sheet.chain")}</dt>
               <dd className="text-right font-mono text-white/80">{preview.preview.chainId}</dd>
-              <dt className="text-white/45">本窗口剩余</dt>
+              <dt className="text-white/45">{t("sheet.remaining")}</dt>
               <dd className="text-right font-mono text-white/80">
                 {preview.decision.allowed
                   ? `${formatWeiAsEth(preview.decision.remainingWindowWei)} ETH`
@@ -468,7 +488,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
             </dl>
 
             <p className="mt-3 break-all text-[11px] text-white/40">
-              待签摘要 <span className="font-mono">{preview.digest}</span>
+              {t("sheet.digest")} <span className="font-mono">{preview.digest}</span>
             </p>
 
             {/*
@@ -476,10 +496,13 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               Both halves are literally true of this build: the policy check and the digest happen on the
               server's M1/M2 pipeline, the biometric runs inside the device's own authenticator, and no
               raw fingerprint or face data is sent anywhere - only the assertion the authenticator signs.
+              The sentence itself is the dictionary's `compliance.claim`, asserted by the policy gate.
             */}
             <p className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-maotang-mint/40 bg-maotang-mint/5 px-3 py-2 text-[11px] leading-relaxed text-maotang-mint">
-              <span className="rounded bg-maotang-mint/15 px-1.5 py-0.5 font-mono text-[10px]">零数据合规</span>
-              本地 Secure Enclave 芯片离线校验 | 零生物数据上云
+              <span className="rounded bg-maotang-mint/15 px-1.5 py-0.5 font-mono text-[10px]">
+                {t("compliance.badge")}
+              </span>
+              {t("compliance.claim")}
             </p>
 
             {fallback !== null ? (
@@ -500,11 +523,15 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
             {session.assertion !== null ? (
               <div className="mt-3 rounded-lg border border-maotang-mint/40 bg-maotang-mint/5 px-3 py-2 text-[11px]">
                 <p className="text-maotang-mint">
-                  设备已在 {new Date(session.assertion.assertedAt).toLocaleTimeString()} 完成验证
+                  {t("sheet.verifiedAt", {
+                    time: new Date(session.assertion.assertedAt).toLocaleTimeString(),
+                  })}
                 </p>
                 <p className="mt-1 text-white/55">
-                  用户已验证：{session.assertion.userVerified ? "是" : "否"} \u00b7 硬件凭据：
-                  {session.assertion.hardwareBacked ? "是" : "否"}
+                  {t("sheet.userVerified", {
+                    verified: session.assertion.userVerified ? t("sheet.yes") : t("sheet.no"),
+                    hardware: session.assertion.hardwareBacked ? t("sheet.yes") : t("sheet.no"),
+                  })}
                 </p>
                 {session.nullifier !== null ? (
                   <p className="mt-1 break-all text-white/40">
@@ -517,7 +544,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
             {preview.signRefusal !== null ? (
               <div className="mt-3 rounded-lg border border-maotang-amber/40 bg-maotang-amber/5 px-3 py-2 text-[11px]">
                 <p className="text-maotang-amber">
-                  <span className="font-mono">{preview.signRefusal.code}</span> \u2014 硬件签名通道未接入
+                  <span className="font-mono">{preview.signRefusal.code}</span> - {t("sheet.signRefusal")}
                 </p>
                 <p className="mt-1 leading-relaxed text-white/50">{preview.signRefusal.reason}</p>
               </div>
@@ -525,7 +552,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
 
             {preview.signed !== null ? (
               <p className="mt-3 break-all text-[11px] text-maotang-mint">
-                已签名 <span className="font-mono">{shortHex(preview.signed.signature, 16, 8)}</span>
+                {t("sheet.signed")} <span className="font-mono">{shortHex(preview.signed.signature, 16, 8)}</span>
               </p>
             ) : null}
 
@@ -533,10 +560,10 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               type="button"
               onClick={() => void confirm()}
               disabled={session.busy || !canConfirm}
-              title={canConfirm ? undefined : "先在本机注册指纹 / 面容，或改用支持 WebAuthn 的浏览器打开"}
+              title={canConfirm ? undefined : t("sheet.confirmDisabled")}
               className="mt-4 min-h-12 w-full touch-manipulation rounded-xl bg-maotang-mint px-4 text-sm font-semibold text-maotang-ink transition hover:bg-maotang-mint/85 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {session.phase === "asserting" ? "等待设备确认\u2026" : "刷脸 / 生物特征确认"}
+              {session.phase === "asserting" ? t("sheet.confirmBusy") : t("sheet.confirm")}
             </button>
 
             {session.credentialId === null ? (
@@ -546,7 +573,7 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
                 disabled={session.busy || session.capability?.platformAuthenticator !== true}
                 className="mt-2 min-h-12 w-full touch-manipulation rounded-xl border border-maotang-border px-4 text-xs text-white/60 transition hover:border-maotang-mint/50 hover:text-maotang-mint disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {session.phase === "enrolling" ? "正在注册\u2026" : "先在本机注册指纹 / 面容"}
+                {session.phase === "enrolling" ? t("sheet.enrollBusy") : t("sheet.enroll")}
               </button>
             ) : null}
 
@@ -555,13 +582,10 @@ export function ConsumerView({ onSwitchToDeveloper }: ConsumerViewProps) {
               onClick={() => setConfirmOpen(false)}
               className="mt-2 min-h-12 w-full touch-manipulation rounded-xl px-4 text-xs text-white/45 transition hover:text-white/70"
             >
-              取消
+              {t("sheet.cancel")}
             </button>
 
-            <p className="mt-3 text-[10px] leading-relaxed text-white/30">
-              生物识别只在设备内部完成，不上传任何原始指纹 / 面容数据；摘要一旦确认即绑定这笔交易，无法被复用到另一笔。
-              Web 主机没有安全飞地，因此这里只证明“你本人在场”，真正的私钥签名需要设备侧的 M2/M5 飞地。
-            </p>
+            <p className="mt-3 text-[10px] leading-relaxed text-white/30">{t("sheet.privacy")}</p>
           </div>
         </div>
       ) : null}

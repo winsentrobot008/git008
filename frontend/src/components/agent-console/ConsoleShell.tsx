@@ -13,21 +13,20 @@
  *   - the preference is a *view* choice, not a permission. Both faces render the same server-reported
  *     numbers, and neither one can sign anything the other could not - the M2 policy and the M5 enclave
  *     gate the pipeline identically in either mode.
+ *
+ * Both faces are handed the same pair of props (`mode` + `onSwitchMode`) so the shared {@link MenuDrawer}
+ * is the single control that moves between them; the old per-view callback names are gone with the two
+ * naked header buttons they used to drive.
  */
 
 import { useCallback, useEffect, useState } from "react";
 
 import { ConsumerView } from "@/components/agent-console/ConsumerView";
 import { DeveloperConsoleView } from "@/components/agent-console/DeveloperConsoleView";
+import { CONSOLE_MODE_STORAGE_KEY, isConsoleMode, type ConsoleMode } from "@/lib/agent/console-mode";
 
-/** Where the view preference is remembered. Non-secret: a string, not a key. */
-export const CONSOLE_MODE_STORAGE_KEY = "maotang.console.mode";
-
-export type ConsoleMode = "consumer" | "developer";
-
-function isConsoleMode(value: string | null): value is ConsoleMode {
-  return value === "consumer" || value === "developer";
-}
+export { CONSOLE_MODE_STORAGE_KEY, isConsoleMode };
+export type { ConsoleMode };
 
 export function ConsoleShell() {
   const [mode, setMode] = useState<ConsoleMode>("consumer");
@@ -53,7 +52,7 @@ export function ConsoleShell() {
   }, []);
 
   if (mode === "developer") {
-    return <DeveloperConsoleView onSwitchToConsumer={() => switchTo("consumer")} />;
+    return <DeveloperConsoleView mode={mode} onSwitchMode={switchTo} />;
   }
-  return <ConsumerView onSwitchToDeveloper={() => switchTo("developer")} />;
+  return <ConsumerView mode={mode} onSwitchMode={switchTo} />;
 }

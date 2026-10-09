@@ -1,21 +1,26 @@
 /**
- * The words the two biometric surfaces show, in one place.
+ * The words the two biometric surfaces show, in one place, in either language.
  *
  * The C-end confirmation sheet and the M5 engineer card render the same events - prompt requested,
  * prompt cancelled, webview refused, no credential enrolled - and they must say the same thing about
  * them. Keeping the copy here (rather than in each component) is what stops the two faces from
  * explaining one refusal in two different ways; only the surrounding chrome differs between them.
  *
- * Every string is deliberately explicit that no raw fingerprint or face data leaves the device, and
- * that a cancelled prompt signs nothing.
+ * The strings themselves live in `@/lib/i18n/dictionary`, so this module is now a translator for one
+ * event vocabulary rather than a second copy of the English/Chinese text. Every language it can return
+ * is deliberately explicit that no raw fingerprint or face data leaves the device, and that a cancelled
+ * prompt signs nothing - that claim is the reason both surfaces share the copy at all.
  */
 
+import type { ToastTone } from "@/components/agent-console/Toast";
 import type { BiometricFailure } from "@/lib/agent/biometric-session";
 import type { BiometricCapability, OwnerAssertion } from "@/lib/agent/webauthn";
-import type { ToastTone } from "@/components/agent-console/Toast";
+import { translate, type Language } from "@/lib/i18n/dictionary";
 
 /** Shown the moment the system sheet is requested, so the owner knows the tap landed. */
-export const BIOMETRIC_PROMPT_NOTICE = "已请求硬件验证：请在系统弹窗中完成 Face ID / Touch ID。";
+export function biometricPromptNotice(language: Language): string {
+  return translate(language, "biometric.promptNotice");
+}
 
 /**
  * Actionable guidance when this environment cannot raise a biometric prompt.
@@ -23,39 +28,50 @@ export const BIOMETRIC_PROMPT_NOTICE = "已请求硬件验证：请在系统弹�
  * Returns `null` when the prompt *can* run - the absence of a warning is itself information, and an
  * unconditional banner would train the owner to ignore it.
  */
-export function biometricFallbackCopy(capability: BiometricCapability | null): string | null {
+export function biometricFallbackCopy(
+  capability: BiometricCapability | null,
+  language: Language,
+): string | null {
   if (capability === null || capability.platformAuthenticator) {
     return null;
   }
   if (capability.embeddedWebview) {
-    return `当前在 ${capability.embeddingLabel ?? "内置浏览器"} 内打开，系统级 Face ID / Touch ID 可能被限制。请用 Safari 或 Chrome 打开本页后重试。`;
+    return translate(language, "biometric.fallbackWebview", {
+      shell: capability.embeddingLabel ?? translate(language, "biometric.shellFallback"),
+    });
   }
   if (!capability.supported) {
-    return "当前环境没有可用的 WebAuthn，无法调起系统生物识别。";
+    return translate(language, "biometric.fallbackUnsupported");
   }
   if (!capability.secureContext) {
-    return "请用 HTTPS（或 localhost）打开本页，浏览器才允许调用生物识别。";
+    return translate(language, "biometric.fallbackInsecure");
   }
-  return "本机未检测到可用的 Face ID / Touch ID，请先在系统设置中录入指纹或面容。";
+  return translate(language, "biometric.fallbackNoAuthenticator");
 }
 
-/** Tone + wording for a failed biometric step. */
-export function biometricFailureToast(failure: BiometricFailure): { tone: ToastTone; message: string } {
+/** Tone + wording for a failed biometric step. The tone is language-independent; only the words move. */
+export function biometricFailureToast(
+  failure: BiometricFailure,
+  language: Language,
+): { tone: ToastTone; message: string } {
   switch (failure.code) {
     case "USER_CANCELLED":
-      return { tone: "warn", message: "已取消生物识别验证，没有任何交易被签名。" };
+      return { tone: "warn", message: translate(language, "biometric.failureCancelled") };
     case "NO_CREDENTIAL":
-      return { tone: "info", message: "本机还没有注册凭据，请先点“注册本机指纹 / 面容”。" };
+      return { tone: "info", message: translate(language, "biometric.failureNoCredential") };
     case "WEBVIEW_RESTRICTED":
-      return { tone: "warn", message: "内置浏览器限制了系统生物识别，请改用 Safari / Chrome 打开本页。" };
+      return { tone: "warn", message: translate(language, "biometric.failureWebview") };
     case "NO_PLATFORM_AUTHENTICATOR":
-      return { tone: "warn", message: "本机未启用 Face ID / Touch ID，请先在系统设置中录入。" };
+      return { tone: "warn", message: translate(language, "biometric.failureNoPlatformAuthenticator") };
     case "NOT_SECURE_CONTEXT":
-      return { tone: "error", message: "当前不是安全上下文（HTTPS / localhost），浏览器拒绝调用生物识别。" };
+      return { tone: "error", message: translate(language, "biometric.failureNotSecureContext") };
     case "NO_CHALLENGE":
-      return { tone: "info", message: "还没有待签摘要，先让助理生成一笔交易再验证。" };
+      return { tone: "info", message: translate(language, "biometric.failureNoChallenge") };
     default:
-      return { tone: "error", message: `生物识别未完成：${failure.code}` };
+      return {
+        tone: "error",
+        message: translate(language, "biometric.failureGeneric", { code: failure.code }),
+      };
   }
 }
 
@@ -66,9 +82,12 @@ export function biometricFailureToast(failure: BiometricFailure): { tone: ToastT
  * celebration: some platforms return an assertion even when the biometric itself failed, and the flags
  * byte is the only thing that separates "the device signed" from "the owner was verified".
  */
-export function biometricSuccessToast(assertion: OwnerAssertion): { tone: ToastTone; message: string } {
+export function biometricSuccessToast(
+  assertion: OwnerAssertion,
+  language: Language,
+): { tone: ToastTone; message: string } {
   if (!assertion.userVerified) {
-    return { tone: "warn", message: "设备返回了签名，但未确认“用户已验证”，请重新验证。" };
+    return { tone: "warn", message: translate(language, "biometric.successUnverified") };
   }
-  return { tone: "success", message: "硬件验证通过：本机凭据签署了待签摘要，未上传任何原始指纹 / 面容数据。" };
+  return { tone: "success", message: translate(language, "biometric.success") };
 }

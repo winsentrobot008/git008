@@ -21,7 +21,7 @@
  * cannot execute `.ts` directly. `node --test` runs this file as-is, with no new dependency.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import test from "node:test";
@@ -185,13 +185,13 @@ test("C. the live destination whitelist is manifest-derived and lowercased", { s
   }
 });
 
-// ---------------------------------------------------------------------------------------------------
-// D. the mobile / biometric guards (source-level, the same idiom as A and B)
+// D. the mobile / biometric / i18n guards (source-level, the same idiom as A and B)
 //
 // These read the shipped files rather than importing them, for the same reason group A does: `frontend/`
 // has no TypeScript executor, and the point is that the expectation and the implementation are two
-// independent statements that must agree. Each one would have failed before the 2026-10-09 mobile work.
-// ---------------------------------------------------------------------------------------------------
+// independent statements that must agree. Each one would have failed before the 2026-10-09 mobile work,
+// and the last two carry the nav/i18n pass (ADR-040) that moved the C-end copy into the dictionary and
+// replaced the two naked header buttons with one menu drawer.
 
 const WEBAUTHN_SOURCE = path.join(frontendRoot, "src", "lib", "agent", "webauthn.ts");
 const GLOBALS_CSS = path.join(frontendRoot, "src", "app", "globals.css");
@@ -203,6 +203,18 @@ const webauthnSource = readFileSync(WEBAUTHN_SOURCE, "utf8");
 const globalsCss = readFileSync(GLOBALS_CSS, "utf8");
 const layoutSource = readFileSync(LAYOUT_SOURCE, "utf8");
 const consumerView = readFileSync(CONSUMER_VIEW, "utf8");
+
+// The i18n surface (ADR-040): the dictionary, the auto-detect hook, and the one header control. The C-end
+// copy moved out of `ConsumerView.tsx` into the dictionary, so the zero-data assertions below read the
+// dictionary for the sentence and the view for the key that renders it.
+const I18N_SOURCE = path.join(frontendRoot, "src", "lib", "i18n", "dictionary.ts");
+const LANGUAGE_SOURCE = path.join(frontendRoot, "src", "lib", "i18n", "language.tsx");
+const MENU_DRAWER = path.join(frontendRoot, "src", "components", "agent-console", "MenuDrawer.tsx");
+const DEX_ROUTE = path.join(frontendRoot, "src", "app", "dex", "page.tsx");
+
+const i18nSource = readFileSync(I18N_SOURCE, "utf8");
+const languageSource = readFileSync(LANGUAGE_SOURCE, "utf8");
+const menuDrawer = readFileSync(MENU_DRAWER, "utf8");
 const bioGuard = readFileSync(BIO_GUARD, "utf8");
 
 test("D. a cancelled biometric prompt has its own code, not a generic failure", () => {
@@ -235,6 +247,24 @@ test("D. the mobile chat bar is touch-sized and cannot double-tap zoom", () => {
   assert.match(consumerView, /touch-manipulation/, "primary triggers must set touch-action: manipulation");
   assert.match(consumerView, /min-h-12/, "primary targets must be at least 48px tall");
   assert.match(consumerView, /text-base/, "a 16px input keeps iOS Safari from zooming on focus");
+
+  // The header's only control is the shared hamburger drawer: no naked DEX link, no naked mode button.
+  assert.match(consumerView, /MenuDrawer/, "the header hands its controls to the one menu drawer");
+  assert.doesNotMatch(consumerView, /href="\/dex"/, "the naked DEX link must be gone");
+  assert.doesNotMatch(consumerView, /onSwitchToDeveloper/, "the naked developer button must be gone");
+  assert.match(menuDrawer, /aria-expanded=\{open\}/, "the trigger reports whether the drawer is open");
+  assert.match(menuDrawer, /aria-modal/, "the drawer is announced as a modal dialog");
+  assert.match(menuDrawer, /menu\.languageAuto/, "the drawer carries the Auto (system) language option");
+  assert.match(menuDrawer, /menu\.developer/, "the drawer carries the engineer/audit console entry");
+  assert.match(menuDrawer, /menu\.zeroData/, "the drawer carries the zero-data compliance line");
+
+  // The legacy DEX route is gone, so `/` and `/agent` render nothing but the consumer view.
+  assert.equal(existsSync(DEX_ROUTE), false, "the legacy /dex route must not be part of the build");
+
+  // Auto-detect reads `navigator.language`; only a `zh*` tag selects Chinese, everything else is English.
+  assert.match(languageSource, /navigator\.language/, "auto-detect reads the browser language");
+  assert.match(i18nSource, /startsWith\("zh"\)/, "only a zh* tag resolves to Chinese");
+  assert.match(i18nSource, /DEFAULT_LANGUAGE: Language = "en"/, "anything else defaults to English");
 });
 
 test("D. both biometric faces run the one shared session hook", () => {
@@ -243,15 +273,30 @@ test("D. both biometric faces run the one shared session hook", () => {
 });
 
 test("D. the C-end authorization card states the zero-data compliance posture", () => {
+  // The claim is a statement about this build, so each language writes it once in the dictionary...
   assert.match(
-    consumerView,
+    i18nSource,
     /本地 Secure Enclave 芯片离线校验 \| 零生物数据上云/,
     "the confirmation card must carry the zero-data badge, not just a footer note",
   );
-  assert.match(consumerView, /刷脸 \/ 生物特征确认/, "the biometric trigger is the card's primary action");
+  assert.match(i18nSource, /刷脸 \/ 生物特征确认/, "the biometric trigger is the card's primary action");
+  // ...and the view has to render *that* key, so the sentence cannot be re-typed (and drift) in the JSX.
+  assert.match(consumerView, /t\("compliance\.claim"\)/, "the sheet renders the claim by dictionary key");
+  assert.match(consumerView, /t\("compliance\.badge"\)/, "the zero-data badge is a dictionary key too");
+  assert.match(consumerView, /t\("sheet\.confirm"\)/, "the biometric trigger is the dictionary label");
   assert.match(
     consumerView,
     /status\.enclave\.keyAlias/,
     "the wallet alias must come from the server report, never from a literal",
+  );
+  // The two languages cannot drift: `en` is typed against the key set of `zh`, so a gap fails
+  // `npx tsc --noEmit` instead of rendering a blank label at runtime.
+  assert.match(i18nSource, /const EN: Messages = \{/, "en must be typed against the zh key set");
+  assert.match(i18nSource, /\[K in MessageKey\]/, "the Messages type is what makes a gap a compile error");
+  // And a gap that does slip through still cannot collapse a sized element: language -> language -> key.
+  assert.match(
+    i18nSource,
+    /DICTIONARIES\[other\]\?\.\[key\] \|\| key/,
+    "translate() falls back active -> other -> key, and never returns an empty string",
   );
 });

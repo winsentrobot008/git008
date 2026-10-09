@@ -23,11 +23,12 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { ToastStack, useToastQueue } from "@/components/agent-console/Toast";
 import {
-  BIOMETRIC_PROMPT_NOTICE,
+  biometricPromptNotice,
   biometricFailureToast,
   biometricFallbackCopy,
   biometricSuccessToast,
 } from "@/components/agent-console/biometric-ux";
+import { useLanguage } from "@/lib/i18n/language";
 import { shortHex } from "@/lib/agent/client";
 import { useBiometricOwner } from "@/lib/agent/biometric-session";
 import type { Hex } from "@/lib/agent/types";
@@ -43,6 +44,7 @@ export interface BioAuthGuardProps {
 }
 
 export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
+  const { language, t } = useLanguage();
   const session = useBiometricOwner();
   const toasts = useToastQueue();
 
@@ -60,33 +62,33 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
   const enroll = useCallback(async () => {
     const result = await session.enroll("biometric-owner");
     if (result.ok) {
-      toasts.push("success", "本机凭据已注册，可以开始刷脸 / 指纹确认。");
+      toasts.push("success", t("toast.enrolled"));
       return;
     }
-    const { tone, message } = biometricFailureToast(result.failure);
+    const { tone, message } = biometricFailureToast(result.failure, language);
     toasts.push(tone, message);
-  }, [session, toasts]);
+  }, [session, t, toasts]);
 
   const authorize = useCallback(async () => {
     // Toast before the call: the system sheet renders outside the document, so the page has to show
     // that the tap registered. Nothing is awaited before `session.authorize`, for the user-activation
     // reason documented on the hook.
-    toasts.push("info", BIOMETRIC_PROMPT_NOTICE);
+    toasts.push("info", biometricPromptNotice(language));
     const outcome = await session.authorize(challenge, "authorize this intent");
     if (!outcome.ok) {
-      const { tone, message } = biometricFailureToast(outcome.failure);
+      const { tone, message } = biometricFailureToast(outcome.failure, language);
       toasts.push(tone, message);
       return;
     }
-    const { tone, message } = biometricSuccessToast(outcome.assertion);
+    const { tone, message } = biometricSuccessToast(outcome.assertion, language);
     toasts.push(tone, message);
-  }, [challenge, session, toasts]);
+  }, [challenge, language, session, toasts]);
 
   const busy = session.busy;
   const canAuthorize =
     session.capability?.platformAuthenticator === true && session.credentialId !== null && challenge !== null;
   const approved = session.assertion !== null && session.assertion.challenge === challenge;
-  const fallback = biometricFallbackCopy(session.capability);
+  const fallback = biometricFallbackCopy(session.capability, language);
 
   return (
     <section className="rounded-2xl border border-maotang-border bg-maotang-surface p-5">

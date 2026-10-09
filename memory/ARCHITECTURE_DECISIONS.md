@@ -2,6 +2,52 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-040: the C-end console auto-detects language, hides the developer/dex controls behind one drawer, and deletes the legacy DEX route
+
+**Status:** Accepted (`frontend/src/lib/i18n/dictionary.ts`, `frontend/src/lib/i18n/language.tsx`,
+`frontend/src/lib/agent/console-mode.ts`,
+`frontend/src/components/agent-console/{MenuDrawer.tsx,ConsumerView.tsx,DeveloperConsoleView.tsx,ConsoleShell.tsx,BioAuthGuard.tsx,biometric-ux.ts}`,
+`frontend/src/app/{layout.tsx,page.tsx}`, `frontend/scripts/assert-runtime-policy.mjs`,
+`docs/MVP_DEMO_GUIDE.md`). Gates: `npx tsc --noEmit` exit 0; `npm run test:policy` 16/16 pass;
+`npm run build` exit 0 with the DEX route absent from the output.
+
+**Context:** Three problems shared one surface. (1) Every C-end string was a hard-coded literal, so the
+protocol could not greet a non-Chinese visitor. (2) The C-end header carried two naked controls - a link
+to the legacy DEX board and a `切换到 工程师/审计控制台` toggle - which published operator plumbing in a
+consumer face. (3) The DEX board at `/dex` was a frozen legacy page kept "just in case" (ADR-036), and it
+kept dragging along DEX-only modules.
+
+**Decision:**
+
+1. **i18n is a typed dictionary plus a server-side first paint.** `lib/i18n/dictionary.ts` holds one
+   `MessageKey` union with a complete `ZH` source map and an `EN: Messages` map, so a missing key is a
+   type error; `translate` still falls back active -> other -> key and interpolates `{var}`.
+   `detectLanguage` reads `navigator.language`/`navigator.languages` and returns `zh` only for a `zh*`
+   tag, otherwise the `en` default; `parseAcceptLanguage` does the same for the request header.
+   `app/layout.tsx` reads `Accept-Language`, sets `<html lang>` and seeds `LanguageProvider`, so the HTML
+   that arrives is already in the right language and there is no Chinese-then-English flash; the provider
+   re-resolves the stored preference (`maotang.console.language`) and the live `navigator.language` on
+   mount. A blocked `localStorage` only means the preference is forgotten.
+2. **One drawer replaces the naked controls.** `ConsoleShell` owns the `consumer`/`developer` mode
+   (remembered under `maotang.console.mode`); both faces take the same `mode`/`onSwitchMode` props and
+   render the shared `MenuDrawer`, whose ☰ is the header's only control. The drawer holds the language
+   switcher (`Auto/System`, `中文`, `English`), the `工程师 / 审计控制台` toggle, and the compliance block
+   (`零生物数据上云` plus the live Secure Enclave report when the caller holds one, and an explicit
+   requirement when it does not). It closes on ✕/Escape/backdrop and carries `role="dialog"`,
+   `aria-modal`, `aria-expanded`, `touch-manipulation` and >44px targets.
+3. **The DEX surface is deleted, not hidden.** `app/dex/` and its DEX-only modules
+   (`lib/hooks.ts`, `lib/launches.ts`, `lib/format.ts`) are removed, so `/` and `/agent` are the only
+   faces. `lib/chain.ts` and `lib/protocol.ts` stay: `lib/agent/runtime.ts` imports `readChainConfig`
+   from `../chain` (a relative import a "DEX-only" name sweep misses), and `chain.ts` imports
+   `./protocol`. `assert-runtime-policy.mjs` now asserts the route is absent, the view renders no
+   `href="/dex"`, and the auto-detect/dictionary markers exist.
+
+**Consequences:** the C-end face is the localized default for `/` and `/agent`; the developer console is
+one tap away instead of advertised; and the legacy DEX code no longer ships or type-checks. Reading
+`Accept-Language` opts `/` and `/agent` into dynamic rendering - the documented cost of a correct first
+paint. No M1-M5 policy, enclave, SDK or contract behaviour changed: the drawer is a view control, not a
+permission, and both faces render the same server-reported numbers.
+
 ## 2026-10-09 - ADR-039: the dashboard deploy vendors the sibling packages inside the root directory, because a file-upload deployment only ships a copy of it
 
 **Status:** Accepted (`frontend/scripts/vercel-api-deploy.mjs`, `vercel.json`,

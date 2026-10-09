@@ -193,7 +193,7 @@ Select-String -Path bio-auth\native-biometric-gate.ts -Pattern 'ASSERT_FORBIDDEN
 
 | # | Step | Pass condition |
 | --- | --- | --- |
-| 1 | Load `/agent` (or `/`) | The 猫糖 AI 个人助理 renders; the header toggle `切换到 工程师/审计控制台` shows the four cards, no error banners |
+| 1 | Load `/agent` (or `/`) | The 猫糖 AI 个人助理 renders; the ☰ menu opens the language switcher, the `工程师 / 审计控制台` toggle and the compliance status, no error banners |
 | 2 | Wait 60s without clicking | Mining phase stays `IDLE_SOVEREIGN` |
 | 3 | Press `Activate AI Mining Node` | Phase reaches `MINING_ACTIVE`, or a named refusal |
 | 4 | Preview a benign intent (section 4.1) | Preview shows action, destination, calldata and a digest |
@@ -202,12 +202,15 @@ Select-String -Path bio-auth\native-biometric-gate.ts -Pattern 'ASSERT_FORBIDDEN
 | 7 | Read the compute card | `local-only` without a center; `Hybrid ...` only with a live one |
 | 8 | Narrow the viewport to 390px | The chat bar stays docked and above the home indicator; nothing hides under it |
 | 9 | Tap `刷脸 / 生物特征确认`, then dismiss the system sheet | A warning toast reads `USER_CANCELLED`; nothing is signed |
+| 10 | Open the ☰ menu and switch the language to `中文` | Every C-end string re-renders in Chinese at once - the header, the badges, the confirmation sheet - with no layout jump |
 
 ### 3.6 C-end consumer face & mobile ergonomics
 
-`/` and `/agent` both open on the C-end face - `猫糖 AI 个人助理` - and the header toggle
-`切换到 工程师/审计控制台` swaps in the M1-M5 console without a page load. The DEX board is unchanged, at
-`/dex`. Both faces run the same client code paths, which is why the numbers agree:
+`/` and `/agent` both open on the C-end face - `猫糖 AI 个人助理` - in the language the browser asks for
+(`navigator.language`, falling back to English when it is neither `zh` nor `zh-CN`), and the ☰ menu drawer's
+`工程师 / 审计控制台` toggle swaps in the M1-M5 console without a page load. The legacy `/dex` board has been
+deleted, so `/` and `/agent` are the only faces. Both faces run the same client code paths, which is why the
+numbers agree:
 
 - **One status source.** The pill's `今日可用` is `maxValueWeiPerWindow - spentWei` from
   `/api/agent/status`, formatted with the same wei -> ETH rule as the M2 card

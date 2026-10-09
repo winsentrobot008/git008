@@ -2,6 +2,24 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-09 - pruning a "DEX-only" route leaves relative imports behind, and PowerShell redirection rewrites sources as UTF-16
+
+- **Observation:** The DEX route was deleted on the assumption that `lib/hooks.ts`, `lib/launches.ts` and
+  `lib/format.ts` were its only modules. Two survivors carried no "dex" in their names: a live server module
+  in `lib/agent/` imports a helper from `../chain`, and `chain.ts` imports `./protocol`. Deleting them would
+  have broken a running route that a *name*-based sweep never flagged. Separately, writing a source file with
+  PowerShell `>` / `Out-File` / `Set-Content` in this environment produced a UTF-16 file (first bytes
+  `255,254`), which the toolchain then mis-read until `git checkout HEAD -- <path>` restored it.
+- **Lesson:** An "unused file" verdict must come from the import graph, not the filename - check every
+  `from "../x"` / `from "./x"` edge before deleting. And never write repository sources through a shell
+  redirection operator; use an explicit UTF-8-no-BOM writer
+  (`[System.IO.File]::WriteAllText($p, $t, (New-Object System.Text.UTF8Encoding($false)))`) and re-run the exit
+  gate afterwards.
+- **Application:** Before pruning a route, grep the import edges it might still feed
+  (`rg -n '\.\./chain|\./protocol'` and similar), and keep the modules a live consumer still imports. If a
+  gate starts reporting byte-level garbage, inspect the first two bytes of the touched file before chasing the
+  diff.
+
 ## 2026-10-09 - a Vercel file-upload deployment builds a *copy* of the root directory, so `../` siblings are unreachable and `builds` cancels `installCommand`
 
 - **Observation:** Two independent traps break a monorepo `file:` dependency on Vercel, and each shows
