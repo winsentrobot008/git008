@@ -3,10 +3,15 @@
 /**
  * M1 UI - the lazy edge model, and the one-click intent console.
  *
- * The activation button is the *only* caller of `loader.activate`. There is no `useEffect` that
- * starts a transfer, no prefetch, and no default model URL: importing this component does nothing but
- * render, and a 400 MiB download happens when - and only when - the owner clicks. The loader enforces
- * the same rule from its side by requiring a grant that only {@link ownerActivationGrant} mints.
+ * The activation button is the *only* caller of `loader.activate`. The only `useEffect`s here probe
+ * capability booleans and mirror the state machine - neither can start a transfer - and there is no
+ * prefetch and no default model URL: importing this component does nothing but render, and a 400 MiB
+ * download happens when - and only when - the owner clicks a gate the engine accepts. The loader
+ * enforces the same rule from its side by requiring a grant that only {@link ownerActivationGrant} mints.
+ *
+ * Which phase the engine is in is not local UI state: `slm/mining-engine-state.ts` owns it, and that
+ * machine has no edge from `IDLE_SOVEREIGN` to either work state, so a stray effect cannot fetch weights
+ * or mount a GPU.
  *
  * The prompt box does not translate anything locally. It posts to `/api/agent/intent`, where the real
  * M1 `IntentTranslator` and the real M2 policy run, and renders whatever they answered - including
@@ -25,8 +30,14 @@ import {
   readModelCatalog,
   type EdgeCapabilities,
   type EdgeModelArtifact,
-  type LoadProgress,
 } from "@/lib/slm/lazy-model-loader";
+import {
+  SLM_ENGINE_PHASE_LABEL,
+  createSlmMiningEngine,
+  isZeroEnergyPhase,
+  mayConsumeEdgeCompute,
+  type SlmEngineSnapshot,
+} from "@/lib/slm/mining-engine-state";
 
 const MEBIBYTE = 1024 * 1024;
 const NO_VALUE = "\u2014";
@@ -34,11 +45,10 @@ const NO_VALUE = "\u2014";
 /** The prompt the stub engine understands, offered as a starting point - never auto-submitted. */
 const EXAMPLE_PROMPT = "Mint 0.05 ETH worth of Mao Tang token";
 
-type ModelState =
-  | { readonly kind: "idle" }
-  | { readonly kind: "loading"; readonly progress: LoadProgress }
-  | { readonly kind: "ready"; readonly sha256: string; readonly id: string; readonly bytes: number }
-  | { readonly kind: "error"; readonly code: string; readonly reason: string };
+/** The two phases that mean the heavy path is engaged; `IDLE_SOVEREIGN` and `FAULT` are not. */
+function isEngaging(phase: SlmEngineSnapshot["phase"]): boolean {
+  return phase === "FETCHING_CORE" || phase === "MOUNTING_GPU";
+}
 
 export interface MiningEngineConsoleProps {
   /** Receives the digest of the current preview so the M5 guard can bind the assertion to it. */
@@ -65,8 +75,13 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
   const loader = useMemo(() => createEdgeModelLoader(), []);
   const catalog: readonly EdgeModelArtifact[] = useMemo(() => readModelCatalog(), []);
 
+  const engine = useMemo(() => createSlmMiningEngine(), []);
+  const [engineState, setEngineState] = useState<SlmEngineSnapshot>(() => engine.snapshot);
+
+  // Subscribing to the machine is not a transfer: this effect only mirrors phase changes into render.
+  useEffect(() => engine.subscribe(setEngineState), [engine]);
+
   const [capabilities, setCapabilities] = useState<EdgeCapabilities | null>(null);
-  const [model, setModel] = useState<ModelState>({ kind: "idle" });
   const [prompt, setPrompt] = useState(EXAMPLE_PROMPT);
   const [preview, setPreview] = useState<IntentSuccess | null>(null);
   const [refusal, setRefusal] = useState<AgentRefusal | null>(null);
@@ -87,39 +102,61 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
   }, []);
 
   const activate = useCallback(async () => {
-    const artifact = catalog[0];
-    if (artifact === undefined) {
-      setModel({
-        kind: "error",
-        code: "MODEL_NOT_CONFIGURED",
-        reason:
-          "no artifact is configured. Set NEXT_PUBLIC_AGENT_SLM_MODEL_URL, NEXT_PUBLIC_AGENT_SLM_MODEL_SHA256 " +
-          "and NEXT_PUBLIC_AGENT_SLM_MODEL_BYTES, then reload.",
-      });
+    // The one and only exit from IDLE_SOVEREIGN: an owner gesture that names a gate. This button is
+    // `mining-activation`; a signature is the other gate. Nothing else dispatches an owner intent.
+    const opened = engine.dispatch(
+      { kind: "owner-intent", gate: "mining-activation", reason: "owner pressed Activate AI Mining Node" },
+      Date.now(),
+    );
+    if (!opened.ok) {
       return;
     }
-    setModel({ kind: "loading", progress: { phase: "fetching", loadedBytes: 0, totalBytes: artifact.bytes, fraction: 0 } });
+
+    const artifact = catalog[0];
+    if (artifact === undefined) {
+      engine.dispatch(
+        {
+          kind: "fault",
+          code: "MODEL_NOT_CONFIGURED",
+          message:
+            "no artifact is configured. Set NEXT_PUBLIC_AGENT_SLM_MODEL_URL, NEXT_PUBLIC_AGENT_SLM_MODEL_SHA256 " +
+            "and NEXT_PUBLIC_AGENT_SLM_MODEL_BYTES, then reload.",
+        },
+        Date.now(),
+      );
+      return;
+    }
+
     try {
       const loaded = await loader.activate(artifact, {
         // The grant is minted here, inside the click handler - the whole "no auto download" guarantee
         // is this one line plus the absence of any other caller.
         grant: ownerActivationGrant("activate-ai-mining-node"),
-        onProgress: (progress) => setModel({ kind: "loading", progress }),
+        onProgress: (progress) =>
+          engine.reportProgress(
+            { loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes, fraction: progress.fraction },
+            Date.now(),
+          ),
       });
-      setModel({ kind: "ready", sha256: loaded.sha256, id: loaded.artifact.id, bytes: loaded.bytes.byteLength });
+      engine.dispatch({ kind: "core-verified", sha256: loaded.sha256, bytes: loaded.bytes.byteLength }, Date.now());
+      engine.dispatch({ kind: "gpu-bound", backend: artifact.runtime }, Date.now());
     } catch (error) {
-      setModel(
-        error instanceof ModelLoadError
-          ? { kind: "error", code: error.code, reason: error.message }
-          : { kind: "error", code: "UNKNOWN", reason: String(error) },
+      engine.dispatch(
+        {
+          kind: "fault",
+          code: error instanceof ModelLoadError ? error.code : "UNKNOWN",
+          message: error instanceof Error ? error.message : String(error),
+        },
+        Date.now(),
       );
     }
-  }, [catalog, loader]);
+  }, [catalog, engine, loader]);
 
   const release = useCallback(() => {
     loader.release();
-    setModel({ kind: "idle" });
-  }, [loader]);
+    // Explicit teardown: the machine returns to the zero-energy preview and drops everything it held.
+    engine.dispatch({ kind: "teardown", reason: "owner released the weights" }, Date.now());
+  }, [engine, loader]);
 
   const submit = useCallback(
     async (attemptSign: boolean) => {
@@ -139,23 +176,26 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
     [onDigest, prompt],
   );
 
+  const fetching = engineState.phase === "FETCHING_CORE" ? engineState.progress : null;
   const progressPercent =
-    model.kind === "loading" && model.progress.fraction !== null
-      ? Math.round(model.progress.fraction * 100)
-      : null;
+    fetching !== null && fetching.fraction !== null ? Math.round(fetching.fraction * 100) : null;
+  const engaging = isEngaging(engineState.phase);
+  const active = mayConsumeEdgeCompute(engineState);
 
   return (
     <section className="rounded-2xl border border-maotang-border bg-maotang-surface p-5">
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold tracking-wide text-maotang-mint">M1 · EDGE SLM MINING NODE</h2>
         <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-white/60">
-          {model.kind === "ready" ? "model resident" : "model not loaded"}
+          {SLM_ENGINE_PHASE_LABEL[engineState.phase]}
         </span>
       </header>
 
       <p className="mt-3 text-[11px] leading-relaxed text-white/45">
         The weights are fetched, length-checked and SHA-256 verified on this device only after you press the
-        button. Nothing is downloaded while this page is open.
+        button. Nothing is downloaded while this page is open: the engine sits in{" "}
+        <span className="font-mono">IDLE_SOVEREIGN</span> - a zero-energy preview with no weights resident and no
+        GPU requested - until an owner gesture names a network transaction or a mining activation.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
@@ -179,12 +219,12 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
         <button
           type="button"
           onClick={() => void activate()}
-          disabled={model.kind === "loading"}
+          disabled={engaging}
           className="rounded-lg bg-maotang-pink/20 px-3 py-2 text-xs font-semibold text-maotang-pink transition hover:bg-maotang-pink/30 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {model.kind === "loading" ? `Downloading\u2026 ${progressPercent ?? 0}%` : "Activate AI Mining Node"}
+          {engaging ? `Downloading\u2026 ${progressPercent ?? 0}%` : "Activate AI Mining Node"}
         </button>
-        {model.kind === "ready" ? (
+        {!isZeroEnergyPhase(engineState.phase) ? (
           <button
             type="button"
             onClick={release}
@@ -202,7 +242,7 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
         )}
       </div>
 
-      {model.kind === "loading" ? (
+      {fetching !== null ? (
         <div className="mt-3">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
             <div
@@ -211,21 +251,22 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
             />
           </div>
           <p className="mt-1 font-mono text-[11px] text-white/45">
-            {model.progress.phase} · {(model.progress.loadedBytes / MEBIBYTE).toFixed(1)} /{" "}
-            {(model.progress.totalBytes / MEBIBYTE).toFixed(1)} MiB
+            {SLM_ENGINE_PHASE_LABEL.FETCHING_CORE} · {(fetching.loadedBytes / MEBIBYTE).toFixed(1)} /{" "}
+            {(fetching.totalBytes / MEBIBYTE).toFixed(1)} MiB
           </p>
         </div>
       ) : null}
 
-      {model.kind === "ready" ? (
+      {engineState.phase === "ACTIVE" ? (
         <p className="mt-3 break-all text-[11px] text-maotang-mint">
-          Verified SHA-256 <span className="font-mono">{model.sha256}</span> over {model.bytes} bytes ({model.id}).
+          Verified SHA-256 <span className="font-mono">{engineState.verifiedSha256}</span> over{" "}
+          {engineState.verifiedBytes} bytes, backend <span className="font-mono">{engineState.backend}</span>.
         </p>
       ) : null}
 
-      {model.kind === "error" ? (
+      {engineState.fault !== null ? (
         <p className="mt-3 text-[11px] text-maotang-amber">
-          <span className="font-mono">{model.code}</span> — {model.reason}
+          <span className="font-mono">{engineState.fault.code}</span> — {engineState.fault.message}
         </p>
       ) : null}
 
@@ -300,8 +341,8 @@ export function MiningEngineConsole({ onDigest }: MiningEngineConsoleProps) {
           <button
             type="button"
             onClick={() => void submit(true)}
-            disabled={busy || model.kind !== "ready"}
-            title={model.kind !== "ready" ? "Activate the mining node first" : undefined}
+            disabled={busy || !active}
+            title={!active ? "Activate the mining node first" : undefined}
             className="mt-1 rounded-lg border border-maotang-amber/50 px-3 py-2 text-xs font-semibold text-maotang-amber transition hover:bg-maotang-amber/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Attempt signature (device enclave)

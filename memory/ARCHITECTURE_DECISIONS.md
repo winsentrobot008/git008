@@ -2,6 +2,53 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-029: whitepaper v3.1 promotes compliance and the threat model to first-class sections, and the console's heavy compute becomes an on-demand state machine
+
+**Status:** Accepted (implemented in `docs/WHITE_PAPER.md` §7/§8 - v3.0 -> v3.1 with the former sections 7-9
+renumbered to 9-11 - plus `frontend/src/lib/slm/mining-engine-state.ts` and the `MiningEngineConsole` wiring;
+`frontend` `npx tsc --noEmit` clean, `mobile-agent` `npm test` green over 160 tests (159 passing, 1 opt-in live
+leg skipped) and `npm run typecheck` clean. No contract, SDK or mobile-agent source changed)
+
+**Context:** Two gaps had accumulated. (1) The whitepaper carried compliance in a single table row (§5.3) and
+scattered prose, so the document investors, auditors and counsel read first stated the non-collection guarantee,
+the raw-biometrics -> secure-enclave -> ZK-nullifier pipeline and the threat families nowhere a reader would look.
+`docs/LEGAL_COMPLIANCE.md` and `docs/THREAT_MODEL.md` already existed, but nothing in the whitepaper cited them as
+normative. (2) The web console's M1 card held a private `useState` union (idle/loading/ready/error) with no notion
+of a *cheap resting state*, so "nothing is downloaded until you click" was a comment rather than a machine-checkable
+property.
+
+**Decision:**
+
+- **Compliance and security become numbered sections, not appendix prose.** Whitepaper v3.1 inserts §7
+  (Bio-Sovereign Compliance & Privacy Architecture: the privacy wall, the cryptographic isolation pipeline, the data
+  inventory, the GDPR/BIPA/PIPL mapping and the code-to-guarantee map) and §8 (Threat Model & Defense-in-Depth
+  Matrix: the security boundary, the M1-M5 layer table, and the four threats - remote trojan key extraction, physical
+  theft / forced biometric bypass, prompt injection / calldata tampering, and RPC replay - each with its mitigation
+  and its evidence row). The former sections 7-9 are renumbered 9-11 and every internal `§` cross-reference was
+  updated. `docs/LEGAL_COMPLIANCE.md` and `docs/THREAT_MODEL.md` are cited from §7/§8 and from §10 as the normative
+  companions.
+- **The console owns one phase machine.** `frontend/src/lib/slm/mining-engine-state.ts` exports `SlmMiningEngine`
+  and a pure `reduceSlmEngine(snapshot, trigger, nowMs)`. `IDLE_SOVEREIGN` is the zero-energy resting state; the only
+  triggers that leave it are owner intents carrying a closed `ComputeGateKind` (`network-transaction` |
+  `mining-activation`). The wake-up is exactly `FETCHING_CORE` -> `MOUNTING_GPU` -> `ACTIVE`, and
+  `core-verified`/`gpu-bound` arriving while idle is refused with `OWNER_INTENT_REQUIRED` - so a stray effect or a
+  resumed promise cannot fetch weights or mount a GPU. `MiningEngineConsole` now renders the machine's phase instead
+  of a private union and keeps the loader's owner-gesture grant as the second, independent guard.
+- **Time is injected and refusals are values.** `nowMs` is an explicit argument (matching `SpendWindowLedger` and the
+  telemetry collector) and refusals are returned rather than thrown, so a session is replayable from a log.
+
+**Consequences:** the two claims most likely to be challenged externally - "we never hold biometric data" and "heavy
+compute only runs when the owner asks" - each now have a numbered whitepaper section, a normative companion document,
+machine-checked guards and a repro command. The cost is that whitepaper section numbers 7-11 differ from v3.0, which
+is why v3.1's revision line names the inserted sections. `frontend/` has no test runner, so the state machine's gate
+is `npx tsc --noEmit` plus the transition table fitting on one screen; the repo should not grow a second test harness
+to cover it.
+
+**References:** `docs/WHITE_PAPER.md`, `docs/LEGAL_COMPLIANCE.md`, `docs/THREAT_MODEL.md`,
+`frontend/src/lib/slm/mining-engine-state.ts`,
+`frontend/src/components/agent-console/MiningEngineConsole.tsx`,
+`mobile-agent/slm/compute-center-adapter.ts`, `memory/ARCHITECTURE_DECISIONS.md` ADR-027 / ADR-028.
+
 ## 2026-10-09 - ADR-028: the biometric privacy wall is enforced by compile-time and runtime assertions, not by policy prose alone
 
 **Status:** Accepted (implemented in `mobile-agent/bio-auth/native-biometric-gate.ts`,
