@@ -90,7 +90,110 @@ monolith: the base stays small and hard to change, and growth happens above it.
 
 ---
 
-## 2. Where each pillar is enforced
+## 2. Device Owner Authentication & Proof of Humanity Architecture
+
+Everything in section 1 rests on one question: **is the human who authorised this actually the device's owner,
+and is this node actually a distinct person?** Two different problems hide behind that sentence, with two
+different answers. *Authentication* asks whether the person holding the phone is the owner. *Proof of humanity*
+asks whether a node is a distinct human rather than the ten-thousandth clone of one. The first is a hardware
+property; the second is a network property. This section specifies both, and labels each claim as **enforced
+today** or **specified** rather than letting the two blur.
+
+### 2.1 Native Device Owner Security (the generalised hardware gate)
+
+M5 was described as a *biometric* gate, which understated it. What the protocol actually requires is
+**device-owner authentication**: an assertion that the platform's own secured hardware produced over the exact
+digest being signed. Face ID and Touch ID are the preferred channels and the device passcode is an accepted one -
+it is the same Secure Enclave / StrongBox / platform-authenticator path, and refusing it would only push owners
+toward a worse workaround.
+
+- **The gate consumes signed challenges, never biometric data.** `NativeBridgeBiometricGate` accepts a
+  `method` of `"biometric"` or `"device-passcode"` and nothing else; it verifies the assertion's signature
+  over the challenge, requires `hardwareBacked === true`, and refuses a report of `false` outright. No
+  template, image or feature vector crosses the bridge - there is nothing to collect because nothing is sent.
+  This is the code half of the privacy wall in [`LEGAL_COMPLIANCE.md`](LEGAL_COMPLIANCE.md). **Enforced today**
+  (`mobile-agent/bio-auth/native-biometric-gate.ts`).
+- **The channel is named, not assumed.** A gate reports one of `secure-enclave`, `strongbox`,
+  `webauthn-platform` or `software-simulation`, and the simulated channel is only ever
+  `hardwareBacked: false`. **Enforced today** (`mobile-agent/bio-auth/biometric-gate.ts`).
+- **A strict policy refuses a software grant.** `requireHardwareBackedAuthorization` turns a non-hardware
+  assertion into a hard refusal (`AUTHORIZATION_NOT_HARDWARE_BACKED`) rather than a warning, and
+  `biometricThresholdWei = 0n` puts *every* leg behind the owner's hand. **Enforced today**
+  (`mobile-agent/signer/policy.ts`).
+- **Falling back changes the channel, not the gate.** A passcode grant is still challenge-bound,
+  freshness-checked and digest-bound; only the platform UI the owner saw changes.
+
+### 2.2 The three-layer Proof-of-Humanity framework
+
+Sybil resistance cannot rest on any single signal, because every single signal has a price. The framework stacks
+three - cheapest and most hardware-bound first - so a clone has to defeat all three at once.
+
+| Layer | Question it answers | Signal | Status |
+| --- | --- | --- | --- |
+| **L1 - Hardware attestation** | Is this a real, unshared device executing real work? | A TEE-signed execution trace bound to the node's key | **Enforced today** |
+| **L2 - Social graph** | Is this node vouched for by humans who are already in? | Attested, per-inviter-capped invitation edges | **Specified** |
+| **L3 - ZK behavioural proofs** | Does the node behave like one person over time? | Aggregate behaviour published as a zero-knowledge proof over a nullifier | **Partially enforced** |
+
+**L1 - Hardware attestation (enforced today).** `mobile-agent/signer/hardware-attestation.ts` produces and
+verifies a signed execution trace for a named workload (`inference` or `proof-generation`) executed at a
+named site (`local-enclave` or `compute-center`), so an offloaded result carries a verifiable statement of
+*where* it ran. On chain, `AIAgentRegistry.registerAgent(agentPubKey, hardwareProof, hardwareNullifier)`
+consumes exactly that proof and binds one hardware nullifier to one agent address; `InvalidHardwareProof` and
+`HardwareAlreadyBound` are the refusals that make a second registration from the same hardware fail closed. The
+authority is a `mock` in the current build and says so (`AttestationMode`); a hardware build substitutes
+`EnclaveAttestationAuthority` without changing a caller.
+
+**L2 - Social graph (specified).** L1 proves a device exists; it does not prove the device belongs to someone who
+knows anyone. L2 adds attestation edges: an activation is co-signed by an already-verified owner, the edge is
+capped per inviter, and resistance comes from the *cost of the edge* rather than from the number of edges. The
+mechanism is not implemented in this build and is not claimed to be - it is specified here so the activation
+economics in section 2.3 have something to hang on.
+
+**L3 - ZK behavioural proofs (partially enforced).** Uniqueness, not identity, is all the chain is allowed to
+learn. `mobile-agent/bio-auth/nullifier.ts` derives a non-reversible hardware nullifier and tracks it through
+`unseen -> pending -> consumed`, refusing reuse with `NullifierReplayError`; `HumanToken.claimHumanQuota(proof,
+nullifierHash)` verifies a Groth16 proof through the registry's `IZKVerifier` and refuses a repeat with
+`QuotaAlreadyClaimed`. What is **not** yet built is the behavioural half - the aggregate temporal proof
+(device-use cadence, work diversity, proximity history) compressed into something the chain can verify.
+`MaoTangMining` already carries and bounds the inputs such a proof would consume (`OutOfProximityRange`,
+`InvalidProofWindow`, `StaleProof`, `ReplayProof`), which is why this layer is *partially* enforced: the
+grounding data and the replay guards exist; the behavioural circuit does not.
+
+### 2.3 Three-tier anti-spoofing and linear compute vesting for newly activated nodes
+
+A newly activated node is the cheapest thing to fake and the most expensive thing to get wrong: it can be
+sybil-farmed before it has any history, and a network that pays a fresh node full emission is paying attackers to
+show up. The mechanism is therefore **tiered admission plus linear vesting**, so a node earns its way up while an
+attacker's capital is locked into paying for real work.
+
+**Tiering.** A node begins at the tier its weakest layer supports and rises only on evidence that is already
+verifiable on chain:
+
+| Tier | Admission requirement | Emission and capability |
+| --- | --- | --- |
+| **T0 - Probation** | One L1 hardware attestation plus owner-authorized activation | Rewards accrue but are **linearly vested** across the protocol epoch; per-epoch work is capped |
+| **T1 - Established** | L1 sustained over a minimum number of epochs, plus an L2 social-graph edge | Vesting shortens; compute-task caps rise |
+| **T2 - Sovereign** | L1 + L2 + a passing L3 behavioural proof | Full emission; eligible to vouch for new nodes |
+
+**Linear vesting.** Rewards a T0 node accrues are released proportionally across the vesting window rather than
+paid up front, so a sybil farm's cost is not a one-off registration but a recurring, real-compute bill stretched
+over the whole window - and unvested balance can be revoked the moment a layer fails. The settlement surfaces
+this needs already exist: `MaoTangMining` settles per `EPOCH_SECONDS = 1 days`, caps every epoch with
+`MAX_EPOCH_REWARD` and refuses past it with `EpochEmissionCapExceeded`, and bounds a single proof with
+`MAX_BLE_PINGS_PER_PROOF`, `MAX_COMPUTE_TASKS_PER_PROOF` and `MIN_COMPUTE_UNITS`. **The tier table and the
+vesting schedule are specified, not implemented**; what is enforced today is the epoch emission cap and the
+per-proof bounds a vesting schedule would sit on.
+
+**Fail-closed at every tier.** A tier is a ceiling, never a bypass: moving down a tier never relaxes the local
+policy gate, and no tier can sign a leg the owner did not authorize. The owner's `AutonomousWallet` policy runs
+identically at T0 and at T2 - see [`THREAT_MODEL.md`](THREAT_MODEL.md) for the physical-theft and replay cases
+this defends against.
+
+Recorded as **ADR-044** in `memory/ARCHITECTURE_DECISIONS.md`.
+
+---
+
+## 3. Where each pillar is enforced
 
 | Pillar | Product promise | Artifact | The gate that proves it |
 | --- | --- | --- | --- |
@@ -100,7 +203,7 @@ monolith: the base stays small and hard to change, and growth happens above it.
 
 ---
 
-## 3. What this vision does not claim
+## 4. What this vision does not claim
 
 - **Not a financial service, and never custodial.** MAOTANG is software. It does not hold user assets, and
   nothing here is an offer, a solicitation or a promise of return.
@@ -116,7 +219,7 @@ monolith: the base stays small and hard to change, and growth happens above it.
 
 ---
 
-## 4. Where to go next
+## 5. Where to go next
 
 | Document | What it answers |
 | --- | --- |

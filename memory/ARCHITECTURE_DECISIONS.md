@@ -2,6 +2,52 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-044: the M5 gate is generalised to *device-owner* authentication, and humanity is proven in three stacked layers instead of by any single signal
+
+**Status:** Accepted (`docs/PROJECT_VISION.md` section 2; `docs/THREAT_MODEL.md`;
+`mobile-agent/bio-auth/native-biometric-gate.ts`, `mobile-agent/bio-auth/biometric-gate.ts`,
+`mobile-agent/bio-auth/nullifier.ts`, `mobile-agent/signer/policy.ts`,
+`mobile-agent/signer/hardware-attestation.ts`, `contracts/src/AIAgentRegistry.sol`,
+`contracts/src/HumanToken.sol`, `contracts/src/MaoTangMining.sol`).
+Documentation-only: this ADR changes no runtime behaviour.
+
+**Context:** the docs called M5 a *biometric* gate. The code was never that narrow - `NativeBridgeBiometricGate`
+accepts `method: "biometric" | "device-passcode"`, and what it actually requires is a challenge-bound,
+freshness-checked assertion from an authenticated platform channel. Separately, the protocol's Sybil question was
+answered implicitly and differently in three places (`AIAgentRegistry` hardware binding, `HumanToken`
+personhood quota, `MaoTangMining` proof batches) with no single document stating the model, and with no stated
+policy for how a *newly activated* node earns emission.
+
+**Decision:**
+
+- **Rename the concept, keep the code.** The gate is *Native Device Owner Security*: Face ID / Touch ID preferred,
+  device passcode accepted, both through Secure Enclave / StrongBox / platform authenticator. The invariants are
+  unchanged and already enforced - a signed challenge only, `hardwareBacked === true` required, a named channel
+  (`secure-enclave` | `strongbox` | `webauthn-platform` | `software-simulation`), and
+  `requireHardwareBackedAuthorization` refusing a software grant outright. No raw biometric material crosses the
+  bridge, so there is nothing to collect.
+- **Humanity is three stacked layers, and each layer's status is written down.** L1 hardware attestation is
+  enforced today (`hardware-attestation.ts`; `AIAgentRegistry.registerAgent(agentPubKey, hardwareProof,
+  hardwareNullifier)` with `InvalidHardwareProof` / `HardwareAlreadyBound`). L3 is *partially* enforced: the
+  nullifier lifecycle (`unseen -> pending -> consumed`, `NullifierReplayError`) and the Groth16 personhood
+  claim (`claimHumanQuota`, `QuotaAlreadyClaimed`) exist, and `MaoTangMining` already bounds the behavioural
+  inputs (`OutOfProximityRange`, `InvalidProofWindow`, `StaleProof`, `ReplayProof`) - but the behavioural
+  circuit is not built. L2 social graph is **specified only**.
+- **Newly activated nodes enter tiered, with rewards linearly vested.** T0/T1/T2 admission is keyed to how many
+  layers a node can evidence; a T0 node's rewards vest across the epoch instead of paying out up front, so a sybil
+  farm's cost is a recurring, real-compute bill rather than a one-off registration. The settlement surfaces this
+  sits on already exist (`EPOCH_SECONDS`, `MAX_EPOCH_REWARD`, `EpochEmissionCapExceeded`,
+  `MAX_BLE_PINGS_PER_PROOF`, `MAX_COMPUTE_TASKS_PER_PROOF`, `MIN_COMPUTE_UNITS`); the tier table and the
+  vesting schedule are specified, not implemented.
+- **A tier is a ceiling, never a bypass.** No tier relaxes the local M2 policy gate, and no tier can produce a
+  signature the owner did not authorize.
+
+**Consequences:** the docs stop under-describing the gate and stop over-claiming the humanity model - every layer
+carries an explicit enforced/specified label, so a reader can tell a shipped guarantee from a roadmap item. The
+cost is that anti-spoofing tiering and vesting are now a written commitment the contracts do not yet implement;
+this ADR records that gap deliberately rather than leaving it implicit, and `docs/COLD_START_ROADMAP.md` remains
+where the schedule is expected to land.
+
 ## 2026-10-09 - ADR-043: the open-source agent stack is adopted as an *interface*, not a dependency, and every provider proposal re-enters the local M2/M5 gate
 
 **Status:** Accepted (`mobile-agent/slm/agent-action-bridge.ts`, `mobile-agent/test/ai-fuzzer-policy.test.ts`,
