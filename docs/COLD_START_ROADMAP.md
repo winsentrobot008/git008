@@ -1,7 +1,14 @@
 # Cold-start roadmap
 
-How a working protocol becomes a network other people can join. Three phases, each with an exit
-criterion that can be checked rather than asserted, and each one deliberately small enough to finish.
+How a working protocol becomes a network other people can join. Three phases, each with an exit criterion
+that can be checked rather than asserted, and each one deliberately small enough to finish.
+
+This roadmap uses the public terminology of `docs/WHITE_PAPER.md` §0.3: a participating device is a
+**Sovereign Edge Node**, and the network-side settlement for its work is **Protocol Compute & Verification
+Rewards**.
+
+> MAOTANG is an open-source, non-custodial software protocol. It does not provide financial services or
+> store personal biometric data, and it never takes custody of user assets.
 
 **Status legend:** ✅ done · 🟡 in progress · ⬜ not started
 
@@ -34,19 +41,20 @@ inference - with no server LLM call anywhere in the path.
 
 ---
 
-## Phase 2 - Pioneer Node Incentive Program ⬜
+## Phase 2 - Pioneer Sovereign Edge Node Program ⬜
 
-**Goal.** Reward the first operators who run an edge node honestly: real uptime, real telemetry, real
-signatures - and make cheating more expensive than contributing.
+**Goal.** Recognise the first operators who run a Sovereign Edge Node honestly: real uptime, real
+telemetry, real signatures - and make cheating more expensive than contributing, so that Protocol Compute
+& Verification Rewards flow to real work.
 
 **Why second.** Phase 1 produces something worth running. Phase 2 produces a reason to keep running it.
 
 | Item | Status | Notes |
 | --- | --- | --- |
-| Signed heartbeat from the edge node | 🟡 | `HardwareTelemetryCollector` and `agent-manager/src/mining/` already sign telemetry |
-| Node identity bound to a hardware proof | 🟡 | `AIAgentRegistry` (ADR-011: hardware-sealed node key) |
+| Signed heartbeat from the Sovereign Edge Node | 🟡 | `HardwareTelemetryCollector` and `agent-manager/src/mining/` already sign telemetry |
+| Node identity bound to a hardware proof (in-situ enclave isolation) | 🟡 | `AIAgentRegistry` (ADR-011: hardware-sealed node key) |
 | Pioneer cohort application + onboarding flow | ⬜ | needs a public form and a review checklist, not code |
-| Point/weight accounting for the cohort | ⬜ | must define what counts before anything pays out |
+| Point/weight accounting for the cohort | ⬜ | must define what counts before any reward is distributed |
 | Anti-farming rules (proof of distinct hardware, rate limits) | ⬜ | the interesting design problem; a naive uptime oracle is farmable |
 | Reputation visible to the operator | ⬜ | an operator who cannot see their own score cannot debug it |
 
@@ -54,37 +62,37 @@ signatures - and make cheating more expensive than contributing.
 claims are independently checkable (signatures, on-chain anchoring) and which are merely trusted, and
 say so plainly - the alternative is a points system that is trivially spoofed.
 
-**Exit criterion.** A cohort of independent operators runs nodes for a full window, their telemetry is
-verified against signatures, and the accounting is reproducible from public data alone.
+**Exit criterion.** A cohort of independent operators runs Sovereign Edge Nodes for a full window, their
+telemetry is verified against signatures, and the reward accounting is reproducible from public data alone.
 
 ---
 
-## Phase 3 - On-Chain Sustenance Yield Distribution ⬜
+## Phase 3 - On-Chain Protocol Compute & Verification Rewards ⬜
 
-**Goal.** Revenue the protocol already collects reaches the human owners it exists for, on-chain,
-without an operator in the middle.
+**Goal.** The Protocol Compute & Verification Rewards the protocol already collects reach the node
+operators they exist for, on-chain, without an intermediary.
 
-**Why third.** The contracts exist (P4 landed the dripper and the governor); what is missing is a
-revenue stream worth distributing and a governance process that can decide the split.
+**Why third.** The contracts exist (P4 landed the dripper and the governor); what is missing is a measured
+reward stream worth distributing and a governance process that can decide the split.
 
 | Item | Status | Notes |
 | --- | --- | --- |
-| `MaoTangSustenanceVault` fee accounting | ✅ | 0.5% swap + 1.00% graduation fees, native and token |
+| `MaoTangSustenanceVault` protocol-fee accounting | ✅ | 0.5% swap + 1.00% graduation fees, native and token |
 | `MaoTangSustenanceDripper` telemetry-gated drip with budget accounting | ✅ | ADR-015: P4 drip pays only from a released budget |
 | `fundDripBudget` / `setOwnerSustenanceTarget` owner initialization | ✅ | wired by `scripts/start-alpha.ps1` |
 | Emergency payout brake and native-outflow cap | ✅ | ADR-018 |
 | `MaoTangGovernor` weighted by `$mHUMAN` + node power | ✅ | proposal/vote/execute lifecycle, quorum 1000 bps |
-| A real revenue stream to distribute (not testnet fees) | ⬜ | Phase 2's node economy is the intended source |
+| A real reward stream to distribute (not testnet fees) | ⬜ | Phase 2's Sovereign Edge Node work is the intended source |
 | Cell-token micro-governance (1 `HumanToken` → 1,000,000 cells) | ⬜ | M1's cell division has a spec and no on-chain implementation |
-| Public, reproducible distribution audit | ⬜ | a distribution nobody can recompute is a rumour |
+| Public, reproducible distribution audit | ⬜ | a reward distribution nobody can recompute is a rumour |
 
 **Guardrail to settle before any distribution.** The vault can move real value, so the governance
 surface that controls it needs its own review: who may propose, what the quorum means when few holders
 exist at cold start, and how a hostile proposal is stopped. ADR-018's brake is a starting point, not a
 complete answer.
 
-**Exit criterion.** A measured revenue window is distributed to owners on-chain, and an independent
-party can recompute each owner's share from chain data and the published rules.
+**Exit criterion.** A measured reward window is distributed to node operators on-chain, and an independent
+party can recompute each operator's share from chain data and the published rules.
 
 ---
 
@@ -93,6 +101,8 @@ party can recompute each owner's share from chain data and the published rules.
 Stated so nobody assumes otherwise:
 
 - **A token sale.** Nothing here depends on or promises one.
+- **A financial product.** Fees and rewards described here are protocol mechanics, not an offer of
+  financial services or investment advice.
 - **Mainnet deployment.** Every address in this repository is a local Alpha deployment
   (`chainId 31337`); the manifest says so.
 - **Custodial anything.** The architecture is built on the key never leaving the owner's device; a

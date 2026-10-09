@@ -1,18 +1,31 @@
 <div align="center">
 
-# MAOTANG 猫糖 Protocol
+# MAOTANG: Decentralized Mobile AI Agent OS & Non-Custodial Edge Node Protocol
 
-### Bio-Sovereign Autonomous Agent OS &amp; Edge SLM Mining Engine
+### 猫糖 Protocol · Sovereign Edge Node Framework
 
-*An autonomous, mobile-native Personal Finance AI agent that works for exactly one human being - the
-biological owner whose face it unlocks for - and is paid through its own bonding curve and sustenance
-vault.*
+*Every participating device is a **Sovereign Edge Node**: a mobile device that runs an edge small
+language model on its own silicon, verifies zero-knowledge proofs locally, and keeps its signing key
+inside its own hardware secure enclave. No cloud dependency, no custody of user assets, and no
+biometric collection.*
+
+**Headline properties**
+
+- **Zero-Knowledge Node Verification** - personhood and hardware proofs are verified against a Groth16
+  verifier whose key is pinned at deployment, so a node can prove uniqueness without revealing an identity.
+- **In-situ Hardware Enclave Isolation** - key generation, policy evaluation and ECDSA signing happen
+  inside the device's secure enclave, behind a fail-closed backend that refuses until real hardware is
+  attached.
+- **WebGPU Lazy-Loaded SLM Core** - the ~400 MiB edge model is fetched, length-checked and SHA-256
+  verified only on an explicit owner gesture, then executed on-device through WebGPU/WASM.
+
+> **Disclaimer.** MAOTANG is an open-source, non-custodial software protocol. It does not provide financial services or store personal biometric data.
 
 [![Live demo](https://img.shields.io/badge/live%20demo-008ai.online-ff5fa2)](https://008ai.online)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.6-46e0b8)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
 [![Foundry](https://img.shields.io/badge/Foundry-forge%20test-black)](https://book.getfoundry.sh/)
-[![Mobile agent suite](https://img.shields.io/badge/mobile--agent%20suite-144%20passing-46e0b8)](#quick-start-for-developers)
+[![Mobile agent suite](https://img.shields.io/badge/mobile--agent%20suite-160%20tests-46e0b8)](#quick-start-for-developers)
 
 </div>
 
@@ -26,7 +39,7 @@ vault.*
 - [Trust model: what refuses by default](#trust-model-what-refuses-by-default)
 - [Repository map](#repository-map)
 - [Quick start for developers](#quick-start-for-developers)
-- [How to run the local WebGPU light node](#how-to-run-the-local-webgpu-light-node)
+- [How to run the local WebGPU Sovereign Edge Node](#how-to-run-the-local-webgpu-sovereign-edge-node)
 - [Protocol constants](#protocol-constants)
 - [Verification status](#verification-status)
 - [Contributing](#contributing)
@@ -40,9 +53,10 @@ data and your signing authority all live in a data centre you do not own, and th
 belong to whoever runs it. MAOTANG inverts that. The agent is a small language model running **on your
 device**, its key lives in **your device's secure enclave**, it signs only through a policy it cannot
 talk its way out of, and it is structurally incapable of acting for anyone but the one human whose
-biometric it can verify. It earns by running a DePIN node and by holding inventory on its own bonding
-curve, and its revenue routes back to a sustenance vault that pays its owner. The chain is the
-settlement layer, not the custodian: the identity is biological and the key never leaves the phone.
+biometric it can verify. It participates in the network as a Sovereign Edge Node - contributing DePIN
+compute and verification work and earning **Protocol Compute & Verification Rewards** - while the chain
+stays a settlement layer rather than a custodian of user assets: the identity is biological, and the key
+never leaves the device.
 
 ## Architecture
 
@@ -94,11 +108,11 @@ supplies its backend. That is deliberate (ADR-022): a silent fallback is the fai
 
 | | Pillar | What it does | Where it lives |
 | --- | --- | --- | --- |
-| **M1** | Edge SLM &amp; cell division | Offline `SlmEngine` (llama.cpp / ONNX Runtime Mobile / MLC / CoreML / TFLite) plus a closed intent schema. 1 `HumanToken` maps into 1,000,000 cell tokens for micro-governance and liquid yield distribution. | `mobile-agent/slm/`, `frontend/src/lib/slm/` |
-| **M2** | Autonomous local wallet | Encrypted secure-enclave storage; the agent manages keys, signatures and broadcast inside owner-set thresholds. One signing path, no unchecked sibling. | `mobile-agent/signer/`, `frontend/src/components/agent-console/` |
-| **M3** | Yield, sustenance &amp; mining | Energy-efficient yield farming and bonding-curve liquidity monitoring; fees route through the sustenance vault back to the owner. | `contracts/src/`, `agent-manager/` |
-| **M4** | Mobile light node | Secure RPC verification against the EVM chain, trustless state validation on the terminal, and the guarded public endpoint. | `frontend/src/lib/chain.ts`, `scripts/rpc-guard.mjs` |
-| **M5** | Bio-sovereign anti-sybil | Biometric binding and zero-knowledge nullifiers: one living human maps to exactly one identity and one non-reusable proof state. | `mobile-agent/bio-auth/`, `frontend/src/lib/agent/webauthn.ts` |
+| **M1** | Sovereign Edge Node SLM &amp; cell division | Offline `SlmEngine` (llama.cpp / ONNX Runtime Mobile / MLC / CoreML / TFLite) plus a closed intent schema, lazy-loaded through WebGPU/WASM against a pinned SHA-256. 1 `HumanToken` maps into 1,000,000 cell tokens for micro-governance and protocol reward distribution. | `mobile-agent/slm/`, `frontend/src/lib/slm/` |
+| **M2** | Autonomous local wallet | In-situ hardware enclave isolation: keys, signatures and broadcast stay inside the owner-set threshold, with one signing path and no unchecked sibling. | `mobile-agent/signer/`, `frontend/src/components/agent-console/` |
+| **M3** | Compute, verification &amp; rewards | Energy-efficient DePIN compute and verification work plus bonding-curve monitoring; **Protocol Compute &amp; Verification Rewards** route back to the node operator. | `contracts/src/`, `agent-manager/` |
+| **M4** | Sovereign edge node light client | Secure RPC verification against the EVM chain, trustless state validation on the terminal, and the guarded public endpoint. | `frontend/src/lib/chain.ts`, `scripts/rpc-guard.mjs` |
+| **M5** | Bio-sovereign anti-sybil | Zero-knowledge node verification: biometric binding plus one-time ZK nullifiers, so one living human maps to exactly one identity and one non-reusable proof state. No raw biometric template is ever recorded, transmitted or stored. | `mobile-agent/bio-auth/`, `frontend/src/lib/agent/webauthn.ts` |
 
 ## Trust model: what refuses by default
 
@@ -153,7 +167,7 @@ cd git008
 cd mobile-agent
 npm install
 npm run typecheck     # tsc -p tsconfig.json --noEmit
-npm test              # 144 tests: calldata vs Foundry vectors, policy caps, enclave and biometric refusals
+npm test              # 160 tests: calldata vs Foundry vectors, policy caps, enclave and biometric refusals
 ```
 
 **2. The contracts (M3) and a local chain**
@@ -189,9 +203,9 @@ cd agent-client && npm run typecheck && npm test
 Type and build gates run **inside each subproject**, never from the repository root: each app is
 independently buildable and independently deployable.
 
-## How to run the local WebGPU light node
+## How to run the local WebGPU Sovereign Edge Node
 
-The console at `/agent` is the light node's cockpit. The model path is deliberately manual - nothing
+The console at /agent is the Sovereign Edge Node's cockpit. The model path is deliberately manual - nothing
 is fetched until you ask for it.
 
 1. Put a quantised 0.5B artifact somewhere the browser can reach over HTTP(S), and compute its digest:
@@ -235,14 +249,14 @@ redeployment never leaves this document lying:
 | Swap fee / graduation fee | 0.5% / 1.00% |
 | Graduation target | 5 ETH of reserve |
 | `$mHUMAN` | ERC-20, **6 decimals** (micro-units), minted by a Groth16 personhood claim |
-| Cell division | 1 `HumanToken` → 1,000,000 cell tokens (micro-governance + liquid yield) |
+| Cell division | 1 `HumanToken` → 1,000,000 cell tokens (micro-governance + protocol reward distribution) |
 | Public RPC | `https://rpc.008ai.online` (verified serving `eth_chainId` → `0x7a69`) |
 
 ## Verification status
 
 | Gate | State |
 | --- | --- |
-| `mobile-agent`: `npm run typecheck` + `npm test` | clean; **144 tests, 0 failures** (1 opt-in live leg skipped by default) |
+| `mobile-agent`: `npm run typecheck` + `npm test` | clean; **160 tests, 0 failures** (1 opt-in live leg skipped by default) |
 | `frontend`: `npx tsc --noEmit` + `npm run build` | clean; build emits `○ /agent` and `ƒ /api/agent/{intent,status}` |
 | Web console pipeline (production build, live Anvil) | preview 200 with digest `0xf37c10f6…c779`; hostile prompt 422 `UNSUPPORTED_REQUEST`; over-cap prompt 422 `AMOUNT_OUT_OF_BOUNDS`; tightened window cap 403 `WINDOW_CAP_EXCEEDED`; sign attempt refused `EnclaveUnavailableError` |
 
@@ -266,5 +280,5 @@ Two repository rules that surprise newcomers, stated up front:
 ---
 
 <div align="center">
-<em>MAOTANG Protocol · an agent that cannot spend your money, because it cannot spend without you.</em>
+<em>MAOTANG Protocol · non-custodial by construction: the agent cannot sign without you.</em>
 </div>

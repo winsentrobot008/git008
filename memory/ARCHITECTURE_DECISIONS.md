@@ -2,6 +2,51 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-030: public documentation adopts the decentralized-AI-edge-node framework - Sovereign Edge Node and Protocol Compute & Verification Rewards - and states the non-custodial position explicitly
+
+**Status:** Accepted (implemented in `README.md`, `docs/WHITE_PAPER.md` §0.3 plus the module tables, and
+`docs/COLD_START_ROADMAP.md`; documentation only - no source, contract or test changed, so both
+`npx tsc --noEmit` gates and `mobile-agent` `npm test` are unaffected). `README.md` is normally protected by
+`.git/hooks/pre-commit`; this change carries an explicit owner instruction, so that one commit was made with
+`--no-verify`. The exception is recorded here rather than by weakening the hook.
+
+**Context:** The public-facing language had drifted away from the framework the protocol is actually built on.
+`README.md` opened with "Personal Finance AI agent ... paid through its own bonding curve and sustenance vault",
+and the whitepaper's vision block called the device a "区块链矿工与主权财富管家". That framing is both inaccurate
+about the architecture - the key never leaves the device and the protocol never takes custody - and the most
+regulatory-sensitive vocabulary available, because financial-services and custody language belongs to regimes
+that do not describe a non-custodial verification protocol holding no raw biometric data. Meanwhile the terms the
+code actually implements - local ZK verification, in-situ enclave isolation, a lazy-loaded WebGPU SLM, one-shot
+nullifiers - were buried far down the page.
+
+**Decision:**
+
+- **Two canonical public terms, defined once.** `docs/WHITE_PAPER.md` gains §0.3 "对外术语表 (Public terminology)":
+  a participating device is a **Sovereign Edge Node**, and the network-side settlement for its work is
+  **Protocol Compute & Verification Rewards**. Both map one-to-one onto existing modules (Module 1/2/4/5, and
+  Module 3 respectively), and the section states explicitly that the naming changes no implemented behaviour.
+- **The showcase leads with the three verifiable properties.** The README header is reframed to
+  "MAOTANG: Decentralized Mobile AI Agent OS & Non-Custodial Edge Node Protocol", and the value proposition
+  highlights Zero-Knowledge Node Verification, In-situ Hardware Enclave Isolation and the WebGPU Lazy-Loaded SLM
+  Core - each already enforced in code and covered by a gate.
+- **The non-custodial position is stated, not implied.** The README carries the disclaimer "MAOTANG is an
+  open-source, non-custodial software protocol. It does not provide financial services or store personal biometric
+  data."; whitepaper §0.3 and the roadmap intro repeat it, and the roadmap's "deliberately not on this roadmap"
+  list gains "a financial product".
+- **Financial vocabulary leaves the outward-facing copy, not the code.** Contract names
+  (`MaoTangSustenanceVault`, `MaoTangMining`), fee constants and vault mechanics keep their real names in the
+  technical sections - they are facts about the implementation - while the value proposition, pillar table, module
+  summaries and roadmap phases describe rewards rather than earnings, yield, revenue or payouts.
+
+**Consequences:** the public description now matches what a reviewer can re-run, and the two canonical terms are
+greppable across `README.md` and `docs/`. The cost is that older documents (`docs/ARCHITECTURE_5_PILLARS.md`,
+`docs/MAOTANG_ARCHITECTURE.md`, ADR-020) still use the previous module names; they are referenced rather than
+rewritten here and should be migrated when next touched. `README.md` remains hook-protected, so a future README
+change again needs an explicit owner instruction plus `--no-verify`.
+
+**References:** `README.md`, `docs/WHITE_PAPER.md` §0.3 and the Module 1/3/4/5 tables, `docs/COLD_START_ROADMAP.md`,
+`docs/LEGAL_COMPLIANCE.md`, `memory/ARCHITECTURE_DECISIONS.md` ADR-027 / ADR-029.
+
 ## 2026-10-09 - ADR-029: whitepaper v3.1 promotes compliance and the threat model to first-class sections, and the console's heavy compute becomes an on-demand state machine
 
 **Status:** Accepted (implemented in `docs/WHITE_PAPER.md` §7/§8 - v3.0 -> v3.1 with the former sections 7-9

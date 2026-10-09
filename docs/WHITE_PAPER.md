@@ -1,26 +1,26 @@
 # MAOTANG Protocol — White Paper v3.1
 
-**猫糖协议白皮书 v3.1 — 移动端原生自主 AI 矿工与主权财富管家**
+**猫糖协议白皮书 v3.1 — 去中心化移动 AI Agent OS 与非托管（Non-Custodial）主权边缘节点协议**
 
-*Revision: v3.1, 2026-10-09. 本文取代 `docs/WHITEPAPER_v2.md`（v2.2），并把协议重组为 5 个可独立实现、可独立验收的模块。v3.1 新增第 7 节（生物主权合规与隐私架构）与第 8 节（威胁模型与纵深防御矩阵），把合规与安全从散落的 §5.3 升级为独立、可审计的一等公民。*
+*Revision: v3.1, 2026-10-09. 本文取代 `docs/WHITEPAPER_v2.md`（v2.2），并把协议重组为 5 个可独立实现、可独立验收的模块。v3.1 新增第 7 节（生物主权合规与隐私架构）与第 8 节（威胁模型与纵深防御矩阵），把合规与安全从散落的 §5.3 升级为独立、可审计的一等公民。对外术语统一为：参与设备 = **Sovereign Edge Node（主权边缘节点）**，网络侧奖励 = **Protocol Compute & Verification Rewards（协议算力与验证奖励）**（见 §0.3）。*
 
 ---
 
 ## 0. 核心愿景 (Core Vision)
 
-> **一个自主的、移动端原生的个人理财 AI Agent，作为区块链矿工与主权财富管家，只服务于其唯一的生物主人；由 MAOTANG Bonding Curve 与 Sustenance Vault 协议驱动。**
+> **一个自主的、移动端原生的 AI Agent OS：每台参与设备都是一个 Sovereign Edge Node（主权边缘节点），只服务于其唯一的生物主人，并独立校验零知识证明与链上状态。**
 
-Agent 是主人与网络之间的**唯一媒介**：主人不直接触碰合约、不管理 gas、不盯盘。主人只做三件事 —— 表达意图、做终极决策、消费收益。其余（密钥、签名、广播、曲线监控、挖矿、收益回流）由本地 Agent 自主完成，并且**全部发生在主人的设备上**。
+Agent 是主人与网络之间的**唯一媒介**：主人不直接触碰合约、不管理 gas、不盯盘。主人只做三件事 —— 表达意图、做终极决策、领取协议奖励。其余（密钥、签名、广播、曲线监控、边缘算力、验证与奖励结算）由本地 Agent 在 Sovereign Edge Node 上自主完成，并且**全部发生在主人的设备上**。
 
 ### 0.1 五支柱总览 (The Five Pillars)
 
 | # | 模块 | 一句话职责 | 当前状态 |
 | --- | --- | --- | --- |
-| 1 | Edge SLM & Cell Division | 端侧小模型作为唯一人机接口；创世配额细胞化用于微治理与流动性分配 | SLM ✅ / 细胞化 ⬜ |
+| 1 | Sovereign Edge Node SLM & Cell Division | 端侧小模型作为唯一人机接口；创世配额细胞化用于微治理与奖励分配 | SLM ✅ / 细胞化 ⬜ |
 | 2 | Autonomous Local Wallet | 加密本地安全飞地存储；在阈值内自主签名与广播 | ✅ 接口层 / ⬜ 真实移动飞地 |
-| 3 | Yield, Sustenance & Mining | 非 PoW 能效挖矿 + 联合曲线流动性监控；手续费经金库回流主人 | ✅ |
-| 4 | Mobile Blockchain Light Node | 移动端 P2P / 安全 RPC 状态校验，实现免信任状态验证 | 🟡 只读 RPC + 心跳 / ⬜ 轻客户端 |
-| 5 | Bio-Sovereign Anti-Sybil | ZK / 生物认证把 Agent 与细胞代币绑定到唯一生物主人 | ✅ 绑定与 ZK / ⬜ 生物特征通道 |
+| 3 | Yield, Sustenance & Mining | 非 PoW 能效算力与验证 + 联合曲线流动性监控；Protocol Compute & Verification Rewards 经金库回流节点主人 | ✅ |
+| 4 | Sovereign Edge Node Light Client | 边缘节点 P2P / 安全 RPC 状态校验，实现免信任状态验证 | 🟡 只读 RPC + 心跳 / ⬜ 轻客户端 |
+| 5 | Bio-Sovereign Anti-Sybil | Zero-Knowledge Node Verification + 生物认证把 Agent 与细胞代币绑定到唯一生物主人 | ✅ 绑定与 ZK / ⬜ 生物特征通道 |
 
 **状态图例**：✅ 已实现并有可复现证据；🟡 部分实现（有明确缺口）；⬜ 路线图（尚未落地，见第 9 节里程碑）。
 
@@ -28,16 +28,27 @@ Agent 是主人与网络之间的**唯一媒介**：主人不直接触碰合约�
 
 本白皮书对每个模块都标注**已实现 / 路线图**。任何“已实现”声明必须能指向仓库内的源码或验证命令；任何“路线图”项不得被当作现有能力对外描述。指标、地址与常量一律以源码为准，本文不复制易腐的部署地址 —— 实时地址的唯一真源是 `frontend/config/contracts.json`（每次部署由 `contracts/scripts/deploy-testnet.ts` 重写）。
 
+### 0.3 对外术语表（Public terminology）
+
+对外沟通统一使用下面两个术语。二者与源码中的模块名一一对应，**不改变任何已实现行为**：
+
+| 术语 | 含义 | 源码对应 |
+| --- | --- | --- |
+| **Sovereign Edge Node（主权边缘节点）** | 任何一台代表其唯一生物主人参与网络的设备：本地运行端侧 SLM、在硬件飞地内签名、并独立校验零知识证明与链上状态 | Module 1 / 2 / 4 / 5（`mobile-agent/`、`frontend/`） |
+| **Protocol Compute & Verification Rewards（协议算力与验证奖励）** | 对真实物理 / 计算工作与验证贡献的协议侧结算，由**已注资**的奖励金库支付、**从不增发** | Module 3（`contracts/src/MaoTangMining.sol`） |
+
+> MAOTANG 是一个开源、**非托管（non-custodial）**的软件协议：它不提供金融服务，不托管任何用户资产，也不记录、传输或存储原始生物特征模板。密钥永远不离开 Sovereign Edge Node。
+
 ---
 
 ## 1. Module 1 — Edge Small Language Model (SLM) & Cell Division
 
-**职责**：AI 模型是生物主人与网络之间的**唯一媒介（sole media / interface）**。主人用人话表达意图，模型把它翻译成链上调用；网络的一切回执也由模型翻译回主人能懂的话。
+**职责**：AI 模型是生物主人与网络之间的**唯一媒介（sole media / interface）**，运行在 Sovereign Edge Node 上。主人用人话表达意图，模型把它翻译成链上调用；网络的一切回执也由模型翻译回主人能懂的话。
 
 ### 1.1 已实现（端侧 SLM 运行时）
 
 - **单接口、双后端**：`agent-client/src/slm/` 用一个 `SlmEngine` 接口同时封装 `llama.cpp`（`node-llama-cpp`，GGUF）与 ONNX Runtime（`onnxruntime-node`，INT4）。两个原生模块都是**可选依赖**，通过动态 import 载入，因此包在没有它们时仍能构建与测试。
-- **默认模型**：Qwen2.5-0.5B-Instruct INT4，权重约 397 MiB；常驻内存估算计入 fp16 KV cache（`2 * layers * kv_heads * head_dim * 2 * context`）加运行开销，硬上限 **500 MiB**，超预算模型默认被拒绝（除非显式 `allowOverBudget`）。这条上限就是“手机上真能跑”的工程边界。
+- **默认模型**：Qwen2.5-0.5B-Instruct INT4，权重约 397 MiB；常驻内存估算计入 fp16 KV cache（`2 * layers * kv_heads * head_dim * 2 * context`）加运行开销，硬上限 **500 MiB**，超预算模型默认被拒绝（除非显式 `allowOverBudget`）。这条上限就是“Sovereign Edge Node 上真能跑”的工程边界。
 - **本地性是一条断言，不是一个愿望**：`assertNoCloudDependencies()` 会拒绝任何 endpoint / base URL / API key / token 字段；`mode: "native"` 失败时**大声报错**，而不是悄悄降级到模拟引擎。意图解析不依赖任何云端 LLM。
 - **两个严格工具（strict JSON Schema）**：`agent-client/src/intents/` 定义 `claim_mhuman_quota` 与 `swap_micro_human`，ChatML system prompt 强制模型只输出**一次**工具调用；`parseToolCall()` 抽取 JSON、拒绝未知工具、并在任何参数能到达钱包之前完成校验。
 - **可测证据**：`agent-client/test/local-agent.test.ts` 在 `simulated` 模式驱动整条管线（CI 里覆盖 tool calling），并断言原生路径缺失时**明确失败**而非静默。
@@ -55,7 +66,7 @@ Agent 是主人与网络之间的**唯一媒介**：主人不直接触碰合约�
 把 1 份配额细分为 **1,000,000 个可独立寻址的 Cell 单元**，用于：
 
 1. **微治理（micro-governance）**：每个 Cell 一票，主人可把部分 Cell 委托给 Agent 策略池，而不是把全部治理权一次性押上。
-2. **流动性收益分发（liquid yield distribution）**：金库回流收益按 Cell 权重结算，支持“只分红一部分、保留其余主权”。
+2. **协议奖励分发（protocol reward distribution）**：金库结算的 Protocol Compute & Verification Rewards 按 Cell 权重分配，支持“只领取一部分、保留其余主权”。
 
 Cell 化的最小可行映射是 **1 Cell = 1 $mHUMAN 微单位**（配额恰好 1,000,000 个单位，天然整除）。**落地前必须先出 ADR**：Cell 是 (a) 现有 ERC-20 的记账视图 / (b) 独立 ERC-20 / (c) NFT 家族 —— 三者对 gas、可组合性与反女巫边界的影响完全不同。当前代码**不实现**任何 Cell 语义，不得对外声称已具备。
 
@@ -102,9 +113,9 @@ cd D:\git008\mobile-agent; npm run typecheck; npm test  # 阈值策略、唯一�
 
 ---
 
-## 3. Module 3 — Yield, Sustenance & Mining Engine
+## 3. Module 3 — Yield, Sustenance & Mining Engine（Compute, Verification & Rewards）
 
-**职责**：非 PoW 的能效收益耕作 + 联合曲线流动性自动监控；手续费经 Sustenance Vault 回流主人。这是“AI 即劳动力”的经济引擎。
+**职责**：非 PoW 的边缘算力与验证工作 + 联合曲线流动性自动监控；Protocol Compute & Verification Rewards 经 Sustenance Vault 回流 Sovereign Edge Node 的节点主人。这是“AI 即劳动力”的经济引擎。
 
 ### 3.1 曲线与费率（已实现 ✅）
 
@@ -118,7 +129,7 @@ cd D:\git008\mobile-agent; npm run typecheck; npm test  # 阈值策略、唯一�
 
 曲线为 **虚拟储备上的恒定乘积**（`k = (R + Rv) * (S + Sv)`），整数除法一律向池子截断，因此不变量不会逆向漂移。链下镜像 `sdk/src/curve-math.ts` 实现同一组公式，前端可在提交交易前报价。
 
-### 3.2 挖矿：非 PoW 的能效路径（已实现 ✅）
+### 3.2 边缘算力与验证奖励：非 PoW 的能效路径（已实现 ✅）
 
 `contracts/src/MaoTangMining.sol` 继承 `AgentGated`，每个入口都带同一道 `requireAuthorizedAgent` 门槛。`submitMiningProof(bytes32 proofType, bytes proofData)` 只接受两种**固定 192 字节**载荷：
 
@@ -127,10 +138,10 @@ cd D:\git008\mobile-agent; npm run typecheck; npm test  # 阈值策略、唯一�
 
 **为什么这不是 PoW，以及为什么节能**：
 
-- 不消耗哈希算力去竞争出块；奖励来自**真实物理/计算工作的证明**（近邻证明 + 计算证明），社会成本对应真实产出。
+- 不消耗哈希算力去竞争出块；**Protocol Compute & Verification Rewards** 来自**真实物理/计算工作的证明**（近邻证明 + 计算证明），社会成本对应真实产出。
 - 每条证明只计分一次：nullifier `keccak256(abi.encode(proofType, agent, proofData))` 在计分前落盘，重放相同字节 revert `ReplayProof`。
 - `background-miner.mjs` 是超低功耗 worker：单个 `unref()` 的占空比定时器、每类证明只取最新 N 条、**低于电量地板时暂停 NPU 批处理**（除非在充电）、本地去重、并对 epoch 上限做前置检查。
-- 奖励先累计在 `pendingMiningRewards[agent]`，受每 epoch 硬上限 `MAX_EPOCH_REWARD`（每天一个人类配额）约束；`claimMiningRewards()` 从合约奖励金库转出微单位，而奖励金库由 `fundRewardVault`（`transferFrom`）注资、**从不增发** —— 因此挖矿不会稀释持有者。
+- **Protocol Compute & Verification Rewards** 先累计在 `pendingMiningRewards[agent]`，受每 epoch 硬上限 `MAX_EPOCH_REWARD`（每天一个人类配额）约束；`claimMiningRewards()` 从合约奖励金库转出微单位，而奖励金库由 `fundRewardVault`（`transferFrom`）注资、**从不增发** —— 因此挖矿不会稀释持有者。
 
 ### 3.3 金库与回流：主人如何真正拿到钱（已实现 ✅）
 
@@ -142,7 +153,7 @@ cd D:\git008\mobile-agent; npm run typecheck; npm test  # 阈值策略、唯一�
 
 - 跨链结算（`SustenanceVaultSpoke` 已在仓库，Phase P3 的 spoke/hub 路由与不变量见 `docs/MAOTANG_ARCHITECTURE.md` §14）。
 - 法定货币出金通道与“无感消费”清算（v2.2 §5.2 的目标，尚未落地）。
-- 挖矿心跳上链：当前 `MaoTangMining` 没有能力注册入口，心跳只有链下编排器通道 —— 这是一个**已登记缺口**，需要新增第三种 proof type 并单独评审（§13.2）。
+- 节点算力心跳上链：当前 `MaoTangMining` 没有能力注册入口，心跳只有链下编排器通道 —— 这是一个**已登记缺口**，需要新增第三种 proof type 并单独评审（§13.2）。
 
 ### 3.5 模块 3 验收
 
@@ -153,13 +164,13 @@ cd D:\git008\agent-manager; python test/mining_e2e.py
 
 ---
 
-## 4. Module 4 — Mobile Blockchain Light Node
+## 4. Module 4 — Sovereign Edge Node Light Client
 
-**职责**：在移动终端上对 EVM 链做 P2P / 安全 RPC 校验，让“状态是真的是假的”由设备自己判断，而不是相信某台服务器。
+**职责**：在每个 Sovereign Edge Node（移动终端）上对 EVM 链做 P2P / 安全 RPC 校验，让“状态是真的是假的”由设备自己判断，而不是相信某台服务器。
 
 ### 4.1 已实现
 
-- **能力广播心跳**：`agent-client/src/telemetry.ts` 采集本机能力（node 版本、平台、架构、CPU、内存、GPU 与 **实探测** 的 NVENC、FFmpeg 路径、SLM 权重指纹），规范化后哈希，用 **secp256k1 ECDSA** 对 `sha256(digest)` 签名，形成 `TelemetryEnvelope = { proofType, agent, sequence, timestamp, hardware }`。
+- **能力广播心跳**：`agent-client/src/telemetry.ts` 采集 Sovereign Edge Node 的能力（node 版本、平台、架构、CPU、内存、GPU 与 **实探测** 的 NVENC、FFmpeg 路径、SLM 权重指纹），规范化后哈希，用 **secp256k1 ECDSA** 对 `sha256(digest)` 签名，形成 `TelemetryEnvelope = { proofType, agent, sequence, timestamp, hardware }`。
 - **诚实的签名边界**：签名只能证明“持有节点密钥的 worker 产生了该报文”，**不能**证明某个链上地址产生了它 —— 从公钥派生地址需要 keccak256，而 Node 标准库不提供。编排器把配置的 agent 地址记在签名旁边，具备 keccak 的校验方日后可闭环。这是**已登记的已知限制**，不要当成已解决。
 - **可插拔传输**：`HardwareTelemetryCollector.sendHeartbeat()` POST 到 `MAOTANG_HEARTBEAT_URL`（回退 `MAOTANG_TELEMETRY_URL`）；气隙节点与测试使用 `log` 传输。循环是 fail-soft 的：广播失败只记录并排下一次 tick —— 到不了编排器的节点仍然要能干活。
 - **密钥纪律**：worker 私钥是**独立变量**（`MAOTANG_WORKER_PRIVATE_KEY`），必须是专用节点密钥；复用部署密钥意味着节点密钥泄露即部署账户被清空。
@@ -197,7 +208,7 @@ cd D:\git008\agent-client; npm test        # 心跳、指纹与签名往返
 
 ## 5. Module 5 — Bio-Sovereign Anti-Sybil & Security Layer
 
-**职责**：用零知识证明与生物认证，把 Agent 与 Cell 单元**严格绑定到唯一的生物主人**，让“伪人批量生成”和“黑客整体接管”在结构上不成立。
+**职责**：用零知识证明（Zero-Knowledge Node Verification）与生物认证，把每个 Sovereign Edge Node 上的 Agent 与 Cell 单元**严格绑定到唯一的生物主人**，让“伪人批量生成”和“黑客整体接管”在结构上不成立。
 
 ### 5.1 已实现（ZK 人格证明 + 硬件 nullifier 强绑定）
 
@@ -248,10 +259,10 @@ cd D:\git008\mobile-agent; npm test    # 生物门禁拒绝路径、断言绑定
 | 人均配额 | `HUMAN_QUOTA = 1,000,000 × 10^6` | 同上 |
 | 全局上限 | `MAX_GLOBAL_SUPPLY = 8,300,000,000 × 1,000,000 × 10^6` | 同上 |
 | 铸造路径 1 | `claimHumanQuota(proof, nullifierHash)`（需人格证明，永不超过上限） | 同上 |
-| 铸造路径 2 | 挖矿奖励从**已注资**的奖励金库 `transferFrom` 转出，**不增发** | `contracts/src/MaoTangMining.sol` |
+| 铸造路径 2 | Protocol Compute & Verification Rewards 从**已注资**的奖励金库 `transferFrom` 转出，**不增发** | `contracts/src/MaoTangMining.sol` |
 | 费用去向 | Swap 0.5% / 毕业 1.00% → `MaoTangSustenanceVault` → Dripper 按预算回流 | `MaoTangSustenanceVault.sol`、`MaoTangSustenanceDripper.sol` |
 
-**路线图 ⬜**：v2.2 的 70% / 15% / 10% / 5% 分配（人头配额与 AI 挖矿池、DEX 流动性储备、边缘算力与 DePIN 生态、协议安全与审计金库）是**目标设计**；当前合约只硬编码了全局上限与人均配额，分配曲线尚未在合约中实现。Cell 化（§1.2）落地后，配额的治理与收益分发表达式需要同步确定。
+**路线图 ⬜**：v2.2 的 70% / 15% / 10% / 5% 分配（人头配额与 AI 挖矿池、DEX 流动性储备、边缘算力与 DePIN 生态、协议安全与审计金库）是**目标设计**；当前合约只硬编码了全局上限与人均配额，分配曲线尚未在合约中实现。Cell 化（§1.2）落地后，配额的治理与 Protocol Compute & Verification Rewards 分发表达式需要同步确定。
 
 ---
 
@@ -408,7 +419,7 @@ cd D:\git008\mobile-agent; npm test    # 生物门禁拒绝路径、断言绑定
 - **本地乐观登记表**：`HardwareNullifierRegistry`（`reserve` / `consume` / `release` / `markSpentOnChain`）阻止同一会话内用同一 nullifier 并发广播两笔；`pending` 与 `consumed` 都算已花费。它是**乐观守卫，不是重放保护**，必须与链对账、绝不取代链。
 - **格式强校验**：nullifier 必须是**非零规范 BN254 标量**（`isCanonicalScalar`）。非规范输入会被 `Groth16Verifier` 静默返回 `false`，从而白白烧掉 gas，因此在签名前就被拒绝。
 - **M4 方法级护栏**：`scripts/rpc-guard.mjs` 位于公网隧道与节点之间，只放行读与广播；`anvil_*` / `evm_*` / `debug_*` / `admin_*` / `personal_*` 等管理方法返回 `403` 且带 `x-rpc-guard: blocked`，绝不转发。
-- **心跳重放**：挖矿证明 nullifier `keccak256(abi.encode(proofType, agent, proofData))` 在计分前落盘，重放相同字节 revert `ReplayProof`（见 §3.2）。
+- **心跳重放**：算力证明 nullifier `keccak256(abi.encode(proofType, agent, proofData))` 在计分前落盘，重放相同字节 revert `ReplayProof`（见 §3.2）。
 
 ### 8.7 Hybrid compute（混合算力）的非托管约束
 
@@ -443,11 +454,11 @@ cd D:\git008\mobile-agent; npm test    # 生物门禁拒绝路径、断言绑定
 | **M0** | 冻结模块边界与真值表（本文 + `docs/ARCHITECTURE_5_PILLARS.md`），标注已实现/路线图 | — | 两份文档评审通过 | ✅ |
 | **M1** | 端侧 SLM 接口固化 + 意图白名单（`claim_mhuman_quota`、`swap_micro_human`） | — | `agent-client` `npm test` | ✅ |
 | **M2** | 曲线上线 + 金库刹车 + 出流上限 | M1 | `contracts` `forge test`、`agent-manager` `mining_e2e.py` | ✅ |
-| **M3** | 移动端飞地密钥 + 阈值策略引擎 + 生物门禁 | M1 | 设备内不可导出密钥签名验证、越阈值动作需生物确认（接口层已落地：`mobile-agent/`，72 断言） | 🟡 接口层 ✅ / 硬件后端 ⬜ P0 |
+| **M3** | Sovereign Edge Node 飞地密钥 + 阈值策略引擎 + 生物门禁 | M1 | 设备内不可导出密钥签名验证、越阈值动作需生物确认（接口层已落地：`mobile-agent/`，72 断言） | 🟡 接口层 ✅ / 硬件后端 ⬜ P0 |
 | **M4** | RPC 多端点仲裁（M4.1）+ `eth_getProof` 包含证明（M4.2） | — | 分歧端点被拒；本地 MPT 校验通过 | ⬜ P0 |
 | **M5** | 轻客户端同步（M4.3）+ P2P 传输（M4.4） | M4 | 断网/单端点故障下仍可自证状态 | ⬜ P1 |
-| **M6** | Cell 化 ADR + 微治理 + 按 Cell 分发收益 | M3、M4 | 新 ADR；治理与分发测试 | ⬜ P1 |
-| **M7** | 挖矿心跳上链（第三种 proof type，单独评审） | M2 | 新 proof type 的评分与拒绝路径测试 | ⬜ P2 |
+| **M6** | Cell 化 ADR + 微治理 + 按 Cell 分发 Protocol Compute & Verification Rewards | M3、M4 | 新 ADR；治理与分发测试 | ⬜ P1 |
+| **M7** | 节点算力心跳上链（第三种 proof type，单独评审） | M2 | 新 proof type 的评分与拒绝路径测试 | ⬜ P2 |
 
 > **PQC 前瞻**：后量子密码学（PQC）与量子抗性生物主权的完整备忘录见 **§11**，其里程碑为 M8–M11。
 
@@ -539,7 +550,7 @@ cd D:\git008\mobile-agent; npm test    # 生物门禁拒绝路径、断言绑定
 
 ### 11.5 与移动端量子加速 / 神经形态边缘芯片的协同（⬜ 远期）
 
-如果未来移动端出现量子加速器或神经形态（neuromorphic）芯片，Module 1 的推理与 Module 4/5 的密码学验证可以下沉到这些加速器，实现**近零延迟的本地证明验证与主权收益管理**（例如：签名与验签、证明生成、风险策略推理都在端侧完成，云端不参与）。
+如果未来移动端出现量子加速器或神经形态（neuromorphic）芯片，Module 1 的推理与 Module 4/5 的密码学验证可以下沉到这些加速器，实现**近零延迟的本地证明验证与主权奖励管理**（例如：签名与验签、证明生成、风险策略推理都在端侧完成，云端不参与）。
 
 **今天就能准备的事（低成本、与硬件无关）**：
 
@@ -565,15 +576,15 @@ cd D:\git008\mobile-agent; npm test    # 生物门禁拒绝路径、断言绑定
 | --- | --- | --- |
 | 1 SLM | `agent-client/src/slm/`、`src/intents/`、`test/local-agent.test.ts` | `cd agent-client; npm test` |
 | 2 钱包 | `agent-manager/src/mining/transport.mjs`、`sdk/src/agent-client.ts` | `cd agent-manager; python test/mining_e2e.py` |
-| 3 收益/挖矿 | `contracts/src/{MaoTangBondingCurve,MaoTangSustenanceVault,MaoTangSustenanceDripper,MaoTangMining}.sol`、`sdk/src/curve-math.ts` | `cd contracts; forge test` |
+| 3 算力/验证奖励 | `contracts/src/{MaoTangBondingCurve,MaoTangSustenanceVault,MaoTangSustenanceDripper,MaoTangMining}.sol`、`sdk/src/curve-math.ts` | `cd contracts; forge test` |
 | 4 轻节点 | `agent-client/src/telemetry.ts`、`scripts/rpc-guard.mjs`、`frontend/src/lib/chain.ts` | 见 §4.3 的 curl 与 `npm test` |
 | 5 反女巫 | `contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol` | `cd contracts; forge test` |
 | 地址真源 | `frontend/config/contracts.json`（部署时重写） | `cd frontend; npm run build` 注入 manifest |
 
 ## Appendix B. Module Summary (English)
 
-1. **Edge SLM & Cell Division** — a local-only intent engine (`SlmEngine`, Qwen2.5-0.5B INT4, 500 MiB ceiling, cloud endpoints rejected by assertion) is the *sole* interface between the biological owner and the network. Genesis activation mints a one-million-unit `$mHUMAN` quota per verified human; subdividing that quota into 1,000,000 addressable **Cell Tokens** for micro-governance and liquid yield distribution is a **roadmap** item requiring its own ADR.
+1. **Sovereign Edge Node SLM & Cell Division** — a local-only intent engine (`SlmEngine`, Qwen2.5-0.5B INT4, 500 MiB ceiling, cloud endpoints rejected by assertion) is the *sole* interface between the biological owner and the network. Genesis activation mints a one-million-unit `$mHUMAN` quota per verified human; subdividing that quota into 1,000,000 addressable **Cell Tokens** for micro-governance and protocol reward distribution is a **roadmap** item requiring its own ADR.
 2. **Autonomous Local Wallet** — keys, signatures and broadcasts stay on the device; signing is dependency-injected through a TEE / Secure-Enclave signer behind a fail-closed egress guard. The threshold policy engine, the single signing path and the biometric/nullifier seams now exist as reviewed interface layers in `mobile-agent/` - and they refuse to sign until a device backend is injected, so an unconfigured build cannot silently fall back to a software key. Real hardware enclaves and device biometric backends remain **roadmap**.
-3. **Yield, Sustenance & Mining Engine** — a virtual-reserve constant-product bonding curve (30 ETH virtual reserve, 5 ETH graduation target, 0.50% swap / 1.00% graduation fees) plus **non-PoW** proof-of-physical-work mining (BLE proximity + attested NPU compute, replay-nullifiers, per-epoch cap, non-dilutive reward vault). Fees return to the owner through the Sustenance Vault, now with a payout brake and a rolling native-outflow cap.
-4. **Mobile Blockchain Light Node** — a signed hardware heartbeat advertises node capability today, and the board reads live state through a CORS-enabled, admin-method-filtered RPC (`https://rpc.008ai.online`). Trustless verification is staged: multi-endpoint quorum, then EIP-1186 inclusion proofs against the state root, then a header-syncing light client, then P2P. Only the first stage exists as a plan; the current endpoint is *trust-minimised*, not trustless.
-5. **Bio-Sovereign Anti-Sybil & Security Layer** — Groth16 personhood and hardware-attestation proofs bind one agent and one hardware nullifier to one human, each spendable once, revocable by the owner, with the verifier failing closed until the ceremony key is installed and irreversibly frozen afterwards. Local biometric authorisation now has its interface layer in `mobile-agent/bio-auth/` (a refusing device gate, an assertion-binding adapter, and a one-shot hardware-nullifier registry that derives from device material and defers to the chain); a real device backend and proof generation remain the **roadmap** half of the design.
+3. **Compute, Verification & Rewards Engine** — a virtual-reserve constant-product bonding curve (30 ETH virtual reserve, 5 ETH graduation target, 0.50% swap / 1.00% graduation fees) plus **non-PoW** proof-of-physical-work edge compute (BLE proximity + attested NPU compute, replay-nullifiers, per-epoch cap, non-dilutive reward vault). **Protocol Compute & Verification Rewards** return to the node operator through the Sustenance Vault, now with a payout brake and a rolling native-outflow cap.
+4. **Sovereign Edge Node Light Client** — a signed hardware heartbeat advertises node capability today, and the board reads live state through a CORS-enabled, admin-method-filtered RPC (`https://rpc.008ai.online`). Trustless verification is staged: multi-endpoint quorum, then EIP-1186 inclusion proofs against the state root, then a header-syncing light client, then P2P. Only the first stage exists as a plan; the current endpoint is *trust-minimised*, not trustless.
+5. **Bio-Sovereign Anti-Sybil & Security Layer** — Zero-Knowledge Node Verification via Groth16 personhood and hardware-attestation proofs bind one agent and one hardware nullifier to one human, each spendable once, revocable by the owner, with the verifier failing closed until the ceremony key is installed and irreversibly frozen afterwards. Local biometric authorisation now has its interface layer in `mobile-agent/bio-auth/` (a refusing device gate, an assertion-binding adapter, and a one-shot hardware-nullifier registry that derives from device material and defers to the chain); a real device backend and proof generation remain the **roadmap** half of the design.
