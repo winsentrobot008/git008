@@ -2,6 +2,46 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-041: the browser reads the chain through a same-origin `/api/rpc` proxy, because a cross-origin JSON-RPC call cannot be silenced from the page
+
+**Status:** Accepted (`frontend/src/app/api/rpc/route.ts`, `frontend/src/lib/agent/client.ts`,
+`frontend/scripts/assert-runtime-policy.mjs`, `frontend/.env.example`, `docs/MVP_DEMO_GUIDE.md`).
+Gates: `npx tsc --noEmit` exit 0; `npm run test:policy` 16/16; `npm run build` exit 0 with
+`/api/rpc` in the route table.
+
+**Context:** `NEXT_PUBLIC_MAOTANG_RPC_URL` is `https://rpc.008ai.online`, and the wallet card read the
+owner's live balance by POSTing to that URL *from the page* served at `https://maotang.008ai.online`.
+Two things follow and neither is fixable inside the component:
+
+1. The call is cross-origin, so the browser preflights it, the node answers without
+   `Access-Control-Allow-Origin`, and the response never reaches the JS.
+2. The browser logs the blocked request to the console **regardless** of whether the caller catches the
+   rejection - a caught `TypeError` does not remove the red CORS line. The endpoint was also answering
+   Cloudflare `530` at the time, which a browser reports the same way.
+
+**Decision:** Give the page a same-origin read path - `POST /api/rpc` - and resolve the target on the server.
+
+- The route forwards a *single* JSON-RPC request to `readChainConfig().rpcUrl`, the same resolution every
+  other server path uses and never anything from the request body or headers, so it is a fixed read door
+  rather than an open relay and it adds no configuration.
+- An allowlist carries only the read methods the console issues; anything else - including
+  `eth_sendRawTransaction` - is answered `-32601` / `403` before any network call. Batch arrays are
+  refused, the body is capped at 8 KiB, and the upstream fetch carries a 15s `AbortSignal.timeout`.
+- `client.ts` exports `clientRpcEndpoint()`, which routes a *browser* read to `/api/rpc` and leaves a
+  server-side or already-same-origin read untouched; `fetchNativeBalance` uses it and converts a
+  rejected fetch into a named `Error`, keeping `AbortError` for the caller's own cancellation.
+- Every failure is a JSON-RPC error value with a real HTTP status: `503` with no configured endpoint,
+  `502` when the node is dead, silent or non-JSON. The card already renders "no balance" for a refusal.
+
+**Consequences:** the console makes no cross-origin RPC call, so the DevTools CORS failure is gone by
+construction, and a dead node degrades to a named same-origin refusal the card can show. The proxy adds one
+dynamic Node route (not edge: it reads `process.env` and relies on Node timers). It adds no write
+capability, no custody, and no second source of truth for the endpoint - `/api/agent/status` still reports
+the canonical URL, which the proxy is the only thing that dials on the browser's behalf. Operational note:
+the published `rpc.008ai.online` endpoint answers Cloudflare `530` while its tunnel origin is down; the UI
+now reports that honestly instead of leaking a CORS exception, and reviving the origin is an infra action,
+not a code path this ADR can fix.
+
 ## 2026-10-09 - ADR-040: the C-end console auto-detects language, hides the developer/dex controls behind one drawer, and deletes the legacy DEX route
 
 **Status:** Accepted (`frontend/src/lib/i18n/dictionary.ts`, `frontend/src/lib/i18n/language.tsx`,

@@ -216,6 +216,11 @@ numbers agree:
   `/api/agent/status`, formatted with the same wei -> ETH rule as the M2 card
   (`@/lib/agent/spend-view`), and the window label is derived from `windowSeconds`, so it reads `24h` only
   because the policy says `86400`.
+- **One same-origin read.** The balance comes from `/api/rpc`, a same-origin read proxy, not from
+  the node URL directly. A cross-origin JSON-RPC call needs CORS headers a public node rarely sends, and
+  the browser logs the blocked request whether or not the code catches it - so the server dials the node
+  instead. The proxy forwards only read methods, resolves the upstream from the server config (never from
+  the request), and turns a dead or silent node into a named `502` that the card renders as "no balance".
 - **One biometric conversation.** The confirmation sheet and `BioAuthGuard` both call
   `useBiometricOwner()` (`@/lib/agent/biometric-session`). A dismissed Face ID / Touch ID sheet is reported
   as `USER_CANCELLED` (iOS Safari raises `NotAllowedError` for both a cancel and a timeout); a webview that

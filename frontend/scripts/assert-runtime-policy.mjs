@@ -191,7 +191,9 @@ test("C. the live destination whitelist is manifest-derived and lowercased", { s
 // has no TypeScript executor, and the point is that the expectation and the implementation are two
 // independent statements that must agree. Each one would have failed before the 2026-10-09 mobile work,
 // and the last two carry the nav/i18n pass (ADR-040) that moved the C-end copy into the dictionary and
-// replaced the two naked header buttons with one menu drawer.
+// replaced the two naked header buttons with one menu drawer. The last one also carries the
+// same-origin RPC read path (ADR-041): the zero-data claim has a network half, and a browser read that
+// crosses origins paints a CORS failure the JS cannot suppress.
 
 const WEBAUTHN_SOURCE = path.join(frontendRoot, "src", "lib", "agent", "webauthn.ts");
 const GLOBALS_CSS = path.join(frontendRoot, "src", "app", "globals.css");
@@ -211,11 +213,18 @@ const I18N_SOURCE = path.join(frontendRoot, "src", "lib", "i18n", "dictionary.ts
 const LANGUAGE_SOURCE = path.join(frontendRoot, "src", "lib", "i18n", "language.tsx");
 const MENU_DRAWER = path.join(frontendRoot, "src", "components", "agent-console", "MenuDrawer.tsx");
 const DEX_ROUTE = path.join(frontendRoot, "src", "app", "dex", "page.tsx");
+// The network half of the same posture: browser RPC reads go through a same-origin route instead of
+// POSTing the owner's address to a cross-origin node (which the browser logs as a CORS failure
+// whether or not the JS catches it). See ADR-041.
+const CLIENT_SOURCE = path.join(frontendRoot, "src", "lib", "agent", "client.ts");
+const RPC_ROUTE = path.join(frontendRoot, "src", "app", "api", "rpc", "route.ts");
 
 const i18nSource = readFileSync(I18N_SOURCE, "utf8");
 const languageSource = readFileSync(LANGUAGE_SOURCE, "utf8");
 const menuDrawer = readFileSync(MENU_DRAWER, "utf8");
 const bioGuard = readFileSync(BIO_GUARD, "utf8");
+const clientSource = readFileSync(CLIENT_SOURCE, "utf8");
+const rpcRoute = readFileSync(RPC_ROUTE, "utf8");
 
 test("D. a cancelled biometric prompt has its own code, not a generic failure", () => {
   assert.match(webauthnSource, /\| "USER_CANCELLED"/, "the code union must carry USER_CANCELLED");
@@ -272,7 +281,7 @@ test("D. both biometric faces run the one shared session hook", () => {
   assert.match(bioGuard, /useBiometricOwner\(\)/, "the M5 card uses the same shared session");
 });
 
-test("D. the C-end authorization card states the zero-data compliance posture", () => {
+test("D. the C-end card states the zero-data posture and its reads stay same-origin", () => {
   // The claim is a statement about this build, so each language writes it once in the dictionary...
   assert.match(
     i18nSource,
@@ -299,4 +308,16 @@ test("D. the C-end authorization card states the zero-data compliance posture", 
     /DICTIONARIES\[other\]\?\.\[key\] \|\| key/,
     "translate() falls back active -> other -> key, and never returns an empty string",
   );
+  // The network half of the same claim: the page must not POST the owner's address to a cross-origin
+  // node, because a browser logs the blocked request even when the component catches the rejection.
+  assert.equal(existsSync(RPC_ROUTE), true, "the same-origin /api/rpc route must be part of the build");
+  assert.match(clientSource, /SAME_ORIGIN_RPC_PATH = "\/api\/rpc"/, "the browser resolves reads to the same-origin path");
+  assert.match(clientSource, /clientRpcEndpoint\(rpcUrl\)/, "fetchNativeBalance must resolve its endpoint");
+  assert.doesNotMatch(clientSource, /fetch\(rpcUrl,/, "the raw cross-origin URL must never be fetched");
+  assert.match(clientSource, /"AbortError"/, "a caller's abort keeps its own error name");
+  assert.match(rpcRoute, /READ_METHODS/, "the proxy carries an explicit read allowlist");
+  assert.match(rpcRoute, /is not on the read allowlist/, "a non-read method is refused by name");
+  assert.match(rpcRoute, /readChainConfig\(\)/, "the upstream comes from the server config, never the request");
+  assert.match(rpcRoute, /no RPC endpoint is configured for this build/, "an unconfigured endpoint fails closed");
+  assert.match(rpcRoute, /AbortSignal\.timeout\(/, "a silent node cannot hang the request forever");
 });
