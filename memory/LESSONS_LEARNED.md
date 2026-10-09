@@ -2,6 +2,22 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-09 - a non-ASCII test fixture carries its expected bytes, so a brand or string rename has to update both halves
+
+- **Observation:** The repo-wide rename check for the old brand spelling turned up exactly one occurrence in
+  `frontend/`, `mobile-agent/` and `docs/`: `mobile-agent/test/signer-abi.test.ts` asserted
+  `utf8Body("<old brand>")` equals the hex of that string. The literal and its expected value are two halves of
+  one fact, so replacing only the literal turns a passing encoder test into a failing one that looks unrelated
+  to the rename.
+- **Lesson:** In an ABI/encoding test, a non-ASCII input string is the *source* of the expectation, not a
+  label. Any rename touching such a literal must recompute the expected bytes in the same edit;
+  `Buffer.from(s, "utf8").toString("hex")` is the check, and for this case the two three-byte sequences moved
+  from `e6af9be59490` to `e78cabe7b396`.
+- **Application:** When renaming brand or display strings, search for the escaped forms as well as the literal
+  ones - `rg --pcre2 "\\x{6BDB}\\x{5510}"` finds the characters in UTF-8 sources, and a byte-level scan over
+  the scoped directories catches anything the text search treats as binary. Then rerun `mobile-agent`
+  `npm test` and confirm the specific assertion passes by name (`ok 112 - utf8Body encodes multibyte
+  characters by their UTF-8 bytes`), not just the suite total.
 ## 2026-10-09 - a `node --test <dir>` TAP count includes test-helper files, so it is not the assertion count
 
 - **Observation:** `mobile-agent` `npm test` runs `node --test dist/test-build/test/` and reports

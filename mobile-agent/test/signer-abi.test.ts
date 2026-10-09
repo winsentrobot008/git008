@@ -131,7 +131,7 @@ test("createMemeToken refuses arguments Solidity would decode as something else"
 
 test("utf8Body encodes multibyte characters by their UTF-8 bytes", () => {
   assert.equal(utf8Body("Mao Tang"), "4d616f2054616e67");
-  assert.equal(utf8Body("毛唐"), "e6af9be59490");
+  assert.equal(utf8Body("猫糖"), "e78cabe7b396");
   assert.throws(() => utf8Body(""), AbiEncodingError);
 });
 
