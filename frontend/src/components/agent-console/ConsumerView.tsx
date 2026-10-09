@@ -451,25 +451,27 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
   const nextSliceInSeconds =
     quota === null ? 0 : secondsToNextSlice(quota.epochSeconds, epochElapsedSeconds);
 
+  // The ADR-045 compute ledger. Same numbers as before, drawn quiet: the vesting bar is the only
+  // bright element, because it is the only one that moves while the owner watches.
   const computeCard = (
-    <section className="mt-3 rounded-2xl border border-maotang-border bg-maotang-surface px-4 py-3.5">
+    <section className="mt-3 rounded-2xl border border-white/60 bg-white/45 px-4 py-3.5 text-slate-500 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.35)] backdrop-blur-xl">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-maotang-mint">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
           {t("compute.title")}
         </h2>
         {quota === null ? null : (
           <span className="flex items-center gap-1.5 text-[10px]">
-            <span className="rounded-full border border-maotang-border px-2 py-0.5 font-mono text-white/50">
+            <span className="rounded-full border border-slate-900/10 px-2 py-0.5 font-mono text-slate-400">
               {t("compute.tier", { tier: quota.tier })}
             </span>
             <span
               className={
                 "rounded-full px-2 py-0.5 font-medium " +
                 (quota.state === "slashed"
-                  ? "bg-maotang-pink/15 text-maotang-pink"
+                  ? "bg-rose-100 text-rose-700"
                   : quota.state === "locked"
-                    ? "bg-maotang-amber/15 text-maotang-amber"
-                    : "bg-maotang-mint/15 text-maotang-mint")
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-emerald-100 text-emerald-700")
               }
             >
               {t(STATE_KEY[quota.state])}
@@ -479,33 +481,33 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
       </header>
 
       {quota === null || nominalUnits === null || availableUnits === null ? (
-        <p className="mt-3 text-[11px] leading-relaxed text-white/45">{t("compute.unavailable")}</p>
+        <p className="mt-3 text-[11px] leading-relaxed text-slate-400">{t("compute.unavailable")}</p>
       ) : (
         <>
-          <p className="mt-2 font-mono text-[10px] tracking-wide text-white/35">{t("compute.ratio")}</p>
+          <p className="mt-2 font-mono text-[10px] tracking-wide text-slate-400">{t("compute.ratio")}</p>
 
-          <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-white/40">{t("compute.nominal")}</p>
+          <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-slate-400">{t("compute.nominal")}</p>
           <div className="mt-1.5 grid grid-cols-3 gap-2">
             {UNIT_ORDER.map((unit) => (
-              <div key={unit} className="rounded-xl border border-maotang-border bg-maotang-ink/50 px-3 py-2">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">{t(UNIT_KEY[unit])}</p>
-                <p className="mt-1 font-mono text-sm text-white">{nominalUnits[unit]}</p>
+              <div key={unit} className="rounded-xl border border-slate-900/10 bg-white/70 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{t(UNIT_KEY[unit])}</p>
+                <p className="mt-1 font-mono text-sm text-slate-800">{nominalUnits[unit]}</p>
               </div>
             ))}
           </div>
 
           <div className="mt-3 space-y-1.5 text-[11px]">
             <p className="flex items-baseline justify-between gap-3">
-              <span className="text-white/45">{t("compute.unlocked")}</span>
-              <span className="font-mono text-white/70">
+              <span className="text-slate-400">{t("compute.unlocked")}</span>
+              <span className="font-mono text-slate-700">
                 {formatQuotaUnits(quota.unlockedYuanYuan)} / {formatQuotaUnits(quota.nominalYuanYuan)} YuanYuan
               </span>
             </p>
             <p className="flex items-baseline justify-between gap-3">
-              <span className="text-white/45">{t("compute.available")}</span>
+              <span className="text-slate-400">{t("compute.available")}</span>
               <span
                 className={
-                  "font-mono " + (quotaIsSpendable(quota) ? "text-maotang-mint" : "text-white/45")
+                  "font-mono " + (quotaIsSpendable(quota) ? "text-emerald-600" : "text-slate-400")
                 }
               >
                 {availableUnits.yuanYuan} YuanYuan
@@ -514,17 +516,17 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
           </div>
 
           <div className="mt-3">
-            <div className="flex items-center justify-between text-[10px] text-white/45">
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
               <span>{t("compute.vesting")}</span>
               <span className="font-mono">{vestingPercent.toFixed(1)}%</span>
             </div>
-            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white/10">
+            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-900/10">
               <div
-                className="h-full rounded-full bg-maotang-mint transition-[width] duration-700"
+                className="h-full rounded-full bg-emerald-500/80 transition-[width] duration-700"
                 style={{ width: barWidth(vestingPercent) }}
               />
             </div>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-white/35">
+            <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
               {t("compute.vestingProgress", {
                 epochs: quota.epochsAccrued,
                 days: quota.windowDays,
@@ -534,19 +536,19 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
           </div>
 
           <div className="mt-3">
-            <div className="flex items-center justify-between text-[10px] text-white/45">
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
               <span>{t("compute.epoch")}</span>
               <span className="font-mono">
                 {epochPercent.toFixed(1)}% · {epochLabel(quota.epochSeconds)}
               </span>
             </div>
-            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-slate-900/10">
               <div
-                className="h-full rounded-full bg-maotang-mint/60"
+                className="h-full rounded-full bg-emerald-500/50"
                 style={{ width: barWidth(epochPercent) }}
               />
             </div>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-white/35">
+            <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
               {t("compute.epochProgress", {
                 percent: epochPercent.toFixed(1),
                 remaining: nextSliceInSeconds + "s",
@@ -555,7 +557,7 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
           </div>
 
           {quota.state === "slashed" ? (
-            <p className="mt-3 rounded-lg border border-maotang-pink/40 bg-maotang-pink/5 px-3 py-2 text-[10px] leading-relaxed text-maotang-pink">
+            <p className="mt-3 rounded-lg border border-rose-300/70 bg-rose-50/70 px-3 py-2 text-[10px] leading-relaxed text-rose-700">
               {t("compute.slashed", { code: quota.slashedCode ?? NO_VALUE })}
             </p>
           ) : null}
@@ -563,84 +565,191 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
       )}
     </section>
   );
+  // The brand mark: a geometric 'M' whose shoulders rise into feline ears, with two whisker
+  // strokes. Inline SVG rather than an image, so it inherits `currentColor` and stays crisp at any
+  // size, including the 1024px Home Screen icon rendered from the same contours (see app/icon.svg).
+  const brandMark = (
+    <svg viewBox="0 0 32 32" aria-hidden="true" className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 23.5V10.5l9 8.5 9-8.5v13" />
+      <path d="M7 10.5 8.4 4.8 12.6 8" />
+      <path d="M25 10.5 23.6 4.8 19.4 8" />
+      <path d="M4 16.6h3.2" />
+      <path d="M24.8 16.6H28" />
+    </svg>
+  );
+
+  // A fingerprint glyph for the primary action. Drawn, not imported, so the bundle carries no icon font.
+  const fingerprintMark = (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+      <path d="M12 3.9A8.6 8.6 0 0 0 5 6.9" />
+      <path d="M19 6.9a8.6 8.6 0 0 0-4-2.7" />
+      <path d="M6.3 9A8.3 8.3 0 0 0 4.3 14c0 1 .1 1.9.4 2.8" />
+      <path d="M19.7 14a8.2 8.2 0 0 0-1.4-4.6" />
+      <path d="M12 8.7A5.3 5.3 0 0 0 6.7 14c0 1.5.3 2.9.9 4.1" />
+      <path d="M17.3 14c0-2.9-2.4-5.3-5.3-5.3" />
+      <path d="M12 13.3c-.5.1-.8.5-.8 1 0 1.4.3 2.6.7 3.8" />
+    </svg>
+  );
+
+  // One primary action. Before an intent is previewed it vets and previews the sentence; after a
+  // preview exists it raises the device-owner sheet. Either way the label is the biometric one, and
+  // the button is disabled while there is nothing to act on.
+  const primaryDisabled = busy || (preview !== null ? !canConfirm : prompt.trim() === "");
+  const onPrimary = () => {
+    if (preview !== null) {
+      void confirm();
+      return;
+    }
+    void submit(prompt);
+  };
+
+  // The three guarantees, each bound to a fact this build can actually check. `Never Stored` is
+  // architectural (asserted by the compliance suite), the other two are read from the live report.
+  const enclaveState =
+    status !== null && status.enclave.reachable ? t("footer.enclaveActive") : t("footer.enclaveStandby");
+  const enclaveTone = status !== null && status.enclave.reachable ? "text-emerald-600" : "text-amber-600";
+  const processingState = status === null ? t("footer.processingPending") : t("footer.processingConfirmed");
+  const processingTone = status === null ? "text-slate-500" : "text-emerald-600";
 
   return (
-    <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col">
+    <main className="relative isolate flex min-h-screen w-full flex-col overflow-x-hidden text-slate-900">
+      {/* Soft light gradient backdrop - the premium-hardware surface the glass card floats on. Three
+          layers: the base ramp, a white bloom at the top, and two soft grey accents at the corners. */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(180deg,#fbfcfe_0%,#eff2f6_46%,#e2e7ee_100%)]" />
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(72%_46%_at_50%_-6%,rgba(255,255,255,0.95),transparent_70%)]" />
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 opacity-70 bg-[radial-gradient(46%_34%_at_10%_16%,rgba(255,255,255,0.9),transparent_66%),radial-gradient(40%_30%_at_94%_4%,rgba(201,211,226,0.6),transparent_70%)]" />
+
       <ToastStack toasts={toasts.toasts} onDismiss={toasts.dismiss} />
 
-      {/* Scroll region. `pb-safe-content` clears the docked bar plus the home indicator. */}
-      <div className="flex-1 px-4 pb-safe-content pt-5">
-        <header className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-maotang-mint">
-              {t("brand")}
-            </p>
-            <h1 className="mt-2 text-xl font-semibold text-white sm:text-2xl">{t("consumer.title")}</h1>
-            <p className="mt-1 text-sm text-white/50">{t("consumer.subtitle")}</p>
-          </div>
+      <div className="mx-auto flex w-full max-w-[32rem] flex-1 flex-col px-4 pt-safe-top pb-safe-content">
+        <header className="flex items-center justify-end pt-1">
           {/* The header's one control. Language, the engineer console and the compliance status all
-              live behind it, so nothing here is a naked second-product button. */}
-          <MenuDrawer mode={mode} onSwitchMode={onSwitchMode} enclave={status?.enclave ?? null} />
+              live behind it, so the consumer face advertises no second product. */}
+          <MenuDrawer tone="light" mode={mode} onSwitchMode={onSwitchMode} enclave={status?.enclave ?? null} />
         </header>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-maotang-border bg-maotang-surface px-4 py-3 text-xs">
-          <span className="text-white/45">{t("pill.walletAlias")}</span>
-          {/* The alias is the server's enclave binding (`policy`/`enclave.keyAlias`), never a literal. */}
-          <span className="font-mono text-white/75">{status === null ? NO_VALUE : status.enclave.keyAlias}</span>
-          <span className="text-white/20">|</span>
-          <span className="text-white/45">{t("pill.account")}</span>
-          <span className="font-mono text-white/75" title={owner ?? undefined}>
+        {/* ---- the hero card: frosted glass, multi-layered shadow, hairline highlight ------------ */}
+        <section className="mt-1 rounded-[30px] border border-white/70 bg-white/55 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_6px_rgba(15,23,42,0.06),0_18px_38px_-16px_rgba(15,23,42,0.22),0_44px_80px_-40px_rgba(15,23,42,0.30)] backdrop-blur-2xl">
+          <div className="flex justify-center text-slate-700">{brandMark}</div>
+          <h1 className="mt-5 text-center text-[1.6rem] font-semibold leading-[1.15] tracking-[-0.01em] text-slate-900 sm:text-[1.8rem]">
+            {t("consumer.title")}
+          </h1>
+          <p className="mt-2 text-center text-[13.5px] leading-relaxed text-slate-500">
+            {t("consumer.subtitle")}
+          </p>
+
+          <label className="sr-only" htmlFor="consumer-prompt">
+            {t("chat.label")}
+          </label>
+          <textarea
+            id="consumer-prompt"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void submit(prompt);
+              }
+            }}
+            placeholder={t("chat.placeholder")}
+            title={t("chat.grammarHint")}
+            rows={3}
+            spellCheck={false}
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            enterKeyHint="send"
+            /* text-base (16px): anything smaller makes iOS Safari zoom the viewport on focus. */
+            className="mt-6 min-h-24 w-full resize-none touch-manipulation rounded-[20px] border border-slate-900/10 bg-white/70 px-4 py-3.5 text-base leading-relaxed text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] outline-none backdrop-blur placeholder:text-slate-400 focus:border-slate-900/25"
+          />
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={onPrimary}
+              disabled={primaryDisabled}
+              title={primaryDisabled ? t("sheet.confirmDisabled") : undefined}
+              className="inline-flex min-h-12 touch-manipulation items-center gap-2 rounded-full border border-white/80 bg-white/85 px-5 text-[13.5px] font-semibold text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_1px_2px_rgba(15,23,42,0.06),0_10px_24px_-12px_rgba(15,23,42,0.35)] backdrop-blur transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="text-slate-700">{fingerprintMark}</span>
+              {busy ? t("chat.thinking") : t("sheet.confirm")}
+            </button>
+          </div>
+
+          {/* The three guarantees, in the order the owner reads them. */}
+          <dl className="mt-7 space-y-1 text-center text-[12.5px] leading-relaxed text-slate-500">
+            <p>
+              {t("footer.enclave")}{" "}
+              <span className={"font-medium " + enclaveTone}>{enclaveState}</span>
+            </p>
+            <p>
+              {t("footer.processing")}{" "}
+              <span className={"font-medium " + processingTone}>{processingState}</span>
+            </p>
+            <p>
+              {t("footer.biometrics")}{" "}
+              <span className="font-medium text-slate-700">{t("footer.biometricsNever")}</span>
+            </p>
+          </dl>
+        </section>
+
+        {/* ---- the live numbers, kept quiet under the hero card ------------------------------- */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-white/60 bg-white/45 px-4 py-3 text-xs text-slate-500 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.35)] backdrop-blur-xl">
+          <span className="text-slate-400">{t("pill.walletAlias")}</span>
+          {/* The alias is the server's enclave binding, never a literal. */}
+          <span className="font-mono text-slate-700">{status === null ? NO_VALUE : status.enclave.keyAlias}</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-slate-400">{t("pill.account")}</span>
+          <span className="font-mono text-slate-700" title={owner ?? undefined}>
             {owner === null ? NO_VALUE : shortHex(owner, 6, 4)}
           </span>
-          <span className="text-white/20">|</span>
-          <span className="text-white/45">{t("pill.balance")}</span>
-          <span className="font-mono text-white">{balance === null ? NO_VALUE : `${balance} ETH`}</span>
-          <span className="text-white/20">|</span>
-          <span className="text-white/45">{t("pill.availableToday")}</span>
-          <span className="font-mono text-maotang-mint">
-            {leftWei === null ? NO_VALUE : `${formatWeiAsEth(leftWei.toString())} ETH`}
+          <span className="text-slate-300">|</span>
+          <span className="text-slate-400">{t("pill.balance")}</span>
+          <span className="font-mono text-slate-900">{balance === null ? NO_VALUE : balance + " ETH"}</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-slate-400">{t("pill.availableToday")}</span>
+          <span className="font-mono text-emerald-600">
+            {leftWei === null ? NO_VALUE : formatWeiAsEth(leftWei.toString()) + " ETH"}
           </span>
-          <span className="font-mono text-white/50">/ {windowText}</span>
+          <span className="font-mono text-slate-400">/ {windowText}</span>
         </div>
 
         {computeCard}
 
         {statusState.kind === "unavailable" ? (
-          <div className="mt-3 rounded-2xl border border-maotang-amber/40 bg-maotang-surface px-4 py-3 text-xs">
-            <p className="text-maotang-amber">
+          <div className="mt-3 rounded-2xl border border-amber-300/70 bg-amber-50/70 px-4 py-3 text-xs text-amber-800 backdrop-blur-xl">
+            <p className="font-medium">
               {t("status.ledgerNotReady")}
               <span className="font-mono">{statusState.code}</span>
             </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-white/45">{statusState.reason}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-amber-700/80">{statusState.reason}</p>
           </div>
         ) : null}
 
         {fallback !== null ? (
-          <div className="mt-3 rounded-2xl border border-maotang-amber/40 bg-maotang-amber/5 px-4 py-3 text-[11px] leading-relaxed text-maotang-amber">
+          <div className="mt-3 rounded-2xl border border-amber-300/70 bg-amber-50/60 px-4 py-3 text-[11px] leading-relaxed text-amber-800 backdrop-blur-xl">
             {fallback}
           </div>
         ) : null}
 
         {localNote !== null ? (
-          <div className="mt-3 whitespace-pre-line rounded-2xl border border-maotang-mint/30 bg-maotang-mint/5 px-4 py-3 text-xs leading-relaxed text-white/70">
+          <div className="mt-3 whitespace-pre-line rounded-2xl border border-emerald-300/60 bg-emerald-50/60 px-4 py-3 text-xs leading-relaxed text-slate-700 backdrop-blur-xl">
             {localNote}
           </div>
         ) : null}
 
         {refusal !== null ? (
-          <div className="mt-3 rounded-2xl border border-maotang-pink/40 bg-maotang-pink/5 px-4 py-3">
-            <p className="flex flex-wrap items-center gap-2 text-xs text-maotang-pink">
-              <span className="rounded bg-maotang-pink/15 px-1.5 py-0.5 font-mono text-[10px]">
-                {refusal.stage}
-              </span>
+          <div className="mt-3 rounded-2xl border border-rose-300/70 bg-rose-50/60 px-4 py-3 backdrop-blur-xl">
+            <p className="flex flex-wrap items-center gap-2 text-xs text-rose-700">
+              <span className="rounded bg-rose-100 px-1.5 py-0.5 font-mono text-[10px]">{refusal.stage}</span>
               <span className="font-mono">{refusal.code}</span>
             </p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/55">{refusal.reason}</p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/35">{t("refusal.explainer")}</p>
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-600">{refusal.reason}</p>
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{t("refusal.explainer")}</p>
           </div>
         ) : null}
 
-        <footer className="mt-5 text-[11px] leading-relaxed text-white/35">
+        <footer className="mt-5 text-[11px] leading-relaxed text-slate-400">
           <p>
             {t("status.biometrics")}
             {session.capability === null ? t("status.detecting") : session.capability.detail}
@@ -649,14 +758,15 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
           <p className="mt-1">{t("status.scope")}</p>
         </footer>
       </div>
+
       {/*
-        The docked chat bar. `fixed` (not `sticky`) is what guarantees it is at the bottom on a short
-        page, and `pb-safe-bottom` lifts it above the iPhone home indicator / Android gesture bar.
-        `touch-manipulation` on every trigger kills the 300ms double-tap-zoom delay on iOS, so a second
-        tap cannot zoom the page instead of re-running the action.
+        The docked quick-action bar. `fixed` (not `sticky`) is what keeps it at the bottom on a short
+        page, and `pb-safe-bottom` lifts it above the iPhone home indicator / Android gesture bar in
+        Home Screen full-screen mode. `touch-manipulation` on every trigger kills the 300ms
+        double-tap-zoom delay, so a second tap cannot zoom the page instead of re-running the action.
       */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-maotang-border bg-maotang-ink/95 backdrop-blur">
-        <div className="mx-auto w-full max-w-3xl px-4 pb-safe-bottom pt-3">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/60 bg-white/70 backdrop-blur-2xl">
+        <div className="mx-auto w-full max-w-[32rem] px-4 pb-safe-bottom pt-3">
           <div className="-mx-1 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {presets.map((preset) => (
               <button
@@ -664,129 +774,94 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
                 type="button"
                 onClick={() => runPreset(preset)}
                 disabled={busy}
-                className="min-h-10 shrink-0 touch-manipulation rounded-full border border-maotang-border bg-maotang-ink/60 px-3 text-xs text-white/65 transition hover:border-maotang-mint/50 hover:text-maotang-mint disabled:cursor-not-allowed disabled:opacity-40"
+                className="min-h-10 shrink-0 touch-manipulation rounded-full border border-slate-900/10 bg-white/70 px-3 text-xs text-slate-500 shadow-[0_6px_16px_-12px_rgba(15,23,42,0.5)] transition hover:border-slate-900/20 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {preset.label}
               </button>
             ))}
           </div>
-
-          <div className="mt-2 flex items-end gap-2">
-            <label className="sr-only" htmlFor="consumer-prompt">
-              {t("chat.label")}
-            </label>
-            <input
-              id="consumer-prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  void submit(prompt);
-                }
-              }}
-              placeholder={MINT_PRESET}
-              title={t("chat.grammarHint")}
-              spellCheck={false}
-              autoComplete="off"
-              autoCapitalize="none"
-              autoCorrect="off"
-              enterKeyHint="send"
-              inputMode="text"
-              /* text-base (16px): anything smaller makes iOS Safari zoom the viewport on focus. */
-              className="min-h-12 min-w-0 flex-1 touch-manipulation rounded-xl border border-maotang-border bg-maotang-ink px-3 py-3 text-base text-white outline-none focus:border-maotang-mint/60"
-            />
-            <button
-              type="button"
-              onClick={() => void submit(prompt)}
-              disabled={busy || prompt.trim() === ""}
-              className="min-h-12 shrink-0 touch-manipulation rounded-xl bg-maotang-mint/20 px-4 text-sm font-semibold text-maotang-mint transition hover:bg-maotang-mint/30 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {busy ? t("chat.thinking") : t("chat.send")}
-            </button>
-          </div>
         </div>
       </div>
 
       {confirmOpen && preview !== null ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/25 backdrop-blur-sm sm:items-center sm:p-4">
           <div
             role="dialog"
             aria-modal="true"
             aria-label={t("sheet.title")}
-            className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-maotang-border bg-maotang-surface p-5 pb-safe-sheet sm:rounded-2xl"
+            className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-white/70 bg-white/85 p-5 pb-safe-sheet shadow-[inset_0_1px_0_rgba(255,255,255,1),0_-10px_40px_-20px_rgba(15,23,42,0.35)] backdrop-blur-2xl sm:rounded-3xl"
           >
             {/* A grab handle: on a phone this sheet is a bottom drawer, not a floating dialog. */}
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
-            <h2 className="text-base font-semibold text-white">{t("sheet.title")}</h2>
-            <p className="mt-2 text-xs leading-relaxed text-white/60">{preview.preview.description}</p>
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-900/15 sm:hidden" />
+            <h2 className="text-base font-semibold text-slate-900">{t("sheet.title")}</h2>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">{preview.preview.description}</p>
 
             <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-              <dt className="text-white/45">{t("sheet.action")}</dt>
-              <dd className="text-right font-mono text-white/80">{preview.preview.action}</dd>
-              <dt className="text-white/45">{t("sheet.to")}</dt>
-              <dd className="text-right font-mono text-white/80">{shortHex(preview.preview.to, 10, 6)}</dd>
-              <dt className="text-white/45">{t("sheet.amount")}</dt>
-              <dd className="text-right font-mono text-white/80">
+              <dt className="text-slate-400">{t("sheet.action")}</dt>
+              <dd className="text-right font-mono text-slate-800">{preview.preview.action}</dd>
+              <dt className="text-slate-400">{t("sheet.to")}</dt>
+              <dd className="text-right font-mono text-slate-800">{shortHex(preview.preview.to, 10, 6)}</dd>
+              <dt className="text-slate-400">{t("sheet.amount")}</dt>
+              <dd className="text-right font-mono text-slate-800">
                 {formatWeiAsEth(preview.preview.valueWei)} ETH
               </dd>
-              <dt className="text-white/45">{t("sheet.chain")}</dt>
-              <dd className="text-right font-mono text-white/80">{preview.preview.chainId}</dd>
-              <dt className="text-white/45">{t("sheet.remaining")}</dt>
-              <dd className="text-right font-mono text-white/80">
+              <dt className="text-slate-400">{t("sheet.chain")}</dt>
+              <dd className="text-right font-mono text-slate-800">{preview.preview.chainId}</dd>
+              <dt className="text-slate-400">{t("sheet.remaining")}</dt>
+              <dd className="text-right font-mono text-slate-800">
                 {preview.decision.allowed
-                  ? `${formatWeiAsEth(preview.decision.remainingWindowWei)} ETH`
+                  ? formatWeiAsEth(preview.decision.remainingWindowWei) + " ETH"
                   : NO_VALUE}
               </dd>
             </dl>
 
-            <p className="mt-3 break-all text-[11px] text-white/40">
+            <p className="mt-3 break-all text-[11px] text-slate-400">
               {t("sheet.digest")} <span className="font-mono">{preview.digest}</span>
             </p>
 
             {/*
-              The zero-data claim, stated where the owner is about to authorize rather than in a footer.
-              Both halves are literally true of this build: the policy check and the digest happen on the
-              server's M1/M2 pipeline, the biometric runs inside the device's own authenticator, and no
-              raw fingerprint or face data is sent anywhere - only the assertion the authenticator signs.
-              The sentence itself is the dictionary's `compliance.claim`, asserted by the policy gate.
+              The zero-data claim, stated where the owner is about to authorize rather than in a
+              footer. Both halves are literally true of this build: the policy check and the digest
+              happen on the server's M1/M2 pipeline, the biometric runs inside the device's own
+              authenticator, and no raw fingerprint or face data is sent anywhere.
             */}
-            <p className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-maotang-mint/40 bg-maotang-mint/5 px-3 py-2 text-[11px] leading-relaxed text-maotang-mint">
-              <span className="rounded bg-maotang-mint/15 px-1.5 py-0.5 font-mono text-[10px]">
+            <p className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-300/70 bg-emerald-50/70 px-3 py-2 text-[11px] leading-relaxed text-emerald-800">
+              <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px]">
                 {t("compliance.badge")}
               </span>
               {t("compliance.claim")}
             </p>
 
             {fallback !== null ? (
-              <p className="mt-3 rounded-lg border border-maotang-amber/40 bg-maotang-amber/5 px-3 py-2 text-[11px] leading-relaxed text-maotang-amber">
+              <p className="mt-3 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
                 {fallback}
               </p>
             ) : null}
 
             {session.failure !== null && session.failure.code !== "NO_CHALLENGE" ? (
-              <div className="mt-3 rounded-lg border border-maotang-amber/40 bg-maotang-amber/5 px-3 py-2">
-                <p className="text-[11px] text-maotang-amber">
+              <div className="mt-3 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2">
+                <p className="text-[11px] text-amber-800">
                   <span className="font-mono">{session.failure.code}</span>
                 </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-white/50">{session.failure.message}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{session.failure.message}</p>
               </div>
             ) : null}
 
             {session.assertion !== null ? (
-              <div className="mt-3 rounded-lg border border-maotang-mint/40 bg-maotang-mint/5 px-3 py-2 text-[11px]">
-                <p className="text-maotang-mint">
+              <div className="mt-3 rounded-lg border border-emerald-300/70 bg-emerald-50/70 px-3 py-2 text-[11px]">
+                <p className="text-emerald-700">
                   {t("sheet.verifiedAt", {
                     time: new Date(session.assertion.assertedAt).toLocaleTimeString(),
                   })}
                 </p>
-                <p className="mt-1 text-white/55">
+                <p className="mt-1 text-slate-600">
                   {t("sheet.userVerified", {
                     verified: session.assertion.userVerified ? t("sheet.yes") : t("sheet.no"),
                     hardware: session.assertion.hardwareBacked ? t("sheet.yes") : t("sheet.no"),
                   })}
                 </p>
                 {session.nullifier !== null ? (
-                  <p className="mt-1 break-all text-white/40">
+                  <p className="mt-1 break-all text-slate-400">
                     HardwareNullifier <span className="font-mono">{shortHex(session.nullifier, 14, 10)}</span>
                   </p>
                 ) : null}
@@ -794,16 +869,16 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
             ) : null}
 
             {preview.signRefusal !== null ? (
-              <div className="mt-3 rounded-lg border border-maotang-amber/40 bg-maotang-amber/5 px-3 py-2 text-[11px]">
-                <p className="text-maotang-amber">
+              <div className="mt-3 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-[11px]">
+                <p className="text-amber-800">
                   <span className="font-mono">{preview.signRefusal.code}</span> - {t("sheet.signRefusal")}
                 </p>
-                <p className="mt-1 leading-relaxed text-white/50">{preview.signRefusal.reason}</p>
+                <p className="mt-1 leading-relaxed text-slate-500">{preview.signRefusal.reason}</p>
               </div>
             ) : null}
 
             {preview.signed !== null ? (
-              <p className="mt-3 break-all text-[11px] text-maotang-mint">
+              <p className="mt-3 break-all text-[11px] text-emerald-700">
                 {t("sheet.signed")} <span className="font-mono">{shortHex(preview.signed.signature, 16, 8)}</span>
               </p>
             ) : null}
@@ -813,8 +888,9 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
               onClick={() => void confirm()}
               disabled={session.busy || !canConfirm}
               title={canConfirm ? undefined : t("sheet.confirmDisabled")}
-              className="mt-4 min-h-12 w-full touch-manipulation rounded-xl bg-maotang-mint px-4 text-sm font-semibold text-maotang-ink transition hover:bg-maotang-mint/85 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-4 inline-flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-full border border-white/80 bg-slate-900 px-4 text-sm font-semibold text-white shadow-[0_10px_26px_-12px_rgba(15,23,42,0.6)] transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
+              <span className="text-white/80">{fingerprintMark}</span>
               {session.phase === "asserting" ? t("sheet.confirmBusy") : t("sheet.confirm")}
             </button>
 
@@ -823,7 +899,7 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
                 type="button"
                 onClick={() => void enroll()}
                 disabled={session.busy || session.capability?.platformAuthenticator !== true}
-                className="mt-2 min-h-12 w-full touch-manipulation rounded-xl border border-maotang-border px-4 text-xs text-white/60 transition hover:border-maotang-mint/50 hover:text-maotang-mint disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-2 min-h-12 w-full touch-manipulation rounded-full border border-slate-900/15 px-4 text-xs text-slate-500 transition hover:border-slate-900/30 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {session.phase === "enrolling" ? t("sheet.enrollBusy") : t("sheet.enroll")}
               </button>
@@ -832,12 +908,12 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
             <button
               type="button"
               onClick={() => setConfirmOpen(false)}
-              className="mt-2 min-h-12 w-full touch-manipulation rounded-xl px-4 text-xs text-white/45 transition hover:text-white/70"
+              className="mt-2 min-h-12 w-full touch-manipulation rounded-full px-4 text-xs text-slate-400 transition hover:text-slate-700"
             >
               {t("sheet.cancel")}
             </button>
 
-            <p className="mt-3 text-[10px] leading-relaxed text-white/30">{t("sheet.privacy")}</p>
+            <p className="mt-3 text-[10px] leading-relaxed text-slate-400">{t("sheet.privacy")}</p>
           </div>
         </div>
       ) : null}

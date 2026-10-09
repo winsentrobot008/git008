@@ -224,6 +224,8 @@ const INTENT_ROUTE = path.join(frontendRoot, "src", "app", "api", "agent", "inte
 const QUOTA_BUILDER = path.join(frontendRoot, "src", "lib", "agent", "quota.ts");
 const QUOTA_VIEW = path.join(frontendRoot, "src", "lib", "agent", "quota-view.ts");
 const STATUS_ROUTE = path.join(frontendRoot, "src", "app", "api", "agent", "status", "route.ts");
+const ICON_SVG = path.join(frontendRoot, "src", "app", "icon.svg");
+const MANIFEST = path.join(frontendRoot, "src", "app", "manifest.ts");
 
 const i18nSource = readFileSync(I18N_SOURCE, "utf8");
 const languageSource = readFileSync(LANGUAGE_SOURCE, "utf8");
@@ -235,6 +237,7 @@ const intentRoute = readFileSync(INTENT_ROUTE, "utf8");
 const quotaBuilder = readFileSync(QUOTA_BUILDER, "utf8");
 const quotaView = readFileSync(QUOTA_VIEW, "utf8");
 const statusRoute = readFileSync(STATUS_ROUTE, "utf8");
+const manifestSource = readFileSync(MANIFEST, "utf8");
 
 test("D. a cancelled biometric prompt has its own code, not a generic failure", () => {
   assert.match(webauthnSource, /\| "USER_CANCELLED"/, "the code union must carry USER_CANCELLED");
@@ -280,10 +283,17 @@ test("D. the mobile chat bar is touch-sized and cannot double-tap zoom", () => {
   // The legacy DEX route is gone, so `/` and `/agent` render nothing but the consumer view.
   assert.equal(existsSync(DEX_ROUTE), false, "the legacy /dex route must not be part of the build");
 
-  // Auto-detect reads `navigator.language`; only a `zh*` tag selects Chinese, everything else is English.
-  assert.match(languageSource, /navigator\.language/, "auto-detect reads the browser language");
-  assert.match(i18nSource, /startsWith\("zh"\)/, "only a zh* tag resolves to Chinese");
-  assert.match(i18nSource, /DEFAULT_LANGUAGE: Language = "en"/, "anything else defaults to English");
+  // Global English is the rule now (the C-end face is the global edition): English is the one default,
+  // and no layer sniffs the browser locale to override it. 中文 stays reachable as an explicit choice.
+  assert.match(i18nSource, /DEFAULT_LANGUAGE: Language = "en"/, "English is the one default");
+  assert.doesNotMatch(i18nSource, /navigator\.language/, "the dictionary must not sniff the browser locale");
+  assert.doesNotMatch(languageSource, /navigator\.language/, "the runtime must not sniff the browser locale");
+  assert.doesNotMatch(i18nSource, /parseAcceptLanguage/, "the first paint no longer depends on a header");
+  assert.match(
+    languageSource,
+    /setLanguage\(stored === "auto" \? DEFAULT_LANGUAGE : stored\)/,
+    "\"auto\" resolves to English, so a zh-CN browser is never guessed into Chinese",
+  );
 });
 
 test("D. both biometric faces run the one shared session hook", () => {
@@ -359,6 +369,59 @@ test("D. the C-end posture holds: zero data, same-origin reads, no failure statu
 
   assert.doesNotMatch(rpcRoute, /, (403|502|503)\)/, "no business verdict may carry an error status");
 });
+
+// F. the global light rebrand
+//
+// The C-end face is now a light frosted surface with English copy. These assertions keep the two halves
+// of that sentence honest: the strings the design names are the dictionary's, and the shell is the light
+// one - a stray dark token or a re-typed literal would pass `tsc` and still ship the wrong page.
+
+test("F. the hero card renders the specified global English copy by key", () => {
+  assert.match(consumerView, /t\("consumer\.title"\)/, "the brand line is a dictionary lookup");
+  assert.match(consumerView, /t\("consumer\.subtitle"\)/, "the subtitle is a dictionary lookup");
+  assert.match(consumerView, /t\("chat\.placeholder"\)/, "the input placeholder is a dictionary lookup");
+  assert.match(consumerView, /t\("footer\.enclave"\)/, "the enclave footer row is a dictionary lookup");
+  assert.match(consumerView, /t\("footer\.processing"\)/, "the local-processing row is a dictionary lookup");
+  assert.match(consumerView, /t\("footer\.biometrics"\)/, "the biometrics row is a dictionary lookup");
+  assert.match(i18nSource, /"MAOTANG PERSONAL AI NODE"/, "the exact brand title ships");
+  assert.match(
+    i18nSource,
+    /"Speak your intent\. Locally vetted\. Biometrically confirmed\."/,
+    "the exact subtitle ships",
+  );
+  assert.match(i18nSource, /"Speak your intent\.\.\."/, "the exact placeholder ships");
+  assert.match(i18nSource, /"Confirm Intent \(Face\/Touch\)"/, "the exact action label ships");
+  assert.match(i18nSource, /"Active \(Hardware TEE\)"/, "the enclave state ships");
+  assert.match(i18nSource, /"Never Stored"/, "the biometrics guarantee ships");
+  // The English column is the global face, so it carries no CJK at all.
+  const enBlock = i18nSource.slice(i18nSource.indexOf("const EN: Messages = {"));
+  assert.equal(/[\u3400-\u9fff]/.test(enBlock), false, "no Chinese character may reach the default render");
+});
+
+test("F. the C-end surface is light frosted glass, not the dark console palette", () => {
+  assert.match(consumerView, /backdrop-blur-2xl/, "the cards are frosted glass");
+  assert.match(consumerView, /bg-white\/55/, "the hero card is translucent light glass");
+  assert.match(
+    consumerView,
+    /bg-\[linear-gradient\(180deg,#fbfcfe/
+    , "the backdrop is the soft off-white gradient",
+  );
+  assert.doesNotMatch(consumerView, /bg-maotang-surface/, "the dark surface token must be gone");
+  assert.doesNotMatch(consumerView, /bg-maotang-ink/, "the dark ink token must be gone");
+  assert.match(menuDrawer, /readonly tone\?: "light" \| "dark"/, "the drawer takes a surface tone");
+});
+
+test("F. the brand mark is a drawn feline M, and the app installs full-screen", () => {
+  assert.match(consumerView, /viewBox="0 0 32 32"/, "the hero mark is inline vector, not an image");
+  assert.match(consumerView, /M7 23\.5V10\.5l9 8\.5 9-8\.5v13/, "the M contour is drawn in the component");
+  assert.equal(existsSync(ICON_SVG), true, "the Home Screen icon must ship as app/icon.svg");
+  assert.equal(existsSync(MANIFEST), true, "the installable-app manifest must ship");
+  assert.match(manifestSource, /display: "standalone"/, "Add to Home Screen opens full-screen");
+  assert.match(manifestSource, /orientation: "portrait"/, "the installable window is portrait");
+  assert.match(layoutSource, /appleWebApp: \{ capable: true/, "iOS gets the standalone web-app meta");
+  assert.match(layoutSource, /themeColor: "#eef1f5"/, "the system chrome is tinted to the light surface");
+});
+
 
 // E. the compute-quota card (ADR-045)
 //

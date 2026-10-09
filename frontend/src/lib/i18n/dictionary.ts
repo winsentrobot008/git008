@@ -20,47 +20,26 @@
 
 export type Language = "zh" | "en";
 
-/** What the owner picked. `"auto"` follows the browser. */
+/**
+ * What the owner picked.
+ *
+ * `"auto"` is the global default and resolves to English, never to the browser tag: this console is the
+ * global edition, so a first-time visitor gets the English face on the first paint. `中文` is an explicit
+ * choice in the menu drawer, which means a Chinese reader still gets Chinese - by asking for it, rather
+ * than having it guessed from a locale header.
+ */
 export type LanguagePreference = "auto" | Language;
 
 export const LANGUAGE_STORAGE_KEY = "maotang.console.language";
 
-/** What a browser that is not Chinese gets: English, per the C-end auto-detect rule. */
+/**
+ * The one language a visitor gets without asking: English.
+ *
+ * It is also the server's first-paint language. Because the choice no longer depends on a request
+ * header, `/` and `/agent` render from static HTML - which is what lets the console open instantly in an
+ * Add-to-Home-Screen window instead of waiting for a per-request render.
+ */
 export const DEFAULT_LANGUAGE: Language = "en";
-
-/**
- * `["zh-CN", "en-US"]` -> `zh`; anything else -> `en`.
- *
- * Tags are in preference order and only a `zh*` tag selects Chinese, so an English-primary browser with
- * Chinese further down the list is still served English - the documented default for "not Zh/zh-CN".
- */
-export function detectLanguage(tags: readonly string[]): Language {
-  for (const tag of tags) {
-    if (typeof tag === "string" && tag.toLowerCase().startsWith("zh")) {
-      return "zh";
-    }
-  }
-  return DEFAULT_LANGUAGE;
-}
-
-/**
- * The `Accept-Language` header in preference order, for the server's first paint.
- *
- * The server cannot see `navigator.language`, so it guesses from this header and the client re-resolves
- * from the browser once running. Both paths apply the same `zh*` rule, so in the common case the client
- * writes back the value that is already on screen and nothing visibly changes.
- */
-export function parseAcceptLanguage(header: string | null | undefined): Language {
-  if (header === null || header === undefined) {
-    return DEFAULT_LANGUAGE;
-  }
-  const tags = header
-    .split(",")
-    .map((entry) => (entry.split(";")[0] ?? "").trim())
-    .filter((tag) => tag !== "");
-  return detectLanguage(tags);
-}
-
 export function isLanguagePreference(value: unknown): value is LanguagePreference {
   return value === "auto" || value === "zh" || value === "en";
 }
@@ -69,14 +48,22 @@ export function isLanguagePreference(value: unknown): value is LanguagePreferenc
 const ZH = {
   "brand": "MAOTANG Protocol",
 
-  "consumer.title": "猫糖 AI 个人助理",
-  "consumer.subtitle": "说一句话，本地策略先过一遍，再由你的指纹 / 面容确认。",
+  "consumer.title": "猫糖个人 AI 节点",
+  "consumer.subtitle": "说出你的意图，本地先过一遍策略，再由生物特征确认。",
 
   "pill.walletAlias": "钱包别名",
   "pill.account": "账户",
   "pill.balance": "余额",
   "pill.availableToday": "今日可用:",
 
+  "footer.enclave": "安全隔区：",
+  "footer.enclaveActive": "已启用（硬件 TEE）",
+  "footer.enclaveStandby": "待机（未接入设备隔区）",
+  "footer.processing": "本地处理：",
+  "footer.processingConfirmed": "已确认",
+  "footer.processingPending": "待硬件确认",
+  "footer.biometrics": "生物特征：",
+  "footer.biometricsNever": "从不存储",
   "status.ledgerNotReady": "本地策略账本未就绪：",
   "status.biometrics": "设备生物识别：",
   "status.detecting": "检测中…",
@@ -126,6 +113,7 @@ const ZH = {
   "toast.nodeActivated": "节点已激活：算力配额开始按 epoch 线性 Vesting。",
   "toast.hardwareChecked": "本机硬件通道就绪：设备已注册硬件凭据。",
 
+  "chat.placeholder": "说出你的意图…",
   "chat.label": "告诉猫糖助理你想做什么",
   "chat.grammarHint": "示例语句：Mint 0.05 ETH worth of Mao Tang token（M1 只解析这一固定语法）",
   "chat.send": "发送",
@@ -144,7 +132,7 @@ const ZH = {
   "sheet.userVerified": "用户已验证：{verified} · 硬件凭据：{hardware}",
   "sheet.signRefusal": "硬件签名通道未接入",
   "sheet.signed": "已签名",
-  "sheet.confirm": "刷脸 / 生物特征确认",
+  "sheet.confirm": "确认意图（Face / Touch）",
   "sheet.confirmBusy": "等待设备确认…",
   "sheet.confirmDisabled": "先在本机注册指纹 / 面容，或改用支持 WebAuthn 的浏览器打开",
   "sheet.enroll": "先在本机注册指纹 / 面容",
@@ -160,7 +148,7 @@ const ZH = {
   "menu.title": "菜单",
   "menu.close": "关闭菜单",
   "menu.language": "语言",
-  "menu.languageHint": "跟随系统时读取浏览器语言（navigator.language）：中文环境用中文，其余默认英文。",
+  "menu.languageHint": "默认全球英文界面；选中文则整个控制台以中文呈现。",
   "menu.languageAuto": "跟随系统",
   "menu.languageZh": "中文",
   "menu.languageEn": "English",
@@ -210,15 +198,23 @@ const ZH_DICTIONARY: Messages = ZH;
 const EN: Messages = {
   "brand": "MAOTANG Protocol",
 
-  "consumer.title": "MAOTANG AI, your personal assistant",
+  "consumer.title": "MAOTANG PERSONAL AI NODE",
   "consumer.subtitle":
-    "Say one sentence; local policy screens it first, then your fingerprint or face confirms it.",
+    "Speak your intent. Locally vetted. Biometrically confirmed.",
 
   "pill.walletAlias": "Wallet alias",
   "pill.account": "Account",
   "pill.balance": "Balance",
   "pill.availableToday": "Available today:",
 
+  "footer.enclave": "Secure Enclave:",
+  "footer.enclaveActive": "Active (Hardware TEE)",
+  "footer.enclaveStandby": "Standby (no device enclave)",
+  "footer.processing": "Local Processing:",
+  "footer.processingConfirmed": "Confirmed",
+  "footer.processingPending": "Pending",
+  "footer.biometrics": "Biometrics:",
+  "footer.biometricsNever": "Never Stored",
   "status.ledgerNotReady": "Local policy ledger unavailable:",
   "status.biometrics": "Device biometrics:",
   "status.detecting": "detecting...",
@@ -268,6 +264,7 @@ const EN: Messages = {
   "toast.nodeActivated": "Node activated: the compute quota starts vesting linearly by epoch.",
   "toast.hardwareChecked": "Local hardware channel ready: this device has an enrolled hardware credential.",
 
+  "chat.placeholder": "Speak your intent...",
   "chat.label": "Tell the MAOTANG assistant what to do",
   "chat.grammarHint": "Example: Mint 0.05 ETH worth of Mao Tang token (M1 parses exactly this grammar)",
   "chat.send": "Send",
@@ -286,7 +283,7 @@ const EN: Messages = {
   "sheet.userVerified": "Owner verified: {verified} - hardware credential: {hardware}",
   "sheet.signRefusal": "hardware signing channel not attached",
   "sheet.signed": "Signed",
-  "sheet.confirm": "Face / fingerprint confirmation",
+  "sheet.confirm": "Confirm Intent (Face/Touch)",
   "sheet.confirmBusy": "Waiting for the device...",
   "sheet.confirmDisabled":
     "Enroll a fingerprint / face on this device first, or open this page in a WebAuthn-capable browser",
@@ -304,9 +301,9 @@ const EN: Messages = {
   "menu.close": "Close menu",
   "menu.language": "Language",
   "menu.languageHint":
-    "Follow system reads navigator.language: a Chinese browser gets Chinese, everything else defaults to English.",
+    "English is the global default. Pick Chinese to read the console in Chinese.",
   "menu.languageAuto": "Follow system",
-  "menu.languageZh": "中文",
+  "menu.languageZh": "Chinese",
   "menu.languageEn": "English",
   "menu.console": "Console",
   "menu.consumer": "Consumer view",
