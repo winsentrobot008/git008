@@ -2,6 +2,55 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-039: the dashboard deploy vendors the sibling packages inside the root directory, because a file-upload deployment only ships a copy of it
+
+**Status:** Accepted (`frontend/scripts/vercel-api-deploy.mjs`, `vercel.json`,
+`docs/DEPLOY_MAOTANG_FRONTEND.md`, `memory/LESSONS_LEARNED.md`). Verified live:
+`dpl_Ur9pTMwtdEzukTS55nhQEbHFJT7i` reached `READY`; `https://maotang.008ai.online/`, `/agent` and `/dex`
+answer `200` (they answered `404` before) and `/api/agent/status` answers `200` with
+`windowSeconds: 86400`. No application, M1-M5, contract or SDK source changed; no dependency added.
+
+**Context:** `frontend/package.json` depends on `@maotang/sdk` (`file:../sdk`) and
+`@maotang/mobile-agent` (`file:../mobile-agent`), and both siblings ship TypeScript sources only -
+`dist/` is untracked in each. `mobile-agent` joined that graph when
+`frontend/src/lib/agent/runtime.ts` began importing `@maotang/mobile-agent/dist/*`, and every
+production build since failed at `npm run build` with `Module not found`, so the alias silently kept
+serving the last successful build while `/agent` and `/dex` answered `404`.
+
+Two independent causes had to be fixed:
+
+1. The deployment body carried `builds: [{ src: "package.json", use: "@vercel/next" }]`, and declaring
+   `builds` makes Vercel ignore the project's Build & Development Settings, so the custom
+   `installCommand` that compiles the siblings never ran. The build log says it verbatim: *"Due to
+   `builds` existing in your configuration file, the Build and Development Settings defined in your
+   Project Settings will not apply."* Removing it lets `installCommand` through.
+2. Even then the siblings are unreachable. A file-upload deployment materialises only a **copy of the
+   root directory** for the build: a throwaway install step reported `pwd` = `/vercel/path1` with
+   `..` = `/vercel`, while the full uploaded tree sat at `/vercel/path0/{frontend,sdk,mobile-agent}`.
+   `npm --prefix ../sdk` resolved `/vercel/sdk`, which does not exist (`ENOENT ... package.json`). The
+   git integration keeps the real monorepo layout, so `vercel.json` still uses `../`.
+
+**Decision:** For the uploaded artifact only, vendor the siblings **inside** the root directory:
+`sdk/ -> frontend/vendor/sdk` and `mobile-agent/ -> frontend/vendor/mobile-agent`, rewrite the two
+`file:` specifiers to `file:./vendor/...`, add `vendor` to `frontend/tsconfig.json`'s `exclude` (its
+`include` is `**/*.ts`, which would otherwise type-check the vendored sources), and run the sibling
+installs with `npm --prefix vendor/...`. Both rewrites live in `ARTIFACT_EDITS` and throw
+`ERR_ARTIFACT_EDIT_NOOP` when their anchor text is gone, so drift fails the deploy instead of silently
+producing an unresolvable build. The repository keeps the true monorepo layout - `file:../sdk`, an
+ordinary tsconfig - and the git-integration `installCommand` in `vercel.json` stays on `../`.
+
+The deploy also records `AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION=1`, the escape hatch
+`frontend/src/lib/agent/runtime.ts` documents for a deployment with no real `SlmRuntimeBackend`;
+without it `/api/agent/status` answers `503` and the console cannot render the spend-window panel. It
+does not weaken the gate: the stub emits only a *candidate* that the M1 schema gate and the M2 policy
+ledger still validate and dispose of.
+
+**Consequences:** One upload and one install chain, and the frontend tree is self-contained, so the
+deploy no longer depends on Vercel's internal paths. The cost is that the uploaded `package.json` and
+`tsconfig.json` differ from the repository; both differences are asserted by the deploy script and
+described here. `walk()` resolves symlinks and Windows junctions before the `SKIP_DIRS` check, which is
+what keeps the `mobile-agent/node_modules` junction (`-> sdk/node_modules`) from being read as a file.
+
 ## 2026-10-09 - ADR-038: the C-end authorization card carries its compliance claim and its wallet alias, and the gate pins both
 
 **Status:** Accepted (`frontend/src/components/agent-console/ConsumerView.tsx`,
@@ -1468,4 +1517,3 @@ protocol/creator/vault split is still an assumption rather than a ratified polic
 - **Decision:** Resolve FFmpeg through `src/core/ffmpeg.py`, with `FFMPEG_PATH`/`FFMPEG_BIN`/`FFMPEG_ROOT`, bundled `runtime_data/video-runtime/ffmpeg/bin`, then PATH. Resolve ComfyUI and model locations using `src/core/paths.py` and `COMFYUI_SERVER_URL`.
 - **Consequences:** Direct product binary discovery should migrate to shared helpers; integration checks must distinguish encoder presence from usable NVENC hardware.
 - **Status:** Active; product-wide migration is still in progress (see `REFACTOR_REPORT.md`).
-

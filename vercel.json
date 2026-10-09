@@ -4,7 +4,7 @@
     "maotang-frontend": {
       "root": "frontend",
       "framework": "nextjs",
-      "installCommand": "npm --prefix ../sdk install && npm --prefix ../sdk run build && npm install",
+      "installCommand": "npm --prefix ../mobile-agent install && npm --prefix ../mobile-agent run build && npm --prefix ../sdk install && npm --prefix ../sdk run build && npm install",
       "buildCommand": "npm run build"
     }
   },

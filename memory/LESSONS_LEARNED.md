@@ -2,6 +2,25 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-09 - a Vercel file-upload deployment builds a *copy* of the root directory, so `../` siblings are unreachable and `builds` cancels `installCommand`
+
+- **Observation:** Two independent traps break a monorepo `file:` dependency on Vercel, and each shows
+  up as a different error. (1) A deployment body with
+  `builds: [{ src: "package.json", use: "@vercel/next" }]` makes Vercel ignore the project's Build &
+  Development Settings, including `installCommand`; the build log says so in plain words. (2) With
+  `builds` removed, the install command runs - but in the sandbox it runs at `/vercel/path1`, a copy of
+  the root directory, where `..` is `/vercel` while the sibling packages live at `/vercel/path0/<pkg>`.
+  `npm --prefix ../sdk` then resolves `/vercel/sdk` and dies with
+  `ENOENT ... open '/vercel/sdk/package.json'`.
+- **Lesson:** On Vercel, `../` is only dependable for the git integration, where the repo keeps its real
+  layout. In an API/file-upload deployment the root directory is the whole world: anything it depends
+  on has to be vendored *inside* it, or the build fails on a path that does not exist in the repository.
+- **Application:** When a Vercel build reports `Module not found` for an internal package, read the
+  build log's opening lines before touching the diff. The phrase `Due to \`builds\` existing` and the
+  `pwd` printed by a throwaway install step (`echo PCWD=$(pwd); ls -a ..`) separate the two traps in a
+  single deploy cycle, and `find /vercel -maxdepth 3 -name package.json` shows exactly where the
+  uploaded tree landed.
+
 ## 2026-10-09 - a non-ASCII test fixture carries its expected bytes, so a brand or string rename has to update both halves
 
 - **Observation:** The repo-wide rename check for the old brand spelling turned up exactly one occurrence in
@@ -297,4 +316,3 @@ Append verified, reusable lessons newest-first. Separate observed facts from hyp
 - **Observation:** `products/008-video-factory/web/js/components/*.js` guarded re-renders with `store.subscribe((s, prev) => { if (!prev || prev.x !== s.x) render(); })`, but `createStore.set()` notified subscribers as `fn(state)` — a single argument. `prev` was therefore always `undefined` and `!prev` always true, so the guard suppressed nothing: every `store.set()` (each keystroke, plus the 6s system poll) replaced the component's `innerHTML`. In the inspiration card that destroyed the focused `<textarea>` mid-input; reproduced with CDP `Input.imeSetComposition`, where Chinese IME composition froze after the first character (`github凌`), the node lost focus, and later composition updates were swallowed.
 - **Lesson:** A guard is only as good as the caller's callback arity — assert the contract at the producer, not at each consumer. IME correctness here was a *consequence* of not replacing focused DOM nodes; adding `compositionstart`/`compositionend` handling alone would not have fixed it. Treat "never re-render the node the user is typing into" as the primary invariant, and suppressing state commits during composition as defence in depth.
 - **Application:** `store.set()` now forwards the previous state (`fn(state, prev)`) and `subscribe` seeds with `(state, null)`; `web/js/util.js` adds `bindCommittedInput(el, commit)` (guards on a local flag plus the native `e.isComposing`); `inspiration.js` re-renders on `topic.loading/payload/source` instead of object identity. Covered by `tests/test_ime_input.py` (18 checks, real CDP IME simulation); full product suite 160 checks green.
-

@@ -7,9 +7,13 @@
  * and binds the `maotang.008ai.online` subdomain to it, leaving the root domain
  * (`008ai.online` / `www.008ai.online`) untouched under the landing project.
  *
- * Why the upload is two trees: `frontend/package.json` depends on `@maotang/sdk` through
- * `file:../sdk`, and `sdk/` ships TypeScript sources only (`dist/` is an untracked build
- * artifact), so the sibling package is uploaded next to `frontend/` and built during install.
+ * Why the upload vendors the two sibling packages: `frontend/package.json` depends on
+ * `@maotang/sdk` through `file:../sdk` *and* on `@maotang/mobile-agent` through
+ * `file:../mobile-agent` (the M1/M2 runtime behind `/api/agent/*`). Both ship TypeScript sources
+ * only - `dist/` is an untracked build artifact in each - so they are uploaded and compiled during
+ * install. A file-upload deployment only materialises a *copy* of the root directory for the build,
+ * so the siblings are unreachable at `../`: they are vendored inside it instead, and the two
+ * frontend files that describe that layout are rewritten in the artifact, never in the repository.
  *
  * Usage (from `frontend/`):
  *   node scripts/vercel-api-deploy.mjs --dry-run
@@ -39,24 +43,73 @@ const API = "https://api.vercel.com";
 const CWD = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = path.resolve(CWD, "..");
 
-/** Public production variables, inlined into the client bundle at build time. */
+/**
+ * Production variables for the dashboard deployment.
+ *
+ * The `NEXT_PUBLIC_*` values are inlined into the client bundle at build time. The last entry is
+ * server-only. `AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION` is the escape hatch that
+ * `frontend/src/lib/agent/runtime.ts` documents for a build that knowingly ships the rule-based SLM
+ * stub: without it `/api/agent/status` answers 503 and the console cannot render the spend-window
+ * panel. `maotang.008ai.online` is the public preview, so the flag is set here - and because the stub
+ * only ever emits a *candidate* that M1/M2 still validate and dispose, it cannot spend on its own.
+ */
 const PRODUCTION_ENV = {
   NEXT_PUBLIC_CHAIN_ID: "31337",
   NEXT_PUBLIC_MAOTANG_RPC_URL: "https://rpc.008ai.online",
   NEXT_PUBLIC_OPERATOR_ADDRESS: "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
   NEXT_PUBLIC_DEVELOPER_ADDRESS: "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
   NEXT_PUBLIC_BTC_REVENUE_ADDRESS: "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe",
+  AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION: "1",
 };
 
-/** Both trees land in one deployment; build runs inside `frontend/` (the project rootDirectory). */
+/** Where the sibling packages are vendored inside the root directory. Artifact-only: the
+ * repository's `frontend/` has no `vendor/` directory. */
+const VENDOR_DIR = "vendor";
+
+/**
+ * Every tree lands in one deployment and the build runs inside the root directory (`frontend/`).
+ * The siblings are vendored inside it because a file-upload deployment hands the builder a copy of
+ * the root directory and leaves the rest of the uploaded tree unreachable at `../` (ADR-039).
+ */
 const UPLOAD_TREES = [
   { dir: CWD, prefix: ROOT_DIRECTORY },
-  { dir: path.join(REPO_ROOT, "sdk"), prefix: "sdk" },
+  { dir: path.join(REPO_ROOT, "sdk"), prefix: `${ROOT_DIRECTORY}/${VENDOR_DIR}/sdk` },
+  {
+    dir: path.join(REPO_ROOT, "mobile-agent"),
+    prefix: `${ROOT_DIRECTORY}/${VENDOR_DIR}/mobile-agent`,
+  },
 ];
 
-// `../sdk` is relative to the frontend build cwd. The SDK must be compiled before `next build`
-// resolves `@maotang/sdk` through its `file:` link.
-const INSTALL_COMMAND = "npm --prefix ../sdk install && npm --prefix ../sdk run build && npm install";
+// Both siblings must be compiled before `next build` resolves `@maotang/sdk` and
+// `@maotang/mobile-agent/dist/*` through their `file:` links; the agent runtime imports
+// `mobile-agent` from server routes, so a missing `dist` fails the build outright rather than
+// degrading at runtime. The paths are relative to the build cwd, which is the root directory.
+const INSTALL_COMMAND =
+  `npm --prefix ${VENDOR_DIR}/mobile-agent install && ` +
+  `npm --prefix ${VENDOR_DIR}/mobile-agent run build && ` +
+  `npm --prefix ${VENDOR_DIR}/sdk install && npm --prefix ${VENDOR_DIR}/sdk run build && npm install`;
+
+/**
+ * Artifact-only rewrites. The vendored layout has to be described by the frontend files that
+ * travel to Vercel; the repository keeps the real monorepo layout (`file:../sdk`, an ordinary
+ * tsconfig). Each rewrite throws when its anchor is gone, so drift fails the deploy instead of
+ * silently producing an unresolvable build.
+ */
+const ARTIFACT_EDITS = new Map([
+  [
+    `${ROOT_DIRECTORY}/package.json`,
+    (text) =>
+      text
+        .replace('"file:../mobile-agent"', `"file:./${VENDOR_DIR}/mobile-agent"`)
+        .replace('"file:../sdk"', `"file:./${VENDOR_DIR}/sdk"`),
+  ],
+  [
+    // Keep the vendored sources out of the frontend type-check, which includes every .ts file.
+    `${ROOT_DIRECTORY}/tsconfig.json`,
+    (text) =>
+      text.replace('"exclude": ["node_modules"]', `"exclude": ["node_modules", "${VENDOR_DIR}"]`),
+  ],
+]);
 const BUILD_COMMAND = "npm run build";
 
 const SKIP_DIRS = new Set([
@@ -98,17 +151,29 @@ async function vcall(method, urlPath, { body, raw, headers = {} } = {}) {
   return { status: res.status, data };
 }
 
+/** True for a directory, including one reached through a Windows junction or a symlink. */
+function pointsToDirectory(pathname) {
+  try {
+    return fs.statSync(pathname).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function walk(dir, base = "") {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
+    const abs = path.join(dir, entry.name);
+    // `Dirent.isDirectory()` is false for a symlink *and* for a Windows junction, so a linked
+    // directory would be read as a file and fail with EISDIR - which is exactly what this repo's
+    // `mobile-agent/node_modules` junction (`-> sdk/node_modules`) does. Resolve the target before
+    // deciding, so the `SKIP_DIRS` rule can still do its job.
+    const isDirectory = entry.isDirectory() || (entry.isSymbolicLink() && pointsToDirectory(abs));
+    if (isDirectory) {
       if (SKIP_DIRS.has(entry.name)) continue;
-      out.push(...walk(path.join(dir, entry.name), `${base}/${entry.name}`));
+      out.push(...walk(abs, `${base}/${entry.name}`));
     } else if (!SKIP_FILES(entry.name)) {
-      out.push({
-        abs: path.join(dir, entry.name),
-        rel: `${base}/${entry.name}`.replace(/^\//, ""),
-      });
+      out.push({ abs, rel: `${base}/${entry.name}`.replace(/^\//, "") });
     }
   }
   return out;
@@ -133,8 +198,10 @@ function preflight(requireToken = true) {
       `ERR_WRONG_CWD: expected the frontend package at ${CWD} (resolved from the script location)`
     );
   }
-  if (!fs.existsSync(UPLOAD_TREES[1].dir)) {
-    throw new Error(`ERR_SDK_MISSING: sibling package not found at ${UPLOAD_TREES[1].dir}`);
+  for (const tree of UPLOAD_TREES.slice(1)) {
+    if (!fs.existsSync(tree.dir)) {
+      throw new Error(`ERR_SIBLING_MISSING: sibling package '${tree.prefix}' not found at ${tree.dir}`);
+    }
   }
   if (!TOKEN) {
     if (requireToken) throw new Error("ERR_TOKEN_MISSING: VERCEL_TOKEN is not set");
@@ -148,7 +215,7 @@ function preflight(requireToken = true) {
   }
   if (/\s/.test(TOKEN)) throw new Error("ERR_TOKEN_INVALID: VERCEL_TOKEN contains whitespace");
   if (TOKEN.length < 20) console.warn("  [warn] VERCEL_TOKEN looks short; check for truncation");
-  console.log(`  upload tree: frontend/ (+ sdk/) from ${REPO_ROOT}`);
+  console.log(`  upload trees: frontend/ (+ vendored sdk/, mobile-agent/) from ${REPO_ROOT}`);
 }
 
 async function ensureProject() {
@@ -220,8 +287,16 @@ function collectFiles() {
   for (const tree of UPLOAD_TREES) {
     if (!fs.existsSync(tree.dir)) continue;
     for (const f of walk(tree.dir)) {
-      const buf = fs.readFileSync(f.abs);
-      out.push({ ...f, rel: `${tree.prefix}/${f.rel}`, sha: sha1(buf), buf });
+      const rel = `${tree.prefix}/${f.rel}`;
+      let buf = fs.readFileSync(f.abs);
+      const edit = ARTIFACT_EDITS.get(rel);
+      if (edit) {
+        const before = buf.toString("utf8");
+        const after = edit(before);
+        if (after === before) throw new Error(`ERR_ARTIFACT_EDIT_NOOP: ${rel} did not match`);
+        buf = Buffer.from(after, "utf8");
+      }
+      out.push({ ...f, rel, sha: sha1(buf), buf });
     }
   }
   return out;
@@ -254,7 +329,11 @@ async function createDeployment(files) {
     project: PROJECT,
     target: "production",
     version: 2,
-    builds: [{ src: "package.json", use: "@vercel/next" }],
+    // No "builds" array on purpose: declaring one makes Vercel ignore the project's Build &
+    // Development Settings - including installCommand - so the sibling packages were never
+    // compiled and every build died on an unresolvable @maotang/* import (ADR-039).
+    // Omitting it lets the projectSettings below - and the same values persisted on the
+    // project - drive the install and build steps.
     files: files.map((f) => ({ file: f.rel, sha: f.sha })),
     projectSettings: {
       framework: "nextjs",

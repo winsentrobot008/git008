@@ -10,12 +10,27 @@ Release channel for `frontend/` (the MAOTANG protocol dashboard). It is delibera
 
 1. Creates (or links) the Vercel project `maotang-frontend`, framework `nextjs`,
    `rootDirectory=frontend`.
-2. Upserts the five public production variables on that project.
-3. Uploads **two source trees** in one deployment, then builds:
+2. Upserts the production variables on that project: the five `NEXT_PUBLIC_*` values below plus the
+   server-only `AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION`.
+3. Uploads one deployment and builds inside `frontend/` (the project root directory):
    - `frontend/` -> `frontend/`
-   - `sdk/` -> `sdk/` (sibling package; `frontend/package.json` depends on `@maotang/sdk`
-     via `file:../sdk`, and `sdk/dist` is an untracked build artifact)
-   - install: `npm --prefix ../sdk install && npm --prefix ../sdk run build && npm install`
+   - `sdk/` -> `frontend/vendor/sdk`, `mobile-agent/` -> `frontend/vendor/mobile-agent`
+   - `frontend/package.json` depends on `@maotang/sdk` via `file:../sdk` and on
+     `@maotang/mobile-agent` via `file:../mobile-agent` (the M1/M2 runtime behind `/api/agent/*`),
+     and `dist/` is an untracked build artifact in both siblings. The siblings are therefore
+     **vendored inside the root directory** for the upload, and the two frontend files that describe
+     that layout - `package.json` (`file:./vendor/...`) and `tsconfig.json` (`exclude` gains
+     `vendor`) - are rewritten **in the artifact only**, never in the repository.
+   - install: `npm --prefix vendor/mobile-agent install && npm --prefix vendor/mobile-agent run build
+     && npm --prefix vendor/sdk install && npm --prefix vendor/sdk run build && npm install`
+
+   > **Why the siblings are vendored (ADR-039).** They used to be uploaded as siblings of
+   > `frontend/`. That works for the git integration, but not here: a file-upload deployment
+   > materialises a **copy of the root directory** for the build (observed at `/vercel/path1`, with
+   > `..` = `/vercel`), so the rest of the uploaded tree is unreachable at `../`. Builds died first on
+   > `Module not found: Can't resolve '@maotang/mobile-agent/dist/slm/index.js'` and then - once the
+   > install command started `&&`-chaining the sibling builds - on `@maotang/sdk` as well, while the
+   > alias silently kept serving the previous successful build.
 4. Polls until `readyState === READY`.
 5. Attaches `maotang.008ai.online` to the project and reports verification/CNAME status.
 
@@ -38,7 +53,13 @@ the upload so the Vercel project values win):
 | `NEXT_PUBLIC_OPERATOR_ADDRESS` | `0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea` |
 | `NEXT_PUBLIC_DEVELOPER_ADDRESS` | `0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea` |
 | `NEXT_PUBLIC_BTC_REVENUE_ADDRESS` | `1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe` |
+| `AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION` | `1` |
 
+`AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION=1` is the escape hatch `frontend/src/lib/agent/runtime.ts`
+documents for a deployment with no real `SlmRuntimeBackend`: without it `/api/agent/status` answers
+`503` and the console cannot render the spend-window panel. It does not weaken the gate - the
+rule-based stub only ever emits a *candidate*, and the M1 schema gate and the M2 policy ledger still
+validate and dispose of it.
 ## How the board binds addresses
 
 Addresses do not have to be copied into the Vercel project by hand. `frontend/next.config.ts` reads
@@ -71,10 +92,10 @@ curl.exe -i -X OPTIONS -H 'origin: https://maotang.008ai.online' `
   `forbidden: You don't have permission to create the project`). Fix by granting the token
   project-create scope, or by creating the empty project `maotang-frontend` once in the Vercel
   dashboard and re-running.
-- **DNS.** `maotang.008ai.online` is currently a `NXDOMAIN`; the zone (`008ai.online`) is
-  Cloudflare-proxied, so Vercel cannot create the record itself. After the deployment is `READY`,
-  add a DNS record in the zone that manages `008ai.online`:
-  `CNAME maotang -> cname.vercel-dns.com` (proxied off), then wait for Vercel verification.
+- **DNS.** `maotang.008ai.online` is already attached to `maotang-frontend` and Vercel reports it as
+  verified (`domain verified: true`), so a re-run only re-points the alias. If it ever has to be
+  recreated: the zone (`008ai.online`) is Cloudflare-proxied, so Vercel cannot create the record
+  itself - add `CNAME maotang -> cname.vercel-dns.com` (proxied off) and wait for verification.
 - `rpc.008ai.online` is live: the `008-video` Cloudflare tunnel maps it to the local EVM node on
   `http://127.0.0.1:8545`. The deployed bundle inlines the configured value, so the endpoint has to
   be up for the dashboard to work — and it is public, so read "RPC exposure" below before relying on it.
