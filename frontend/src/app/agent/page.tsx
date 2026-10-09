@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import { AutonomousWalletCard } from "@/components/agent-console/AutonomousWalletCard";
 import { BioAuthGuard } from "@/components/agent-console/BioAuthGuard";
+import { ComputeStatusCard } from "@/components/agent-console/ComputeStatusCard";
 import { MiningEngineConsole } from "@/components/agent-console/MiningEngineConsole";
 import type { Hex } from "@/lib/agent/types";
 
@@ -36,6 +37,7 @@ export default function AgentConsolePage() {
         <div className="grid gap-5">
           <BioAuthGuard challenge={digest} />
           <AutonomousWalletCard />
+          <ComputeStatusCard />
         </div>
       </div>
 

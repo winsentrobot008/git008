@@ -2,6 +2,51 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-027: hybrid compute offloads heavy SLM inference and Groth16 proving, but authority (keygen, policy, ECDSA) never leaves the M2/M5 enclave
+
+**Status:** Accepted (implemented in `mobile-agent/slm/compute-center-adapter.ts`,
+`mobile-agent/test/compute-center.test.ts`, `frontend/src/lib/agent/compute.ts`,
+`frontend/src/app/api/agent/compute/status/route.ts` and
+`frontend/src/components/agent-console/ComputeStatusCard.tsx`; `mobile-agent` `npm test` green over 159 tests
+(158 passing, 1 opt-in live leg skipped) and both `npm run typecheck` checks clean. `slm/index.ts` re-exports
+the adapter; no contract or SDK source changed)
+
+**Context:** M1 forced all inference on-device (`slm-engine.ts` refuses cloud/model-server descriptors and
+runs a network sentinel around every call). That is the right default for a pure-edge engine, but complex
+inference and Groth16 proving are the two workloads a phone is worst at: they cost battery and thermals, and
+a relayer/prover can do them faster. The product needs a hybrid mode without giving the compute center any
+authority over funds.
+
+**Decision:**
+
+- **Heavy work may leave the device; authority may not.** `RemoteComputeAdapter` performs inference, Groth16
+  proving and candidate proposal over an *injected* transport (`createHttpComputeCenterTransport` is the
+  default; tests inject a scripted one, so a hostile payload needs no socket). It returns an
+  `UnsignedCandidateTransaction` or a `Groth16ProofArtifact` - never a signature.
+- **Non-custodial is enforced on the response, not promised.** A recursive scan refuses any custody-shaped
+  key (`signature`, `signedTx`, `privateKey`, `seed`, `keystore`, ...) with `NonCustodialViolationError`
+  before a field is read, and each endpoint has a strict field allow-list so an unknown key is
+  `UNKNOWN_FIELD` rather than silently ignored - the posture `intent-translator.ts` takes toward model output.
+- **Signing stays local and single-path.** `authorizeLocally(wallet, candidate)` is the only bridge from a
+  candidate to a signature and all it does is call the local M2 `AutonomousWallet.signIntent()`; a tampered
+  candidate therefore hits the spend policy first and throws `PolicyViolationError` (e.g.
+  `DESTINATION_NOT_ALLOWED`) before the enclave is asked, consuming no window budget.
+- **The fallback default is local-only, and the UI says so.** `GET /api/agent/compute/status` measures a real
+  health round-trip; an unset `AGENT_COMPUTE_CENTER_URL` is local-only mode, and a configured-but-silent
+  endpoint reports `reachable: false` rather than a hybrid badge. The message carries host only, never the
+  path (which may hold a token).
+
+**Consequences:** the phone can shed the two expensive workloads while the security boundary is unchanged -
+key generation, policy evaluation and ECDSA signing still run only in the enclave. The compute center is
+trusted for *liveness and quality*, not for *authority*, so a malicious or compromised relayer can at worst
+propose a transaction the policy rejects; it cannot sign, redirect funds, or exfiltrate a key. The remaining
+cost is one server-side secret (`AGENT_COMPUTE_CENTER_URL`) and a health probe per status poll. Recorded as
+the deliberate exception to ADR-022's edge-only inference; the edge engine remains the default and is
+unchanged.
+
+**References:** `mobile-agent/slm/compute-center-adapter.ts`, `mobile-agent/slm/slm-engine.ts`,
+`mobile-agent/signer/wallet.ts`, `mobile-agent/signer/policy.ts`, `mobile-agent/test/compute-center.test.ts`,
+`frontend/src/app/api/agent/compute/status/route.ts`, `frontend/src/components/agent-console/ComputeStatusCard.tsx`.
 ## 2026-10-08 - ADR-026: the web console runs M1/M2 on the server and imports only their types, because a browser cannot hold the key and must not re-derive the digest
 
 **Status:** Accepted (implemented in `frontend/src/lib/agent/`, `frontend/src/lib/slm/lazy-model-loader.ts`,
