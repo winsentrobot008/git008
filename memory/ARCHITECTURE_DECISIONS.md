@@ -2,6 +2,45 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-033: MVP v1.0 ships through an executed audit whose verdict names the surface it did not run
+
+**Status:** Accepted (`docs/AUDIT_REPORT_v1.0.md`, covering commit `97a8922`; documentation only - no source,
+contract or test changed, so the gates it reports are the gates of ADR-031/ADR-032, re-executed: `mobile-agent`
+`npm run typecheck` and `npm run build` exit 0, `npm test` 174 TAP entries / 173 pass / 0 fail / 1 opt-in skip,
+`frontend` `npx tsc --noEmit` and `next build` exit 0 over 6 routes. M1-M5 assertions 172, of which 171 pass and
+1 skips)
+
+**Context:** MVP v1.0 had accumulated compliance, threat-model, hybrid-compute and frontend work across
+ADR-027..ADR-032, each entry citing its own gate run, but no single document stated what the *whole* release
+rests on, which assertions actually hold the fail-closed and zero-biometric claims, and - the part usually
+missing - which surfaces were never exercised. A security review that lists only passes is not an audit.
+
+**Decision:**
+
+- **The report is generated from executed commands.** Every metric in `docs/AUDIT_REPORT_v1.0.md` is a number
+  the reader can reproduce from §8, and every security claim names the module and the assertion that holds it.
+- **Not-executed surfaces are findings, not silence.** The Foundry contract suite (`forge` absent from the
+  audit environment, 10 `.t.sol` files including `MaoTangSustenanceVault.t.sol`), the opt-in live M4/M3 leg
+  (`MAOTANG_E2E_LIVE_RPC=1`, needs Anvil), platform key-attestation chains (not implemented) and any real
+  secure element are each stated as a scope limitation, so M3 is claimed only at the calldata-encoder boundary
+  and the release sign-off is made conditional on `forge test`.
+- **The headline positive control is adversarial, not descriptive.** `compute-center.test.ts` drives a
+  malicious compute center and shows the tampered candidate is refused by the *local* M2 policy before the
+  enclave is asked, which is the property ADR-027 asserted and this audit re-executed.
+- **The count is decomposed rather than rounded up.** `node --test <dir>` reports 174 TAP entries because it
+  also loads `test/helpers/*.js`; the report states 172 assertions and files the difference as finding F-01
+  with a fix, instead of quoting 174 as the assertion count.
+
+**Consequences:** the release has one document a reviewer can re-run, and its limits are on the record before
+anyone asks. The cost is that the verdict is conditional on an unexecuted contract suite, so "MVP v1.0 passed"
+must be read with that clause; and because `frontend/` still has no test runner, the SLM state machine and the
+console cards are gated by `tsc` plus build and verified by inspection, which the report states as F-05 rather
+than implying execution coverage that does not exist.
+
+**References:** `docs/AUDIT_REPORT_v1.0.md`, `docs/THREAT_MODEL.md`, `docs/LEGAL_COMPLIANCE.md`,
+`mobile-agent/slm/compute-center-adapter.ts`, `mobile-agent/signer/policy.ts`,
+`mobile-agent/bio-auth/native-biometric-gate.ts`, `frontend/src/lib/slm/mining-engine-state.ts`,
+`memory/LESSONS_LEARNED.md` (2026-10-09 test-count entry), `memory/ARCHITECTURE_DECISIONS.md` ADR-027 / ADR-031 / ADR-032.
 ## 2026-10-09 - ADR-032: the console phase is named `MINING_ACTIVE`, and the M2 card states its spend window as a derived duration
 
 **Status:** Accepted (implemented in `frontend/src/lib/slm/mining-engine-state.ts`,

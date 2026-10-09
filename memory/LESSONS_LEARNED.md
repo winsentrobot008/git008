@@ -2,6 +2,20 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-09 - a `node --test <dir>` TAP count includes test-helper files, so it is not the assertion count
+
+- **Observation:** `mobile-agent` `npm test` runs `node --test dist/test-build/test/` and reports
+  `# tests 174 / # pass 173 / # skipped 1`. Running the 13 `*.test.js` files one at a time sums to **172**, not
+  174. The gap is `test/helpers/bridges.js` and `test/helpers/repo.js`: the directory runner loads every `.js`
+  under the test directory as a test file, and a file with no assertions is still reported as one passing test.
+- **Lesson:** For this repo, `# tests` from the directory run is "TAP entries", not "assertions". Three different
+  numbers then describe the same run - 174 entries, 172 assertions, 171 executed passes - and each has to be
+  quoted separately or the release note overstates coverage by 2.
+- **Application:** Quote `mobile-agent` results as "172 assertions, 171 passed, 1 opt-in live leg skipped, 0
+  failed" and say 174 only when describing runner output. Reproduce the assertion count with
+  `Get-ChildItem dist\\test-build\\test\\*.test.js | ForEach-Object { node --test $_.FullName }`. The real fix, if
+  the extra 2 ever matter, is to point the script at `dist/test-build/test/*.test.js` or move the helpers out of
+  the test glob; recorded as finding F-01 in `docs/AUDIT_REPORT_v1.0.md`.
 ## 2026-10-08 - a JSON-RPC proxy that rejects non-POST breaks browsers while curl still passes
 
 - **Observation:** `scripts/rpc-guard.mjs` answered `OPTIONS https://rpc.008ai.online` with
