@@ -2,6 +2,54 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-036: the C-end consumer view is the default face of `/` and `/agent`; the DEX board moves to `/dex`
+
+**Status:** Accepted (`frontend/src/components/agent-console/ConsumerView.tsx`,
+`ConsoleShell.tsx`, `DeveloperConsoleView.tsx`, `frontend/src/app/page.tsx`,
+`frontend/src/app/agent/page.tsx`, `frontend/src/app/dex/page.tsx`). Gates: `npx tsc --noEmit` exit 0,
+`npm run test:policy` 10/10 exit 0 with the dev server up, `npm run build` exit 0 over 7 routes
+(`/`, `/agent`, `/dex` static; the three `/api/agent/*` handlers dynamic), `mobile-agent` `npm test`
+174 tests / 173 pass / 1 skip / 0 fail and `npm run typecheck` exit 0. No M1-M5 source, contract or SDK
+source changed.
+
+**Context:** The MVP repositioned MAOTANG from a DEX dashboard to a Web Agent OS, and the C-end brief
+asked for a simplified consumer surface (a chat card, a status pill, one biometric confirmation) with the
+M1-M5 console kept as an engineer/audit view. On 2026-10-09 `/` was the 17.5 KB DEX board and `/agent`
+was the M1-M5 console, so "make the consumer view the default" had to decide what happens to both.
+
+**Decision:**
+
+- **The consumer view is the default face of both `/` and `/agent`.** They render the same
+  `ConsoleShell`, so the entry point a bookmark points at and the entry point the docs name cannot drift.
+- **The DEX board is preserved, not deleted, at `/dex`.** It was a byte-for-byte copy of the previous
+  `src/app/page.tsx`; only its route changed. Both the consumer and the developer header link to it, so
+  the board stays reachable without being the first thing an owner who wants to talk to their agent sees.
+- **The DEX route move does not weaken the deploy smoke test.** `scripts/maotang-smoke.mjs` asserts the
+  exact `<title>` from `frontend/src/app/layout.tsx`, which is unchanged, and the forbidden-marker checks
+  are for the landing host. The title is deliberately left alone for that reason.
+- **The view preference lives in `localStorage` (`maotang.console.mode`), read after mount.** The first
+  paint is always the consumer view - that is what "default" means - and a stored preference for the
+  developer view flips the page in an effect. The preference is a view choice, never a permission: both
+  faces render the same server-reported numbers and neither can sign what the other could not.
+- **The view computes no policy and no digest.** The prompt goes to `/api/agent/intent` and the response,
+  including every refusal, is rendered verbatim with the module's own stage and code. The balance is the
+  manifest owner's live `eth_getBalance`; "today's remaining allowance" is
+  `maxValueWeiPerWindow - spentWei` clamped at zero; the window label is derived from `windowSeconds`, so
+  a shortened deployment is never described as "24h".
+- **The confirmation sheet is honest about the web host.** The single primary action is
+  `刷脸 / 指纹安全确认`, which requests a WebAuthn assertion bound to the M2 digest. The sheet then asks
+  for the signature too, so `enclave.reachable === false` surfaces as the M2 module's own refusal instead
+  of a green tick nobody earned. The nullifier shown is the web-edge handle from
+  `src/lib/agent/webauthn.ts`, labelled as `HardwareNullifier`, not the chain's Groth16 nullifier.
+- **One preset is a local answer, not a fake transaction.** The deterministic M1 stub only parses a fixed
+  grammar, so the transfer/mint presets send the exact English sentences the stub accepts, and
+  `查看今日节点收益` is answered from the local spend ledger with an explicit statement that no reward
+  ledger is wired in this build - rather than inventing node earnings.
+
+**Consequences:** `/` no longer opens on the DEX board; anything that assumed the board at the root must
+use `/dex`. The consumer and developer faces share one shell, so a future third face is a new branch in
+`ConsoleShell`, not a new page. `frontend/` now has 7 build routes; ADR-035's "6 routes" figure is
+superseded by this entry.
 ## 2026-10-09 - ADR-035: `frontend/` gains one hermetic policy gate, and the demo guide quotes measured output rather than design intent
 
 **Status:** Accepted (`frontend/scripts/assert-runtime-policy.mjs`, `frontend/package.json` ->
