@@ -2,6 +2,57 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-035: `frontend/` gains one hermetic policy gate, and the demo guide quotes measured output rather than design intent
+
+**Status:** Accepted (`frontend/scripts/assert-runtime-policy.mjs`, `frontend/package.json` ->
+`npm run test:policy`, `docs/MVP_DEMO_GUIDE.md`; `npm run test:policy` 10/10 exit 0, `frontend`
+`npx tsc --noEmit` and `npm run build` exit 0 over 6 routes. No mobile-agent, contract or SDK source
+changed. This entry closes the residual ADR-034 recorded - "the value is still asserted only by a live
+read; a future gate could pin it" - and partially supersedes finding F-05 of `docs/AUDIT_REPORT_v1.0.md`.
+
+**Context:** ADR-034 established that nothing in `frontend/` could have caught the 3600-vs-86400 drift,
+because the directory had no test runner and `tsc` plus `next build` prove only that the code compiles.
+Two consequences followed. The number was still pinned by nothing, and the only way an evaluator could
+learn what the console actually does was to read source. A demo guide written from the design documents
+would have repeated the same mistake the audit report made in section 5.3.
+
+**Decision:**
+
+- **Three independent assertion groups, not one.** `assert-runtime-policy.mjs` asserts (A) the defaults
+  in `src/lib/agent/runtime.ts`, (B) that the tracked config surface `.env.example` documents the same
+  numbers, and (C) that a live `/api/agent/status` agrees. Group B is the one that would have failed on
+  2026-10-09: source and documentation were both plausible and mutually inconsistent, which is exactly the
+  failure a single-source check cannot see.
+- **The expectation is a literal, never an import.** Importing the value under test would make every
+  assertion tautological, so the expected envelope is restated in the script. A change to the policy
+  therefore has to be made deliberately in two places.
+- **Plain ESM on `node:test`, with no new dependency.** Node 20 cannot execute `.ts`, `frontend/` has no
+  runner, and the repo deliberately keeps `mobile-agent` dependency-free; adding a TypeScript executor to
+  run ten assertions would cost more than it buys. `node --test scripts/assert-runtime-policy.mjs` runs
+  as-is. The deviation from the requested `.ts` filename is this constraint, not a preference.
+- **The live group skips loudly, in the repo's existing idiom.** No server reachable is a printed `SKIP`
+  with the reason and an exit code of 0, matching `mobile-agent`'s opt-in live-RPC leg. Groups A and B
+  always run, so the gate is useful on a machine with nothing listening.
+- **The gate was verified to be non-vacuous before it was trusted.** Setting `.env.example` back to
+  `3600` produces `not ok 5` and exit code 1; pointing `MAOTANG_BASE_URL` at a dead port produces three
+  skips with their reason. A gate nobody has seen fail is not evidence.
+- **The demo guide quotes observed output.** Every expected value in `docs/MVP_DEMO_GUIDE.md` - the
+  preview JSON, the `UNSUPPORTED_REQUEST` refusal, `mode: "local-only"`, the `fail-closed` badge - was
+  captured from a running instance while writing it. Where the console truthfully shows a local-only or
+  fail-closed state, the guide explains why that is the shipped behaviour instead of promising a green
+  badge a browser cannot earn.
+
+**Consequences:** the 24h window is now pinned by a command a reviewer can run, and the drift that
+started this thread cannot silently recur in any of its three forms. The cost is one more file that must be
+updated when the policy changes, and a static group whose regex parses source text - a reformat of those
+specific `integerFromEnv` / `bigintFromEnv` call sites would fail the gate loudly rather than silently,
+which is the acceptable direction of failure. The residual is recorded rather than closed:
+`docs/AUDIT_REPORT_v1.0.md` finding F-05 said `frontend/` has no test runner, and that is now only partly
+true - the SLM state machine and the four console cards are still verified by inspection, not execution.
+
+**References:** `frontend/scripts/assert-runtime-policy.mjs`, `frontend/package.json`,
+`frontend/src/lib/agent/runtime.ts`, `frontend/.env.example`, `docs/MVP_DEMO_GUIDE.md`,
+`docs/AUDIT_REPORT_v1.0.md`, `memory/ARCHITECTURE_DECISIONS.md` ADR-032 / ADR-033 / ADR-034.
 ## 2026-10-09 - ADR-034: the M2 spend window defaults to 86400s where the prose can be checked, and the audit report carries a correction rather than a silent edit
 
 **Status:** Accepted (implemented in `frontend/src/lib/agent/runtime.ts` -
