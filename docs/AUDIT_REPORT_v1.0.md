@@ -290,11 +290,20 @@ badge requires an assertion whose `challenge` equals the displayed digest.
 ### 5.3 `AutonomousWalletCard.tsx` - 24h spend window - **PASS**
 
 The window label is **derived from policy**, not hard-coded: `spendWindowLabel` renders `24h` only when
-`windowSeconds` is a positive whole number of hours and falls back to raw seconds otherwise. With the
-shipped `86400` policy this yields `Spend window (24h) spent {spent} / {cap} ETH` and
-`Spend window length 24h (86400s)`, with the rolling-ledger tick in the tooltip. `Destination whitelist (n)`
-names the closed allow-list, and an empty list renders as "none - every destination is refused". The card
-is a pure report of server-side state (`/api/agent/status`); it computes no policy of its own.
+`windowSeconds` is a positive whole number of hours and falls back to raw seconds otherwise, with the
+rolling-ledger tick in the tooltip. `Destination whitelist (n)` names the closed allow-list, and an empty
+list renders as "none - every destination is refused". The card is a pure report of server-side state
+(`/api/agent/status`); it computes no policy of its own.
+
+> **Correction (found post-audit, while running the dev server).** The paragraph above originally claimed
+> that "the shipped `86400` policy" produced `Spend window (24h) spent`. That number was **wrong at the
+> audited commit** `97a8922`: the runtime default was **3600**
+> (`frontend/src/lib/agent/runtime.ts` - `integerFromEnv("AGENT_POLICY_WINDOW_SECONDS", 3600)`), and
+> `frontend/.env.example` documented `Default 3600`. A console built from that commit therefore rendered
+> `Spend window (1h) spent`. The PASS above rests on the *derivation* - the card reads the policy instead of
+> asserting a number, which is precisely why the live console showed `1h` rather than mislabelling it `24h` -
+> and not on the old value. The default and `.env.example` are now `86400`, so the label reads `24h` with no
+> configuration.
 
 ### 5.4 Lazy-loading integrity - **PASS**
 

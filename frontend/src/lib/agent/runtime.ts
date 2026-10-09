@@ -124,7 +124,9 @@ export function readLimits(): AgentLimits {
     maxValueWeiPerIntent: bigintFromEnv("AGENT_POLICY_MAX_VALUE_WEI", ETH / 10n),
     maxValueWeiPerTransaction: bigintFromEnv("AGENT_POLICY_MAX_VALUE_WEI", ETH / 10n),
     maxValueWeiPerWindow: bigintFromEnv("AGENT_POLICY_WINDOW_WEI", ETH / 2n),
-    windowSeconds: integerFromEnv("AGENT_POLICY_WINDOW_SECONDS", 3600),
+    // One day: long enough that an ordinary day of agent legs cannot roll past the window cap, short
+    // enough that a compromised key cannot spend the whole allowance in a single burst.
+    windowSeconds: integerFromEnv("AGENT_POLICY_WINDOW_SECONDS", 86400),
     // 0n is the strict reading: every leg above nothing requires the owner's live authorization.
     biometricThresholdWei: bigintFromEnv("AGENT_POLICY_THRESHOLD_WEI", 0n),
     keyAlias: process.env.AGENT_WALLET_KEY_ALIAS?.trim() || "maotang.web.owner",

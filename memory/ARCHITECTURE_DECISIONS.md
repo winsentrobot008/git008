@@ -2,6 +2,51 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-034: the M2 spend window defaults to 86400s where the prose can be checked, and the audit report carries a correction rather than a silent edit
+
+**Status:** Accepted (implemented in `frontend/src/lib/agent/runtime.ts` -
+`integerFromEnv("AGENT_POLICY_WINDOW_SECONDS", 86400)` - and `frontend/.env.example`, plus a dated
+correction note in `docs/AUDIT_REPORT_v1.0.md` §5.3; `frontend` `npx tsc --noEmit` clean and `next build`
+green over 6 routes, and a restarted `next dev` serves `/api/agent/status` with `"windowSeconds": 86400`.
+No mobile-agent, contract or SDK source changed)
+
+**Context:** Booting the dev server exposed a defect no gate could have caught: `/api/agent/status`
+reported `"windowSeconds": 3600`, so a console built from commit `97a8922` rendered
+`Spend window (1h) spent`. ADR-032, the M2 card's own comment and `docs/AUDIT_REPORT_v1.0.md` §5.3 all
+described the shipped window as 86400 (24h). Three unverified assumptions had stacked up: the config
+default was never read back from a running server, `frontend/.env.local` is git-ignored
+(`git check-ignore -v` -> `.gitignore:76`) so a local override can never be the *shipped* value, and the
+audit report had taken the number from the ADR rather than from the process it claims to describe.
+
+**Decision:**
+
+- **The default moves to where the prose can be checked.** `readLimits()` now returns `86400`, so a fresh
+  checkout - and any deployment that sets nothing - has the 24h window that the card, ADR-032 and the
+  whitepaper wording describe. The `AGENT_POLICY_WINDOW_SECONDS` override is unchanged, so an operator can
+  still shorten it per environment.
+- **The tracked config surface is `.env.example`, not `.env.local`.** `.env.local` gains the explicit
+  `AGENT_POLICY_WINDOW_SECONDS=86400` for local clarity, but it is git-ignored and AGENTS.md forbids
+  committing env files, so it cannot carry the change into the repository. `.env.example` documents
+  `Default 86400 (24h)` and is what a reviewer reads.
+- **The audit report is corrected in place, with a dated note.** The finding itself is unchanged - the card
+  derives the label from policy instead of hard-coding it - but the wrong number is retracted on the record,
+  together with the mechanism that surfaced it (running the server, not a gate) and the fact that the audit
+  had repeated the ADR instead of measuring the runtime.
+- **The live endpoint becomes part of the audit's own reproducibility.** No automated check asserts this
+  value: `frontend/` has no test runner, and the number only becomes visible when the console reads
+  `/api/agent/status`. The report now names that read as the evidence for the section it previously
+  asserted.
+
+**Consequences:** a fresh checkout shows `24h` with no configuration, so the M2 card, ADR-032 and the
+audit report are true by default rather than only on a machine holding an untracked override. The cost is
+recorded rather than hidden: moving 3600 -> 86400 is a genuine **loosening of the M2 envelope**, because a
+compromised key may now spend the 0.5 ETH window cap across a day instead of an hour. The per-transaction
+cap (0.1 ETH) and the authorization threshold (every leg) are unchanged, and this is the deliberate trade -
+but it is a change in granted authority, which is why it is an ADR and not a cosmetic default bump. The
+residual is that the value is still asserted only by a live read; a future gate could pin it.
+
+**References:** `frontend/src/lib/agent/runtime.ts`, `frontend/.env.example`, `frontend/.env.local`
+(untracked), `docs/AUDIT_REPORT_v1.0.md` §5.3, `memory/ARCHITECTURE_DECISIONS.md` ADR-032 / ADR-033.
 ## 2026-10-09 - ADR-033: MVP v1.0 ships through an executed audit whose verdict names the surface it did not run
 
 **Status:** Accepted (`docs/AUDIT_REPORT_v1.0.md`, covering commit `97a8922`; documentation only - no source,
