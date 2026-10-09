@@ -27,6 +27,13 @@
  * Freshness ("was this captured long ago?") is enforced by `BiometricAuthorizationGate`, which wraps every
  * gate before the wallet sees it. This class only refuses a timestamp that is in the future, because that
  * is a bridge fault rather than a stale approval.
+ *
+ * **Privacy wall.** This adapter is a *nonce verifier*, not a biometric reader: it sends a 32-byte challenge
+ * and accepts back a signature over that challenge. Raw biometric templates - fingerprint images, face maps,
+ * minutiae, embeddings - are never recorded, transmitted or stored here, and neither {@link
+ * NativeBiometricPrompt} nor {@link NativeBiometricAssertion} has a field that could carry one. The
+ * compile-time assertions and the runtime scan in the "privacy wall" section below enforce it; the
+ * regulatory position (GDPR Art. 9, US BIPA, PIPL) is recorded in `docs/LEGAL_COMPLIANCE.md`.
  */
 
 import {
@@ -48,6 +55,139 @@ import {
   type BiometricPurpose,
   type BiometricRequest,
 } from "./biometric-gate.js";
+
+// ---------------------------------------------------------------------------------------------------------
+// Privacy wall: M5 is a nonce verifier, never a biometric reader.
+//
+// `authenticateAsync` is handed a 32-byte challenge and returns a signature over it. A fingerprint or a
+// face image has no representation in this file because there is no field that could hold one, and two
+// independent guards keep it that way:
+//
+//   1. the compile-time assertions below fail the build if a forbidden field name is ever added to
+//      `NativeBiometricPrompt` or `NativeBiometricAssertion` - so the wire shape cannot grow a template;
+//   2. `assertNoRawBiometricMaterial` refuses, at runtime, a bridge payload that smuggles raw material in
+//      anyway - the same "an unexpected shape is a refusal, not a value to ignore" posture
+//      `intent-translator.ts` takes toward model output, applied to the biometric bridge.
+//
+// This is the code half of the guarantee that MAOTANG never records, transmits or stores raw biometric
+// templates. `docs/LEGAL_COMPLIANCE.md` is the written half.
+// ---------------------------------------------------------------------------------------------------------
+
+/** Resolves to `true` only when `T` is `never`; used to turn a drift into a compile error. */
+type AssertNever<T> = [T] extends [never] ? true : never;
+
+/**
+ * Field names that would mean raw biometric material crossed the bridge.
+ *
+ * Kept as a literal union *and* an array so {@link ASSERT_FORBIDDEN_RAW_BIOMETRIC_KEYS_COMPLETE} can prove
+ * the runtime scan covers every name the type system knows about - the same drift guard `shared/bn254.ts`
+ * uses against the Solidity constants.
+ */
+type ForbiddenRawBiometricField =
+  | "template"
+  | "biometrictemplate"
+  | "rawbiometric"
+  | "rawbiometrics"
+  | "rawbiometrictemplate"
+  | "fingerprint"
+  | "fingerprintdata"
+  | "fingerprinttemplate"
+  | "minutiae"
+  | "faceimage"
+  | "faceprint"
+  | "facetemplate"
+  | "faceembedding"
+  | "iris"
+  | "irisscan"
+  | "irisimage"
+  | "voiceprint"
+  | "biometricpayload"
+  | "biometricdata"
+  | "rawscan";
+
+/** The runtime scan's checklist. Exported so a test can assert the list and the type stay in step. */
+export const FORBIDDEN_RAW_BIOMETRIC_KEYS = [
+  "template",
+  "biometrictemplate",
+  "rawbiometric",
+  "rawbiometrics",
+  "rawbiometrictemplate",
+  "fingerprint",
+  "fingerprintdata",
+  "fingerprinttemplate",
+  "minutiae",
+  "faceimage",
+  "faceprint",
+  "facetemplate",
+  "faceembedding",
+  "iris",
+  "irisscan",
+  "irisimage",
+  "voiceprint",
+  "biometricpayload",
+  "biometricdata",
+  "rawscan",
+] as const satisfies readonly ForbiddenRawBiometricField[];
+
+const FORBIDDEN_RAW_BIOMETRIC_KEY_SET: ReadonlySet<string> = new Set<string>(FORBIDDEN_RAW_BIOMETRIC_KEYS);
+
+/**
+ * Static assertion: {@link FORBIDDEN_RAW_BIOMETRIC_KEYS} lists every name in {@link ForbiddenRawBiometricField}.
+ * Add a name to the union and not to the array and this line stops compiling (`never` is not `true`).
+ */
+export const ASSERT_FORBIDDEN_RAW_BIOMETRIC_KEYS_COMPLETE: AssertNever<
+  Exclude<ForbiddenRawBiometricField, (typeof FORBIDDEN_RAW_BIOMETRIC_KEYS)[number]>
+> = true;
+
+/** Thrown when a bridge payload carries raw biometric material. Never thrown for a signed nonce. */
+export class RawBiometricMaterialError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RawBiometricMaterialError";
+  }
+}
+
+/** `true` only when a type has no field that names raw biometric material. */
+type RawBiometricFree<TShape> = AssertNever<Extract<keyof TShape, ForbiddenRawBiometricField>>;
+
+/**
+ * Static assertions: neither a prompt nor an assertion has a field that could hold raw biometrics. Adding
+ * e.g. `template?: string` to either interface turns one of these into `const ... : never = true`, which
+ * does not compile. Exported so a test can read them at runtime as well.
+ */
+export const PROMPT_IS_RAW_BIOMETRIC_FREE: RawBiometricFree<NativeBiometricPrompt> = true;
+export const ASSERTION_IS_RAW_BIOMETRIC_FREE: RawBiometricFree<NativeBiometricAssertion> = true;
+
+/** Lower-cases and strips separators, so `face_image`, `faceImage` and `FACEIMAGE` are one name. */
+function normalizeBiometricFieldName(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Refuses any payload that carries a raw-biometric-shaped field, at any depth.
+ *
+ * Called on both ends of the bridge - the prompt this adapter *sends* and the assertion it *receives*. The
+ * bridge is handed a challenge and hands back a signature; anything that looks like a template is a
+ * refusal, never a value quietly ignored.
+ */
+function assertNoRawBiometricMaterial(value: unknown, context: string): void {
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoRawBiometricMaterial(item, `${context}[${index}]`));
+    return;
+  }
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_RAW_BIOMETRIC_KEY_SET.has(normalizeBiometricFieldName(key))) {
+      throw new RawBiometricMaterialError(
+        `${context} carries "${key}", which names raw biometric material. M5 consumes a signed challenge ` +
+          "nonce only: a fingerprint, face image or template must never cross this bridge.",
+      );
+    }
+    assertNoRawBiometricMaterial(child, `${context}.${key}`);
+  }
+}
 
 /** Thrown when a biometric bridge is present but broken: incomplete, failing, or returning unusable data. */
 export class NativeBiometricBridgeError extends Error {
@@ -223,20 +363,25 @@ export class NativeBridgeBiometricGate implements BiometricGate {
   async authenticate(request: BiometricRequest): Promise<BiometricAssertion> {
     const challenge = requireChallenge(request.challenge);
     const provider = this.#requireProvider("authenticate");
-    const result = await this.#call("authenticateAsync", () =>
-      provider.authenticateAsync({
-        keyId: request.keyId,
-        purpose: request.purpose,
-        reason: request.reason,
-        challenge,
-        to: request.to,
-        valueWei: request.valueWei.toString(),
-        selector: request.selector,
-      }),
-    );
+    // The privacy wall in one object: a 32-byte challenge plus the action it authorizes. There is no field
+    // for a template, and the guard below refuses one even if a future change tried to add it.
+    const prompt: NativeBiometricPrompt = {
+      keyId: request.keyId,
+      purpose: request.purpose,
+      reason: request.reason,
+      challenge,
+      to: request.to,
+      valueWei: request.valueWei.toString(),
+      selector: request.selector,
+    };
+    assertNoRawBiometricMaterial(prompt, "the native biometric prompt");
+    const result = await this.#call("authenticateAsync", () => provider.authenticateAsync(prompt));
     if (result === null || result === undefined || typeof result !== "object") {
       throw new NativeBiometricBridgeError("authenticateAsync resolved without an assertion");
     }
+    // Only a signature over *this* challenge, plus the key that produced it, may come back. A bridge that
+    // answers with raw biometric material is refused before its shape is trusted at all.
+    assertNoRawBiometricMaterial(result, "the native biometric assertion");
     if (typeof result.hardwareBacked !== "boolean") {
       throw new NativeBiometricBridgeError(
         `authenticateAsync must report hardwareBacked as a boolean, got ${JSON.stringify(result.hardwareBacked)}`,

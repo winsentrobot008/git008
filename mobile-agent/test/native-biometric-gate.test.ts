@@ -12,15 +12,20 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  ASSERTION_IS_RAW_BIOMETRIC_FREE,
   BiometricAuthorizationGate,
   BiometricDeniedError,
   BiometricUnavailableError,
+  FORBIDDEN_RAW_BIOMETRIC_KEYS,
   NativeBiometricBridgeError,
   NativeBridgeBiometricGate,
+  PROMPT_IS_RAW_BIOMETRIC_FREE,
+  RawBiometricMaterialError,
   assertNativeBiometricProvider,
   createNativeBiometricGate,
   nativeBiometricProviderFromGlobal,
   type BiometricRequest,
+  type NativeBiometricAssertion,
   type NativeBiometricProvider,
 } from "../bio-auth/index.js";
 import { EcdsaError } from "../shared/ecdsa.js";
@@ -264,5 +269,39 @@ test("the biometric bridge can be discovered on the injected global", () => {
     assert.equal(nativeBiometricProviderFromGlobal("MaotangBioTest"), device.provider);
   } finally {
     delete globals.MaotangBioTest;
+  }
+});
+test("the gate is a nonce verifier: raw biometric material is refused on both sides of the bridge", async () => {
+  // Compile-time proofs, read at runtime so a type regression is caught here as well as at build time.
+  assert.equal(PROMPT_IS_RAW_BIOMETRIC_FREE, true);
+  assert.equal(ASSERTION_IS_RAW_BIOMETRIC_FREE, true);
+  assert.ok(FORBIDDEN_RAW_BIOMETRIC_KEYS.length > 0);
+
+  const device = createMockBiometricBridge();
+  await new NativeBridgeBiometricGate({ provider: device.provider, now: () => NOW }).authenticate(request());
+  // What crossed the bridge is a challenge and a description of the action - never a template.
+  assert.deepStrictEqual(Object.keys(device.prompts[0] ?? {}).sort(), [
+    "challenge",
+    "keyId",
+    "purpose",
+    "reason",
+    "selector",
+    "to",
+    "valueWei",
+  ]);
+
+  for (const leak of [{ biometricTemplate: "0x00" }, { nested: { fingerprint: "0x01" } }, { faceImage: "0x02" }]) {
+    const leaking: NativeBiometricProvider = {
+      ...device.provider,
+      async authenticateAsync(prompt) {
+        const honest = await device.provider.authenticateAsync(prompt);
+        return { ...honest, ...leak } as unknown as NativeBiometricAssertion;
+      },
+    };
+    await assert.rejects(
+      new NativeBridgeBiometricGate({ provider: leaking, now: () => NOW }).authenticate(request()),
+      RawBiometricMaterialError,
+      `a payload carrying ${JSON.stringify(leak)} must be refused`,
+    );
   }
 });

@@ -2,6 +2,45 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-028: the biometric privacy wall is enforced by compile-time and runtime assertions, not by policy prose alone
+
+**Status:** Accepted (implemented in `mobile-agent/bio-auth/native-biometric-gate.ts`,
+`mobile-agent/test/native-biometric-gate.test.ts` and `docs/LEGAL_COMPLIANCE.md`; `mobile-agent`
+`npm test` green over 160 tests (159 passing, 1 opt-in live leg skipped) and `npm run typecheck` clean. No
+contract, SDK or frontend source changed)
+
+**Context:** M5 gates high-value signing on a live human, so it is the one place a regulator, an auditor or
+a plaintiff will look for biometric data. The GDPR (Art. 9), US BIPA (740 ILCS 14) and PIPL (Art. 28)
+each turn on whether a *biometric identifier or template* is collected, stored or transmitted. The code
+was built to receive a signed challenge nonce and nothing else, but that property lived only in prose and
+in the shape of two interfaces - a future edit could have added a `template` field and nothing would have
+noticed.
+
+**Decision:**
+
+- **Policy is written down.** `docs/LEGAL_COMPLIANCE.md` states the privacy wall (MAOTANG never records,
+  transmits or stores raw biometric templates), the transformation
+  raw-biometrics -> enclave authorization -> non-reversible ZK nullifier, the data inventory, the
+  per-regulation position and the change-control rule. It is marked as an engineering statement, not legal
+  advice.
+- **The wire shape cannot grow a template.** `NativeBiometricPrompt` and `NativeBiometricAssertion` are
+  guarded by compile-time assertions (`PROMPT_IS_RAW_BIOMETRIC_FREE`, `ASSERTION_IS_RAW_BIOMETRIC_FREE`):
+  adding a forbidden field name makes the build fail (`const ... : never = true`). A completeness
+  assertion keeps the `ForbiddenRawBiometricField` union and the runtime checklist in step.
+- **A hostile bridge is refused at runtime.** `assertNoRawBiometricMaterial` scans both the prompt sent and
+  the assertion received, at any depth, and throws `RawBiometricMaterialError` for a template-shaped key.
+- **Only a signed nonce is accepted.** `authenticate` requires a 32-byte challenge and a signature that
+  verifies over it; the existing hardware-backing, pin and challenge-binding checks are unchanged.
+
+**Consequences:** the "no biometric data" position is now machine-checked, so a regression is a failing
+build or a failing test rather than a legal exposure discovered later. The residual dependence is the
+platform's attestation that its key is hardware-backed and biometric-gated; a production build must pin the
+assertion key and verify platform attestation out of band, which `docs/LEGAL_COMPLIANCE.md` states plainly
+rather than implying the code proves the silicon.
+
+**References:** `docs/LEGAL_COMPLIANCE.md`, `mobile-agent/bio-auth/native-biometric-gate.ts`,
+`mobile-agent/bio-auth/biometric-gate.ts`, `mobile-agent/bio-auth/nullifier.ts`,
+`mobile-agent/test/native-biometric-gate.test.ts`.
 ## 2026-10-09 - ADR-027: hybrid compute offloads heavy SLM inference and Groth16 proving, but authority (keygen, policy, ECDSA) never leaves the M2/M5 enclave
 
 **Status:** Accepted (implemented in `mobile-agent/slm/compute-center-adapter.ts`,
