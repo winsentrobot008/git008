@@ -2,6 +2,51 @@
 
 Append durable decisions newest-first. Keep each entry concise and verifiable.
 
+## 2026-10-09 - ADR-043: the open-source agent stack is adopted as an *interface*, not a dependency, and every provider proposal re-enters the local M2/M5 gate
+
+**Status:** Accepted (`mobile-agent/slm/agent-action-bridge.ts`, `mobile-agent/test/ai-fuzzer-policy.test.ts`,
+`mobile-agent/package.json`). Gates: `npm run typecheck` exit 0; `npm test` 179 tests (178 pass, 1 opt-in
+live-RPC skip); `npm run test:policy` 5/5; `frontend` `npm run test:policy` 16/16.
+
+**Context:** the ask was to integrate a Web3 intent-routing agent (`@coinbase/agentkit`, `permissionless.js`
+or similar) and to prove, with an AI-driven suite, that a hostile agent cannot move value. Both halves meet the
+same fact: every one of those packages ships its own wallet/signer provider. Importing one wholesale would put
+a *second* authority next to the device enclave - the custody inversion M2 exists to prevent - and vendoring a
+`.ts`-source package reproduces the module-resolution failure ADR-039 fixed.
+
+**Decision:**
+
+- **The interface is adopted; the packages are not.** `agent-action-bridge.ts` defines the half worth having -
+  a provider that *names* an action and yields a call spec (`ExternalActionProvider.propose`) - and refuses the
+  wallet half by construction. It is duck-typed and dependency-free, matching the
+  `ComputeCenterTransport` / `LocalIntentAuthority` injection idiom the relayer seam already uses.
+- **Fail closed at three boundaries.** A proposal is refused outright when it carries custody-shaped material
+  (a signature, a signed or raw transaction, a private key, a keystore) - `CUSTODY_MATERIAL`; when it names a
+  *unit* (`asset` / `token` / `symbol` / ...) - `MALFORMED_PROPOSAL`, because pricing a leg means inventing a
+  rate, and an invented rate is how a small leg becomes a large one; and when it names an action outside the
+  closed M1 catalog - `UNKNOWN_ACTION`. A provider also cannot propose an action it did not advertise. Only
+  `AgentActionBridge.authorize` can end in a signature, and all it does is call the injected local wallet, so
+  the M2 spend policy and the M5 hardware authorization run on every provider proposal.
+- **Consumer nomenclature is presentation-only.** `YuanYuan` (move value), `MaoMao` (launch a token) and
+  `FenFen` (claim a share) are accepted on the way in and reported for display; the wire vocabulary, the policy
+  codes and the audit trail keep the internal ids, so a rename cannot change what is signed.
+- **The AI fuzzer is a negative-claim suite.** `mobile-agent/test/ai-fuzzer-policy.test.ts` - placed there
+  because `mobile-agent/test/` is the only directory wired into a TypeScript test pipeline - drives three agent
+  routes: peer activation signs locally and pays no gas; an asset-denominated or over-cap route fails closed
+  down to the enclave never being asked to sign; and a 502/530 upstream degrades to a verdict. Case C really
+  spawns `scripts/rpc-guard.mjs` against a dead target and asserts `502` / `-32603` for a read and `403` /
+  `-32601` for a privileged method, then asserts the frontend read proxy maps those failures to a `200` body
+  verdict (ADR-041 / ADR-042).
+- **The gasless half is modeled, not executed, and this ADR says so.** No broadcaster exists in this package: a
+  peer activation produces a signed envelope locally and the sponsored relay that lands it is the compute-center
+  seam. The suite therefore asserts the *device-side* claim only (no gas leg folded into the signed value, no
+  `eth_sendTransaction` on the console's read surface) rather than a capability that is not there.
+
+**Consequences:** an agent can be added or swapped without touching M1/M2/M5, and a compromised or merely buggy
+provider has no path to a signature it did not deserve. The costs are that a real `agentkit` package is not a
+dependency (so its action catalogue is not inherited) and that "gasless" stays a documented property of the
+relayer seam until an executor is added.
+
 ## 2026-10-09 - ADR-042: a deterministic policy verdict is answered HTTP 200 with the refusal in the body, because a browser logs every 4xx/5xx response the page cannot un-log
 
 **Status:** Accepted (`frontend/src/app/api/agent/intent/route.ts`, `frontend/src/lib/agent/types.ts`,
