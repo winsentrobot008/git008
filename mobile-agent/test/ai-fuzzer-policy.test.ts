@@ -45,7 +45,16 @@ import {
   type ExternalActionProposal,
   type ExternalActionProvider,
 } from "../slm/agent-action-bridge.js";
-import { IntentTranslationError, IntentTranslator, type IntentTranslationCode } from "../slm/intent-translator.js";
+import {
+  ENTROPY_THRESHOLDS,
+  LocalQuotaVault,
+  NOMINAL_QUOTA_YUANYUAN,
+  VESTING_EPOCH_SECONDS,
+  assessEntropy,
+  type EntropyObservation,
+  type EntropyVerdict,
+} from "../slm/quota-vesting.js";
+import { IntentTranslationError, IntentTranslator, type IntentTranslationCode, type SlmAction } from "../slm/intent-translator.js";
 import { DeterministicSlmBackend, LocalSlmEngineAdapter } from "../slm/slm-engine.js";
 import {
   createMockBiometricBridge,
@@ -180,6 +189,42 @@ async function expectExternalRejection(promise: Promise<unknown>, code: string):
 /** The machine-readable denial a policy decision carries, or null when it was allowed. */
 function denialCode(decision: PolicyDecision): PolicyDenialCode | null {
   return decision.allowed ? null : decision.code;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Vesting & sybil fixtures: interaction shapes, expressed without their content.
+// ---------------------------------------------------------------------------------------------------------
+
+/** Irregular, unhurried offsets: what a person's epoch of use looks like. */
+const HUMAN_OFFSETS = [0, 7, 23, 31, 58, 96];
+/** Every interval identical: what a scheduler's epoch looks like. */
+const METRONOME_OFFSETS = [0, 30, 60, 90, 120];
+const EPOCH_BASE = NOW - 600;
+
+function observationOf(
+  offsets: readonly number[],
+  nowSeconds: number = NOW,
+  options: { readonly digest?: string; readonly claimedDevices?: number; readonly sessionId?: string } = {},
+): EntropyObservation {
+  return {
+    samples: offsets.map((offset, index) => ({
+      atSeconds: EPOCH_BASE + offset,
+      kind: "utterance",
+      digest: options.digest ?? "shape-" + String(index),
+      sessionId: options.sessionId ?? "session-1",
+    })),
+    claimedDevices: options.claimedDevices ?? 1,
+    nowSeconds,
+  };
+}
+
+function humanEpoch(nowSeconds: number = NOW): EntropyObservation {
+  return observationOf(HUMAN_OFFSETS, nowSeconds);
+}
+
+/** The judge's own label for an epoch: a sybil code, or "entropic" / "insufficient". */
+function codeOf(verdict: EntropyVerdict): string {
+  return verdict.kind === "sybil" ? verdict.code : verdict.kind;
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -407,6 +452,172 @@ test("C. upstream RPC fallback: a 502/530 node degrades to a verdict the UI rend
   }
   const verdicts = (route.match(/, 200\)/g) ?? []).length;
   assert.ok(verdicts >= 3, "expected every well-formed-read verdict at 200, found " + verdicts);
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Case D - linear compute vesting
+// ---------------------------------------------------------------------------------------------------------
+
+test("D. vesting: the nominal quota starts locked, one entropic epoch unlocks one slice, and each action draws its own weight", () => {
+  const vault = new LocalQuotaVault({ now: () => NOW });
+
+  const genesis = vault.snapshot();
+  assert.equal(genesis.state, "locked");
+  assert.equal(genesis.nominalYuanYuan, NOMINAL_QUOTA_YUANYUAN);
+  assert.equal(genesis.nominalYuanYuan, 1_000_000n);
+  assert.equal(genesis.unlockedYuanYuan, 0n);
+  assert.equal(genesis.availableYuanYuan, 0n);
+  assert.deepEqual(genesis.availableDenominations, { yuanYuan: 0n, maoMao: 0n, fenFen: 0n });
+  assert.equal(genesis.vestingBasisPoints, 0);
+  assert.equal(genesis.tier, "T0");
+  assert.equal(genesis.windowDays, 100, "1,000,000 nominal at 10,000 an epoch is a 100-day linear vest");
+
+  // Nothing can be charged while the quota is locked.
+  const lockedCharge = vault.charge("transfer");
+  assert.equal(lockedCharge.allowed, false);
+  assert.equal(lockedCharge.allowed === false ? lockedCharge.code : null, "QUOTA_LOCKED");
+  assert.equal(lockedCharge.allowed === false ? lockedCharge.remainingYuanYuan : null, 0n);
+
+  // One entropic epoch unlocks exactly one slice - the whole point of vesting linearly.
+  const accrued = vault.observeEntropy(humanEpoch());
+  assert.equal(accrued.accepted, true);
+  assert.equal(accrued.accepted === true ? accrued.accruedYuanYuan : null, 10_000n);
+
+  const after = vault.snapshot();
+  assert.equal(after.state, "vesting");
+  assert.equal(after.unlockedYuanYuan, 10_000n);
+  assert.equal(after.epochsAccrued, 1);
+  assert.equal(after.tier, "T0", "one epoch is still probation");
+  assert.equal(after.vestingBasisPoints, 100, "one per cent of the schedule");
+  assert.deepEqual(
+    after.availableDenominations,
+    { yuanYuan: 10_000n, maoMao: 1_000n, fenFen: 100n },
+    "10,000 YuanYuan is 1,000 MaoMao is 100 FenFen - the 1:10:100 ratio",
+  );
+
+  // Showing up twice in one epoch does not vest twice.
+  const repeat = vault.observeEntropy(humanEpoch());
+  assert.equal(repeat.accepted, false);
+  assert.equal(repeat.accepted === false ? repeat.code : null, "EPOCH_ALREADY_ACCRUED");
+  assert.equal(vault.snapshot().unlockedYuanYuan, 10_000n);
+
+  // The next epoch does.
+  const next = vault.observeEntropy(humanEpoch(NOW + VESTING_EPOCH_SECONDS));
+  assert.equal(next.accepted, true);
+  assert.equal(vault.snapshot().epochsAccrued, 2);
+
+  // Each action draws the same ratio the denominations use: transfer 1, MaoMao 10, FenFen 100.
+  const transfer = vault.charge("transfer");
+  assert.equal(transfer.allowed === true ? transfer.chargedYuanYuan : null, 1n);
+  const maoMao = vault.charge("createMemeToken");
+  assert.equal(maoMao.allowed === true ? maoMao.chargedYuanYuan : null, 10n);
+  const fenFen = vault.charge("claimHumanQuota");
+  assert.equal(fenFen.allowed === true ? fenFen.chargedYuanYuan : null, 100n);
+  assert.equal(vault.snapshot().consumedYuanYuan, 111n);
+  assert.equal(vault.snapshot().availableYuanYuan, 20_000n - 111n);
+
+  // An action outside the catalog has no weight, and is refused rather than priced at zero.
+  const bogus = vault.preview("drain" as unknown as SlmAction);
+  assert.equal(bogus.allowed === false ? bogus.code : null, "QUOTA_UNKNOWN_ACTION");
+
+  // A preview never spends.
+  const beforePreview = vault.snapshot().consumedYuanYuan;
+  vault.preview("claimHumanQuota");
+  assert.equal(vault.snapshot().consumedYuanYuan, beforePreview);
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Case E - sybil slashing
+// ---------------------------------------------------------------------------------------------------------
+
+test("E. sybil slashing: machine cadence, a metronome, a replay loop and a virtual phone cluster all invalidate the quota locally", () => {
+  // The judge names each farm signature on its own, without a ledger.
+  assert.equal(codeOf(assessEntropy(observationOf([0, 1, 2, 3]))), "MACHINE_CADENCE");
+  assert.equal(codeOf(assessEntropy(observationOf(METRONOME_OFFSETS))), "METRONOME_REGULARITY");
+  assert.equal(codeOf(assessEntropy(observationOf([0, 50, 10]))), "CLOCK_ROLLBACK");
+  assert.equal(
+    codeOf(assessEntropy(observationOf([0, 25, 41, 96], NOW, { digest: "same-shape" }))),
+    "REPLAY_REPETITION",
+  );
+  assert.equal(
+    codeOf(assessEntropy(observationOf(HUMAN_OFFSETS, NOW, { claimedDevices: 50 }))),
+    "VIRTUAL_DEVICE_CLUSTER",
+    "fifty claimed phones driven from one session is a cluster",
+  );
+  assert.equal(
+    codeOf(assessEntropy(observationOf(HUMAN_OFFSETS), { ...ENTROPY_THRESHOLDS, maxSamplesPerEpoch: 3 })),
+    "BURST_DENSITY",
+  );
+  assert.equal(codeOf(assessEntropy(observationOf([0]))), "insufficient", "one sample is not a behaviour");
+  assert.equal(codeOf(assessEntropy(humanEpoch())), "entropic");
+
+  // The ledger fails closed on the first sybil epoch and stays invalidated.
+  const vault = new LocalQuotaVault({ now: () => NOW });
+  assert.equal(vault.observeEntropy(humanEpoch()).accepted, true);
+  assert.equal(vault.snapshot().availableYuanYuan, 10_000n, "there is something to lose");
+
+  const slashed = vault.observeEntropy(observationOf(METRONOME_OFFSETS));
+  assert.equal(slashed.accepted, false);
+  assert.equal(slashed.accepted === false ? slashed.code : null, "METRONOME_REGULARITY");
+  assert.equal(slashed.accepted === false ? slashed.slashed : null, true);
+
+  const after = vault.snapshot();
+  assert.equal(after.state, "slashed");
+  assert.equal(after.availableYuanYuan, 0n, "the usable balance is invalidated, not merely reduced");
+  assert.equal(after.unlockedYuanYuan, 10_000n, "the history is kept; the gate refuses to spend it");
+  assert.equal(after.tier, "T0");
+
+  // Every path is refused while slashed, and the state is sticky.
+  const charged = vault.charge("transfer");
+  assert.equal(charged.allowed === false ? charged.code : null, "QUOTA_SLASHED");
+  assert.equal(vault.observeEntropy(humanEpoch(NOW + VESTING_EPOCH_SECONDS)).accepted, false);
+  assert.equal(vault.snapshot().state, "slashed");
+  assert.equal(vault.recoverByOwnerAuthorization({ hardwareBacked: false }), false);
+
+  // Only a hardware-backed owner authorization clears it.
+  assert.equal(vault.snapshot().state, "slashed");
+  assert.equal(vault.recoverByOwnerAuthorization({ hardwareBacked: true }), true);
+  assert.equal(vault.snapshot().state, "vesting");
+  assert.equal(vault.snapshot().availableYuanYuan, 10_000n);
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Case F - the bridge consults the vesting gate before the enclave
+// ---------------------------------------------------------------------------------------------------------
+
+test("F. the bridge refuses a quota-denied action with no signature and no enclave call", async () => {
+  const box = buildHarness();
+  const vault = new LocalQuotaVault({ now: () => NOW });
+  const gated = new AgentActionBridge({ wallet: box.wallet, allowedChainIds: [CHAIN_ID], quota: vault });
+  const external: ExternalActionProposal = {
+    action: "YuanYuan",
+    to: PEER_NODE,
+    valueWei: "1",
+    chainId: CHAIN_ID,
+  };
+
+  // Locked at genesis: the spend policy is satisfied, the vesting gate refuses, nothing is signed.
+  const denied = await gated.authorize(external, { attemptSign: true });
+  assert.equal(denied.decision.allowed, true, "the spend policy itself allows the leg");
+  assert.ok(denied.quotaRefusal !== null, "the refusal names the vesting gate");
+  assert.equal(denied.quotaRefusal?.code, "QUOTA_LOCKED");
+  assert.equal(denied.signed, null);
+  assert.equal(denied.refusal, null, "a quota refusal is not a wallet refusal");
+  assert.ok(!box.crypto.calls.includes("signAsync"), "the enclave was never asked to sign");
+  assert.equal(box.wallet.spendSnapshot().spentWei, 0n);
+
+  // After one entropic epoch the same leg is authorized and signed, and the charge is recorded.
+  assert.equal(vault.observeEntropy(humanEpoch()).accepted, true);
+  const allowed = await gated.authorize(external, { attemptSign: true });
+  assert.equal(allowed.quotaRefusal, null);
+  assert.ok(allowed.signed !== null);
+  assert.equal(vault.snapshot().consumedYuanYuan, 1n);
+
+  // A farm signature slashes, and the very next authorization fails closed again.
+  assert.equal(vault.observeEntropy(observationOf(METRONOME_OFFSETS)).accepted, false);
+  const afterSlash = await gated.authorize(external, { attemptSign: true });
+  assert.equal(afterSlash.quotaRefusal?.code, "QUOTA_SLASHED");
+  assert.equal(afterSlash.signed, null);
 });
 
 // ---------------------------------------------------------------------------------------------------------

@@ -45,6 +45,11 @@
  * docked to the bottom of the viewport and padded by `env(safe-area-inset-bottom)`, so on a 390px iPhone
  * it clears the home indicator instead of sitting under it, and every primary target is at least 48px
  * tall for a thumb.
+ *
+ * Below the status pill sits the compute-quota card: the ADR-045 vesting ledger in its three consumer
+ * denominations (YuanYuan : MaoMao : FenFen = 1 : 10 : 100), with the cumulative vesting bar and the live
+ * epoch clock beside it. Every figure on it is the server's; when the ledger block is absent the card says
+ * so instead of painting a zero, which is the same rule the pill follows for the balance.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -67,9 +72,21 @@ import {
 } from "@/lib/agent/client";
 import { useBiometricOwner } from "@/lib/agent/biometric-session";
 import type { ConsoleMode } from "@/lib/agent/console-mode";
+import {
+  barWidth,
+  denominate,
+  epochLabel,
+  formatQuotaUnits,
+  percentFromBasisPoints,
+  quotaIsSpendable,
+  secondsToNextSlice,
+  type QuotaDenominations,
+  type QuotaReport,
+} from "@/lib/agent/quota-view";
 import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
 import type { AgentRefusal, IntentSuccess } from "@/lib/agent/types";
 import { useLanguage } from "@/lib/i18n/language";
+import type { MessageKey } from "@/lib/i18n/dictionary";
 
 /** Rendered when a value has not landed yet. Never a fabricated zero. */
 const NO_VALUE = "\u2014";
@@ -90,15 +107,57 @@ const MINT_PRESET = "Mint 0.05 ETH worth of Mao Tang token";
  */
 const CREDENTIAL_LABEL = "猫糖 Web Agent OS";
 
-type PresetKind = "intent" | "ledger";
+type PresetKind = "intent" | "ledger" | "activate" | "hardware";
 
 interface Preset {
   /** Stable React key. The label changes with the language, the id does not. */
   readonly id: string;
   readonly label: string;
   readonly kind: PresetKind;
-  /** The exact text M1 receives. Empty for `ledger` presets, which never reach M1. */
+  /** The exact text M1 receives. Empty for the non-intent presets, which never reach M1. */
   readonly text: string;
+}
+
+/** The three denominations in display order, so the row order is stable across languages. */
+const UNIT_ORDER: readonly (keyof QuotaDenominations)[] = ["yuanYuan", "maoMao", "fenFen"];
+
+/** The vesting state -> the dictionary key that names it. */
+const STATE_KEY: Readonly<Record<QuotaReport["state"], MessageKey>> = {
+  locked: "compute.state.locked",
+  vesting: "compute.state.vesting",
+  vested: "compute.state.vested",
+  slashed: "compute.state.slashed",
+};
+/** The denomination -> the dictionary key that names it, so a unit label is never a literal. */
+const UNIT_KEY: Readonly<Record<keyof QuotaDenominations, MessageKey>> = {
+  yuanYuan: "compute.unit.yuanYuan",
+  maoMao: "compute.unit.maoMao",
+  fenFen: "compute.unit.fenFen",
+};
+
+/**
+ * The live epoch clock.
+ *
+ * The cumulative vesting position only moves when a new epoch accrues (once a day), but the owner should
+ * be able to see that vesting *is* running. So the card ticks the epoch *phase* - the position inside the
+ * 24h slice - once a second from the server's baseline. The first render uses the server's own elapsed
+ * seconds, so the client's first paint matches the server's HTML and nothing jumps on hydration; only the
+ * ticks after mount are local.
+ */
+function useEpochClock(quota: QuotaReport | null): number {
+  const [elapsed, setElapsed] = useState(quota?.epochElapsedSeconds ?? 0);
+  useEffect(() => {
+    if (quota === null) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(quota.epochElapsedSeconds);
+    const timer = window.setInterval(() => {
+      setElapsed((current) => (current + 1 >= quota.epochSeconds ? 0 : current + 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [quota]);
+  return elapsed;
 }
 
 type StatusState =
@@ -237,6 +296,54 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
     );
   }, [session, statusState, t]);
 
+  // -- local hardware owner check ----------------------------------------------------------------
+
+  /**
+   * The one place the device-owner check runs.
+   *
+   * There is no server involvement and no key here: it asks the platform for a hardware credential and,
+   * when the device has none, raises the enrollment sheet. It is deliberately the same path the
+   * confirmation sheet's enroll button takes, so "activate node" and "sign this transaction" cannot
+   * disagree about whether this device is hardware-backed.
+   */
+  const runHardwareCheck = useCallback(async (): Promise<boolean> => {
+    if (session.credentialId === null) {
+      const result = await session.enroll(CREDENTIAL_LABEL);
+      if (result.ok) {
+        toasts.push("success", t("toast.enrolled"));
+        return true;
+      }
+      const { tone, message } = biometricFailureToast(result.failure, language);
+      toasts.push(tone, message);
+      return false;
+    }
+    if (session.capability?.platformAuthenticator === true) {
+      return true;
+    }
+    const { tone, message } = biometricFailureToast(
+      {
+        code: "NO_PLATFORM_AUTHENTICATOR",
+        message: t("sheet.confirmDisabled"),
+        cancelled: false,
+      },
+      language,
+    );
+    toasts.push(tone, message);
+    return false;
+  }, [language, session, t, toasts]);
+
+  const runActivation = useCallback(async () => {
+    if (await runHardwareCheck()) {
+      toasts.push("success", t("toast.nodeActivated"));
+    }
+  }, [runHardwareCheck, t, toasts]);
+
+  const runHardwareChip = useCallback(async () => {
+    if (await runHardwareCheck()) {
+      toasts.push("success", t("toast.hardwareChecked"));
+    }
+  }, [runHardwareCheck, t, toasts]);
+
   const presets = useMemo<readonly Preset[]>(() => {
     const list: Preset[] = [{ id: "mint", label: t("preset.mint"), kind: "intent", text: MINT_PRESET }];
     const destination =
@@ -250,6 +357,11 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
       });
     }
     list.push({ id: "ledger", label: t("preset.ledger"), kind: "ledger", text: "" });
+    // Two hardware chips: activation raises the device-owner check, and the check is also reachable on
+    // its own. Neither sends a sentence to M1, because node activation is a local hardware fact, not an
+    // intent the translator could parse.
+    list.push({ id: "activate", label: t("preset.activate"), kind: "activate", text: "" });
+    list.push({ id: "hardware", label: t("preset.hardware"), kind: "hardware", text: "" });
     return list;
   }, [statusState, t]);
 
@@ -259,10 +371,18 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
         showLedger();
         return;
       }
+      if (preset.kind === "activate") {
+        void runActivation();
+        return;
+      }
+      if (preset.kind === "hardware") {
+        void runHardwareChip();
+        return;
+      }
       setPrompt(preset.text);
       void submit(preset.text);
     },
-    [showLedger, submit],
+    [runActivation, runHardwareChip, showLedger, submit],
   );
 
   // -- biometric confirmation -------------------------------------------------------------------
@@ -314,6 +434,136 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
   const fallback = biometricFallbackCopy(session.capability, language);
   const canConfirm = session.credentialId !== null && session.capability?.platformAuthenticator === true;
 
+  // The ADR-045 compute ledger, and the live clock that keeps its epoch bar moving. Both read the
+  // server's `quota` block; a build without one renders the "no ledger" line rather than zeros, because
+  // a ledger that is missing and a ledger that is empty are different facts.
+  const quota = status?.quota ?? null;
+  const epochElapsedSeconds = useEpochClock(quota);
+  const nominalUnits = quota === null ? null : denominate(quota.nominalYuanYuan);
+  const availableUnits = quota === null ? null : denominate(quota.availableYuanYuan);
+  const vestingPercent = quota === null ? 0 : percentFromBasisPoints(quota.vestingBasisPoints);
+  const epochPercent =
+    quota === null || quota.epochSeconds <= 0
+      ? 0
+      : percentFromBasisPoints(
+          Math.floor((Math.min(epochElapsedSeconds, quota.epochSeconds) * 10_000) / quota.epochSeconds),
+        );
+  const nextSliceInSeconds =
+    quota === null ? 0 : secondsToNextSlice(quota.epochSeconds, epochElapsedSeconds);
+
+  const computeCard = (
+    <section className="mt-3 rounded-2xl border border-maotang-border bg-maotang-surface px-4 py-3.5">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-maotang-mint">
+          {t("compute.title")}
+        </h2>
+        {quota === null ? null : (
+          <span className="flex items-center gap-1.5 text-[10px]">
+            <span className="rounded-full border border-maotang-border px-2 py-0.5 font-mono text-white/50">
+              {t("compute.tier", { tier: quota.tier })}
+            </span>
+            <span
+              className={
+                "rounded-full px-2 py-0.5 font-medium " +
+                (quota.state === "slashed"
+                  ? "bg-maotang-pink/15 text-maotang-pink"
+                  : quota.state === "locked"
+                    ? "bg-maotang-amber/15 text-maotang-amber"
+                    : "bg-maotang-mint/15 text-maotang-mint")
+              }
+            >
+              {t(STATE_KEY[quota.state])}
+            </span>
+          </span>
+        )}
+      </header>
+
+      {quota === null || nominalUnits === null || availableUnits === null ? (
+        <p className="mt-3 text-[11px] leading-relaxed text-white/45">{t("compute.unavailable")}</p>
+      ) : (
+        <>
+          <p className="mt-2 font-mono text-[10px] tracking-wide text-white/35">{t("compute.ratio")}</p>
+
+          <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-white/40">{t("compute.nominal")}</p>
+          <div className="mt-1.5 grid grid-cols-3 gap-2">
+            {UNIT_ORDER.map((unit) => (
+              <div key={unit} className="rounded-xl border border-maotang-border bg-maotang-ink/50 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">{t(UNIT_KEY[unit])}</p>
+                <p className="mt-1 font-mono text-sm text-white">{nominalUnits[unit]}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 space-y-1.5 text-[11px]">
+            <p className="flex items-baseline justify-between gap-3">
+              <span className="text-white/45">{t("compute.unlocked")}</span>
+              <span className="font-mono text-white/70">
+                {formatQuotaUnits(quota.unlockedYuanYuan)} / {formatQuotaUnits(quota.nominalYuanYuan)} YuanYuan
+              </span>
+            </p>
+            <p className="flex items-baseline justify-between gap-3">
+              <span className="text-white/45">{t("compute.available")}</span>
+              <span
+                className={
+                  "font-mono " + (quotaIsSpendable(quota) ? "text-maotang-mint" : "text-white/45")
+                }
+              >
+                {availableUnits.yuanYuan} YuanYuan
+              </span>
+            </p>
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-[10px] text-white/45">
+              <span>{t("compute.vesting")}</span>
+              <span className="font-mono">{vestingPercent.toFixed(1)}%</span>
+            </div>
+            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-maotang-mint transition-[width] duration-700"
+                style={{ width: barWidth(vestingPercent) }}
+              />
+            </div>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-white/35">
+              {t("compute.vestingProgress", {
+                epochs: quota.epochsAccrued,
+                days: quota.windowDays,
+                daily: formatQuotaUnits(quota.dailyUnlockYuanYuan),
+              })}
+            </p>
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-[10px] text-white/45">
+              <span>{t("compute.epoch")}</span>
+              <span className="font-mono">
+                {epochPercent.toFixed(1)}% · {epochLabel(quota.epochSeconds)}
+              </span>
+            </div>
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-maotang-mint/60"
+                style={{ width: barWidth(epochPercent) }}
+              />
+            </div>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-white/35">
+              {t("compute.epochProgress", {
+                percent: epochPercent.toFixed(1),
+                remaining: nextSliceInSeconds + "s",
+              })}
+            </p>
+          </div>
+
+          {quota.state === "slashed" ? (
+            <p className="mt-3 rounded-lg border border-maotang-pink/40 bg-maotang-pink/5 px-3 py-2 text-[10px] leading-relaxed text-maotang-pink">
+              {t("compute.slashed", { code: quota.slashedCode ?? NO_VALUE })}
+            </p>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col">
       <ToastStack toasts={toasts.toasts} onDismiss={toasts.dismiss} />
@@ -352,6 +602,8 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
           </span>
           <span className="font-mono text-white/50">/ {windowText}</span>
         </div>
+
+        {computeCard}
 
         {statusState.kind === "unavailable" ? (
           <div className="mt-3 rounded-2xl border border-maotang-amber/40 bg-maotang-surface px-4 py-3 text-xs">

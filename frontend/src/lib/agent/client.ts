@@ -8,6 +8,7 @@
  * that blanks the panel.
  */
 
+import type { QuotaReport } from "./quota-view";
 import type { Address, AgentRefusal, Hex, IntentFailure, IntentResponse, IntentSuccess } from "./types";
 
 /** What `GET /api/agent/status` answers. Mirrors the route field for field. */
@@ -49,6 +50,14 @@ export interface AgentStatus {
     readonly windowStartSeconds: number;
     readonly windowSeconds: number;
   };
+  /**
+   * The ADR-045 compute-quota ledger: nominal entitlement, what has vested, and the live epoch clock.
+   *
+   * Optional on purpose. The block is built from the M1 vesting ledger, and a host that cannot load it
+   * omits the field rather than sending a zeroed stand-in - a missing ledger and an empty ledger must not
+   * look the same on the card.
+   */
+  readonly quota?: QuotaReport;
 }
 
 export type AgentStatusResult =

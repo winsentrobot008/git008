@@ -15,5 +15,6 @@
  */
 
 export * from "./compute-center-adapter.js";
+export * from "./quota-vesting.js";
 export * from "./intent-translator.js";
 export * from "./slm-engine.js";

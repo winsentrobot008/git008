@@ -219,6 +219,11 @@ const DEX_ROUTE = path.join(frontendRoot, "src", "app", "dex", "page.tsx");
 const CLIENT_SOURCE = path.join(frontendRoot, "src", "lib", "agent", "client.ts");
 const RPC_ROUTE = path.join(frontendRoot, "src", "app", "api", "rpc", "route.ts");
 const INTENT_ROUTE = path.join(frontendRoot, "src", "app", "api", "agent", "intent", "route.ts");
+// The ADR-045 compute-quota surface: the server builder that runs the M1 vesting ledger, the pure
+// display rules, and the card that renders them. The next group asserts the two halves stay connected.
+const QUOTA_BUILDER = path.join(frontendRoot, "src", "lib", "agent", "quota.ts");
+const QUOTA_VIEW = path.join(frontendRoot, "src", "lib", "agent", "quota-view.ts");
+const STATUS_ROUTE = path.join(frontendRoot, "src", "app", "api", "agent", "status", "route.ts");
 
 const i18nSource = readFileSync(I18N_SOURCE, "utf8");
 const languageSource = readFileSync(LANGUAGE_SOURCE, "utf8");
@@ -227,6 +232,9 @@ const bioGuard = readFileSync(BIO_GUARD, "utf8");
 const clientSource = readFileSync(CLIENT_SOURCE, "utf8");
 const rpcRoute = readFileSync(RPC_ROUTE, "utf8");
 const intentRoute = readFileSync(INTENT_ROUTE, "utf8");
+const quotaBuilder = readFileSync(QUOTA_BUILDER, "utf8");
+const quotaView = readFileSync(QUOTA_VIEW, "utf8");
+const statusRoute = readFileSync(STATUS_ROUTE, "utf8");
 
 test("D. a cancelled biometric prompt has its own code, not a generic failure", () => {
   assert.match(webauthnSource, /\| "USER_CANCELLED"/, "the code union must carry USER_CANCELLED");
@@ -348,5 +356,62 @@ test("D. the C-end posture holds: zero data, same-origin reads, no failure statu
     rpcVerdicts200 >= 3,
     "each well-formed-read verdict (off-allowlist, unconfigured, node down) is a 200",
   );
+
   assert.doesNotMatch(rpcRoute, /, (403|502|503)\)/, "no business verdict may carry an error status");
+});
+
+// E. the compute-quota card (ADR-045)
+//
+// The C-end view shows a vesting ledger, and a vesting ledger is exactly the kind of number that goes
+// wrong silently: a component can render a plausible bar from a constant and nobody notices it stopped
+// reading the server. These assertions pin both halves - the block the server builds out of the real M1
+// vault, and the card that renders it by key - the same way group D pins the zero-data claim.
+
+test("E. the quota block is built on the server from the M1 vesting ledger", () => {
+  assert.match(quotaBuilder, /LocalQuotaVault/, "the report runs the real vault, not a re-implementation");
+  assert.match(
+    quotaBuilder,
+    /@maotang\/mobile-agent\/dist\/slm\/index\.js/,
+    "the vault is imported from the M1 layer that owns it",
+  );
+  assert.match(quotaBuilder, /VESTING_EPOCH_SECONDS/, "the epoch length is the protocol constant, not a literal");
+  assert.match(quotaBuilder, /vestingBasisPoints/, "the cumulative position comes from the vault snapshot");
+  assert.match(
+    quotaBuilder,
+    /epochElapsedSeconds = Math\.floor\(nowMs \/ 1000\) % epochSeconds/,
+    "the live epoch phase is computed on the server, so the first paint cannot differ from the HTML",
+  );
+  assert.match(statusRoute, /buildQuotaReport\(\)/, "the status route is what publishes the block");
+  assert.match(
+    statusRoute,
+    /\$\(\.\.\.\(quota === null \? \{\} : \{ quota \}\)\)|quota === null \? \{\} : \{ quota \}/,
+    "a missing ledger stays missing on the wire instead of becoming a zeroed stand-in",
+  );
+});
+
+test("E. the card renders the 1:10:100 denominations and the vesting bar by dictionary key", () => {
+  assert.match(consumerView, /t\("compute\.ratio"\)/, "the ratio line is a dictionary lookup");
+  assert.match(consumerView, /UNIT_KEY\[unit\]/, "the three unit labels come from the key map, never a literal");
+  assert.match(consumerView, /t\("compute\.vesting"\)/, "the cumulative bar is labelled by key");
+  assert.match(consumerView, /t\("compute\.epoch"\)/, "the live epoch bar is labelled by key");
+  assert.match(consumerView, /barWidth\(/, "a bar is painted from a reported number, never a fixed width");
+  assert.match(
+    i18nSource,
+    /YuanYuan : MaoMao : FenFen = 1 : 10 : 100/,
+    "the ratio is written once per language, so it cannot drift",
+  );
+  assert.match(i18nSource, /"compute\.state\.slashed"/, "the fail-closed state has its own label");
+  assert.match(i18nSource, /"compute\.unavailable"/, "an absent ledger is described, not rendered as zero");
+});
+
+test("E. the denominations are a display rule over one server number, not a second ledger", () => {
+  assert.match(quotaView, /DENOMINATION_RATIO/, "the 1:10:100 weights are declared once");
+  assert.match(quotaView, /BigInt\(divisor\)/, "the split is integer-exact: never a float on an amount");
+  assert.match(quotaView, /percentFromBasisPoints/, "a bar percentage is clamped to 0..100");
+  assert.match(consumerView, /useEpochClock\(quota\)/, "the live clock is a hook over the reported snapshot");
+  assert.match(
+    consumerView,
+    /denominate\(quota\.nominalYuanYuan\)/
+    , "the card denominates the server-reported nominal, so the two faces cannot disagree",
+  );
 });

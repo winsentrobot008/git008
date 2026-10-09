@@ -10,6 +10,8 @@
  * Node runtime, not edge: the runtime imports the M1/M2 modules, which use `node:crypto`.
  */
 
+import { buildQuotaReport } from "@/lib/agent/quota";
+import type { QuotaReport } from "@/lib/agent/quota-view";
 import { createRuntime, readLimits, toRefusal } from "@/lib/agent/runtime";
 
 export const runtime = "nodejs";
@@ -35,6 +37,15 @@ export async function GET(): Promise<Response> {
   }
 
   const spend = agent.wallet.spendSnapshot();
+
+  // The ADR-045 quota ledger. A build that cannot construct it answers without the block instead of with a
+  // zeroed one: "no ledger" and "an empty ledger" are different facts and the card renders them differently.
+  let quota: QuotaReport | null = null;
+  try {
+    quota = buildQuotaReport();
+  } catch {
+    quota = null;
+  }
 
   return Response.json({
     ok: true,
@@ -70,5 +81,7 @@ export async function GET(): Promise<Response> {
       windowStartSeconds: spend.windowStartSeconds,
       windowSeconds: spend.windowSeconds,
     },
+    // Spread only when the ledger exists, so an absent block stays absent on the wire.
+    ...(quota === null ? {} : { quota }),
   });
 }

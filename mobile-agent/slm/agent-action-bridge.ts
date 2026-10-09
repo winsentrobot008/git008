@@ -24,6 +24,9 @@
  *      that names another asset (BTC, USD, a token symbol) is `MALFORMED_PROPOSAL`, because pricing it
  *      would mean inventing a rate - and an invented rate is how a "small" leg becomes a large one.
  *
+ *   4. **Vesting gate.** When a quota authority is attached it runs between the policy and the enclave, so a
+ *      locked or slashed vesting quota refuses an otherwise-legal leg without a key ever being created.
+ *
  * {@link AgentActionBridge.authorize} is the only method that can end in a signature, and all it does is
  * call the injected local wallet. There is no branch here that produces key material or a signature.
  *
@@ -37,6 +40,7 @@ import type { PolicyDecision } from "../signer/policy.js";
 import { isAddress, isHex, type Address, type Hex } from "../signer/types.js";
 import type { IntentPreview, SignedIntent, TransactionIntent } from "../signer/wallet.js";
 import { SLM_ACTIONS, type SlmAction } from "./intent-translator.js";
+import type { QuotaAuthority, QuotaDecision } from "./quota-vesting.js";
 
 /** Internal action id -> the name the owner sees. Presentation-only; never written to the wire. */
 export const CONSUMER_ACTION_NAMES: Readonly<Record<SlmAction, string>> = Object.freeze({
@@ -162,6 +166,8 @@ export interface BridgeAuthorization {
   readonly signed: SignedIntent | null;
   /** The M2/M5 refusal, when the policy allowed the leg and the authorization or enclave did not. */
   readonly refusal: ActionRefusal | null;
+  /** The local vesting refusal, when the quota gate denied the action before a signature was attempted. */
+  readonly quotaRefusal: ActionRefusal | null;
 }
 
 /**
@@ -177,6 +183,12 @@ export interface AgentActionBridgeOptions {
   readonly wallet: LocalIntentAuthority;
   /** Chains a proposal may target. Defaults to every chain the wallet's own policy will re-check. */
   readonly allowedChainIds?: readonly number[];
+  /**
+   * The local vesting gate. Optional, so a host without a quota ledger still gets the policy gate; when
+   * present it runs after the policy allows a leg and before the enclave is asked to sign, because a
+   * sybil-farmed quota has to be refusable without consuming a key operation.
+   */
+  readonly quota?: QuotaAuthority;
 }
 
 /**
@@ -189,10 +201,12 @@ export interface AgentActionBridgeOptions {
 export class AgentActionBridge {
   readonly #wallet: LocalIntentAuthority;
   readonly #allowedChainIds: readonly number[] | null;
+  readonly #quota: QuotaAuthority | null;
 
   constructor(options: AgentActionBridgeOptions) {
     this.#wallet = options.wallet;
     this.#allowedChainIds = options.allowedChainIds ?? null;
+    this.#quota = options.quota ?? null;
   }
 
   /** Validates a proposal into a local intent. Throws {@link ExternalActionError} on anything else. */
@@ -297,15 +311,45 @@ export class AgentActionBridge {
     const proposal = this.propose(external);
     const preview = await this.#wallet.preview(proposal.intent);
     if (!preview.decision.allowed) {
-      return { proposal, decision: preview.decision, signed: null, refusal: null };
+      return { proposal, decision: preview.decision, signed: null, refusal: null, quotaRefusal: null };
     }
+
+    // The vesting gate sits between the policy and the enclave, and it is checked twice on purpose: the
+    // preview tells a UI the price without spending it, the charge is what actually draws the quota.
+    const quotaCheck: QuotaDecision | null =
+      this.#quota === null ? null : this.#quota.preview(proposal.action);
+    if (quotaCheck !== null && !quotaCheck.allowed) {
+      return {
+        proposal,
+        decision: preview.decision,
+        signed: null,
+        refusal: null,
+        quotaRefusal: { code: quotaCheck.code, reason: quotaCheck.reason },
+      };
+    }
+
     if (options.attemptSign !== true) {
-      return { proposal, decision: preview.decision, signed: null, refusal: null };
+      return { proposal, decision: preview.decision, signed: null, refusal: null, quotaRefusal: null };
+    }
+
+    if (this.#quota !== null) {
+      const charge = this.#quota.charge(proposal.action);
+      if (!charge.allowed) {
+        return {
+          proposal,
+          decision: preview.decision,
+          signed: null,
+          refusal: null,
+          quotaRefusal: { code: charge.code, reason: charge.reason },
+        };
+      }
+      // A charge is deliberately not refunded when the enclave later refuses: releasing quota back would be
+      // the fail-open direction, and the leg can simply be re-presented in a later epoch.
     }
 
     try {
       const signed = await this.#wallet.signIntent(proposal.intent);
-      return { proposal, decision: preview.decision, signed, refusal: null };
+      return { proposal, decision: preview.decision, signed, refusal: null, quotaRefusal: null };
     } catch (error) {
       const failure = error as { name?: string; code?: unknown; message?: string };
       const code = typeof failure.code === "string" ? failure.code : (failure.name ?? "SIGN_REFUSED");
@@ -314,6 +358,7 @@ export class AgentActionBridge {
         decision: preview.decision,
         signed: null,
         refusal: { code, reason: failure.message ?? "the local wallet refused to sign" },
+        quotaRefusal: null,
       };
     }
   }
