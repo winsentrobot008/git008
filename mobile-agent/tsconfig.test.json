@@ -9,5 +9,5 @@
     "outDir": "dist/test-build",
     "types": ["node"]
   },
-  "include": ["signer/**/*.ts", "bio-auth/**/*.ts", "shared/**/*.ts", "slm/**/*.ts", "test/**/*.ts"]
+  "include": ["signer/**/*.ts", "bio-auth/**/*.ts", "shared/**/*.ts", "slm/**/*.ts", "test/**/*.ts", "demo/**/*.ts"]
 }
