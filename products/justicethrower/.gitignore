@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------
+# JusticeThrower — Unity 2022.3 LTS  (Unity generated artifacts)
+# ---------------------------------------------------------------
+
+# Unity generated folders (root-anchored so nested Assets/ folders survive)
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/[Aa]ssets/AssetStoreTools*
+/[Aa]ssets/StreamingAssets/aa*
+
+# IDE
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Build outputs
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Diagnostics
+sysinfo.txt
+crashlytics-build.properties
+*.stackdump
+
+# NOTE: .meta files are REQUIRED and must always be committed.
