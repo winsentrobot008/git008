@@ -73,8 +73,13 @@ def _hex(value: str) -> str:
 
 
 def _filter_text(value: str) -> str:
-    """转义 drawtext 文本内容中的特殊字符（冒号/百分号）。"""
-    return str(value).replace("\\", "\\\\").replace(":", "\\:").replace("%", "%%")
+    """转义 drawtext 文本内容中的特殊字符（反斜杠/冒号/百分号）。
+
+    百分号必须转义成 ``\\%`` 而不是 ``%%``：drawtext 的 expansion 引擎只识别
+    ``%{...}`` 函数式，遇到 ``%%`` 会直接报 "Stray %" 让整条 filter 初始化失败，
+    镜头里任何一处 ``99%`` 都会把整片渲染打断。
+    """
+    return str(value).replace("\\", "\\\\").replace(":", "\\:").replace("%", "\\%")
 
 
 def _is_wide_char(ch: str) -> bool:
@@ -390,6 +395,34 @@ def _scene_text_layers(
     return layers
 
 
+_VIDEO_EXT = {".mp4", ".mov", ".webm", ".mkv", ".m4v", ".avi"}
+_IMAGE_EXT_FALLBACK = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".bmp", ".gif"}
+
+
+def _infer_media_kind(source: str) -> str:
+    """source 已存在但缺 _media_kind 时按扩展名兜底。
+
+    否则真实视频/静图会被 _scene_segment 误判成「无素材」而退化成品牌渐变卡
+    （例如 SVD 运动片段回填 source 后未同步 kind 的场景）。
+    """
+    suffix = Path(source).suffix.lower()
+    if suffix in _VIDEO_EXT:
+        return "video"
+    if suffix in _IMAGE_EXT_FALLBACK:
+        return "image"
+    return ""
+
+
+def _segment_encoder_args(crf: int = 24) -> list[str]:
+    """预览片段/拼接统一编码参数。
+
+    显式写 libx264 作为**软件兜底标记**：各调用点一律经 ffmpeg.run_ffmpeg 出片，
+    由共享编码策略在 NVENC 可用时升级为 h264_nvenc（RTX 3060 硬编，自动回退
+    libx264），避免各模块各自硬编码编码器。
+    """
+    return ["-c:v", "libx264", "-preset", "ultrafast", "-crf", str(crf)]
+
+
 def _scene_segment(
     scene: dict,
     index: int,
@@ -402,7 +435,7 @@ def _scene_segment(
 ) -> Path:
     duration = float(scene["duration_s"])
     source = scene.get("source") or ""
-    kind = scene.get("_media_kind") or ""
+    kind = scene.get("_media_kind") or _infer_media_kind(source)
     out = workdir / f"seg_{index:03d}.mp4"
     frames = max(1, round(duration * fps))
 
@@ -417,8 +450,7 @@ def _scene_segment(
         vf = _crop_filter(src_w, src_h, width, height)
         if vf_extra:
             vf += "," + vf_extra
-        ffmpeg.run(
-            "ffmpeg",
+        ffmpeg.run_ffmpeg(
             [
                 "-y",
                 "-stream_loop", "-1",
@@ -427,7 +459,7 @@ def _scene_segment(
                 "-vf", vf,
                 "-r", str(fps),
                 "-frames:v", str(frames),
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24",
+                *_segment_encoder_args(24),
                 "-pix_fmt", "yuv420p", "-an",
                 str(out),
             ],
@@ -448,8 +480,7 @@ def _scene_segment(
         )
         if vf_extra:
             vf += "," + vf_extra
-        ffmpeg.run(
-            "ffmpeg",
+        ffmpeg.run_ffmpeg(
             [
                 "-y",
                 "-loop", "1",
@@ -458,7 +489,7 @@ def _scene_segment(
                 "-vf", vf,
                 "-r", str(fps),
                 "-frames:v", str(frames),
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24",
+                *_segment_encoder_args(24),
                 "-pix_fmt", "yuv420p", "-an",
                 str(out),
             ],
@@ -484,8 +515,7 @@ def _scene_segment(
     else:
         gx0, gy0, gx1, gy1 = 0, 0, width, height
     vf = vf_extra or "null"
-    ffmpeg.run(
-        "ffmpeg",
+    ffmpeg.run_ffmpeg(
         [
             "-y",
             "-f", "lavfi",
@@ -494,7 +524,7 @@ def _scene_segment(
             "-vf", vf,
             "-r", str(fps),
             "-frames:v", str(frames),
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24",
+            *_segment_encoder_args(24),
             "-pix_fmt", "yuv420p", "-an",
             str(out),
             ],
@@ -514,8 +544,7 @@ def _mux_narration(video: Path, audio: Path, out: Path) -> None:
     进程里等待标准输入而卡住。
     """
     before = ffmpeg.probe_duration(video)
-    ffmpeg.run(
-        "ffmpeg",
+    ffmpeg.run_ffmpeg(
         [
             "-y",
             "-nostdin",
@@ -619,13 +648,12 @@ def render_preview(
         "".join(f"file '{p.name}'\n" for p in segments),
         encoding="utf-8",
     )
-    ffmpeg.run(
-        "ffmpeg",
+    ffmpeg.run_ffmpeg(
         [
             "-y",
             "-f", "concat", "-safe", "0",
             "-i", str(concat_file),
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            *_segment_encoder_args(23),
             "-pix_fmt", "yuv420p", "-r", str(fps),
             "-movflags", "+faststart",
             str(concat_out),
@@ -693,8 +721,7 @@ def render_cover(
     out.parent.mkdir(parents=True, exist_ok=True)
     if not video_path.exists():
         raise RuntimeError(f"render_cover: 视频缺失 {video_path}")
-    ffmpeg.run(
-        "ffmpeg",
+    ffmpeg.run_ffmpeg(
         [
             "-y",
             "-ss", f"{max(0.0, float(offset_s)):.3f}",

@@ -2,6 +2,52 @@
 
 Append verified, reusable lessons newest-first. Separate observed facts from hypotheses.
 
+## 2026-10-11 - a "validated copy" that rebuilds a whitelist silently drops every other key, and drawtext's percent escape is `\%` not `%%`
+
+- **Observation:** driving the one-click pipeline with a real bilingual script surfaced two silent breaks.
+  (1) `storyboard.validate_storyboard()` returns a *fresh* dict (title/product/width/height/fps/theme/scenes/audio), so
+  `voice_script` never reached `stage_narration`, which fell back to `_scene_timeline(scenes)` - the whole video narrated
+  the **on-screen captions** instead of the authored `dialogue[]` lines. It hid for as long as caption text == narration
+  text (the text-driven path writes the same sentence to both) and only appeared when a director script used a short
+  caption plus a long spoken line - as a QC failure, never as an error.
+  (2) `preview._filter_text` escaped `%` as `%%`; this bundled FFmpeg answers `Stray % near '...'`, fails filter init and
+  aborts the render (`exit=-22`). Probed with three one-frame renders: bare `%` fails, `%%` fails, `\%` succeeds
+  (`expansion=none` also succeeds). The copy's `99%` was enough to kill a 1080x1920 render.
+- **Lesson:** when a validate/normalise step *rebuilds* a dict instead of updating it, every key it does not explicitly
+  copy is discarded - audit the whitelist against all downstream readers and assert the field survives. Escape rules must
+  be probed against the actual binary, not remembered: a documented escape can be a hard error in another FFmpeg build.
+  Also: `preview` enables the strict `silence_gap` gate at `max(w,h) >= 1080` (drafts skip it), so high-res renders need
+  shot durations paced to the synthesized narration (measure each TTS clip's trailing silence; the clip's own tail is
+  ~0.55-0.6s and counts toward the 0.5s gap threshold).
+- **Application:** `validate_storyboard` now forwards `voice_script`; `_filter_text` emits `\%`; both are pinned by
+  `tests/test_motion_closure.py::test_narration_reads_authored_lines` and
+  `tests/test_cjk_font.py::test_percent_in_text_does_not_break_drawtext`.
+  Source: `modules/video_factory/storyboard.py`, `modules/video_factory/preview.py`.
+
+## 2026-10-11 - an "available" capability flag proves intent, not function; and Windows `text=True` capture is cp1252 unless you say otherwise
+
+- **Observation:** Two false positives surfaced while wiring the 008-video-factory preview path onto the
+  shared `src/core/ffmpeg.py` encoder policy. (1) `nvenc_enabled()` only grepped the `-encoders`
+  list and reported `True`, but the bundled FFmpeg requires NVENC API 13.1 while the installed driver
+  (591.86) exposes only 13.0 - so every encode first ran a doomed `h264_nvenc` attempt and dumped ~5 kB of
+  FFmpeg stderr into the log before falling back to `libx264`. (2) `inspector.py::_run` used
+  `subprocess.run(..., text=True)` with no encoding, so FFmpeg output containing a UTF-8 Chinese path
+  raised `UnicodeDecodeError` inside the reader thread, left `proc.stdout` as `None`, and crashed
+  `detect_black_segments` with `TypeError`. It looked intermittent because only titles whose UTF-8 bytes
+  include a cp1252-undefined byte trip it (e.g. 铁 = `E9 93 81`, byte `0x81`); 凌晨两点的冰箱, by
+  contrast, decodes without error.
+- **Lesson:** A capability check that reads a manifest (`-encoders`, `--help`, a config list, a heartbeat)
+  establishes intent, not function - add a one-time, cheap, fail-safe functional probe, cache the result,
+  and keep an env escape hatch. On Windows, never let a subprocess text capture ride on the locale codec:
+  pass `encoding="utf-8", errors="replace"` explicitly and treat `proc.stdout`/`proc.stderr` as
+  possibly `None` while parsing.
+- **Application:** When a pipeline stage is declared "available" yet output is slow or noisy, measure the
+  stage itself before trusting the flag (`ffmpeg -f lavfi -i color=c=black:s=64x64:r=1 -frames:v 1 -c:v h264_nvenc -f null -`
+  for NVENC; a Chinese-path smoke run for any subprocess capture). A caller must also degrade loudly: report
+  the skip reason instead of silently producing a different artifact.
+  Source: `ONE_CLICK_VIDEO_READINESS.md` (G2/G3 implementation), `src/core/ffmpeg.py`, `src/core/inspector.py`.
+
+
 ## 2026-10-09 - pruning a "DEX-only" route leaves relative imports behind, and PowerShell redirection rewrites sources as UTF-16
 
 - **Observation:** The DEX route was deleted on the assumption that `lib/hooks.ts`, `lib/launches.ts` and

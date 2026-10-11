@@ -271,6 +271,26 @@ def test_latin_wrapping_keeps_words_intact() -> None:
     )
 
 
+def test_percent_in_text_does_not_break_drawtext() -> None:
+    """文案里的「99%」必须原样烧进画面：drawtext 的 expansion 引擎只认 %{...}，
+    未转义的 % 或写成 %% 都会报 "Stray %" 让整条 filter 初始化失败。"""
+    escaped = preview._filter_text("99% 的人把它浪费了")
+    check(
+        "escape: 百分号转义为 \\% 而非 %%",
+        "\\%" in escaped and "%%" not in escaped,
+        escaped,
+    )
+    if not _ffmpeg():
+        skip("e2e: 含百分号的字幕可渲染", "ffmpeg 不在 PATH")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        preview._stage_fonts(tmp)
+        png = _render(tmp, preview._FONT_BOLD, escaped, "pct.png")
+        ink = _ink(_gray(png))
+        check("e2e: 含 99% 的字幕成功渲染出字形", png.exists() and ink > 0, f"ink={ink}")
+
+
 def _run(fn, label: str) -> None:
     try:
         fn()
@@ -286,6 +306,7 @@ def main() -> int:
     _run(test_long_cjk_title_wraps_within_width, "test_long_cjk_title_wraps_within_width 执行异常")
     _run(test_long_cjk_title_not_clipped, "test_long_cjk_title_not_clipped 执行异常")
     _run(test_latin_wrapping_keeps_words_intact, "test_latin_wrapping_keeps_words_intact 执行异常")
+    _run(test_percent_in_text_does_not_break_drawtext, "test_percent_in_text_does_not_break_drawtext 执行异常")
 
     failed = 0
     for name, ok, detail in RESULTS:

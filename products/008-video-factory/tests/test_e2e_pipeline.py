@@ -13,6 +13,7 @@ camera_movement）→ Edge-TTS 旁白时轴 → 图库素材暂存 → 480x480 �
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 import tempfile
@@ -507,6 +508,83 @@ def test_shot_visual_diversity() -> None:
     )
 
 
+def test_offline_prompt_diversity() -> None:
+    """9) 离线草稿分镜（无 LLM、词典未命中）：不得把同一串通用提示词发给每一镜。"""
+    text = (
+        "凌晨两点的冰箱第三次自己亮起。"
+        "她发现里面冻着一封写给未来的信。"
+        "信上说：别怕，你正在成为你想成为的人。"
+        "窗外的城市灯火一盏盏熄灭。"
+        "她把信贴在胸口，决定明天就出发。"
+        "清晨第一班地铁载着她驶向未知。"
+    )
+    # 故意不注入 visual_mapper：复现「词典未命中 → 通用占位词」的离线兜底路径。
+    script = director_adapter.parse_text_to_shots(
+        text, shot_count=6, target_duration=15.0, provider="offline"
+    )
+    shots = script["shots"]
+    queries = [tuple(s.get("asset_queries") or []) for s in shots]
+
+    check("offline: 6 镜检索词互不相同", len(set(queries)) == 6, str([list(q) for q in queries]))
+    generic = {"technology background", "abstract digital network", "modern office laptop"}
+    check(
+        "offline: 不再整片使用通用占位词",
+        not any(set(q) <= generic for q in queries),
+        str([list(q) for q in queries]),
+    )
+    check(
+        "offline: 逐镜提示词 = 专属画面描述",
+        list(queries)
+        == [
+            ("technology background", "abstract digital network", "wide shot", "dynamic lighting"),
+            ("modern office laptop keyboard", "close up", "cinematic depth of field"),
+            ("futuristic data center servers", "glowing lights", "close up"),
+            ("digital network concept", "glowing nodes connections", "extreme close up"),
+            ("person typing on glowing laptop", "modern office", "medium close"),
+            ("abstract digital technology wave", "wide angle"),
+        ],
+        str([list(q) for q in queries]),
+    )
+    prompts = [pipeline._comfyui_image_prompt(s) for s in shots]
+    check("offline: 6 镜文生图提示词互不相同", len(set(prompts)) == 6, str(prompts))
+
+
+def test_pexels_request_headers() -> None:
+    """10) Pexels 外呼必须带浏览器化 User-Agent（Cloudflare 1010 会 403 掉 Python-urllib）。"""
+    if not media.has_pexels_key():
+        os.environ["PEXELS_API_KEY"] = "test-key-not-real"
+
+    captured: list = []
+    real_urlopen = media.urllib.request.urlopen
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return b'{"videos": []}'
+
+    def _fake_urlopen(request, *args, **kwargs):
+        captured.append(request)
+        return _Resp()
+
+    media.urllib.request.urlopen = _fake_urlopen
+    try:
+        media._pexels_get("https://api.pexels.com/videos/search?query=x")
+    finally:
+        media.urllib.request.urlopen = real_urlopen
+
+    headers = {k.lower(): str(v) for k, v in (captured[0].headers.items() if captured else [])}
+    user_agent = headers.get("user-agent", "")
+    check("pexels: 外呼携带 User-Agent", bool(user_agent), str(sorted(headers)))
+    check("pexels: UA 不是 Python-urllib（Cloudflare 1010）", "python-urllib" not in user_agent.lower(), user_agent)
+    check("pexels: 仍携带 Authorization", "authorization" in headers, str(sorted(headers)))
+    check("pexels: 请求地址为官方 API", "api.pexels.com" in str(captured[0].full_url if captured else ""), "")
+
+
 def main() -> int:
     try:
         test_text_to_shots()
@@ -517,6 +595,8 @@ def main() -> int:
         test_text_to_preview_480()
         test_asset_distinctness()
         test_shot_visual_diversity()
+        test_offline_prompt_diversity()
+        test_pexels_request_headers()
     finally:
         shutil.rmtree(WORK, ignore_errors=True)
 

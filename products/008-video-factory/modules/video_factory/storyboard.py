@@ -192,6 +192,11 @@ def validate_storyboard(data: dict) -> dict:
         "theme": _normalize_theme(data),
         "scenes": normalized_scenes,
         "audio": {"narration": narration, "music": music},
+        # 旁白脚本必须随校验副本一起下发：stage_narration 优先取 voice_script，
+        # 一旦缺失就退化成朗读 scenes[].text（屏幕字幕），dialogue 会被静默丢弃。
+        "voice_script": [
+            dict(line) for line in (data.get("voice_script") or []) if isinstance(line, dict)
+        ],
     }
 
 

@@ -148,6 +148,37 @@ def test_backend_routing() -> None:
         check("backend: 非法后端被拒绝", True)
 
 
+def test_offline_draft_prompt_diversity() -> None:
+    """离线草稿分镜（Web UI「生成导演分镜」的真实路径）逐镜提示词必须不同。"""
+    idea = (
+        "凌晨两点的冰箱第三次自己亮起。她发现里面冻着一封写给未来的信。"
+        "信上说：别怕，你正在成为你想成为的人。窗外的城市灯火一盏盏熄灭。"
+        "她把信贴在胸口，决定明天就出发。清晨第一班地铁载着她驶向未知。"
+    )
+    result = bridge.idea_to_drama(idea, provider="offline", shot_count=6, target_duration=15.0)
+    shots = result["director_script"]["shots"]
+    queries = [tuple(s.get("asset_queries") or []) for s in shots]
+    check("draft: 产出 6 镜", len(shots) == 6, str(len(shots)))
+    check("draft: 逐镜 asset_queries 互不相同", len(set(queries)) == 6, str([list(q) for q in queries]))
+    generic = {"technology background", "abstract digital network", "modern office laptop"}
+    check(
+        "draft: 不再整片使用通用占位词",
+        not any(set(q) <= generic for q in queries),
+        str([list(q) for q in queries]),
+    )
+    scene_queries = [tuple(s["asset_queries"]) for s in result["storyboard"]["scenes"]]
+    check(
+        "draft: 画布场景逐镜提示词互不相同",
+        len(set(scene_queries)) == 6,
+        str([list(q) for q in scene_queries]),
+    )
+    check(
+        "draft: 视觉词全英文",
+        all(str(item).isascii() for keywords in queries for item in keywords),
+        str([list(q) for q in queries]),
+    )
+
+
 def main() -> int:
     for fn in (
         test_offline_draft_valid,
@@ -156,6 +187,7 @@ def main() -> int:
         test_from_topic_data,
         test_empty_idea_rejected,
         test_backend_routing,
+        test_offline_draft_prompt_diversity,
     ):
         try:
             fn()
