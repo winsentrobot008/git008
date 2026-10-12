@@ -23,6 +23,8 @@ for _entry in (str(PRODUCT_ROOT), str(REPO_ROOT)):
         sys.path.insert(0, _entry)
 
 from modules.video_factory import director_adapter, idea_to_drama_bridge, render_backend  # noqa: E402
+from modules.video_factory import sample_policy  # noqa: E402
+from modules.video_factory import semantic_bridge  # noqa: E402
 
 from .jobs import Job, JobRegistry  # noqa: E402
 
@@ -41,11 +43,39 @@ __all__ = [
     "list_videos",
     "job_script_path",
     "load_job_script",
+    "MAX_SAMPLES",
+    "single_sample_count",
+    "prune_output_samples",
 ]
 
 CLI = PRODUCT_ROOT / "src" / "cli.py"
 OUTPUT_DIR = Path(os.environ.get("VF_OUTPUT_DIR") or (PRODUCT_ROOT / "output"))
 WORK_DIR = Path(os.environ.get("VF_WORK_DIR") or (PRODUCT_ROOT / "work" / "studio"))
+
+# --------------------------------------------------------------------------
+# 单一样板策略：一次流水线只允许产出 1 份最高质量成片（--samples 1）
+# 实现收敛在 modules/video_factory/sample_policy.py，CLI 与 Studio 共用同一份阈值，
+# 避免两处各自定义后漂移。这里只做「绑定当前 OUTPUT_DIR」的薄封装。
+# --------------------------------------------------------------------------
+MAX_SAMPLES = sample_policy.MAX_SAMPLES
+
+_OUTPUT_SAMPLE_EXTENSIONS = set(sample_policy.SAMPLE_EXTENSIONS)
+
+
+def single_sample_count(requested: Any = MAX_SAMPLES) -> int:
+    """把任意 --samples 请求收敛到 1（多样本输出已禁用）。"""
+    return sample_policy.single_sample_count(requested)
+
+
+def prune_output_samples(keep: Any, *, cover: Any = None, enabled: bool = True) -> list[str]:
+    """单一样板策略：output/ 只保留本次成片（+ 可选封面），历史样板全部清理。
+
+    OUTPUT_DIR 在本模块内解析（可被环境变量 / 测试替换），因此每次调用都重新读取，
+    而不是在导入期把目录路径冻进共享实现里。
+    """
+    return sample_policy.prune_output_samples(
+        keep, cover=cover, enabled=enabled, output_dir=OUTPUT_DIR
+    )
 
 # --------------------------------------------------------------------------
 # 活动渲染进程表：/api/render/cancel 需要拿到 Popen 才能杀掉整棵进程树
@@ -340,6 +370,7 @@ def build_storyboard_from_idea(
     style: str = "短剧",
     duration: float = 15.0,
     shots: int = 6,
+    title: Optional[str] = None,
     provider: Optional[str] = None,
     seed_keywords: Optional[list] = None,
 ) -> dict:
@@ -348,17 +379,16 @@ def build_storyboard_from_idea(
         style=style,
         target_duration=float(duration),
         shot_count=int(shots),
+        title=title,
         provider=provider,
         seed_keywords=seed_keywords,
     )
 
 
 def fetch_topic(query: str, source: str = "auto") -> dict:
-    scripts_dir = REPO_ROOT / "scripts"
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    from agent_reach_bridge import extract_topic_data  # noqa: PLC0415
-
+    extract_topic_data = semantic_bridge.bridge_function("extract_topic_data")
+    if extract_topic_data is None:
+        raise RuntimeError("Agent-Reach 取材词典不可用（scripts/agent_reach_bridge.py 缺失）")
     return extract_topic_data(query, source=source)
 
 

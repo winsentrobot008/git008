@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import random
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -20,7 +21,16 @@ from typing import Any, Optional
 from src.core.llm_client import diagnose_llm
 from src.core.paths import OUTPUT_DIR, WORK_DIR, video_factory_dir
 
-from . import director_adapter, hyperframes, media, narration, preview as video_preview, render_backend, storyboard
+from . import (
+    director_adapter,
+    hyperframes,
+    media,
+    narration,
+    preview as video_preview,
+    render_backend,
+    sample_policy,
+    storyboard,
+)
 from .storyboard import slugify
 
 VIDEO_FACTORY_ROOT = video_factory_dir()
@@ -165,12 +175,15 @@ _MOVEMENT_PROMPTS = {
 
 
 def _comfyui_image_prompt(scene: dict) -> str:
-    """把检索词 + 镜头运动 + 本镜专属脚本片段拼成文生图提示词。
+    """本镜 SD/Flux 绘图提示词：优先用 Prompt Engine 的 sd_prompt。
 
-    离线 mapper 常给每个镜头同一组检索词，只靠检索词会让整片拿到同一张图。
-    这里额外注入镜头运动与本镜独有的 ASCII 脚本片段（SD1.5 不识别中文，跳过
-    中文台词），保证逐镜提示词互不相同。
+    SD-first 工作流里提示词由 storyboard.build_sd_prompt 按 Beat 语义生成
+    （具象主语/动作 + 情绪基调 + 镜头语言 + 画质词 + 画幅），与本镜文案强绑定；
+    这里只保留兜底拼装，覆盖没有 sd_prompt 的历史分镜。
     """
+    explicit = str(scene.get("sd_prompt") or "").strip()
+    if explicit:
+        return explicit
     keywords = scene.get("search_keywords") or scene.get("asset_queries") or []
     if isinstance(keywords, str):
         keywords = [keywords]
@@ -231,11 +244,16 @@ def stage_assets(
     image_generator: Any = None,
     comfyui_seed: int = 0,
     reset_cache: bool = False,
+    sd_first: bool = True,
 ) -> dict:
-    """按 search_keywords 抓取图库视频/图片到 work/assets/cache。
+    """SD-first 素材工作流：本地 ComfyUI(RTX 3060) 逐镜生成专属概念图。
 
-    返回改写后的 storyboard 副本，每镜记录 `_media_via` 来源；无匹配的镜头按
-    ComfyUI 文生图 → 品牌渐变背景 兜底，并把真实失败原因写进 staging 报告。
+    默认 ``sd_first=True``：
+    1. 本地 ComfyUI/SD 按 sd_prompt 逐镜生成 1 张专属概念图；
+    2. ComfyUI 不可用 / 单镜失败 → 具象强相关的**静图**库；
+    3. 仍无 → 品牌渐变背景。
+    **严格禁止**通用视频切片（allow_video=False）——它们让画面与文案脱节。
+    返回改写后的 storyboard 副本，每镜记录 `_media_via` 来源。
     """
     _ensure_logging()
     sb = storyboard.validate_storyboard(storyboard_data)
@@ -245,10 +263,32 @@ def stage_assets(
     # 未显式给定基础种子时抽取随机基数：逐镜 seed = 基数 + 镜序，画面必然不同。
     seed_base = int(comfyui_seed) if comfyui_seed else random.randint(1, 10_000_000)
     generator = image_generator or render_backend.generate_comfyui_image
+    use_comfyui = bool(use_comfyui)
+    comfyui_probe: dict = {}
+    sd_ready = False
+    if use_comfyui and image_generator is not None:
+        # 调用方显式注入生成器 = 断言本地 SD 可用（测试替身 / 自定义后端），
+        # 不再依赖 127.0.0.1:8188 心跳；否则注入的替身永远轮不到执行，SD-first
+        # 会被误判成离线而整体降级到静图库。
+        sd_ready = True
+        comfyui_probe = {"available": True, "url": "injected", "svd_ready": None}
+    elif use_comfyui:
+        try:
+            comfyui_probe = render_backend.probe_comfyui()
+        except Exception as exc:  # noqa: BLE001 - 探测失败按不可用处理
+            comfyui_probe = {"available": False, "error": f"{type(exc).__name__}: {exc}"}
+        sd_ready = bool(comfyui_probe.get("available"))
+        if not sd_ready:
+            logger.warning(
+                "[comfyui] 本地 SD 不可用（%s）：%s",
+                comfyui_probe.get("url") or "127.0.0.1:8188",
+                "降级为具象静图库（通用视频切片已禁用）" if sd_first else "降级为图库兜底",
+            )
     entries: list[dict] = []
     resolved = 0
     generated = 0
     duplicate_avoided = 0
+    stock_video_used = 0
     used: set = set()
     for i, scene in enumerate(sb["scenes"]):
         if scene.get("source"):
@@ -263,38 +303,69 @@ def stage_assets(
             )
             resolved += 1
             continue
-        outcome = media.resolve_scene_media_ex(
-            _scene_probe(scene),
-            cache_dir=cache,
-            use_network=use_network,
-            allow_cache_reuse=False,
-            exclude=used,
-        )
-        hit = outcome.get("hit")
-        if hit and str(hit["source"]) in used:
-            # One source may never cover two shots: drop it and resolve again.
-            duplicate_avoided += 1
-            hit = None
-        if not hit and use_comfyui:
-            hit = _generate_comfyui_shot(
-                scene, i, cache, generator, base_seed=seed_base
-            )
-            if hit:
-                generated += 1
-        if not hit:
-            # 兜底顺序：ComfyUI 生成 → 下载缓存复用 → 品牌渐变背景
-            hit = media.first_unused_local(
-                _scene_probe(scene).get("asset_queries") or [],
+        probe = _scene_probe(scene)
+        outcome: dict = {"hit": None, "reason": "", "diagnostics": {}}
+        hit = None
+        if sd_first:
+            # ① 本地 3060 生成专属概念图 → ② 具象静图库 → ③ 品牌渐变。视频一律不用。
+            if use_comfyui and sd_ready:
+                hit = _generate_comfyui_shot(scene, i, cache, generator, base_seed=seed_base)
+                if hit:
+                    generated += 1
+            if hit and str(hit["source"]) in used:
+                duplicate_avoided += 1
+                hit = None
+            if not hit:
+                outcome = media.resolve_scene_media_ex(
+                    probe,
+                    cache_dir=cache,
+                    use_network=use_network,
+                    allow_cache_reuse=False,
+                    exclude=used,
+                    allow_video=False,
+                )
+                hit = outcome.get("hit")
+            if not hit:
+                hit = media.first_unused_local(
+                    probe.get("asset_queries") or [],
+                    cache_dir=cache,
+                    exclude=used,
+                    images_only=True,
+                )
+                if hit:
+                    outcome = {**outcome, "reason": hit["via"]}
+        else:
+            outcome = media.resolve_scene_media_ex(
+                probe,
                 cache_dir=cache,
+                use_network=use_network,
+                allow_cache_reuse=False,
                 exclude=used,
+                allow_video=True,
             )
-            if hit:
-                outcome = {**outcome, "reason": hit["via"]}
+            hit = outcome.get("hit")
+            if hit and str(hit["source"]) in used:
+                duplicate_avoided += 1
+                hit = None
+            if not hit and use_comfyui:
+                hit = _generate_comfyui_shot(scene, i, cache, generator, base_seed=seed_base)
+                if hit:
+                    generated += 1
+            if not hit:
+                hit = media.first_unused_local(
+                    probe.get("asset_queries") or [],
+                    cache_dir=cache,
+                    exclude=used,
+                )
+                if hit:
+                    outcome = {**outcome, "reason": hit["via"]}
         if hit and str(hit["source"]) in used:
             # last-resort guard: never assign an already-used file twice
             duplicate_avoided += 1
             hit = None
         if hit:
+            if str(hit.get("kind") or "") == "video":
+                stock_video_used += 1
             used.add(hit["source"])
             scene["source"] = hit["source"]
             scene["_media_kind"] = hit["kind"]
@@ -333,6 +404,10 @@ def stage_assets(
         "comfyui_images": generated,
         "comfyui_seed_base": seed_base,
         "duplicate_avoided": duplicate_avoided,
+        "policy": "sd-first" if sd_first else "legacy-stock-first",
+        "sd_ready": sd_ready,
+        "comfyui_probe": comfyui_probe or None,
+        "stock_video_used": stock_video_used,
         "entries": entries,
     }
     if resolved < total:
@@ -426,8 +501,9 @@ def stage_storyboard(
     image_generator: Any = None,
     comfyui_seed: int = 0,
     reset_cache: bool = False,
+    sd_first: bool = True,
 ) -> dict:
-    """完整 Stage-2 前置：图库取材 → ComfyUI 补帧 → Edge-TTS 旁白 → 可渲染 storyboard。"""
+    """完整 Stage-2 前置：SD 逐镜出图 → 静图兜底 → Edge-TTS 旁白 → 可渲染 storyboard。"""
     # reset_cache purges the previous job's assets so every shot renders unique imagery.
     sb = stage_assets(
         storyboard_data,
@@ -437,6 +513,7 @@ def stage_storyboard(
         image_generator=image_generator,
         comfyui_seed=comfyui_seed,
         reset_cache=reset_cache,
+        sd_first=sd_first,
     )
     return stage_narration(
         sb, voice=voice, use_tts=use_tts, synth=synth, cache_dir=cache_dir
@@ -520,6 +597,8 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
                         "resolution": result["resolution"],
                         "fps": result["fps"],
                         "size_mb": result["size_mb"],
+                        "samples": _requested_samples(args),
+                        "pruned_samples": _prune_samples(args, result),
                         "staging": _staging_summary(data),
                     },
                     ensure_ascii=False,
@@ -538,10 +617,131 @@ def _cmd_storyboard_render(args: argparse.Namespace) -> int:
             inspect=not getattr(args, "no_inspect", False),
         )
         print(f"[video] 渲染完成：{result['output']}")
+        _prune_samples(args, result)
         return 0
     except (hyperframes.HyperFramesError, ValueError, RuntimeError) as exc:
         print(f"[video] storyboard 渲染失败：{exc}", file=sys.stderr)
         return 1
+
+
+def _upgrade_scenes_with_motion(
+    data: dict,
+    *,
+    out_dir: Path,
+    frames: int = 25,
+    fps: int = 8,
+    timeout: int = 1800,
+    max_scenes: Optional[int] = None,
+) -> dict:
+    """把分镜中的本地静图逐镜升级为 SVD 运动片段（回填 source / _media_kind）。
+
+    这是「SVD 视频帧 → 旁白 → 字幕 → 多镜拼接」闭环的入口：升级成功的镜头改走
+    preview 的视频分支（裁切 + 循环补足时长），未升级/失败的镜头保留静图
+    Ken Burns，整片仍由同一条 FFmpeg 管线拼接、烧字幕、混旁白。任何异常都降级
+    不中断，绝不阻断整片闭环。
+    """
+    try:
+        report = render_backend.generate_scene_clips(
+            data,
+            out_dir=out_dir,
+            frames=frames,
+            fps=fps,
+            timeout=timeout,
+            max_scenes=max_scenes,
+        )
+    except (RuntimeError, OSError) as exc:
+        logger.warning("[svd] 运动升级不可用：%s", exc)
+        return {
+            "backend": "comfyui",
+            "clips": [],
+            "skipped": [],
+            "count": 0,
+            "candidates": 0,
+            "reason": str(exc),
+        }
+
+    by_index = {int(clip["index"]): clip for clip in report.get("clips") or []}
+    for index, scene in enumerate(data.get("scenes") or []):
+        clip = by_index.get(index)
+        if not clip:
+            continue
+        scene["source"] = str(clip["clip"])
+        scene["_media_kind"] = "video"
+        scene["_media_via"] = "comfyui-svd"
+        scene.pop("_media_reason", None)  # 运动已就位，清掉陈旧的静图兜底原因
+    return report
+
+
+def _render_preview_output(
+    data: dict,
+    *,
+    width: int,
+    height: int,
+    fps: int,
+    cover: bool = False,
+    cover_offset: float = 0.5,
+    inspect: bool = True,
+    captions: bool = True,
+) -> dict:
+    """统一草稿出片入口：FFmpeg 预览 + 可选封面。异常由调用方转成退出码。"""
+    result = video_preview.render_preview(
+        data,
+        width=width,
+        height=height,
+        fps=fps,
+        use_network=False,  # 素材已在 stage_storyboard 统一解析
+        inspect=inspect,
+        captions=captions,
+    )
+    if cover:
+        result["cover"] = video_preview.render_cover(
+            Path(result["output"]),
+            output_path=Path(result["output"]).with_name("cover.jpg"),
+            offset_s=cover_offset,
+        )
+    return result
+
+
+def _requested_samples(args: argparse.Namespace) -> int:
+    """--samples 只允许 1：>1 已被禁用，收敛到单一样板并显式告警。"""
+    try:
+        requested = int(getattr(args, "samples", sample_policy.MAX_SAMPLES) or sample_policy.MAX_SAMPLES)
+    except (TypeError, ValueError):
+        requested = sample_policy.MAX_SAMPLES
+    granted = sample_policy.single_sample_count(requested)
+    if requested != granted:
+        print(
+            f"[video] 单一样板策略：--samples {requested} 已禁用多样本输出，收敛为 {granted}",
+            file=sys.stderr,
+        )
+    return granted
+
+
+def _purge_output_samples(args: argparse.Namespace) -> list[str]:
+    """渲染**前**清空 output/ 里的陈旧样板，保证工作区干净（--keep-samples 可关闭）。
+
+    出片后的 _prune_samples 负责收敛到「只留本次成片」；这一层负责失败/中断场景下
+    也不会把上一轮的半成品留在成片目录里冒充本次交付物。
+    """
+    enabled = not getattr(args, "keep_samples", False) and not sample_policy.keep_samples_from_env()
+    removed = sample_policy.prune_output_samples(None, enabled=enabled)
+    if removed:
+        print(f"[video] 渲染前清理陈旧样板 {len(removed)} 个 → {', '.join(removed)}")
+    return removed
+
+
+def _prune_samples(args: argparse.Namespace, result: dict) -> list[str]:
+    """出片后清理 output/ 历史样板，只保留本次成片（--keep-samples 可关闭）。"""
+    cover = result.get("cover")
+    if isinstance(cover, dict):
+        cover = cover.get("output")
+    enabled = not getattr(args, "keep_samples", False) and not sample_policy.keep_samples_from_env()
+    removed = sample_policy.prune_output_samples(
+        result.get("output"), cover=cover, enabled=enabled
+    )
+    if removed:
+        print(f"[video] 单一样板策略：清理历史样本 {len(removed)} 个 → {', '.join(removed)}")
+    return removed
 
 
 def cmd_text(args: argparse.Namespace) -> int:
@@ -550,6 +750,7 @@ def cmd_text(args: argparse.Namespace) -> int:
     if not text:
         print("[video] 文本为空", file=sys.stderr)
         return 1
+    _purge_output_samples(args)
     try:
         script = director_adapter.parse_text_to_shots(
             text,
@@ -574,6 +775,21 @@ def cmd_text(args: argparse.Namespace) -> int:
         print(f"[video] 文本转分镜失败：{exc}", file=sys.stderr)
         return 1
 
+    motion = None
+    if getattr(args, "motion", False):
+        motion = _upgrade_scenes_with_motion(
+            data,
+            out_dir=WORK_DIR / "svd",
+            frames=int(getattr(args, "motion_frames", 25) or 25),
+            fps=int(getattr(args, "motion_fps", 8) or 8),
+            timeout=int(getattr(args, "motion_timeout", 1800) or 1800),
+            max_scenes=getattr(args, "motion_max_scenes", None),
+        )
+        print(
+            f"[video] SVD 运动升级：{motion['count']}/{motion.get('candidates', 0)} 镜"
+            f"（跳过 {len(motion.get('skipped') or [])}）"
+        )
+
     slug = slugify(data["title"])
     out_path = (
         Path(args.output)
@@ -593,20 +809,16 @@ def cmd_text(args: argparse.Namespace) -> int:
 
     width, height = _parse_resolution(getattr(args, "resolution", "") or "480x480")
     try:
-        result = video_preview.render_preview(
+        result = _render_preview_output(
             data,
             width=width,
             height=height,
             fps=int(getattr(args, "fps", 24) or 24),
-            use_network=False,  # 素材已在 stage_storyboard 统一解析
+            cover=getattr(args, "cover", False),
+            cover_offset=float(getattr(args, "cover_offset", 0.5) or 0.5),
             inspect=not getattr(args, "no_inspect", False),
+            captions=not getattr(args, "no_caption", False),
         )
-        if getattr(args, "cover", False):
-            result["cover"] = video_preview.render_cover(
-                Path(result["output"]),
-                output_path=Path(result["output"]).with_name("cover.jpg"),
-                offset_s=float(getattr(args, "cover_offset", 0.5) or 0.5),
-            )
     except (ValueError, RuntimeError, OSError) as exc:
         print(f"[video] 草稿出片失败：{exc}", file=sys.stderr)
         return 1
@@ -627,6 +839,9 @@ def cmd_text(args: argparse.Namespace) -> int:
                 "size_mb": result.get("size_mb"),
                 "inspect_ok": inspection.get("ok"),
                 "checks": inspection.get("checks") or {},
+                "motion": motion,
+                "samples": _requested_samples(args),
+                "pruned_samples": _prune_samples(args, result),
                 "staging": _staging_summary(data),
             },
             ensure_ascii=False,
@@ -729,27 +944,14 @@ def cmd_director(args: argparse.Namespace) -> int:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
 
+    _purge_output_samples(args)
     width, height = _parse_resolution(getattr(args, "resolution", "") or "480x480")
-    decision = render_backend.resolve_backend(getattr(args, "backend", "auto") or "auto")
+    requested = getattr(args, "backend", "auto") or "auto"
+    decision = render_backend.resolve_backend(requested)
     print(f"[video] 渲染后端：{decision['backend']}（{decision['reason']}）")
-    svd_result = None
-    if decision["backend"] == "comfyui":
-        try:
-            svd_result = render_backend.run_comfyui_svd(data, out_dir=WORK_DIR / "svd")
-            print(f"[video] ComfyUI/SVD 输出：{svd_result['outputs']}")
-        except RuntimeError as exc:
-            decision = {
-                **decision,
-                "backend": "ffmpeg",
-                "reason": f"ComfyUI 路由失败，降级为 FFmpeg 预览：{exc}",
-            }
-            print(f"[video] {decision['reason']}", file=sys.stderr)
 
-    if decision["backend"] == "comfyui":
-        summary.update({"backend": "comfyui", "backend_reason": decision["reason"], "svd": svd_result})
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
-        return 0
-
+    # Stage-2 前置：素材解析 + Edge-TTS 旁白时轴。必须早于 SVD 运动升级，
+    # 否则 scene 还没有 source，SVD 拿不到任何输入图（历史断头路 ①）。
     try:
         data = stage_storyboard(
             data,
@@ -759,44 +961,72 @@ def cmd_director(args: argparse.Namespace) -> int:
             comfyui_seed=int(getattr(args, "seed", 0) or 0),
             reset_cache=not getattr(args, "keep_assets", False),
         )
-        staged = data.get("staging") or {}
-        assets = staged.get("assets") or {}
-        narr = staged.get("narration") or {}
-        print(
-            f"[video] Stage-2 暂存：素材 {assets.get('resolved', 0)}/{assets.get('scenes', 0)} 命中，"
-            f"旁白 {'OK' if narr.get('ok') else '跳过'}"
+    except (ValueError, RuntimeError, OSError) as exc:
+        print(f"[video] Stage-2 暂存失败：{exc}", file=sys.stderr)
+        return 1
+
+    staged = data.get("staging") or {}
+    assets = staged.get("assets") or {}
+    narr = staged.get("narration") or {}
+    print(
+        f"[video] Stage-2 暂存：素材 {assets.get('resolved', 0)}/{assets.get('scenes', 0)} 命中，"
+        f"旁白 {'OK' if narr.get('ok') else '跳过'}"
+    )
+
+    # SVD 运动升级：显式 --motion 或显式 --backend comfyui 时启用。失败不早退，
+    # 由 FFmpeg 静图 Ken Burns 兜底，保证旁白/字幕/多镜拼接始终闭环。
+    motion = None
+    if getattr(args, "motion", False) or str(requested) == "comfyui":
+        motion = _upgrade_scenes_with_motion(
+            data,
+            out_dir=WORK_DIR / "svd",
+            frames=int(getattr(args, "motion_frames", 25) or 25),
+            fps=int(getattr(args, "motion_fps", 8) or 8),
+            timeout=int(getattr(args, "motion_timeout", 1800) or 1800),
+            max_scenes=getattr(args, "motion_max_scenes", None),
         )
-        result = video_preview.render_preview(
+        print(
+            f"[video] SVD 运动升级：{motion['count']}/{motion.get('candidates', 0)} 镜"
+            f"（跳过 {len(motion.get('skipped') or [])}）"
+        )
+
+    try:
+        result = _render_preview_output(
             data,
             width=width,
             height=height,
             fps=int(getattr(args, "fps", 24) or 24),
-            use_network=False,  # 素材已在 stage_storyboard 统一解析
+            cover=getattr(args, "cover", False),
+            cover_offset=float(getattr(args, "cover_offset", 0.5) or 0.5),
             inspect=not getattr(args, "no_inspect", False),
+            captions=not getattr(args, "no_caption", False),
         )
-        if getattr(args, "cover", False):
-            result["cover"] = video_preview.render_cover(
-                Path(result["output"]),
-                output_path=Path(result["output"]).with_name("cover.jpg"),
-                offset_s=float(getattr(args, "cover_offset", 0.5) or 0.5),
-            )
     except (ValueError, RuntimeError, OSError) as exc:
         print(f"[video] 导演预览出片失败：{exc}", file=sys.stderr)
         return 1
 
     inspection = result.get("inspector") or {}
+    reason = decision["reason"]
+    backend = decision["backend"]
+    if (getattr(args, "motion", False) or str(requested) == "comfyui") and not (motion or {}).get("count"):
+        backend = "ffmpeg"
+        reason = f"{reason}；SVD 运动升级未产出片段，回退静图 Ken Burns"
     summary.update({
-        "backend": "ffmpeg",
-        "backend_reason": decision["reason"],
+        "backend": backend,
+        "backend_reason": reason,
+        "renderer": "ffmpeg-preview",
         "output": result["output"],
         "duration_seconds": result.get("duration_seconds"),
         "size_mb": result.get("size_mb"),
         "inspect_ok": inspection.get("ok"),
         "checks": inspection.get("checks") or {},
         "staging": _staging_summary(data),
+        "motion": motion,
     })
     if result.get("cover"):
         summary["cover"] = result["cover"]
+    summary["samples"] = _requested_samples(args)
+    summary["pruned_samples"] = _prune_samples(args, result)
     print(f"[video] 出片：{result['output']}")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
@@ -958,6 +1188,8 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="跳过 ffprobe 质检门禁（默认开启）",
     )
+    render.add_argument("--samples", type=int, default=sample_policy.MAX_SAMPLES, help="只允许 1 份成片（多样本输出已禁用）")
+    render.add_argument("--keep-samples", action="store_true", help="保留 output/ 历史样本（默认只保留本次成片）")
     render.set_defaults(handler=cmd_render)
 
     director = sub.add_parser(
@@ -985,6 +1217,14 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     director.add_argument("--cover", action="store_true", help="出片后同步抽取爆款封面 cover.jpg")
     director.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒）")
+    director.add_argument("--no-caption", action="store_true", help="纯画面预览：不烧任何字幕/文本层")
+    director.add_argument("--motion", action="store_true", help="启用 SVD 运动升级：逐镜静图 → 运动片段，再统一烧字幕/混旁白/多镜拼接")
+    director.add_argument("--motion-max-scenes", type=int, help="最多升级前 N 镜为 SVD 运动片段（缺省全部）")
+    director.add_argument("--motion-frames", type=int, default=25, help="SVD 单镜帧数（默认 25）")
+    director.add_argument("--motion-fps", type=int, default=8, help="SVD 单镜帧率（默认 8）")
+    director.add_argument("--motion-timeout", type=int, default=1800, help="SVD 单镜超时秒数（默认 1800）")
+    director.add_argument("--samples", type=int, default=sample_policy.MAX_SAMPLES, help="只允许 1 份成片（多样本输出已禁用）")
+    director.add_argument("--keep-samples", action="store_true", help="保留 output/ 历史样本（默认只保留本次成片）")
     director.set_defaults(handler=cmd_director)
 
     text = sub.add_parser(
@@ -1007,8 +1247,16 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     text.add_argument("--seed", type=int, default=0, help="ComfyUI 文生图基础种子（第 N 镜用 seed+N，保证逐镜画面不同）")
     text.add_argument("--keep-assets", action="store_true", help="复用上一轮 job 素材缓存（默认渲染前清空，保证逐镜画面不重复）")
     text.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
+    text.add_argument("--no-caption", action="store_true", help="纯画面预览：不烧任何字幕/文本层")
     text.add_argument("--cover", action="store_true", help="同步抽取爆款封面 cover.jpg")
     text.add_argument("--cover-offset", type=float, default=0.5, help="封面抽取时间点（秒，默认 0.5）")
+    text.add_argument("--motion", action="store_true", help="启用 SVD 运动升级：逐镜把静图生成为运动片段，再统一烧字幕/混旁白/多镜拼接")
+    text.add_argument("--motion-max-scenes", type=int, help="最多升级前 N 镜为 SVD 运动片段（缺省全部）")
+    text.add_argument("--motion-frames", type=int, default=25, help="SVD 单镜帧数（默认 25）")
+    text.add_argument("--motion-fps", type=int, default=8, help="SVD 单镜帧率（默认 8）")
+    text.add_argument("--motion-timeout", type=int, default=1800, help="SVD 单镜超时秒数（默认 1800）")
+    text.add_argument("--samples", type=int, default=sample_policy.MAX_SAMPLES, help="只允许 1 份成片（多样本输出已禁用）")
+    text.add_argument("--keep-samples", action="store_true", help="保留 output/ 历史样本（默认只保留本次成片）")
     text.set_defaults(handler=cmd_text)
     storyboard = sub.add_parser("storyboard", help="分镜 JSON → HyperFrames 工作区 + 渲染")
     storyboard.add_argument("--input", "-i", required=True, help="分镜 JSON 路径")
@@ -1025,6 +1273,8 @@ def add_video_parser(subparsers: argparse._SubParsersAction) -> None:
     storyboard.add_argument("--strict", action="store_true", help="lint 失败即中断")
     storyboard.add_argument("--skip-render", action="store_true", help="仅组装工作区，不渲染")
     storyboard.add_argument("--no-inspect", action="store_true", help="跳过 ffprobe 质检门禁")
+    storyboard.add_argument("--samples", type=int, default=sample_policy.MAX_SAMPLES, help="只允许 1 份成片（多样本输出已禁用）")
+    storyboard.add_argument("--keep-samples", action="store_true", help="保留 output/ 历史样本（默认只保留本次成片）")
     storyboard.set_defaults(handler=cmd_storyboard)
 
     preview = sub.add_parser("preview", help="本地预览 HyperFrames 工作区（阻塞式）")

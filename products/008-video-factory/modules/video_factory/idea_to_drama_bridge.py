@@ -30,11 +30,15 @@ from typing import Any, Optional
 
 from src.core.paths import REPO_ROOT
 
+from . import semantic_bridge
 from .director_adapter import (
     DEFAULT_VISUAL_FALLBACK,
     DirectorAdapterError,
     adapt_director_script,
+    distinct_visuals,
+    is_generic_visual,
     slugify,
+    strip_abstract_visuals,
     write_storyboard,
 )
 
@@ -117,19 +121,43 @@ def _derive_title(sentences: list[str]) -> str:
     return title or "创意短片"
 
 
+_TIME_SPAN = re.compile(
+    r"^\s*[\[【(（]?\s*(\d+(?:\.\d+)?)\s*(?:s|秒)?\s*[-\u2013~\u2014至到]\s*(\d+(?:\.\d+)?)"
+    r"\s*(?P<unit>s|秒)?\s*[\]】)）]?\s*[:：\-\u2014]?\s*"
+)
+
+
+def _parse_time_span(line: str) -> tuple[Optional[float], str]:
+    """解析行首时间码（如 "10-25s"、"【35-50 秒】"）→ (时长秒数, 去掉时间码的正文)。
+
+    解析不出时间码时返回 (None, 原文)，调用方据此回退到长度/模板权重。
+    年份区间（如 "2020-2021"）无时间单位时不算时间码，避免把正文误判成 1 秒镜头。
+    """
+    raw = str(line or "")
+    match = _TIME_SPAN.match(raw)
+    if not match:
+        return None, raw.strip()
+    start, end = float(match.group(1)), float(match.group(2))
+    if end <= start:
+        return None, raw.strip()
+    body = raw[match.end():].strip()
+    if not body or (match.group("unit") is None and start >= 100):
+        return None, raw.strip()
+    return end - start, body
+
+
 def _split_sentences(text: str) -> list[str]:
     parts = [p.strip(" ，,、;；:：\"'“”") for p in _SENTENCE_SPLIT.split(str(text or ""))]
     return [p for p in parts if len(p) >= 2]
 
 
 def _load_agent_reach_mapper():
-    """复用 Agent-Reach 的视觉关键词映射（中英双语词典）。"""
-    scripts_dir = REPO_ROOT / "scripts"
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    try:
-        from agent_reach_bridge import map_to_visual_keywords  # noqa: PLC0415
-    except Exception:  # noqa: BLE001 - 映射器可选，缺失即回退通用词
+    """复用 Agent-Reach 的视觉关键词映射（中英双语词典）。
+
+    经 semantic_bridge 按文件路径加载，不污染 sys.path（scripts/ 会顶掉同名包）。
+    """
+    map_to_visual_keywords = semantic_bridge.bridge_function("map_to_visual_keywords")
+    if map_to_visual_keywords is None:  # 词典可选，缺失即回退通用词
         return None
 
     def _quiet_mapper(raw_keywords, text_summary="", limit=5):
@@ -140,17 +168,42 @@ def _load_agent_reach_mapper():
     return _quiet_mapper
 
 
-def _queries(text: str, seed_keywords: Optional[list[str]], mapper) -> list[str]:
+def _queries(
+    text: str,
+    seed_keywords: Optional[list[str]],
+    mapper,
+    *,
+    index: int = 0,
+    avoid: Optional[set] = None,
+) -> list[str]:
+    """逐镜英文检索词：情绪/行为具象镜头优先，通用抽象词一律过滤。
+
+    取词顺序：主体给的 seed → 语义映射器（情绪/行为优先）→ 具象真人兜底；任何一步
+    出来的通用/抽象词（code / keyboard / network …）都会被 strip 掉，撞车时再退到
+    逐镜专属具象画面，保证 6 个镜头不共用同一串 asset_queries。
+    """
+    seen = {tuple(item) for item in (avoid or ())}
+    queries: list[str] = []
     if seed_keywords:
-        return [str(k) for k in seed_keywords if str(k).strip()][:3]
-    if mapper is not None:
+        queries = strip_abstract_visuals(
+            [str(k).strip() for k in seed_keywords if str(k).strip()], limit=3
+        )
+    elif mapper is not None:
         try:
-            out = mapper([], text, limit=3)
-        except Exception:  # noqa: BLE001
-            out = None
-        if out:
-            return [str(o) for o in out][:3]
-    return list(DEFAULT_VISUAL_FALLBACK[:3])
+            mapped = mapper([], text, limit=3)
+        except Exception:  # noqa: BLE001 - 映射器失败即回退
+            mapped = None
+        queries = strip_abstract_visuals(
+            [str(m).strip() for m in (mapped or []) if str(m).strip()], limit=3
+        )
+    if not queries:
+        queries = strip_abstract_visuals(list(DEFAULT_VISUAL_FALLBACK), limit=3)
+    if queries and not is_generic_visual(queries) and tuple(queries) not in seen:
+        return queries
+    for candidate in (distinct_visuals(index, text), distinct_visuals(index)):
+        if tuple(candidate) not in seen:
+            return candidate
+    return [*distinct_visuals(index)[:2], f"shot {index + 1}"]
 
 
 def _coerce_script(data: Any) -> dict:
@@ -185,15 +238,37 @@ def offline_draft(
     if not sentences:
         sentences = [str(idea or "").strip() or "一个关于科技与人的瞬间"]
 
-    texts: list[str] = []
-    for i in range(count):
-        texts.append(sentences[i] if i < len(sentences) else sentences[-1])
+    # 分镜单元：多行文案（2..count 段）按「一行一镜」切条，避免 Beat 被句号切碎后
+    # 只吃到前几段；单段文案仍走句切分。行首带时间码（如 "10-25s"）时该镜时长按其取。
+    beats = [line.strip() for line in str(idea or "").splitlines() if line.strip()]
+    spans: list[Optional[float]] = []
+    if 2 <= len(beats) <= count:
+        texts = []
+        for line in beats:
+            span, body = _parse_time_span(line)
+            texts.append(body or line)
+            spans.append(span)
+        while len(texts) < count:
+            texts.append(texts[-1])
+            spans.append(spans[-1])
+    else:
+        texts = [sentences[i] if i < len(sentences) else sentences[-1] for i in range(count)]
+        spans = []
 
     mapper = _load_agent_reach_mapper()
-    weights = [3.0 if i == 0 else (4.0 if i == count - 1 else 2.5) for i in range(count)]
+    if spans and any(spans):
+        known = [sp for sp in spans if sp]
+        fallback = sum(known) / len(known)
+        weights = [float(sp) if sp else float(fallback) for sp in spans]
+    elif spans:
+        # 无时间码：按文案长度分配节奏，长 Beat 自然多占时长（比固定 hook/body/cta 更贴原文）。
+        weights = [max(1.0, float(len(text))) for text in texts]
+    else:
+        weights = [3.0 if i == 0 else (4.0 if i == count - 1 else 2.5) for i in range(count)]
     unit = max(1.0, float(target_duration)) / sum(weights)
 
     shots: list[dict] = []
+    used_queries: set[tuple[str, ...]] = set()
     for i, text in enumerate(texts):
         if i == 0:
             kind = "hook"
@@ -218,8 +293,11 @@ def offline_draft(
             "text": text,
             "duration_s": round(weights[i] * unit, 2),
             "camera": camera,
-            "asset_queries": _queries(f"{text} {idea}", seed_keywords if i == 0 else None, mapper),
+            "asset_queries": _queries(
+                text, seed_keywords if i == 0 else None, mapper, index=i, avoid=used_queries
+            ),
         }
+        used_queries.add(tuple(shot["asset_queries"]))
         if kind == "dialogue":
             shot["dialogue"] = [{"speaker": "narrator", "line": text}]
         shots.append(shot)
@@ -511,11 +589,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     try:
         if args.topic:
-            scripts_dir = str(REPO_ROOT / "scripts")
-            if scripts_dir not in sys.path:
-                sys.path.insert(0, scripts_dir)
-            from agent_reach_bridge import extract_topic_data  # noqa: PLC0415
-
+            extract_topic_data = semantic_bridge.bridge_function("extract_topic_data")
+            if extract_topic_data is None:
+                raise BridgeError(
+                    "Agent-Reach 取材词典不可用（scripts/agent_reach_bridge.py 缺失）"
+                )
             topic = extract_topic_data(args.topic, source=args.source)
             result = from_topic_data(
                 topic,

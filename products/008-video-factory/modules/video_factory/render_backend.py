@@ -17,6 +17,7 @@ import argparse
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -30,6 +31,7 @@ __all__ = [
     "COMFYUI_URL",
     "probe_comfyui",
     "resolve_backend",
+    "generate_scene_clips",
     "run_comfyui_svd",
     "build_txt2img_graph",
     "generate_comfyui_image",
@@ -297,6 +299,70 @@ def generate_comfyui_image(
     }
 
 
+def _parse_runner_outputs(stdout: str) -> list[str]:
+    """从 008/run_svd.py 的 stdout 里取回它打印的 JSON 输出路径列表。"""
+    for line in reversed((stdout or "").strip().splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        outputs = payload.get("output")
+        if isinstance(outputs, list):
+            return [str(item) for item in outputs]
+    return []
+
+
+def _run_svd_runner(
+    image: Path,
+    dest: Path,
+    *,
+    frames: int,
+    fps: int,
+    timeout: int,
+    python_bin: Optional[str] = None,
+) -> Path:
+    """把单张静图交给 008/run_svd.py 生成运动片段，并落到 dest。"""
+    if not SVD_RUNNER.exists():
+        raise RuntimeError(f"未找到 SVD 运行器：{SVD_RUNNER}")
+    if not image.is_file():
+        raise RuntimeError(f"SVD 输入图缺失：{image}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        python_bin or sys.executable,
+        str(SVD_RUNNER),
+        str(image),
+        "--frames", str(frames),
+        "--fps", str(fps),
+        "--timeout", str(timeout),
+    ]
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    proc = subprocess.run(
+        cmd,
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"SVD 生成失败（exit={proc.returncode}）：{(proc.stdout or '').strip()[-400:]}"
+        )
+    outputs = _parse_runner_outputs(proc.stdout or "")
+    if not outputs:
+        raise RuntimeError("SVD 运行器未返回输出路径")
+    source = Path(outputs[0])
+    if not source.is_file():
+        raise RuntimeError(f"SVD 输出缺失：{source}")
+    if source.resolve() != dest.resolve():
+        shutil.copy2(source, dest)
+    return dest
+
+
 def run_comfyui_svd(
     storyboard: dict,
     *,
@@ -310,36 +376,78 @@ def run_comfyui_svd(
     image = _first_image_source(storyboard)
     if image is None:
         raise RuntimeError("ComfyUI 高清路线需要一张本地图片素材（角色/场景 ref），当前分镜没有可用的静态图")
-    if not SVD_RUNNER.exists():
-        raise RuntimeError(f"未找到 SVD 运行器：{SVD_RUNNER}")
     out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        python_bin or sys.executable,
-        str(SVD_RUNNER),
-        str(image),
-        "--frames", str(frames),
-        "--fps", str(fps),
-        "--timeout", str(timeout),
-    ]
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-    proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
-    if proc.returncode != 0:
-        raise RuntimeError(f"SVD 生成失败（exit={proc.returncode}）：{(proc.stdout or '').strip()[-400:]}")
-    outputs = []
-    payload = (proc.stdout or "").strip().splitlines()
-    for line in reversed(payload):
-        line = line.strip()
-        if line.startswith("{"):
-            try:
-                outputs = json.loads(line).get("output", [])
-                break
-            except json.JSONDecodeError:
-                continue
+    clip = _run_svd_runner(
+        image,
+        out_dir / "svd_first.mp4",
+        frames=frames,
+        fps=fps,
+        timeout=timeout,
+        python_bin=python_bin,
+    )
     return {
         "backend": "comfyui",
         "input_image": str(image),
-        "outputs": outputs,
-        "stdout_tail": "\n".join(payload[-10:]),
+        "outputs": [str(clip)],
+        "clip": str(clip),
+    }
+
+
+def _scene_image_sources(storyboard: dict) -> list[tuple[int, Path]]:
+    """按镜序返回 (index, 本地静图路径)；没有可用静图的镜头不列入。"""
+    found: list[tuple[int, Path]] = []
+    for index, scene in enumerate(storyboard.get("scenes") or []):
+        source = str(scene.get("source") or "")
+        if not source:
+            continue
+        path = Path(source)
+        if path.suffix.lower() in _IMAGE_EXT and path.is_file():
+            found.append((index, path))
+    return found
+
+
+def generate_scene_clips(
+    storyboard: dict,
+    *,
+    out_dir: Path,
+    frames: int = 25,
+    fps: int = 8,
+    timeout: int = 1800,
+    max_scenes: Optional[int] = None,
+    python_bin: Optional[str] = None,
+) -> dict:
+    """逐镜把本地静图生成为 SVD 运动片段，供 FFmpeg 统一拼接 / 烧字幕 / 混旁白。
+
+    单镜失败不阻断整片：记录原因后继续，由调用方决定回退到静图或渐变。
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    candidates = _scene_image_sources(storyboard)
+    if max_scenes is not None and max_scenes > 0:
+        candidates = candidates[: int(max_scenes)]
+    clips: list[dict] = []
+    skipped: list[dict] = []
+    for index, image in candidates:
+        dest = out_dir / f"scene_{index:03d}.mp4"
+        try:
+            clip = _run_svd_runner(
+                image,
+                dest,
+                frames=frames,
+                fps=fps,
+                timeout=timeout,
+                python_bin=python_bin,
+            )
+        except (RuntimeError, OSError) as exc:  # noqa: BLE001 - 单镜失败必须可读降级
+            logger.warning("[svd] 镜头 %d 运动片段生成失败：%s", index + 1, exc)
+            skipped.append({"index": index, "image": str(image), "reason": str(exc)})
+            continue
+        clips.append({"index": index, "image": str(image), "clip": str(clip)})
+    return {
+        "backend": "comfyui",
+        "clips": clips,
+        "skipped": skipped,
+        "count": len(clips),
+        "candidates": len(candidates),
     }
 
 

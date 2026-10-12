@@ -61,6 +61,26 @@ _NUTRITION_TITLE_SCALE = 44.0
 _NUTRITION_ROW_SCALE = 38.0
 _BADGE_SCALE = 42.0
 
+# 字幕出现节奏（reveal cadence）：标题先亮，副标题延后跟上；两者都在 ~0.3s 内由
+# 低不透明度推满并伴随小幅上浮。统一走 _drawtext(alpha=…, y=…_REVEAL_RISE) 钩子，
+# 为后续高级排版（逐字弹入 / 卡点位移 / 描边动画）留出唯一扩展点。
+_REVEAL_FADE = "min(0.2+t/0.30,1)"
+_REVEAL_RISE = "(1-min(t/0.36,1))*18"
+_REVEAL_SUBTITLE_DELAY = 0.18
+
+
+def _expr(value: str) -> str:
+    """filter 表达式含逗号时必须加引号，否则会被当成 filtergraph 的过滤器分隔符。"""
+    text = str(value)
+    if "," in text and not text.startswith("'"):
+        return f"'{text}'"
+    return text
+
+
+def _subtitle_reveal(delay: float = _REVEAL_SUBTITLE_DELAY) -> str:
+    """副标题的淡入表达式：比标题晚 ``delay`` 秒起跳，形成「标题→副标题」的节奏。"""
+    return f"min(0.2+max(t-{float(delay):.2f},0)/0.30,1)"
+
 
 def _hex(value: str) -> str:
     """'#RRGGBB' / 'RRGGBB' → drawtext 可用的 '0xRRGGBB'。"""
@@ -190,6 +210,7 @@ def _drawtext(
     borderw: int = 0,
     bordercolor: str = "0x000000",
     line_spacing: int = 8,
+    alpha: Optional[str] = None,
 ) -> str:
     parts = [
         f"drawtext=fontfile={fontfile}",
@@ -197,8 +218,12 @@ def _drawtext(
         f"fontsize={fontsize}",
         f"fontcolor={fontcolor}",
         f"x={x}",
-        f"y={y}",
+        f"y={_expr(y)}",
     ]
+    if alpha:
+        # alpha 支持含 t 的表达式 → 字幕出现节奏（淡入 / 上浮）统一挂在这里，
+        # 后续卡点特效（逐字弹入、位移）只需扩展这一个钩子。
+        parts.append(f"alpha={_expr(alpha)}")
     if box:
         parts.append("box=1")
         parts.append(f"boxcolor={boxcolor}")
@@ -284,10 +309,11 @@ def _scene_text_layers(
                     fontsize=tag_size,
                     fontcolor=_hex(theme.get("tag_fg") or "#111111"),
                     x=title_x,
-                    y=tag_y,
+                    y=f"{tag_y}+{_REVEAL_RISE}",
                     box=True,
                     boxcolor=f"0x{str(theme.get('tag_bg') or '#FACC15').lstrip('#').upper()}",
                     fontfile=_FONT_BOLD,
+                    alpha=_REVEAL_FADE,
                 )
             )
             title_y = base_y
@@ -299,8 +325,9 @@ def _scene_text_layers(
                 fontsize=title_size,
                 fontcolor=title_color,
                 x=title_x,
-                y=title_y,
+                y=f"{title_y}+{_REVEAL_RISE}",
                 box=has_media,
+                alpha=_REVEAL_FADE,
             )
         )
         if subtitle:
@@ -317,7 +344,8 @@ def _scene_text_layers(
                     fontsize=sub_size,
                     fontcolor=_hex(theme.get("accent") or "#F472B6"),
                     x=title_x,
-                    y=sub_y,
+                    y=f"{sub_y}+{_REVEAL_RISE}",
+                    alpha=_subtitle_reveal(),
                 )
             )
 
@@ -423,6 +451,50 @@ def _segment_encoder_args(crf: int = 24) -> list[str]:
     return ["-c:v", "libx264", "-preset", "ultrafast", "-crf", str(crf)]
 
 
+def _ken_burns_filter(
+    scene: dict,
+    *,
+    frames: int,
+    width: int,
+    height: int,
+    fps: int,
+    canvas_w: int,
+    canvas_h: int,
+) -> str:
+    """按分镜 camera_movement 生成 Ken Burns 动态运镜滤镜（推 / 拉 / 摇 / 移）。
+
+    静图靠这一层获得「呼吸感」：同一张概念图在 push_in 下推进、pull_out 下拉远、
+    pan 下横移。运镜与分镜的运动字段绑定，不再是所有镜头共用一个固定放大。
+    """
+    movement = str(scene.get("camera_movement") or "static").strip().lower()
+    total = max(1, int(frames))
+    center_x = "iw/2-(iw/zoom/2)"
+    center_y = "ih/2-(ih/zoom/2)"
+    pan_x = f"(iw-iw/zoom)*on/{total}"
+    pan_y = f"(ih-ih/zoom)*on/{total}"
+    if movement == "pull_out":
+        zoom, pos_x, pos_y = "max(1.12-0.0012*on,1.0)", center_x, center_y
+    elif movement in ("pan_left", "pan"):
+        zoom, pos_x, pos_y = "1.08", pan_x, center_y
+    elif movement == "pan_right":
+        zoom, pos_x, pos_y = "1.08", f"(iw-iw/zoom)-{pan_x}", center_y
+    elif movement == "pan_up":
+        zoom, pos_x, pos_y = "1.08", center_x, pan_y
+    elif movement == "pan_down":
+        zoom, pos_x, pos_y = "1.08", center_x, f"(ih-ih/zoom)-{pan_y}"
+    elif movement == "static":
+        # 静态镜头保留极缓推进：完全静止的静图在 9:16 里会显得死板。
+        zoom, pos_x, pos_y = "min(zoom+0.0004,1.04)", center_x, center_y
+    else:  # push_in / 未知取值
+        zoom, pos_x, pos_y = "min(zoom+0.0012,1.12)", center_x, center_y
+    return (
+        f"scale={canvas_w}:{canvas_h}:force_original_aspect_ratio=increase,"
+        f"crop={canvas_w}:{canvas_h},"
+        f"zoompan=z='{zoom}':d={total}:x='{pos_x}':y='{pos_y}':"
+        f"s={width}x{height}:fps={fps}"
+    )
+
+
 def _scene_segment(
     scene: dict,
     index: int,
@@ -432,6 +504,7 @@ def _scene_segment(
     height: int,
     fps: int,
     theme: Optional[dict] = None,
+    captions: bool = True,
 ) -> Path:
     duration = float(scene["duration_s"])
     source = scene.get("source") or ""
@@ -439,8 +512,11 @@ def _scene_segment(
     out = workdir / f"seg_{index:03d}.mp4"
     frames = max(1, round(duration * fps))
 
-    text_layers = _scene_text_layers(
-        scene, workdir, index, width=width, height=height, theme=theme
+    # captions=False 走纯画面预览：不烧任何文本层（大字标题/副标题/overlay 全部跳过）
+    text_layers = (
+        _scene_text_layers(scene, workdir, index, width=width, height=height, theme=theme)
+        if captions
+        else []
     )
     vf_extra = ",".join(text_layers)
 
@@ -469,14 +545,15 @@ def _scene_segment(
         return out
 
     if kind == "image" and src_path and src_path.exists():
-        # Ken Burns：放大到 2x 画幅后 zoompan 平移缩放
-        canvas_w = width * 2
-        canvas_h = height * 2
-        vf = (
-            f"scale={canvas_w}:{canvas_h}:force_original_aspect_ratio=increase,"
-            f"crop={canvas_w}:{canvas_h},"
-            f"zoompan=z='min(zoom+0.0012,1.12)':d={frames}:"
-            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps}"
+        # Ken Burns：放大到 2x 画幅后按本镜 camera_movement 推 / 拉 / 摇，静图获得呼吸感
+        vf = _ken_burns_filter(
+            scene,
+            frames=frames,
+            width=width,
+            height=height,
+            fps=fps,
+            canvas_w=width * 2,
+            canvas_h=height * 2,
         )
         if vf_extra:
             vf += "," + vf_extra
@@ -594,6 +671,7 @@ def render_preview(
     use_network: bool = True,
     inspect: bool = True,
     narration_path: Optional[Path] = None,
+    captions: bool = True,
 ) -> dict:
     """分镜 → 低清预览 MP4（纯 FFmpeg，网络媒体可用时先抓取）。"""
     sb = storyboard.resolve_media_for_storyboard(
@@ -637,6 +715,7 @@ def render_preview(
             height=height,
             fps=fps,
             theme=theme,
+            captions=captions,
         )
         segments.append(seg)
 

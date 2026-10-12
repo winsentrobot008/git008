@@ -1,9 +1,9 @@
 /**
- * batch — 量产 / A/B 测试批处理
+ * batch — 批处理入口（**单样本策略**：无论配置多少任务，只出 1 条最高质量成片）
  *
  * 两种入口：
  *   --batch config.json   读取 JSON 配置（支持多 Hook 文案、多音色、多画幅、多背景）
- *   --count N             对目标生成 N 条默认 A/B 变体
+ *   --count N             对目标生成默认 A/B 变体（已禁用多样本：恒为 1 条）
  *
  * 配置格式（config.json）：
  *   {
@@ -25,6 +25,14 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { abVariants } from "./script.mjs";
+
+// 单样本策略：多样本输出已禁用，最多只出 1 条（最高质量样本）。
+const MAX_SAMPLES = 1;
+
+function sampleCap() {
+  const raw = Number(process.env.VFACTORY_MAX_SAMPLES);
+  return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : MAX_SAMPLES;
+}
 
 function loadConfig(configFile) {
   const raw = readFileSync(resolve(configFile), "utf-8");
@@ -122,6 +130,11 @@ export async function runBatch({ configFile, count, target, flags = {}, renderJo
 
   if (!jobs.length) {
     throw new Error(`batch: ${source} 未定义任何任务`);
+  }
+  const cap = sampleCap();
+  if (jobs.length > cap) {
+    console.warn(`[batch] 多样本输出已禁用：${jobs.length} 个任务仅保留前 ${cap} 个（单样本策略）`);
+    jobs = jobs.slice(0, cap);
   }
   console.log(`[batch] ${jobs.length} 个任务 · 来源 ${source}`);
 

@@ -5,8 +5,9 @@
  *
  * 用法：
  *   单条： node src/index.mjs --target calorie-ai [--autocapture] [--full]
- *   批量： node src/index.mjs --batch config.json
- *          node src/index.mjs --count 3 --target calorie-ai
+ *
+ * 单样本策略（强制）：每次出片只保留 1 份最高质量成片，多样本/A-B 批量输出已禁用；
+ * output/ 下只保留最新的一份，历史样本自动清理（VFACTORY_KEEP_SAMPLES=1 可临时关闭）。
  *
  * 产出归档：products/008-video-factory/output/{product}_{hook_id}_{resolution}_{timestamp}.mp4
  *
@@ -20,7 +21,7 @@
  *   batch.mjs    ← 自建（量产 / A/B 批处理）
  */
 
-import { existsSync, mkdirSync, renameSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -47,6 +48,33 @@ const DEFAULT_MEDIA_DIR = resolve(ROOT, "media");
 const REPO_ROOT = resolve(ROOT, "..", "..");
 const INSPECTOR_CLI = resolve(REPO_ROOT, "src", "core", "inspector.py");
 const INSPECTOR_LOG = resolve(REPO_ROOT, "runtime_data", "logs", "inspector.log");
+
+// 单样本策略：多样本输出一律收敛为 1 条。
+const MAX_SAMPLES = 1;
+
+function sampleCap() {
+  const raw = Number(process.env.VFACTORY_MAX_SAMPLES);
+  return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : MAX_SAMPLES;
+}
+
+/** 只保留本次成片，清掉 output/ 下其它历史样本。 */
+function pruneOldSamples(keepPath) {
+  if (process.env.VFACTORY_KEEP_SAMPLES === "1") return [];
+  const removed = [];
+  for (const name of readdirSync(OUTPUT_DIR)) {
+    if (!/\.(mp4|webm|mov|m4v)$/i.test(name)) continue;
+    const full = resolve(OUTPUT_DIR, name);
+    if (full === keepPath) continue;
+    try {
+      unlinkSync(full);
+      removed.push(name);
+    } catch (err) {
+      // 文件被占用/无权限：跳过，不阻断出片（err 仅用于调试）
+      void err;
+    }
+  }
+  return removed;
+}
 
 /**
  * 渲染产物质检门禁：ffprobe 校验通过 → 落盘 output/；失败 → 记录日志并拦截。
@@ -114,9 +142,8 @@ function printHelp() {
   console.log(`008-video-factory — Prompt 驱动的自动化视频工厂
 
 Usage:
-  node src/index.mjs --target <target> [options]      # 单条
-  node src/index.mjs --batch config.json              # 批量（配置文件）
-  node src/index.mjs --count N --target <target>      # 批量（N 条 A/B 变体，默认 1）
+  node src/index.mjs --target <target> [options]      # 单条出片（唯一形态）
+  # 单样本策略：--batch / --count 仅作兼容，最多只出 1 条
 
 Targets:
   ${listTargets().join(", ")}
@@ -129,8 +156,8 @@ Options:
   --resolution <res>  480x480 | 1080x1920（默认 480x480；--full/--hd 等价 1080x1920）
   --source <mode>      ui（UI 录屏）| pexels（真人素材）| hybrid（真人 + UI 画中画）
   --background <mode>  ui | generated | auto（默认 ui：优先 UI 录屏）
-  --batch <file>      批量 JSON 配置（hooks + jobs，支持多文案/多音色/多画幅）
-  --count <n>         对目标批量生成 n 条 A/B 变体（默认 1；不传 --count/--batch 时仅单条出片）
+  --batch <file>      批量 JSON 配置（已禁用多样本：只取首个任务出 1 条）
+  --count <n>         已禁用多样本：恒为 1 条（传入 >1 会被收敛为 1）
   --url <url>         录屏目标地址（默认 https://calorie-ai-seven.vercel.app）
   --autocapture       强制重新 Playwright 录屏 UI
   --mock-voice        跳过 Edge-TTS，使用正弦占位音（离线测试）
@@ -353,6 +380,10 @@ export async function renderJob(job = {}, flags = {}) {
     fps: 0, // 合成未强制帧率，沿用素材；质检仅报告、不硬断言
     requireAudio: true,
   });
+  const pruned = pruneOldSamples(finalOut);
+  if (pruned.length) {
+    console.log(`[archive] 单样本策略：清理历史样本 ${pruned.length} 个 → ${pruned.join(", ")}`);
+  }
   const sizeMB = (statSync(finalOut).size / 1024 / 1024).toFixed(2);
   const finalDur = await probeVideo(finalOut);
   console.log(`[done] ${finalOut} (${sizeMB} MB · ${finalDur.toFixed(2)}s · ${resolution.width}x${resolution.height})`);
@@ -386,6 +417,12 @@ async function run(argv = process.argv.slice(2)) {
     url: args.url,
     autocapture: Boolean(args.autocapture),
   };
+
+  // 单样本策略：--count >1 一律收敛（多样本输出已禁用）
+  if (args.count && args.count > sampleCap()) {
+    console.warn(`[batch] 多样本输出已禁用：--count ${args.count} → ${sampleCap()}（单样本策略）`);
+    args.count = sampleCap();
+  }
 
   // 批量模式：--batch <config.json> 或 --count <n>
   if (args.batch || args.count) {

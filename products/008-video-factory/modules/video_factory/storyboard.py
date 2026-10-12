@@ -39,6 +39,8 @@ from typing import Any, Optional
 
 from src.core.paths import REPO_ROOT, TEMPLATES_DIR
 
+from . import semantic_bridge
+
 _SCENE_TYPES = {
     "hero_title",
     "text_card",
@@ -124,6 +126,117 @@ def _normalize_theme(data: dict) -> dict:
     return theme
 
 
+# ---------------------------------------------------------------------------
+# Prompt Engine —— Beat 语义 → SD/Flux 绘图提示词
+#
+# SD-first 工作流的第一步：把每段文案的核心意图拆成「具象主语/动作 + 情绪基调 +
+# 镜头语言 + 画质词 + 画幅」，交给本地 ComfyUI(RTX 3060) 逐镜生成专属概念图。
+# 提示词只输出 ASCII（SD1.5 不识别中文），且逐镜唯一，避免整片复用同一张图。
+# ---------------------------------------------------------------------------
+_SD_QUALITY = (
+    "photorealistic, cinematic lighting, 35mm lens, shallow depth of field, "
+    "film grain, highly detailed"
+)
+_ASPECT_TAGS = {
+    "square": "square 1:1 composition",
+    "vertical": "vertical 9:16 composition",
+    "wide": "widescreen 16:9 composition",
+}
+_MOVEMENT_TAGS = {
+    "push_in": "close-up framing, shallow depth of field",
+    "pull_out": "wide establishing framing, deep focus",
+    "static": "symmetrical medium framing",
+}
+
+
+def aspect_tag(width: int, height: int) -> str:
+    """画幅 → SD 提示词用的构图标签（1:1 / 9:16 / 16:9）。"""
+    if int(width) == int(height):
+        return _ASPECT_TAGS["square"]
+    return _ASPECT_TAGS["vertical"] if int(height) > int(width) else _ASPECT_TAGS["wide"]
+
+
+def _agent_reach_bridge():
+    """惰性加载 scripts/agent_reach_bridge.py —— 情绪/行为语义词典的唯一来源。
+
+    经 semantic_bridge 按文件路径加载：绝不把 scripts/ 插进 sys.path（否则
+    scripts/server.py 会顶掉同名 server 包），失败即退到纯查询词提示词。
+    """
+    return semantic_bridge.load_bridge()
+
+
+def sd_semantics(text: str, limit: int = 3, index: int = 0) -> dict:
+    """文案 → {"subjects": [...], "mood": str, "triggers": [...]}（词典不可用返回 {}）。
+
+    ``index`` 是该 Beat 的镜序：相邻 Beat 若共享同一情绪词（如都提到"焦虑"），
+    镜序会让它们岔到不同的具象镜头，避免整片反复出现同一张画。
+    """
+    if not str(text or "").strip():
+        return {}
+    bridge = _agent_reach_bridge()
+    if bridge is None:
+        return {}
+    try:
+        return dict(bridge.semantic_prompt_parts(str(text), limit=limit, index=index))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def build_sd_prompt(
+    text: str,
+    *,
+    subjects: Optional[list] = None,
+    mood: str = "",
+    movement: str = "",
+    aspect: str = "",
+    extra: str = "",
+    index: int = 0,
+) -> str:
+    """Beat 语义 → SD/Flux 绘图 Prompt（Prompt Engine 主入口）。
+
+    :param subjects: 具象主语/动作；缺省由文案的情绪/行为词典推导。
+    :param mood: 情绪基调；缺省由文案推导，仍未命中则用默认基调。
+    :param movement: 镜头运动（push_in / pull_out / static）→ 构图短语。
+    :param aspect: 画幅构图标签（见 aspect_tag）。
+    :param extra: 追加细节（如本镜专属实拍关键词）。
+    :param index: 镜序；文案未给专属主语时用它把相邻 Beat 岔到不同的具象镜头。
+    """
+    parts = sd_semantics(text, index=index)
+    # 具象主语一律过一遍抽象词黑名单：LLM/历史分镜给的 "code / keyboard / network"
+    # 这类通用空镜词绝不能进 SD Prompt，否则每条视频都会长得一样、还和文案脱节。
+    raw_subjects = subjects if subjects is not None else parts.get("subjects") or []
+    candidate = [str(s).strip() for s in raw_subjects if str(s).strip()]
+    bridge = _agent_reach_bridge()
+    if bridge is not None:
+        try:
+            candidate = list(bridge.strip_abstract_visuals(candidate))
+        except Exception:  # noqa: BLE001 - 词典异常退回语义推导
+            candidate = []
+    if not candidate:
+        candidate = [str(s).strip() for s in (parts.get("subjects") or []) if str(s).strip()]
+    subject_list: list[str] = []
+    for item in candidate:
+        if item and item not in subject_list:
+            subject_list.append(item)
+    segments: list[str] = []
+    if subject_list:
+        segments.append(", ".join(subject_list[:3]))
+    # setting：把文案里的时空（凌晨两点 / 深夜 / 窗外）写进提示词，画面时空必须一致。
+    setting = str(parts.get("setting") or "").strip()
+    if setting:
+        segments.append(setting)
+    segments.append(str(mood or parts.get("mood") or "cinematic dramatic mood").strip())
+    framing = _MOVEMENT_TAGS.get(str(movement or "").strip())
+    if framing:
+        segments.append(framing)
+    if str(extra or "").strip():
+        segments.append(str(extra).strip())
+    segments.append(_SD_QUALITY)
+    if str(aspect or "").strip():
+        segments.append(str(aspect).strip())
+    return ", ".join(part for part in segments if part)
+
+
 def validate_storyboard(data: dict) -> dict:
     """校验分镜 JSON，返回规范化副本（含默认值）。"""
     if not isinstance(data, dict):
@@ -132,6 +245,8 @@ def validate_storyboard(data: dict) -> dict:
     if not isinstance(scenes, list) or not scenes:
         raise ValueError("分镜缺少 scenes 数组（至少 1 个场景）")
 
+    width_hint = int(data.get("width") or 1080)
+    height_hint = int(data.get("height") or 1920)
     normalized_scenes: list[dict] = []
     for i, scene in enumerate(scenes):
         if not isinstance(scene, dict):
@@ -150,6 +265,14 @@ def validate_storyboard(data: dict) -> dict:
         if isinstance(queries, str):
             queries = [queries]
         item["asset_queries"] = [str(q).strip() for q in queries if str(q).strip()][:3]
+        # Prompt Engine：SD-first 的绘图提示词，与本镜文案 Beat 语义强绑定。
+        item["sd_prompt"] = str(item.get("sd_prompt") or "").strip() or build_sd_prompt(
+            str(item.get("script_text") or item["text"] or ""),
+            subjects=item["asset_queries"] or None,
+            movement=str(item.get("camera_movement") or ""),
+            aspect=aspect_tag(width_hint, height_hint),
+            index=i,
+        )
         overlay = item.get("overlay")
         if isinstance(overlay, dict):
             item["overlay"] = overlay
@@ -533,8 +656,13 @@ def resolve_media_for_storyboard(
     *,
     cache_dir: Optional[Path] = None,
     use_network: bool = True,
+    allow_video: bool = False,
 ) -> dict:
-    """为缺少 source 的分镜按媒体策略填装素材（改写副本，返回副本）。"""
+    """为缺少 source 的分镜按媒体策略填装素材（改写副本，返回副本）。
+
+    SD-first 策略：默认 ``allow_video=False`` —— 只允许静图（本地 SD 概念图或具象
+    强相关图片），严格禁止通用视频切片。
+    """
     from . import media
 
     normalized = validate_storyboard(storyboard_data)
@@ -549,6 +677,7 @@ def resolve_media_for_storyboard(
             use_network=use_network,
             allow_cache_reuse=False,
             exclude=used,
+            allow_video=allow_video,
         )
         scene["_media_reason"] = outcome.get("reason")
         scene["_media_diagnostics"] = outcome.get("diagnostics")
@@ -568,4 +697,7 @@ __all__ = [
     "slugify",
     "resolve_media_for_storyboard",
     "validate_storyboard",
+    "build_sd_prompt",
+    "sd_semantics",
+    "aspect_tag",
 ]

@@ -17,8 +17,10 @@ for entry in (str(PRODUCT_ROOT), str(REPO_ROOT)):
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+from modules.video_factory import director_adapter  # noqa: E402
 from modules.video_factory import idea_to_drama_bridge as bridge  # noqa: E402
 from modules.video_factory import render_backend  # noqa: E402
+from modules.video_factory import semantic_bridge  # noqa: E402
 from modules.video_factory.storyboard import validate_storyboard  # noqa: E402
 
 RESULTS: list[tuple[str, bool, str]] = []
@@ -160,7 +162,7 @@ def test_offline_draft_prompt_diversity() -> None:
     queries = [tuple(s.get("asset_queries") or []) for s in shots]
     check("draft: 产出 6 镜", len(shots) == 6, str(len(shots)))
     check("draft: 逐镜 asset_queries 互不相同", len(set(queries)) == 6, str([list(q) for q in queries]))
-    generic = {"technology background", "abstract digital network", "modern office laptop"}
+    generic = {keyword.lower() for keyword in director_adapter.DEFAULT_VISUAL_FALLBACK}
     check(
         "draft: 不再整片使用通用占位词",
         not any(set(q) <= generic for q in queries),
@@ -179,6 +181,38 @@ def test_offline_draft_prompt_diversity() -> None:
     )
 
 
+def test_emotion_lexicon_is_concrete() -> None:
+    """语义词典必须全是具象镜头：禁用 code / keyboard / network 类通用抽象词。"""
+    lexicon = semantic_bridge.load_bridge()
+    check("lexicon: 语义词典可加载", lexicon is not None, str(semantic_bridge.bridge_path()))
+    if lexicon is None:
+        return
+    _ABSTRACT_VISUAL_BLOCKLIST = lexicon._ABSTRACT_VISUAL_BLOCKLIST
+    _CONCRETE_HUMAN_FALLBACK = lexicon._CONCRETE_HUMAN_FALLBACK
+    _EMOTION_VISUAL_MAP = lexicon._EMOTION_VISUAL_MAP
+    _ZH_EMOTION_VISUAL_MAP = lexicon._ZH_EMOTION_VISUAL_MAP
+    is_abstract_visual = lexicon.is_abstract_visual
+    semantic_visuals = lexicon.semantic_visuals
+
+    pool = [word for words in _EMOTION_VISUAL_MAP.values() for word in words]
+    pool += [word for words in _ZH_EMOTION_VISUAL_MAP.values() for word in words]
+    pool += list(_CONCRETE_HUMAN_FALLBACK)
+    offenders = sorted({word for word in pool if is_abstract_visual(word)})
+    check("lexicon: 无通用/抽象关键词", not offenders, str(offenders))
+    check(
+        "lexicon: 情绪/行为可映射具象镜头",
+        semantic_visuals("焦虑型人格，一遇到压力就想回避，害怕失败。")[:1]
+        == ["person walking away down a corridor"],
+        str(semantic_visuals("焦虑型人格，一遇到压力就想回避，害怕失败。")),
+    )
+    check(
+        "lexicon: 行为词映射到行动镜头",
+        "person lacing running shoes at dawn" in semantic_visuals("先做，再改；先行动，再优化。", limit=24),
+        str(semantic_visuals("先做，再改；先行动，再优化。", limit=24)),
+    )
+    check("lexicon: 禁用词表非空", bool(_ABSTRACT_VISUAL_BLOCKLIST), str(len(_ABSTRACT_VISUAL_BLOCKLIST)))
+
+
 def main() -> int:
     for fn in (
         test_offline_draft_valid,
@@ -188,6 +222,7 @@ def main() -> int:
         test_empty_idea_rejected,
         test_backend_routing,
         test_offline_draft_prompt_diversity,
+        test_emotion_lexicon_is_concrete,
     ):
         try:
             fn()

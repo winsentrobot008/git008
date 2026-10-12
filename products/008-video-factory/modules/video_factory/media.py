@@ -30,6 +30,10 @@ from src.core.paths import REPO_ROOT, VIDEO_FACTORY_DIR, WORK_DIR
 
 logger = logging.getLogger(__name__)
 
+# Pexels 挂在 Cloudflare 后面：请求若缺少浏览器化 User-Agent，会直接返回
+# HTTP 403 / Cloudflare error 1010（密钥本身有效）。所有外呼统一带上该 UA。
+_HTTP_USER_AGENT = "git008-video-factory/1.0"
+
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
 _VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".m4v", ".mkv"}
 _STOPWORDS = {
@@ -166,7 +170,7 @@ def _download(url: str, target: Path, *, timeout: int = 8) -> Optional[Path]:
     """下载文件到缓存目录；失败返回 None（不抛异常，走降级链）。"""
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        request = urllib.request.Request(url, headers={"User-Agent": "git008-video-factory/1.0"})
+        request = urllib.request.Request(url, headers={"User-Agent": _HTTP_USER_AGENT})
         with urllib.request.urlopen(request, timeout=timeout) as resp:
             data = resp.read()
         if not data:
@@ -187,7 +191,14 @@ def _pexels_get(url: str, timeout: int = 8) -> tuple[Optional[dict], Optional[st
     if not key:
         return None, "no_api_key"
     try:
-        request = urllib.request.Request(url, headers={"Authorization": key})
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Authorization": key,
+                "User-Agent": _HTTP_USER_AGENT,
+                "Accept": "application/json",
+            },
+        )
         with urllib.request.urlopen(request, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8")), None
     except urllib.error.HTTPError as exc:
@@ -200,6 +211,10 @@ def _pexels_get(url: str, timeout: int = 8) -> tuple[Optional[dict], Optional[st
 
 def pexels_video(query: str, cache_dir: Path, *, timeout: int = 6) -> Optional[Path]:
     """抓取 Pexels 竖版视频，返回本地缓存路径；失败返回 None。"""
+    target = _cache_path(cache_dir, f"pexels-video:{query}", ".mp4")
+    cached = _cached_asset(target)
+    if cached:
+        return cached
     if not _network_available():
         return None
     params = urllib.parse.urlencode(
@@ -226,15 +241,29 @@ def pexels_video(query: str, cache_dir: Path, *, timeout: int = 6) -> Optional[P
             candidates,
             key=lambda f: abs(f["width"] - 720) + abs(f["height"] - 1280),
         )[0]
-        ext = ".mp4"
-        target = _cache_path(cache_dir, f"pexels-video:{query}", ext)
         if _download(picked["link"], target, timeout=timeout):
             return target
     return None
 
 
+def _cached_asset(target: Path) -> Optional[Path]:
+    """已下载过的同一检索词素材直接复用。
+
+    同一 query 的缓存文件名是它的确定性哈希：重复外呼既慢，又会在图库限流 / 网络抖动
+    时把「本该命中的画面」丢成渐变背景。缓存优先让重复运行结果稳定、且离线仍可出片。
+    """
+    try:
+        return target if target.exists() and target.stat().st_size > 0 else None
+    except OSError:  # pragma: no cover - 路径异常按未命中处理
+        return None
+
+
 def pexels_photo(query: str, cache_dir: Path, *, timeout: int = 6) -> Optional[Path]:
     """抓取 Pexels 竖版高清图，返回本地缓存路径；失败返回 None。"""
+    target = _cache_path(cache_dir, f"pexels-photo:{query}", ".jpg")
+    cached = _cached_asset(target)
+    if cached:
+        return cached
     if not _network_available():
         return None
     params = urllib.parse.urlencode(
@@ -249,7 +278,6 @@ def pexels_photo(query: str, cache_dir: Path, *, timeout: int = 6) -> Optional[P
         url = src.get("large2x") or src.get("large") or src.get("medium")
         if not url:
             continue
-        target = _cache_path(cache_dir, f"pexels-photo:{query}", ".jpg")
         if _download(url, target, timeout=timeout):
             return target
     return None
@@ -276,7 +304,7 @@ def _scan_media(root: Path, extensions: set[str]) -> list[Path]:
     return [p for p in results if "node_modules" not in p.parts]
 
 
-def _local_ranked(queries: list[str], roots: list[Path]) -> list[Path]:
+def _local_ranked(queries: list[str], roots: list[Path], *, images_only: bool = False) -> list[Path]:
     tokens = set()
     for q in queries:
         tokens.update(
@@ -288,7 +316,8 @@ def _local_ranked(queries: list[str], roots: list[Path]) -> list[Path]:
         return []
     candidates = []
     for root in roots:
-        for path in _scan_media(root, _VIDEO_EXTENSIONS | _IMAGE_EXTENSIONS):
+        exts = _IMAGE_EXTENSIONS if images_only else (_VIDEO_EXTENSIONS | _IMAGE_EXTENSIONS)
+        for path in _scan_media(root, exts):
             score = _score_path(path, tokens)
             if score > 0:
                 candidates.append((score, path))
@@ -296,7 +325,7 @@ def _local_ranked(queries: list[str], roots: list[Path]) -> list[Path]:
     return [p for _, p in candidates]
 
 
-def mediaindexer_search(queries: list[str]) -> list[Path]:
+def mediaindexer_search(queries: list[str], *, images_only: bool = False) -> list[Path]:
     """MediaIndexerPro 本地素材：media_index.json 索引 + local_assets/ 扫描。"""
     index_path = REPO_ROOT / "products" / "MediaIndexerPro" / "media_index.json"
     roots = [
@@ -346,6 +375,7 @@ def local_stock_search(
     *,
     extra_roots: Optional[list[Path]] = None,
     any_match: bool = False,
+    images_only: bool = False,
 ) -> list[Path]:
     """008-video-factory 本地素材缓存（assets/stock / assets/captured / 下载缓存）。
 
@@ -358,12 +388,13 @@ def local_stock_search(
         REPO_ROOT / "products" / "008-video-factory" / "assets" / "captured",
         *(extra_roots or []),
     ]
-    ranked = _local_ranked(queries, roots)
+    ranked = _local_ranked(queries, roots, images_only=images_only)
     if ranked or not any_match:
         return ranked
     cached: list[Path] = []
+    exts = _IMAGE_EXTENSIONS if images_only else (_VIDEO_EXTENSIONS | _IMAGE_EXTENSIONS)
     for root in extra_roots or []:
-        cached.extend(_scan_media(root, _VIDEO_EXTENSIONS | _IMAGE_EXTENSIONS))
+        cached.extend(_scan_media(root, exts))
     cached = [p for p in cached if p.is_file() and p.stat().st_size > 0]
     cached.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     if cached:
@@ -387,16 +418,24 @@ def resolve_scene_media_ex(
     use_network: bool = True,
     allow_cache_reuse: bool = True,
     exclude: Optional[set] = None,
+    allow_video: bool = False,
 ) -> dict:
     """解析单镜素材，并给出可审计的失败原因（供日志与 staging 报告使用）。
+
+    SD-first 策略下 ``allow_video=False``（默认）：**严格禁止**通用视频切片，只允许
+    静图 —— 视频素材让画面与文案脱节（敲键盘/走廊那类通用空镜），必须先由本地
+    ComfyUI/SD 生成专属概念图，再退到「具象强相关」静图库。
 
     :return: ``{"hit": {...} | None, "reason": str, "diagnostics": {...}}``
     """
     cache_dir = cache_dir or DEFAULT_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
     queries = extract_queries(scene)
-    diagnostics: dict = {"queries": queries, "cache_dir": str(cache_dir)}
+    diagnostics: dict = {"queries": queries, "cache_dir": str(cache_dir), "allow_video": allow_video}
     reasons: list[str] = []
+    # 已派给前面镜头的素材不再重复选用，避免整片画面重复；exclude 由调用方维护。
+    used = {str(p) for p in (exclude or ())}
+    network_dup: Optional[Path] = None
 
     if use_network:
         if not has_pexels_key():
@@ -409,47 +448,71 @@ def resolve_scene_media_ex(
             reasons.append("network_unavailable")
             logger.warning("[media] 网络已熔断，跳过云端图库抓取（queries=%s）", queries)
         else:
-            for query in queries:
+            for query in queries if allow_video else []:
                 path = pexels_video(query, cache_dir)
                 if path:
-                    return {"hit": _media_hit(path, "pexels-video", query), "reason": "pexels-video", "diagnostics": diagnostics}
+                    if str(path) in used:
+                        network_dup = network_dup or path
+                    else:
+                        return {"hit": _media_hit(path, "pexels-video", query), "reason": "pexels-video", "diagnostics": diagnostics}
                 if not _network_available():
                     reasons.append("network_unavailable")
                     break
             for query in queries:
                 path = pexels_photo(query, cache_dir)
                 if path:
-                    return {"hit": _media_hit(path, "pexels-photo", query), "reason": "pexels-photo", "diagnostics": diagnostics}
+                    if str(path) in used:
+                        # 本镜的检索词只命中「已被其它镜头占用」的画面：先记住，
+                        # 若最终无未占用素材，宁可复用也不要裸渐变（画面仍贴合文案）。
+                        network_dup = network_dup or path
+                    else:
+                        return {"hit": _media_hit(path, "pexels-photo", query), "reason": "pexels-photo", "diagnostics": diagnostics}
                 if not _network_available():
                     reasons.append("network_unavailable")
                     break
 
-    # 已派给前面镜头的素材不再重复选用，避免整片画面重复；exclude 由调用方维护。
-    used = {str(p) for p in (exclude or ())}
-    local = [p for p in mediaindexer_search(queries) if str(p) not in used]
+    images_only = not allow_video
+    local = [
+        p for p in mediaindexer_search(queries, images_only=images_only) if str(p) not in used
+    ]
     via = "local"
     if not local:
         local = [
             p
-            for p in local_stock_search(queries, extra_roots=[cache_dir])
+            for p in local_stock_search(queries, extra_roots=[cache_dir], images_only=images_only)
             if str(p) not in used
         ]
     if not local and allow_cache_reuse:
         pool = [
             p
-            for p in local_stock_search(queries, extra_roots=[cache_dir], any_match=True)
+            for p in local_stock_search(
+                queries, extra_roots=[cache_dir], any_match=True, images_only=images_only
+            )
             if str(p) not in used
         ]
         reused = False
         if not pool:
             # 缓存里只剩已被其它镜头占用的素材：复用也好过一片纯渐变背景。
-            pool = local_stock_search(queries, extra_roots=[cache_dir], any_match=True)
+            pool = local_stock_search(
+                queries, extra_roots=[cache_dir], any_match=True, images_only=images_only
+            )
             reused = bool(pool)
         if pool:
             local = pool
             via = "local-cache-reused" if reused else "local-cache"
     if local:
         return {"hit": _media_hit(local[0], via, queries[0]), "reason": via, "diagnostics": diagnostics}
+
+    if network_dup is not None:
+        # 所有检索词都撞上「已被其它镜头占用」的素材：复用一张同语义画面，也好过裸渐变。
+        logger.warning(
+            "[media] 本镜全部命中素材已被占用，复用同语义画面：%s", Path(network_dup).name
+        )
+        return {
+            "hit": _media_hit(network_dup, "pexels-photo-reused", queries[0] if queries else ""),
+            "reason": "pexels-photo-reused",
+            "diagnostics": {**diagnostics, "reasons": reasons + ["duplicate_reuse"]},
+        }
 
     reasons.append("no_stock_match")
     logger.warning(
@@ -472,6 +535,7 @@ def resolve_scene_media(
     use_network: bool = True,
     allow_cache_reuse: bool = True,
     exclude: Optional[set] = None,
+    allow_video: bool = False,
 ) -> Optional[dict]:
     """为单镜解析媒体素材，返回 {"source", "kind", "via"} 或 None。"""
     return resolve_scene_media_ex(
@@ -480,11 +544,12 @@ def resolve_scene_media(
         use_network=use_network,
         allow_cache_reuse=allow_cache_reuse,
         exclude=exclude,
+        allow_video=allow_video,
     )["hit"]
 
 
 def first_unused_local(
-    queries: list[str], *, cache_dir: Path, exclude: Optional[set] = None
+    queries: list[str], *, cache_dir: Path, exclude: Optional[set] = None, images_only: bool = True
 ) -> Optional[dict]:
     """下载缓存里最新的、尚未被其它镜头占用的素材（本地产物优于纯渐变背景）。
 
@@ -494,7 +559,9 @@ def first_unused_local(
     used = {str(p) for p in (exclude or ())}
     pool = [
         p
-        for p in local_stock_search(queries, extra_roots=[cache_dir], any_match=True)
+        for p in local_stock_search(
+            queries, extra_roots=[cache_dir], any_match=True, images_only=images_only
+        )
         if str(p) not in used
     ]
     if not pool:

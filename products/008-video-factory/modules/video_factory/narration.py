@@ -17,6 +17,7 @@ import asyncio
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -28,23 +29,52 @@ DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
 _SYNTH_EXT = ".mp3"
 _AUDIO_EXT = {".m4a", ".mp4", ".aac"}
 
+#: Edge-TTS 的 websocket 建连会被服务端偶发拒绝（WSServerHandshakeError 403 / 建连超时），
+#: 单次失败不代表离线。有界重试把「整片旁白静音 → 成片不可交付」的概率压到最低；
+#: 重试耗尽后仍如实返回 False，由上层记入 dropped 并报告无旁白，绝不静音冒充成功。
+TTS_ATTEMPTS = 3
+TTS_RETRY_DELAY_SECONDS = 2.0
 
-def default_synth(text: str, voice: str, out_path: Path) -> bool:
-    """Edge-TTS 合成单句旁白；SDK 缺失或联网失败返回 False。"""
-    try:
-        import edge_tts  # noqa: PLC0415
-    except Exception:  # noqa: BLE001 - SDK 缺失按不可用处理
-        return False
+
+def _synth_once(text: str, voice: str, out_path: Path) -> bool:
+    """单次 Edge-TTS 合成（不重试）；异常向外抛，由 ``default_synth`` 统一收口。"""
+    import edge_tts  # noqa: PLC0415
 
     async def _run() -> None:
         await edge_tts.Communicate(str(text), voice).save(str(out_path))
 
-    try:
-        asyncio.run(_run())
-    except Exception as exc:  # noqa: BLE001 - 联网合成失败按丢句处理
-        print(f"[tts] Edge-TTS 合成失败：{type(exc).__name__}: {exc}", file=sys.stderr)
-        return False
+    asyncio.run(_run())
     return out_path.exists() and out_path.stat().st_size > 0
+
+
+def default_synth(
+    text: str,
+    voice: str,
+    out_path: Path,
+    *,
+    attempts: int = TTS_ATTEMPTS,
+    retry_delay: float = TTS_RETRY_DELAY_SECONDS,
+) -> bool:
+    """Edge-TTS 合成单句旁白；SDK 缺失或重试耗尽仍失败时返回 False。"""
+    try:
+        import edge_tts  # noqa: F401, PLC0415 - 仅探测 SDK 是否可用
+    except Exception:  # noqa: BLE001 - SDK 缺失按不可用处理
+        return False
+
+    total = max(1, int(attempts))
+    for attempt in range(1, total + 1):
+        try:
+            if _synth_once(text, voice, out_path):
+                return True
+        except Exception as exc:  # noqa: BLE001 - 单次失败按可重试处理
+            print(
+                f"[tts] Edge-TTS 合成失败（第 {attempt}/{total} 次）："
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+        if attempt < total:
+            time.sleep(max(0.0, float(retry_delay)))
+    return False
 
 
 def _normalize_lines(voice_script: Any) -> list[dict]:

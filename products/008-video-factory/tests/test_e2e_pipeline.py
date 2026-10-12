@@ -60,6 +60,24 @@ def _fixture(path: Path, size: str) -> Path:
     return path
 
 
+def _fixture_image(path: Path, size: str) -> Path:
+    """关键字命名的真实静图 —— SD-first 策略下唯一允许的本地图库素材。
+
+    通用视频切片（敲键盘 / 走廊那类空镜）已被禁用，因此所有「本地图库命中」用例
+    都必须用静图素材来验证，而不是 .mp4 切片。
+    """
+    ffmpeg.run(
+        ffmpeg.ffmpeg_bin(),
+        [
+            "-y", "-f", "lavfi", "-t", "1",
+            "-i", f"testsrc=size={size}:rate=1",
+            "-frames:v", "1", "-q:v", "3", str(path),
+        ],
+        timeout=120,
+    )
+    return path
+
+
 def _fake_tts(text: str, voice: str, out_path: Path) -> bool:
     """确定性 TTS 替身：0.9s 正弦音，验证真实 FFmpeg 混轨路径。"""
     ffmpeg.run(
@@ -150,13 +168,57 @@ def test_narration_track() -> None:
     check("tts: 空脚本返回 no_lines", empty["ok"] is False and empty["reason"] == "no_lines", str(empty["reason"]))
 
 
+def test_tts_retry() -> None:
+    """2b) Edge-TTS 偶发 WSS 403：有界重试；重试耗尽仍失败（绝不静音冒充成功）。"""
+    real = narration._synth_once
+    calls: list = []
+    text = "凌晨两点的冰箱第三次自己亮起。"
+
+    def _flaky(sentence, voice, out_path):
+        calls.append(sentence)
+        if len(calls) < narration.TTS_ATTEMPTS:
+            raise RuntimeError("WSServerHandshakeError: 403")
+        return True
+
+    try:
+        narration._synth_once = _flaky
+        ok = narration.default_synth(
+            text, narration.DEFAULT_VOICE, WORK / "retry.mp3", retry_delay=0.0
+        )
+        check(
+            "tts: 偶发失败后重试成功",
+            ok is True and len(calls) == narration.TTS_ATTEMPTS,
+            f"ok={ok} attempts={len(calls)}",
+        )
+
+        calls.clear()
+
+        def _dead(sentence, voice, out_path):
+            calls.append(sentence)
+            raise RuntimeError("WSServerHandshakeError: 403")
+
+        narration._synth_once = _dead
+        dead = narration.default_synth(
+            text, narration.DEFAULT_VOICE, WORK / "dead.mp3", retry_delay=0.0
+        )
+        check(
+            "tts: 重试耗尽仍失败（不冒充成功）",
+            dead is False and len(calls) == narration.TTS_ATTEMPTS,
+            f"ok={dead} attempts={len(calls)}",
+        )
+    finally:
+        narration._synth_once = real
+
+
 def test_stock_fetch() -> None:
     """3) 图库取材：命中缓存目录里的关键字素材，未命中标记回退。"""
     cache = WORK / "assets_cache"
     cache.mkdir(parents=True, exist_ok=True)
-    _fixture(cache / "fridge_night_kitchen.mp4", "640x360")
+    _fixture_image(cache / "fridge_night_kitchen.jpg", "640x360")
     # 两镜两条命中素材：每镜必须拿到属于自己的文件。
-    _fixture(cache / "kitchen_fridge_night_2.mp4", "640x360")
+    _fixture_image(cache / "kitchen_fridge_night_2.jpg", "640x360")
+    # 同一目录里再塞一条关键字完全命中的视频切片：SD-first 必须无视它。
+    _fixture(cache / "fridge_night_kitchen_clip.mp4", "640x360")
 
     storyboard = director_adapter.text_to_storyboard(
         TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
@@ -170,8 +232,14 @@ def test_stock_fetch() -> None:
         str(report["entries"][0]),
     )
     check(
-        "stock: 记录来源与类型",
-        all(str(e["via"]).startswith("local") and e["kind"] == "video" for e in report["entries"]),
+        "stock: 记录来源与类型（静图）",
+        all(str(e["via"]).startswith("local") and e["kind"] == "image" for e in report["entries"]),
+        str(report["entries"]),
+    )
+    check(
+        "stock: 严格禁用通用视频切片",
+        report["stock_video_used"] == 0
+        and not any(str(e.get("source") or "").endswith(".mp4") for e in report["entries"]),
         str(report["entries"]),
     )
     check("stock: 场景写入 source", all(s.get("source") for s in staged["scenes"]))
@@ -194,13 +262,47 @@ def test_stock_fetch() -> None:
     )
 
 
+def test_media_cache_and_dup_guard() -> None:
+    """3b) 素材解析稳健性：同检索词命中缓存即复用；已被占用的画面绝不裸渐变。"""
+    cache = WORK / "media_cache_guard"
+    cache.mkdir(parents=True, exist_ok=True)
+    phrase = "packed suitcase waiting by the door"
+    target = media._cache_path(cache, f"pexels-photo:{phrase}", ".jpg")
+    _fixture_image(target, "360x640")
+
+    scene = {"asset_queries": [phrase, "a query nobody cached"]}
+    calls: list = []
+    real_get = media._pexels_get
+    media._pexels_get = lambda url, timeout=8: (calls.append(url) or (None, "http_404"))
+    try:
+        first = media.resolve_scene_media_ex(scene, cache_dir=cache, use_network=True)
+        check(
+            "media: 同检索词命中缓存即复用（不重复外呼）",
+            str((first.get("hit") or {}).get("source") or "") == str(target) and calls == [],
+            f"{first.get('hit')} calls={calls}",
+        )
+        calls.clear()
+        reused = media.resolve_scene_media_ex(
+            scene, cache_dir=cache, use_network=True, exclude={str(target)}
+        )
+        check(
+            "media: 画面已被占用时复用同语义图（不落裸渐变）",
+            reused.get("hit") is not None
+            and str(reused["hit"]["source"]) == str(target)
+            and reused["hit"]["via"] in {"local-cache-reused", "pexels-photo-reused"},
+            str(reused),
+        )
+    finally:
+        media._pexels_get = real_get
+
+
 def test_text_to_preview_480() -> None:
     """4) 全链路：文本 → 分镜 → 素材/旁白暂存 → 480x480 MP4 + 封面 → 质检通过。"""
     cache = WORK / "render_cache"
     cache.mkdir(parents=True, exist_ok=True)
-    _fixture(cache / "fridge_night_kitchen.mp4", "640x360")
-    _fixture(cache / "kitchen_fridge_night_2.mp4", "640x360")
-    _fixture(cache / "portrait_night_city.mp4", "360x640")
+    _fixture_image(cache / "fridge_night_kitchen.jpg", "640x360")
+    _fixture_image(cache / "kitchen_fridge_night_2.jpg", "640x360")
+    _fixture_image(cache / "portrait_night_city.jpg", "360x640")
 
     storyboard = director_adapter.text_to_storyboard(
         TEXT, shot_count=3, target_duration=7.5, provider="offline", visual_mapper=_mapper
@@ -261,7 +363,7 @@ def test_asset_priority() -> None:
     # 图库下载常见哈希文件名：关键字打分为 0，但仍必须优先于纯渐变背景
     hash_cache = WORK / "hash_cache"
     hash_cache.mkdir(parents=True, exist_ok=True)
-    _fixture(hash_cache / "9f2c41ab77de.mp4", "640x360")
+    _fixture_image(hash_cache / "9f2c41ab77de.jpg", "640x360")
     sb = director_adapter.text_to_storyboard(
         TEXT, shot_count=2, target_duration=5.0, provider="offline", visual_mapper=_mapper
     )
@@ -413,7 +515,7 @@ def test_asset_distinctness() -> None:
 
     one_cache = WORK / "distinct_single"
     one_cache.mkdir(parents=True, exist_ok=True)
-    _fixture(one_cache / "fridge_night_kitchen.mp4", "640x360")
+    _fixture_image(one_cache / "fridge_night_kitchen.jpg", "640x360")
     sb = director_adapter.text_to_storyboard(
         TEXT, shot_count=3, target_duration=7.5, provider="offline", visual_mapper=_mapper
     )
@@ -509,7 +611,11 @@ def test_shot_visual_diversity() -> None:
 
 
 def test_offline_prompt_diversity() -> None:
-    """9) 离线草稿分镜（无 LLM、词典未命中）：不得把同一串通用提示词发给每一镜。"""
+    """9) 离线分镜（无 LLM）：画面必须锚定文案具象名词，且逐镜互不相同。
+
+    回归点（曾经的灾难）：泛化检索词把「凌晨冰箱自己亮起」配成火箭、写字楼、
+    运动鞋——素材与文案彻底脱节。现在具象名词层（冰箱/信/窗/地铁）优先取词。
+    """
     text = (
         "凌晨两点的冰箱第三次自己亮起。"
         "她发现里面冻着一封写给未来的信。"
@@ -518,7 +624,7 @@ def test_offline_prompt_diversity() -> None:
         "她把信贴在胸口，决定明天就出发。"
         "清晨第一班地铁载着她驶向未知。"
     )
-    # 故意不注入 visual_mapper：复现「词典未命中 → 通用占位词」的离线兜底路径。
+    # 故意不注入 visual_mapper：复现「无语义映射器 → 直连语义词典」的离线路径。
     script = director_adapter.parse_text_to_shots(
         text, shot_count=6, target_duration=15.0, provider="offline"
     )
@@ -526,23 +632,37 @@ def test_offline_prompt_diversity() -> None:
     queries = [tuple(s.get("asset_queries") or []) for s in shots]
 
     check("offline: 6 镜检索词互不相同", len(set(queries)) == 6, str([list(q) for q in queries]))
-    generic = {"technology background", "abstract digital network", "modern office laptop"}
+    generic = {keyword.lower() for keyword in director_adapter.DEFAULT_VISUAL_FALLBACK}
     check(
         "offline: 不再整片使用通用占位词",
         not any(set(q) <= generic for q in queries),
         str([list(q) for q in queries]),
     )
+    anchors = ("refrigerator", "fridge", "letter", "window", "subway", "ice", "frost", "city light")
     check(
-        "offline: 逐镜提示词 = 专属画面描述",
-        list(queries)
-        == [
-            ("technology background", "abstract digital network", "wide shot", "dynamic lighting"),
-            ("modern office laptop keyboard", "close up", "cinematic depth of field"),
-            ("futuristic data center servers", "glowing lights", "close up"),
-            ("digital network concept", "glowing nodes connections", "extreme close up"),
-            ("person typing on glowing laptop", "modern office", "medium close"),
-            ("abstract digital technology wave", "wide angle"),
-        ],
+        "offline: 逐镜画面锚定文案具象名词",
+        all(any(anchor in " ".join(q).lower() for anchor in anchors) for q in queries),
+        str([list(q) for q in queries]),
+    )
+    off_context = {"rocket", "launch", "boardroom", "shoes", "track", "office"}
+    check(
+        "offline: 不再出现与文案无关的泛化镜头",
+        not any(
+            off_context & set(" ".join(q).lower().replace("-", " ").split())
+            for q in queries
+        ),
+        str([list(q) for q in queries]),
+    )
+    fridge_shot = director_adapter.distinct_visuals(0, "凌晨两点的冰箱第三次自己亮起")
+    check(
+        "offline: 语义层把冰箱文案映射到冰箱画面（不再泛化）",
+        "refrigerator" in " ".join(fridge_shot),
+        str(fridge_shot),
+    )
+    banned = {"code", "coding", "keyboard", "network", "technology", "abstract", "digital"}
+    check(
+        "offline: 不再出现通用/抽象关键词",
+        not any(banned & {tok for tok in " ".join(q).lower().replace("-", " ").split()} for q in queries),
         str([list(q) for q in queries]),
     )
     prompts = [pipeline._comfyui_image_prompt(s) for s in shots]
@@ -589,7 +709,9 @@ def main() -> int:
     try:
         test_text_to_shots()
         test_narration_track()
+        test_tts_retry()
         test_stock_fetch()
+        test_media_cache_and_dup_guard()
         test_asset_priority()
         test_render_robustness()
         test_text_to_preview_480()

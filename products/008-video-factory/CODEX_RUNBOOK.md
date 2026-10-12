@@ -113,3 +113,33 @@ npm run build
   ffmpeg 渐变背景，流水线不中断。
 - **多音色**：`lines[].voice` 支持 `en` / `zh-cn` / `zh-male` / `en-male` /
   `en-gb`，同一视频可混合使用（Bilingual）。
+
+---
+
+## 2026-10 追加：单一样品 + SD-first 门禁
+
+- **默认只出 1 条**：`--samples` 只接受 1（>1 收敛并告警）；渲染前清 `output/`
+  陈旧样板、出片后收敛到「只留本次成片」，`--keep-samples` 才能保留历史样本。
+- **素材不再盲抓视频切片**：Python 管线走「本地 ComfyUI 逐镜出图 → Ken Burns 运镜 →
+  强语义静图库 → 渐变兜底」，`allow_video=False` 严格禁用通用视频切片。
+- **发布前必须跑门禁**（在 `products/008-video-factory` 内执行）：
+  `python -m compileall -q modules server gui.py tests src/cli.py` 与
+  `python -m pytest tests -q`。任一失败不得交付。
+- **一键单条**：`python run_one_click_video.py --text "<文案>" --shots 6 --duration 15 --aspect 9:16`。
+
+## 2026-10-12 追加：语义精度 + 素材降级链 + 旁白重试
+
+- **多主体 Beat 不许丢情节**：`scripts/agent_reach_bridge.py::_interleave` 按「对象组轮转」合并同 Beat
+  命中的多个具象名词（`信 + 出发` 两半都进画面）；`_zh_object_matches` 保证中文触发词**长词优先**
+  （「冰箱」不再叠加「冰」的冰晶特写）。回归：`test_prompt_engine_binds_fridge_narrative`。
+- **素材降级链无断崖**（`modules/video_factory/media.py`）：检索词命中缓存即复用
+  （`_cached_asset`，不重复外呼）；已被前面镜头占用的画面不再派给后面的镜头（云端命中同样过滤
+  `exclude`）；全部撞车时复用同语义图 `pexels-photo-reused`，而不是裸渐变。
+  回归：`test_e2e_pipeline.py::test_media_cache_and_dup_guard`。
+- **Edge-TTS 403 有界重试**：`narration.default_synth` 默认 3 次（`TTS_ATTEMPTS`），日志打印
+  `第 N/3 次`；重试耗尽才如实报告无旁白。回归：`test_e2e_pipeline.py::test_tts_retry`。
+- **门禁命令（在 `products/008-video-factory` 内执行）**：
+  `python -m compileall -q modules server gui.py tests src/cli.py`（0）、
+  `python -m pytest tests -q`（64 passed）、
+  `python tests/test_video_factory_policy.py`（67/67）、
+  `python tests/test_e2e_pipeline.py`（82/82）。

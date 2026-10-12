@@ -367,7 +367,12 @@ else:
 # ---------------------------------------------------------------------------
 # 主区 4：短剧 / 漫剧生成（导演 Skill → 分镜 → 出片）
 # ---------------------------------------------------------------------------
-from modules.video_factory import director_adapter, idea_to_drama_bridge, render_backend  # noqa: E402
+from modules.video_factory import (  # noqa: E402
+    director_adapter,
+    idea_to_drama_bridge,
+    render_backend,
+    semantic_bridge,
+)
 
 DRAMA_WORK_DIR = CORE_WORK_DIR / "gui" / "drama"
 
@@ -463,11 +468,11 @@ with _idea_tab:
         if st.button("🛰️ 抓取热点", use_container_width=True):
             try:
                 with st.spinner("Agent-Reach 取材中…"):
-                    scripts_dir = str(REPO_ROOT / "scripts")
-                    if scripts_dir not in sys.path:
-                        sys.path.insert(0, scripts_dir)
-                    from agent_reach_bridge import extract_topic_data  # noqa: PLC0415
-
+                    extract_topic_data = semantic_bridge.bridge_function("extract_topic_data")
+                    if extract_topic_data is None:
+                        raise RuntimeError(
+                            "Agent-Reach 取材词典不可用（scripts/agent_reach_bridge.py 缺失）"
+                        )
                     payload = extract_topic_data(topic_query, source=topic_source)
                 st.session_state["drama_topic_payload"] = payload
                 st.session_state["drama_idea"] = payload["text"]

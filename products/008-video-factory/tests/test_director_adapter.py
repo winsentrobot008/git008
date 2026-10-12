@@ -19,6 +19,7 @@ for entry in (str(PRODUCT_ROOT), str(REPO_ROOT)):
         sys.path.insert(0, entry)
 
 from modules.video_factory.director_adapter import (  # noqa: E402
+    DEFAULT_VISUAL_FALLBACK,
     AssetLockError,
     AxisRuleError,
     adapt_director_script,
@@ -121,8 +122,8 @@ def test_nested_scenes_and_fallback() -> None:
     check("nested: 拍平为 2 镜", len(s["scenes"]) == 2, str(len(s["scenes"])))
     check("nested: 角色视觉词生效", s["scenes"][0]["asset_queries"][0] == "cyberpunk street")
     check(
-        "nested: 兜底视觉词",
-        s["scenes"][1]["asset_queries"] == ["technology background", "abstract digital network", "modern office laptop"],
+        "nested: 兜底视觉词（具象真人镜头，无抽象空镜）",
+        s["scenes"][1]["asset_queries"] == list(DEFAULT_VISUAL_FALLBACK),
         str(s["scenes"][1]["asset_queries"]),
     )
 

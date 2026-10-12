@@ -62,6 +62,7 @@ from typing import Any, Callable, Optional
 
 from src.core.paths import REPO_ROOT
 
+from . import semantic_bridge
 from .storyboard import slugify, validate_storyboard
 
 __all__ = [
@@ -74,6 +75,10 @@ __all__ = [
     "main",
     "parse_text_to_shots",
     "text_to_storyboard",
+    "distinct_visuals",
+    "is_generic_visual",
+    "semantic_visuals",
+    "strip_abstract_visuals",
 ]
 
 # 镜头语汇 → storyboard 场景类型（_SCENE_TYPES 白名单）
@@ -137,9 +142,9 @@ _MOVEMENT_HINTS = {
 _TEXT_MOVEMENTS = ("push_in", "static", "pull_out")
 _TEXT_SHOT_SIZES = ("medium", "wide", "close", "medium_close", "extreme_close")
 _TEXT_FALLBACK_KEYWORDS = (
-    "cinematic b-roll",
-    "night city lights",
-    "modern indoor lifestyle",
+    "city street at dawn",
+    "person walking through a crowd",
+    "sunlit window light",
 )
 
 # 词典未命中时逐镜轮换的实拍修饰词：同一分镜的 6 个镜头必须拿到不同提示词，
@@ -154,12 +159,77 @@ _TEXT_VISUAL_VARIATIONS = (
 )
 
 
-# 兜底通用科技视觉词（与 scripts/agent_reach_bridge.py 的兜底保持一致）
+def _agent_reach_bridge():
+    """惰性加载 scripts/agent_reach_bridge.py —— 情绪/行为语义词典的唯一来源。
+
+    经 semantic_bridge 按文件路径加载：绝不把 scripts/ 插进 sys.path（否则
+    scripts/server.py 会顶掉同名 server 包）；词典缺失即回退本地具象池。
+    """
+    return semantic_bridge.load_bridge()
+
+
+def semantic_visuals(text: str, limit: int = 3, index: int = 0) -> list[str]:
+    """文案具象名词/情绪 → 具象镜头（词典不可用或未命中时返回空，由本地池兜底）。
+
+    优先取具象名词（冰箱 / 信 / 地铁）再退情绪 / 行为镜头：名词与本镜文案强绑定，
+    是「素材与文案脱节」的正解；``index`` 用于把相邻 Beat 错位到不同画面。
+    """
+    if not str(text or "").strip():
+        return []
+    bridge = _agent_reach_bridge()
+    if bridge is None:
+        return []
+    resolver = getattr(bridge, "semantic_subjects", None) or getattr(bridge, "semantic_visuals", None)
+    if resolver is None:
+        return []
+    try:
+        return [str(v) for v in resolver(text, limit=limit, index=index)]
+    except TypeError:  # 旧版词典没有 index 形参
+        try:
+            return [str(v) for v in resolver(text, limit=limit)]
+        except Exception:  # noqa: BLE001
+            return []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def strip_abstract_visuals(values: Any, limit: Optional[int] = None) -> list[str]:
+    """过滤通用/抽象词（code / keyboard / network / technology …），词典不可用时原样返回。"""
+    cleaned = [str(v).strip() for v in (values or []) if str(v).strip()]
+    bridge = _agent_reach_bridge()
+    if bridge is None:
+        return cleaned[:limit] if limit else cleaned
+    try:
+        return [str(v) for v in bridge.strip_abstract_visuals(cleaned, limit=limit)]
+    except Exception:  # noqa: BLE001
+        return cleaned[:limit] if limit else cleaned
+
+
+# 具象真人兜底（与 scripts/agent_reach_bridge.py::_CONCRETE_HUMAN_FALLBACK 保持一致）
+# 通用/抽象空镜（technology background / abstract digital network / modern office laptop）
+# 已被禁用：它们让每条视频长得一样，且与旁白毫无关系。
 DEFAULT_VISUAL_FALLBACK = [
-    "technology background",
-    "abstract digital network",
-    "modern office laptop",
+    "person in deep thought by a window",
+    "close up hands writing notes",
+    "people talking in a bright office",
 ]
+
+_GENERIC_VISUAL_SET = {keyword.lower() for keyword in DEFAULT_VISUAL_FALLBACK}
+
+# 词典与映射器都没给出视觉词时的**中性兜底池**：只描述「光 / 空间 / 影 / 手」这类
+# 不与文案冲突的画面元素，按索引逐镜轮换以保证提示词互不相同。
+#
+# 历史版本在这里放了 rocket / boardroom / running shoes 这类「情绪演出镜头」，于是
+# 「凌晨冰箱自己亮起」被配成火箭与写字楼。泛化不等于可迁移：拿不到语义就保持中性，
+# 绝不替文案断言一个它没说过的主体。
+_TEXT_DISTINCT_VISUALS = (
+    ["empty room with a single window", "cold light across a bare floor", "still air in a dim interior"],
+    ["close-up of hands resting on a table", "hands folded in dim light", "fingers tightening slowly"],
+    ["silhouette standing against a bright doorway", "figure outlined by a window", "person standing still in low light"],
+    ["shadow cast across a bare wall", "long shadow on a dark floor", "dim light creeping along a wall"],
+    ["wide shot of an empty street at dusk", "quiet road under fading light", "empty pavement at night"],
+    ["quiet interior seen from a doorway", "room glimpsed through a half-open door", "doorway framing a dim room"],
+)
 
 _NEUTRAL_SIDES = {"", "neutral", "center", "n/a", "none"}
 
@@ -449,12 +519,8 @@ _TEXT_SCHEMA_HINT = """{
 
 def _load_visual_mapper() -> Optional[Callable[..., list[str]]]:
     """复用 Agent-Reach 的中英视觉词典把中文转成英文检索词；缺失返回 None。"""
-    try:
-        scripts_dir = REPO_ROOT / "scripts"
-        if str(scripts_dir) not in sys.path:
-            sys.path.insert(0, str(scripts_dir))
-        from agent_reach_bridge import map_to_visual_keywords  # noqa: PLC0415
-    except Exception:  # noqa: BLE001 - 词典可选，缺失即回退通用词
+    map_to_visual_keywords = semantic_bridge.bridge_function("map_to_visual_keywords")
+    if map_to_visual_keywords is None:  # noqa: SIM108 - 词典可选，缺失即回退通用词
         return None
 
     def _mapper(raw_keywords, text_summary="", limit=3):
@@ -481,6 +547,12 @@ def _english_keywords(
     """
     seen = {tuple(item) for item in (avoid or [])}
     primary = _mapped_keywords(text, index=index, mapper=mapper, seed_keywords=seed_keywords)
+    if is_generic_visual(primary):
+        # 整组都是通用占位词：直接换成逐镜专属画面描述，绝不把同一串提示词发给每一镜。
+        distinct = distinct_visuals(index, text)
+        if tuple(distinct) not in seen:
+            return distinct
+        return _dedupe([*distinct, f"shot {index + 1}"], 5)
     if tuple(primary) not in seen:
         return primary
     merged = _dedupe([*primary, *_varied_keywords(text, index=index)], 4)
@@ -516,12 +588,27 @@ def _mapped_keywords(
     return [_TEXT_FALLBACK_KEYWORDS[index % len(_TEXT_FALLBACK_KEYWORDS)]]
 
 
+def is_generic_visual(values: Any) -> bool:
+    """整组是否都是通用科技占位词——意味着词典与映射器都没给出真实视觉词。"""
+    cleaned = [str(v).strip().lower() for v in (values or []) if str(v).strip()]
+    return bool(cleaned) and set(cleaned) <= _GENERIC_VISUAL_SET
+
+
+def distinct_visuals(index: int, text: str = "") -> list[str]:
+    """逐镜专属具象画面：优先按文案情绪/行为取镜头，否则按索引轮换本地池。"""
+    mapped = semantic_visuals(text, index=index)
+    if mapped:
+        return mapped
+    visual = _TEXT_DISTINCT_VISUALS[index % len(_TEXT_DISTINCT_VISUALS)]
+    return [str(v).strip() for v in visual if str(v).strip()]
+
+
 def _varied_keywords(text: str, *, index: int) -> list[str]:
     """逐镜差异化检索词：本镜实拍修饰 + 轮换通用视觉词。"""
     latin = _dedupe([t.lower() for t in re.split(r"[^A-Za-z0-9]+", text) if len(t) >= 3], 2)
     variation = _TEXT_VISUAL_VARIATIONS[index % len(_TEXT_VISUAL_VARIATIONS)]
     generic = _TEXT_FALLBACK_KEYWORDS[index % len(_TEXT_FALLBACK_KEYWORDS)]
-    return _dedupe([*latin, variation, generic], 3)
+    return _dedupe([*strip_abstract_visuals(latin), variation, generic], 3)
 
 
 def _movement_for(index: int, total: int) -> str:
