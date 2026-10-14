@@ -4,7 +4,7 @@
  *
  * Verifies that the two hosts are live, independently routed, and serving the right app:
  *
- *   https://maotang.008ai.online   MAOTANG DEX dashboard - direct Vercel edge, Let's Encrypt cert
+ *   https://maotang.008ai.online   MAOTANG personal AI node PWA - direct Vercel edge, Let's Encrypt cert
  *   https://008ai.online           landing site - Cloudflare proxy in front of the Vercel origin
  *
  * Checks per endpoint: HTTP 200, expected <title>, strict TLS chain validation against the
@@ -35,13 +35,13 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
 
 const PUBLIC_DNS = ["1.1.1.1", "8.8.8.8"];
 const TIMEOUT_MS = 25000;
-const MAOTANG_TITLE = "<title>MAOTANG (猫糖) — Meme-first DEX</title>";
+const MAOTANG_TITLE = "<title>MAOTANG PERSONAL AI NODE</title>";
 
 const TARGETS = [
   {
     label: "maotang",
     host: "maotang.008ai.online",
-    app: "MAOTANG DEX dashboard",
+    app: "MAOTANG personal AI node PWA",
     edge: "Vercel (direct)",
     checkTitle: (t) => t === MAOTANG_TITLE,
     titleRule: "exact MAOTANG title",
@@ -59,7 +59,7 @@ const TARGETS = [
     titleRule: "contains 008AI and is not the MAOTANG title",
     checkServer: (s) => s.length > 0,
     serverRule: "Server header present",
-    forbidden: [/Meme-first DEX/i, /mHUMAN/i, /Sustenance/i],
+    forbidden: [/PERSONAL AI NODE/i, /mHUMAN/i, /Sustenance/i],
     forbiddenRule: "must not serve the MAOTANG app",
   },
 ];

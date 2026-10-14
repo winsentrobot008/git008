@@ -10,15 +10,15 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MAOTANG PERSONAL AI NODE",
+    name: "猫糖 (MAOTANG) - 个人 AI 节点",
     short_name: "MAOTANG",
     description: "Speak your intent. Locally vetted. Biometrically confirmed.",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#eef1f5",
-    theme_color: "#eef1f5",
+    background_color: "#FFF5F7",
+    theme_color: "#FFB6C1",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
     ],

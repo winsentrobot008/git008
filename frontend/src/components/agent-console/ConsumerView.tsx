@@ -85,6 +85,7 @@ import {
 } from "@/lib/agent/quota-view";
 import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
 import type { AgentRefusal, IntentSuccess } from "@/lib/agent/types";
+import { parseWeb3Intent } from "@/lib/agent/web3-intent";
 import { useLanguage } from "@/lib/i18n/language";
 import type { MessageKey } from "@/lib/i18n/dictionary";
 
@@ -454,7 +455,7 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
   // The ADR-045 compute ledger. Same numbers as before, drawn quiet: the vesting bar is the only
   // bright element, because it is the only one that moves while the owner watches.
   const computeCard = (
-    <section className="mt-3 rounded-2xl border border-white/60 bg-white/45 px-4 py-3.5 text-slate-500 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.35)] backdrop-blur-xl">
+    <section className="mt-3 rounded-2xl border border-white/60 bg-[rgba(255,240,243,0.55)] px-4 py-3.5 text-slate-500 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.35)] backdrop-blur-xl">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
           {t("compute.title")}
@@ -568,6 +569,141 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
   // The brand mark: a geometric 'M' whose shoulders rise into feline ears, with two whisker
   // strokes. Inline SVG rather than an image, so it inherits `currentColor` and stays crisp at any
   // size, including the 1024px Home Screen icon rendered from the same contours (see app/icon.svg).
+  // -- Control Center -----------------------------------------------------------------------------
+  //
+  // The three cards the C-end design names, in its order. Two rules from the rest of this file carry
+  // over, and they are why each card is shaped the way it is:
+  //
+  //   - every figure stays the server's. A card whose block is missing says so (`vault.unavailable`)
+  //     instead of painting a plausible zero, the same rule the status pill follows for the balance;
+  //   - an action no module can carry yet ships as a *disabled row with its reason*, never as a button
+  //     whose only outcome would be a refusal pushed into the owner's face.
+
+  /** The allow-listed destination the tip action needs, or `undefined` when the policy publishes none. */
+  const tipDestination =
+    statusState.kind === "ready" ? statusState.status.policy.allowedDestinations[0] : undefined;
+
+  /** The exact sentence M1's transfer grammar parses - the same string the transfer preset sends. */
+  const tipSentence = tipDestination === undefined ? null : `Send 0.05 ETH to ${tipDestination}`;
+
+  const nodeActionRow = (label: string, hint: string, onClick: (() => void) | null) => (
+    <button
+      type="button"
+      onClick={onClick ?? undefined}
+      disabled={onClick === null}
+      className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-[#ffb6c1]/60 bg-[rgba(255,240,243,0.75)] px-3 py-2 text-left transition hover:bg-[rgba(255,240,243,0.95)] disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <span>
+        <span className="block text-[12px] font-medium text-[#6b3f4d]">{label}</span>
+        <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{hint}</span>
+      </span>
+      <span aria-hidden="true" className="text-[#e07f96]">
+        &#8594;
+      </span>
+    </button>
+  );
+
+  // Card 1 - Secure Vault. The genesis position, in the same denominations the vesting ledger reports:
+  // this is the ADR-045 vault, not a second one, so the figure comes from that one server block.
+  const secureVaultCard = (
+    <article className="rounded-2xl border border-white/70 bg-[rgba(255,255,255,0.5)] px-3.5 py-3 backdrop-blur-xl">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <h3 className="text-[12px] font-semibold text-[#6b3f4d]">{t("vault.title")}</h3>
+        <span className="rounded-full border border-[#ffb6c1]/70 px-2 py-0.5 font-mono text-[9.5px] text-[#b06a80]">
+          {t("vault.genesis")}
+        </span>
+      </div>
+      <p className="mt-2 flex items-baseline gap-1.5">
+        <span className="font-mono text-[1.45rem] leading-none text-[#6b3f4d]">
+          {availableUnits === null ? NO_VALUE : formatQuotaUnits(availableUnits.yuanYuan)}
+        </span>
+        <span className="text-[10px] text-slate-400">{t("vault.points")}</span>
+      </p>
+      <p className="mt-1 text-[10px] text-slate-400">
+        {t("vault.nominal")}: {nominalUnits === null ? NO_VALUE : formatQuotaUnits(nominalUnits.yuanYuan)}
+      </p>
+      <p className="mt-2 text-[10.5px] leading-relaxed text-slate-500">
+        {quota === null ? t("vault.unavailable") : t("vault.bound")}
+      </p>
+      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{t("vault.oneCard")}</p>
+    </article>
+  );
+
+  // Card 2 - Community Matrix. MaoMao / FenFen are the consumer denominations of the *same* ledger
+  // (1 : 10 : 100, see `quota-view.ts`), so they can be shown honestly. The tip ledger has no server
+  // source yet, and that card says so rather than rendering a feed it cannot verify.
+  const communityMatrixCard = (
+    <article className="rounded-2xl border border-white/70 bg-[rgba(255,255,255,0.5)] px-3.5 py-3 backdrop-blur-xl">
+      <h3 className="text-[12px] font-semibold text-[#6b3f4d]">{t("matrix.title")}</h3>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-[rgba(255,240,243,0.7)] px-2.5 py-2">
+          <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#b06a80]">{t("matrix.maomao")}</p>
+          <p className="mt-0.5 font-mono text-[13px] text-[#6b3f4d]">
+            {nominalUnits === null ? NO_VALUE : formatQuotaUnits(nominalUnits.maoMao)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-[rgba(255,240,243,0.7)] px-2.5 py-2">
+          <p className="text-[9.5px] uppercase tracking-[0.14em] text-[#b06a80]">{t("matrix.fenfen")}</p>
+          <p className="mt-0.5 font-mono text-[13px] text-[#6b3f4d]">
+            {nominalUnits === null ? NO_VALUE : formatQuotaUnits(nominalUnits.fenFen)}
+          </p>
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-slate-400">{t("matrix.recent")}</p>
+      <p className="mt-1 text-[10.5px] leading-relaxed text-slate-500">{t("matrix.notOpen")}</p>
+    </article>
+  );
+
+  // Card 3 - Node Action. Daily Energy is the activation action the M1 vault already understands;
+  // Secure Tip is the allow-listed transfer the M2 preview already renders; migration has no pipeline,
+  // so it ships as a disabled row carrying its reason.
+  const nodeActionCard = (
+    <article className="rounded-2xl border border-white/70 bg-[rgba(255,255,255,0.5)] px-3.5 py-3 backdrop-blur-xl">
+      <h3 className="text-[12px] font-semibold text-[#6b3f4d]">{t("node.title")}</h3>
+      <div className="mt-2 grid gap-2">
+        {nodeActionRow(t("node.dailyEnergy"), t("node.dailyEnergyHint"), () => void runActivation())}
+        {nodeActionRow(
+          t("node.secureTip"),
+          t("node.secureTipHint"),
+          tipSentence === null
+            ? null
+            : () => {
+                setPrompt(tipSentence);
+                void submit(tipSentence);
+              },
+        )}
+        {nodeActionRow(t("node.migrate"), t("node.migratePending"), null)}
+      </div>
+    </article>
+  );
+
+  // The on-chain adapter row. It renders only when the draft in the box is a sentence this build can
+  // actually read (`web3-intent.ts`), and it always says `supported: false` out loud, because the M2
+  // allow-list is the manifest's EVM destinations and no TRON leg can reach a signature today.
+  const web3Draft = parseWeb3Intent(prompt);
+  const web3AdapterRow =
+    web3Draft === null ? null : (
+      <div className="mt-2.5 rounded-2xl border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.8)] px-3 py-2.5">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-[#b06a80]">{t("adapter.title")}</p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#6b3f4d]">
+          <span className="font-medium">
+            {web3Draft.id === "tron-usdt-transfer" ? t("adapter.tron") : t("adapter.uniswap")}
+          </span>
+          <span className="font-mono">
+            {web3Draft.amount} {web3Draft.asset}
+          </span>
+          {web3Draft.targetAsset === null ? null : (
+            <span className="font-mono">&#8594; {web3Draft.targetAsset}</span>
+          )}
+          {web3Draft.counterparty === null ? null : (
+            <span className="font-mono">{shortHex(web3Draft.counterparty, 6, 6)}</span>
+          )}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+          {t("adapter.unsupported")} {t("adapter.hint")}
+        </p>
+      </div>
+    );
   const brandMark = (
     <svg viewBox="0 0 32 32" aria-hidden="true" className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
       <path d="M7 23.5V10.5l9 8.5 9-8.5v13" />
@@ -615,9 +751,57 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
     <main className="relative isolate flex min-h-screen w-full flex-col overflow-x-hidden text-slate-900">
       {/* Soft light gradient backdrop - the premium-hardware surface the glass card floats on. Three
           layers: the base ramp, a white bloom at the top, and two soft grey accents at the corners. */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(180deg,#fbfcfe_0%,#eff2f6_46%,#e2e7ee_100%)]" />
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(180deg,#fff8fa_0%,#fff5f7_46%,#ffe9ef_100%)]" />
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(72%_46%_at_50%_-6%,rgba(255,255,255,0.95),transparent_70%)]" />
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 opacity-70 bg-[radial-gradient(46%_34%_at_10%_16%,rgba(255,255,255,0.9),transparent_66%),radial-gradient(40%_30%_at_94%_4%,rgba(201,211,226,0.6),transparent_70%)]" />
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 opacity-70 bg-[radial-gradient(46%_34%_at_10%_16%,rgba(255,255,255,0.9),transparent_66%),radial-gradient(40%_30%_at_94%_4%,rgba(255,182,193,0.55),transparent_70%)]" />
+
+      {/*
+        The cyber-guardian mask.
+
+        Drawn inline rather than shipped as a bitmap, for the same reason the brand mark is: it has to be
+        the rose of the theme, scale to any device without a second asset, and never be the thing a slow
+        connection is waiting on. It is a backdrop only - `aria-hidden`, `pointer-events-none`, behind
+        every card (`-z-10`) - so it can never take a tap from the biometric sheet.
+      */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 top-[-8%] -z-10 flex justify-center opacity-60"
+      >
+        <svg viewBox="0 0 240 240" className="h-[62vh] w-auto max-w-none" role="presentation">
+          <defs>
+            <radialGradient id="maotang-guardian-halo" cx="50%" cy="40%" r="62%">
+              <stop offset="0%" stopColor="#ffe3ec" stopOpacity="0.95" />
+              <stop offset="62%" stopColor="#ffc9d6" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#fff5f7" stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id="maotang-guardian-visor" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#ffb6c1" />
+              <stop offset="100%" stopColor="#e07f96" />
+            </linearGradient>
+          </defs>
+          <circle cx="120" cy="120" r="118" fill="url(#maotang-guardian-halo)" />
+          <path d="M62 74 52 30l44 20z" fill="#5c3140" opacity="0.5" />
+          <path d="M178 74 188 30l-44 20z" fill="#5c3140" opacity="0.5" />
+          <path d="M65 70 58 41l29 13z" fill="#ffb6c1" opacity="0.85" />
+          <path d="M175 70 182 41l-29 13z" fill="#ffb6c1" opacity="0.85" />
+          <path d="M120 56c30 0 53 23 53 53v30c0 30-23 53-53 53s-53-23-53-53v-30c0-30 23-53 53-53z" fill="#f7d7df" opacity="0.5" />
+          <path d="M120 56c30 0 53 23 53 53-14-16-34-25-53-25s-39 9-53 25c0-30 23-53 53-53z" fill="#8a4a5f" opacity="0.32" />
+          <rect x="65" y="115" width="110" height="27" rx="13.5" fill="url(#maotang-guardian-visor)" opacity="0.8" />
+          <rect x="65" y="115" width="110" height="8" rx="4" fill="#ffffff" opacity="0.5" />
+        </svg>
+      </div>
+
+      {/*
+        Sparkle / energy floaters. Decorative only, and the only motion on the page besides the vesting
+        bar: `prefers-reduced-motion` switches them off wholesale (see `globals.css`).
+      */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <span className="maotang-sparkle absolute left-[8%] top-[17%] h-1.5 w-1.5 rounded-full bg-white" />
+        <span className="maotang-sparkle absolute left-[15%] top-[61%] h-2 w-2 rounded-full bg-[#ffb6c1]" style={{ animationDelay: "0.8s" }} />
+        <span className="maotang-sparkle absolute right-[11%] top-[25%] h-2.5 w-2.5 rounded-full bg-[#ffd9e2]" style={{ animationDelay: "1.6s" }} />
+        <span className="maotang-float absolute left-[5%] top-[36%] h-12 w-12 rounded-2xl border border-white/70 bg-[rgba(255,240,243,0.5)] shadow-[0_18px_36px_-24px_rgba(224,127,150,0.9)] backdrop-blur-xl" />
+        <span className="maotang-float absolute right-[6%] top-[50%] h-16 w-16 rounded-3xl border border-white/70 bg-[rgba(255,240,243,0.55)] shadow-[0_18px_36px_-24px_rgba(224,127,150,0.9)] backdrop-blur-xl" style={{ animationDelay: "1.2s" }} />
+      </div>
 
       <ToastStack toasts={toasts.toasts} onDismiss={toasts.dismiss} />
 
@@ -629,7 +813,7 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
         </header>
 
         {/* ---- the hero card: frosted glass, multi-layered shadow, hairline highlight ------------ */}
-        <section className="mt-1 rounded-[30px] border border-white/70 bg-white/55 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_6px_rgba(15,23,42,0.06),0_18px_38px_-16px_rgba(15,23,42,0.22),0_44px_80px_-40px_rgba(15,23,42,0.30)] backdrop-blur-2xl">
+        <section className="mt-1 rounded-[30px] border border-white/70 bg-[rgba(255,240,243,0.65)] px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_6px_rgba(15,23,42,0.06),0_18px_38px_-16px_rgba(15,23,42,0.22),0_44px_80px_-40px_rgba(15,23,42,0.30)] backdrop-blur-2xl">
           <div className="flex justify-center text-slate-700">{brandMark}</div>
           <h1 className="mt-5 text-center text-[1.6rem] font-semibold leading-[1.15] tracking-[-0.01em] text-slate-900 sm:text-[1.8rem]">
             {t("consumer.title")}
@@ -694,7 +878,7 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
         </section>
 
         {/* ---- the live numbers, kept quiet under the hero card ------------------------------- */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-white/60 bg-white/45 px-4 py-3 text-xs text-slate-500 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.35)] backdrop-blur-xl">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-white/60 bg-[rgba(255,240,243,0.55)] px-4 py-3 text-xs text-slate-500 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.35)] backdrop-blur-xl">
           <span className="text-slate-400">{t("pill.walletAlias")}</span>
           {/* The alias is the server's enclave binding, never a literal. */}
           <span className="font-mono text-slate-700">{status === null ? NO_VALUE : status.enclave.keyAlias}</span>
@@ -715,6 +899,22 @@ export function ConsumerView({ mode, onSwitchMode }: ConsumerViewProps) {
         </div>
 
         {computeCard}
+
+        {/* ---- Control Center: the vault, the community matrix, and the node actions ------------- */}
+        <section className="mt-3 rounded-3xl border border-white/70 bg-[rgba(255,240,243,0.65)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_18px_40px_-28px_rgba(224,127,150,0.8)] backdrop-blur-2xl">
+          <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#b06a80]">
+              {t("control.title")}
+            </h2>
+            <p className="text-[10px] text-slate-400">{t("control.subtitle")}</p>
+          </header>
+          <div className="mt-3 grid gap-2.5">
+            {secureVaultCard}
+            {communityMatrixCard}
+            {nodeActionCard}
+          </div>
+          {web3AdapterRow}
+        </section>
 
         {statusState.kind === "unavailable" ? (
           <div className="mt-3 rounded-2xl border border-amber-300/70 bg-amber-50/70 px-4 py-3 text-xs text-amber-800 backdrop-blur-xl">

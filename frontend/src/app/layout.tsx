@@ -22,13 +22,13 @@ export const metadata: Metadata = {
  * `viewport-fit=cover` is what makes `env(safe-area-inset-*)` resolve to a real value on iOS; without
  * it the bottom-docked action bar would sit under the home indicator. `themeColor` tints the Safari /
  * Chrome address bar - and, in a Home Screen window, the system status bar - to the light surface the
- * console is drawn on, so the chrome does not cut a dark band across a white page.
+ * console is drawn on, so the chrome does not cut a dark band across a rose page.
  */
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#eef1f5",
+  themeColor: "#FFB6C1",
 };
 
 /**

@@ -407,19 +407,34 @@ test("F. the hero card renders the specified global English copy by key", () => 
   assert.match(i18nSource, /"Confirm Intent \(Face\/Touch\)"/, "the exact action label ships");
   assert.match(i18nSource, /"Active \(Hardware TEE\)"/, "the enclave state ships");
   assert.match(i18nSource, /"Never Stored"/, "the biometrics guarantee ships");
+
+  // The Control Center's cards are dictionary lookups too: a design rename cannot leave a literal
+  // behind, and no key can go missing from the English column without failing here.
+  for (const key of ["control.title", "vault.title", "matrix.title", "node.title", "adapter.title"]) {
+    const escaped = key.replace(/\./g, "\\.");
+    assert.match(consumerView, new RegExp(`t\\("${escaped}"\\)`), `${key} is a dictionary lookup`);
+    assert.match(i18nSource, new RegExp(`"${escaped}":`), `${key} ships in both columns`);
+  }
   // The English column is the global face, so it carries no CJK at all.
   const enBlock = i18nSource.slice(i18nSource.indexOf("const EN: Messages = {"));
   assert.equal(/[\u3400-\u9fff]/.test(enBlock), false, "no Chinese character may reach the default render");
 });
 
-test("F. the C-end surface is light frosted glass, not the dark console palette", () => {
+test("F. the C-end surface is pink frosted glass, not the dark console palette", () => {
   assert.match(consumerView, /backdrop-blur-2xl/, "the cards are frosted glass");
-  assert.match(consumerView, /bg-white\/55/, "the hero card is translucent light glass");
+  assert.match(consumerView, /bg-\[rgba\(255,240,243,0\.65\)\]/, "the hero card is the rose glass wash");
   assert.match(
     consumerView,
-    /bg-\[linear-gradient\(180deg,#fbfcfe/
-    , "the backdrop is the soft off-white gradient",
+    /bg-\[linear-gradient\(180deg,#fff8fa/
+    , "the backdrop is the rose ramp the glass floats on",
   );
+  assert.match(globalsCss, /--color-maotang-rose: #ffb6c1/, "the primary accent token is the named rose");
+  assert.match(
+    globalsCss,
+    /--color-maotang-card: rgba\(255, 240, 243, 0\.65\)/,
+    "the card-surface token is the named wash",
+  );
+  assert.match(globalsCss, /prefers-reduced-motion/, "the decorative floaters honour reduced motion");
   assert.doesNotMatch(consumerView, /bg-maotang-surface/, "the dark surface token must be gone");
   assert.doesNotMatch(consumerView, /bg-maotang-ink/, "the dark ink token must be gone");
   assert.match(menuDrawer, /readonly tone\?: "light" \| "dark"/, "the drawer takes a surface tone");
@@ -433,7 +448,15 @@ test("F. the brand mark is a drawn feline M, and the app installs full-screen", 
   assert.match(manifestSource, /display: "standalone"/, "Add to Home Screen opens full-screen");
   assert.match(manifestSource, /orientation: "portrait"/, "the installable window is portrait");
   assert.match(layoutSource, /appleWebApp: \{ capable: true/, "iOS gets the standalone web-app meta");
-  assert.match(layoutSource, /themeColor: "#eef1f5"/, "the system chrome is tinted to the light surface");
+  assert.match(layoutSource, /themeColor: "#FFB6C1"/, "the system chrome is tinted to the rose accent");
+  assert.match(manifestSource, /short_name: "MAOTANG"/, "the Home Screen label is MAOTANG");
+  assert.match(manifestSource, /theme_color: "#FFB6C1"/, "the manifest chrome is the rose accent");
+  assert.match(manifestSource, /background_color: "#FFF5F7"/, "the splash is the rose surface");
+  assert.match(
+    manifestSource,
+    /name: "\u732b\u7cd6 \(MAOTANG\) - \u4e2a\u4eba AI \u8282\u70b9"/,
+    "the installable name is the specified bilingual one",
+  );
 });
 
 

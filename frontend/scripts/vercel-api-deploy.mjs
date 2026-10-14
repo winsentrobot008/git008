@@ -59,6 +59,9 @@ const PRODUCTION_ENV = {
   NEXT_PUBLIC_OPERATOR_ADDRESS: "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
   NEXT_PUBLIC_DEVELOPER_ADDRESS: "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
   NEXT_PUBLIC_BTC_REVENUE_ADDRESS: "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe",
+  // The M2 window is bound to this project explicitly rather than left to the code default, so the
+  // 24h lock the C-end renders is a property of the production deployment and not of a lucky fallback.
+  AGENT_POLICY_WINDOW_SECONDS: "86400",
   AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION: "1",
 };
 

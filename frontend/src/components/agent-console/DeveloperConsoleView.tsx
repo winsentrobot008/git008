@@ -37,7 +37,7 @@ export function DeveloperConsoleView({ mode, onSwitchMode }: DeveloperConsoleVie
   const [digest, setDigest] = useState<Hex | null>(null);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 py-10">
+    <main className="mx-auto min-h-screen w-full max-w-6xl bg-[#0a0a12] px-5 py-10">
       <header className="mb-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

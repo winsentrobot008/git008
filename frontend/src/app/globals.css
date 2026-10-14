@@ -1,17 +1,30 @@
 @import "tailwindcss";
 
 @theme {
+  /* The engineer/audit console is the one dark face in the product; it keeps the palette it was
+   * designed against. Everything below is the C-end surface: light, dimensional pink frosted glass. */
   --color-maotang-ink: #0a0a12;
   --color-maotang-surface: #14141f;
   --color-maotang-border: #262637;
+
+  /* Primary accent. */
+  --color-maotang-rose: #ffb6c1;
+  --color-maotang-rose-deep: #e07f96;
+  --color-maotang-rose-ink: #6b3f4d;
+  /* The page behind the glass, and the splash the PWA paints before first frame. */
+  --color-maotang-rose-surface: #fff5f7;
+  /* Card surface: the 65% pink wash the whole Control Center is built from. */
+  --color-maotang-card: rgba(255, 240, 243, 0.65);
+  --color-maotang-sparkle: #ffd9e2;
+
   --color-maotang-pink: #ff5fa2;
   --color-maotang-mint: #46e0b8;
   --color-maotang-amber: #ffb84d;
 }
 
 body {
-  background-color: var(--color-maotang-ink);
-  color: #f6f6fb;
+  background-color: var(--color-maotang-rose-surface);
+  color: #43303a;
   font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
@@ -48,4 +61,48 @@ button,
 input,
 a {
   -webkit-tap-highlight-color: transparent;
+}
+/* ------------------------------------------------------------------------------------------------
+ * Sparkle / energy floaters.
+ *
+ * Two loops, both decorative and both decorative-only: `aria-hidden` on the markup, no layout effect,
+ * and switched off wholesale under `prefers-reduced-motion`. They exist to make the Control Center read
+ * as alive without animating a single number - the vesting bar stays the only bright thing that moves
+ * on purpose.
+ * ---------------------------------------------------------------------------------------------- */
+.maotang-float {
+  animation: maotang-float 7.5s ease-in-out infinite;
+}
+
+@keyframes maotang-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+.maotang-sparkle {
+  animation: maotang-sparkle 4.5s ease-in-out infinite;
+}
+
+@keyframes maotang-sparkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maotang-float,
+  .maotang-sparkle {
+    animation: none;
+  }
 }

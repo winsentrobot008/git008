@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:policy": "node --test scripts/assert-runtime-policy.mjs"
+    "test:policy": "node --test scripts/assert-runtime-policy.mjs",
+    "verify:policy": "node --test scripts/assert-runtime-policy.mjs"
   },
   "dependencies": {
     "@maotang/mobile-agent": "file:../mobile-agent",
