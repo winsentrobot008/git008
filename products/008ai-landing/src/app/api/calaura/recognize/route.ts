@@ -3,12 +3,15 @@
  *
  * Vision recognition endpoint for the in-app CalorieAI surface of 008ai.online.
  *
- * Architecture note: this is a *bridge*, not a second vision stack. The real
- * CalorieAI product (products/calorieai) owns the recognition pipeline; this
- * route forwards to it and normalises the response into the unified
- * FoodScanItem contract, so the health bus carries one shape everywhere.
- * Without CALORIE_AI_API_URL it answers RECOGNITION_NOT_CONFIGURED - it never
- * fabricates food items (repo rule: AI routes have no mock fallback).
+ * Architecture note: this route is a standard proxy client, not a vision
+ * stack. The two products are fully decoupled (2026-10-03): 008ai-landing
+ * never reads source or config from products/calorieai, and the recognition
+ * backend is an independent service reached only over HTTP through
+ * CALORIE_AI_API_URL. This route forwards the image and normalises the
+ * response into the unified FoodScanItem contract, so the health bus carries
+ * one shape everywhere. Without CALORIE_AI_API_URL it answers
+ * RECOGNITION_NOT_CONFIGURED - it never fabricates food items (repo rule: AI
+ * routes have no mock fallback).
  *
  * Body (FoodImageRequest): { image: dataUrl|base64, mimeType?, mealType?, note? }
  * Response: RecognizeResponse { items, totalCalories, provider, model?, latencyMs }
@@ -18,12 +21,19 @@
  * operator session - the anti-abuse windows and the free-scan paywall are
  * skipped, and the upstream call carries the admin credential. The key lives in
  * the environment only; when it is unset the comparison can never pass.
+ *
+ * Promo codes: a caller presenting `x-calaura-coupon` (the composer does so
+ * after the visitor redeems a code - see lib/calaura/coupons.ts) gets that
+ * code's extra scans added to this session's ceiling, so the client gate and
+ * this mirror stay in step. Codes are public by design; they are a promotion
+ * channel, not a credential.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { HEALTH_LIMITS } from "@/lib/shared/health-bus";
 import { consumeServerGate, releaseServerGate, resolveGateKey } from "@/lib/shared/health-gate";
+import { COUPON_HEADER, foodScanGrantForCodes, parseCouponHeader } from "@/lib/calaura/coupons";
 import { checkRateLimit, checkUserAgent, clientIp } from "@/lib/calaura/guard";
 import { listEntitlements } from "@/lib/orders-store";
 import type { FoodScanItem, MealType } from "@/types/health-bus";
@@ -35,10 +45,78 @@ export const maxDuration = 45;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const RATE_LIMIT_PER_MINUTE = 12;
 const DAILY_LIMIT = 80;
-const UPSTREAM_TIMEOUT_MS = 30_000;
+/** Per-attempt upstream timeout; two attempts stay inside maxDuration = 45. */
+const UPSTREAM_TIMEOUT_MS = 15_000;
+/** Initial call plus one automatic retry on transient failures. */
+const UPSTREAM_ATTEMPTS = 2;
+const UPSTREAM_RETRY_DELAY_MS = 600;
+/** CalorieAI sits behind an edge WAF that drops bot-like agents as a 403. */
+const UPSTREAM_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 /** Header that carries the QA test key. */
 const TEST_KEY_HEADER = "x-calaura-test-key";
+
+/** Upstream statuses worth a second attempt: transient service / rate limits. */
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * POST the multipart form to CalorieAI with a hard per-attempt timeout and one
+ * retry on transient failures. Returns the last response when the upstream
+ * answered, or null when every attempt threw (timeout / network / cold start).
+ */
+async function callUpstream(
+  apiUrl: string,
+  form: FormData,
+  token: string
+): Promise<{ response: Response | null; attempts: number; lastError: string }> {
+  let lastError = "";
+  for (let attempt = 1; attempt <= UPSTREAM_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "User-Agent": UPSTREAM_USER_AGENT,
+          Accept: "application/json",
+        },
+        body: form,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
+      if (response.ok || !isRetryableStatus(response.status)) {
+        return { response, attempts: attempt, lastError };
+      }
+      lastError = `upstream ${response.status}`;
+      console.warn(`[calorie-ai] recognize attempt ${attempt}/${UPSTREAM_ATTEMPTS} -> ${response.status}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.warn(`[calorie-ai] recognize attempt ${attempt}/${UPSTREAM_ATTEMPTS} failed: ${lastError}`);
+    }
+    if (attempt < UPSTREAM_ATTEMPTS) await delay(UPSTREAM_RETRY_DELAY_MS);
+  }
+  return { response: null, attempts: UPSTREAM_ATTEMPTS, lastError };
+}
+
+/**
+ * Friendly, non-technical degradation shared by every upstream failure path, so
+ * the client never has to show a raw "recognition failed (502)" to the user.
+ */
+function recognitionDegraded(code: string, status: number): NextResponse {
+  const detail =
+    code === "RECOGNITION_REJECTED"
+      ? "Lumi could not read that photo. Try a clearer, closer shot of the food."
+      : "Lumi's kitchen is a little busy right now. Please try again in a moment.";
+  return NextResponse.json(
+    { code, detail, retryable: code === "RECOGNITION_UNAVAILABLE" },
+    { status }
+  );
+}
 
 /**
  * Constant-time compare over fixed-width digests: unequal lengths cannot throw
@@ -198,15 +276,21 @@ async function handleRecognize(request: NextRequest) {
   const entitled = isPassHolder(email);
   const gateKey = resolveGateKey(body.sessionId, ip);
 
+  // Redeemed promo codes raise this session's free-scan ceiling. Recomputed
+  // from the presented codes on every call, so no server state is needed.
+  const scanLimit =
+    HEALTH_LIMITS.foodScans +
+    foodScanGrantForCodes(parseCouponHeader(request.headers.get(COUPON_HEADER)));
+
   let quotaConsumed = false;
-  let quotaRemaining: number = HEALTH_LIMITS.foodScans;
+  let quotaRemaining: number = scanLimit;
   if (!entitled && !isPrivileged) {
-    const gate = consumeServerGate("foodScans", gateKey);
+    const gate = consumeServerGate("foodScans", gateKey, scanLimit);
     if (!gate.allowed) {
       return NextResponse.json(
         {
           code: "PAYWALL_REACHED",
-          detail: `Free sessions include ${HEALTH_LIMITS.foodScans} food scans. Unlock the 008AI Total Health Bundle to keep scanning.`,
+          detail: `Free sessions include ${scanLimit} food scans. Unlock the 008AI Total Health Bundle to keep scanning.`,
           gate: "foodScans",
           used: gate.used,
           limit: gate.limit,
@@ -235,37 +319,33 @@ async function handleRecognize(request: NextRequest) {
       ? (process.env.CALORIE_AI_ADMIN_TOKEN || process.env.CALORIE_AI_API_KEY || "").trim()
       : (process.env.CALORIE_AI_API_KEY || "").trim();
 
-    // Content-Type is deliberately unset: fetch adds the multipart boundary.
-    const upstream = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        ...(upstreamToken ? { Authorization: `Bearer ${upstreamToken}` } : {}),
-      },
-      body: form,
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    // One per-attempt timeout plus one automatic retry; the client only ever
+    // sees a friendly, retryable message instead of a raw upstream 502.
+    const { response: upstream, attempts, lastError } = await callUpstream(
+      apiUrl,
+      form,
+      upstreamToken
+    );
+
+    if (!upstream) {
+      if (quotaConsumed) releaseServerGate("foodScans", gateKey);
+      console.error(`[calorie-ai] recognize unavailable after ${attempts} attempt(s): ${lastError}`);
+      return recognitionDegraded("RECOGNITION_UNAVAILABLE", 503);
+    }
 
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => "");
       if (quotaConsumed) releaseServerGate("foodScans", gateKey);
       console.error(`[calorie-ai] recognize upstream ${upstream.status}: ${detail.slice(0, 200)}`);
-      return NextResponse.json(
-        { code: "UPSTREAM_ERROR", detail: `Recognition backend error ${upstream.status}` },
-        { status: 502 }
-      );
+      const rejected = upstream.status === 400 || upstream.status === 413 || upstream.status === 422;
+      return recognitionDegraded(rejected ? "RECOGNITION_REJECTED" : "RECOGNITION_UNAVAILABLE", rejected ? 422 : 503);
     }
 
     const payload = (await upstream.json()) as Record<string, unknown>;
     const items = normalizeItems(payload);
     if (items.length === 0) {
       if (quotaConsumed) releaseServerGate("foodScans", gateKey);
-      return NextResponse.json(
-        {
-          code: "UPSTREAM_ERROR",
-          detail: "Recognition backend returned no recognizable items",
-        },
-        { status: 502 }
-      );
+      return recognitionDegraded("RECOGNITION_REJECTED", 422);
     }
 
     // Prefer the backend's own total (CalorieAI answers with `total_cal`); only
@@ -308,7 +388,7 @@ async function handleRecognize(request: NextRequest) {
     if (quotaConsumed) releaseServerGate("foodScans", gateKey);
     const message = error instanceof Error ? error.message : String(error);
     console.error("[calorie-ai] recognize failed:", message);
-    return NextResponse.json({ code: "UPSTREAM_ERROR", detail: message }, { status: 502 });
+    return recognitionDegraded("RECOGNITION_UNAVAILABLE", 503);
   }
 }
 

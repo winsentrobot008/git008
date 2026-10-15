@@ -27,7 +27,7 @@ export const CJK = /[\u4e00-\u9fa5]/;
 /** Namespaces that identify an i18n key literal in source. */
 const NAMESPACES = [
   "common", "menu", "banner", "hero", "apps", "trust",
-  "pricing", "terms", "privacy", "footer", "calaura", "stage", "cal", "fit",
+  "pricing", "terms", "privacy", "footer", "calaura", "stage", "cal", "fit", "world3d",
 ];
 const KEY_LITERAL = new RegExp(`\\b((?:${NAMESPACES.join("|")})\\.[A-Za-z0-9_]+)\\b`, "g");
 

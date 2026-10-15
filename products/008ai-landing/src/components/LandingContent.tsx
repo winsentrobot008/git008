@@ -9,21 +9,43 @@
  * context provided by the root layout.
  */
 
+import type { ComponentType } from "react";
 import {
   ScanLine,
   Route,
   CreditCard,
   Lock,
   BadgeCheck,
+  ShieldCheck,
 } from "lucide-react";
 import PayPalCheckout from "@/components/PayPalCheckout";
 import StripeCheckout from "@/components/StripeCheckout";
 import WishCard from "@/components/WishCard";
 import MoreMenu from "@/components/MoreMenu";
+import World3DGlyph from "@/components/world3d/World3DGlyph";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLang } from "@/i18n/LanguageProvider";
 
-const APPS = [
+/**
+ * Cards are typed rather than inferred: the grid mixes `lucide-react` icons with
+ * the hand-rolled 3D glyph, and an inferred union of component types is what turns
+ * a JSX prop into a type error the moment a third icon shape is added.
+ */
+interface AppCard {
+  icon: ComponentType<{ className?: string }>;
+  titleKey: string;
+  taglineKey: string;
+  live?: boolean;
+  soon?: boolean;
+  href?: string;
+  ctaKey?: string;
+  /** Brand accent for the card's icon chip, as `#rrggbb`. Defaults to the suite rose. */
+  accent?: string;
+  /** True for a card that leaves this origin, so the grid opens it in a new tab. */
+  external?: boolean;
+}
+
+const APPS: AppCard[] = [
   {
     icon: ScanLine,
     titleKey: "apps.calauraFitTitle",
@@ -33,10 +55,28 @@ const APPS = [
     ctaKey: "apps.launch",
   },
   {
+    icon: World3DGlyph,
+    titleKey: "apps.world3dTitle",
+    taglineKey: "apps.world3dTagline",
+    live: true,
+    href: "/world3d",
+    ctaKey: "apps.launch",
+  },
+  {
     icon: Route,
     titleKey: "apps.runifyTitle",
     taglineKey: "apps.runifyTagline",
-    status: "soon",
+    soon: true,
+  },
+  {
+    icon: ShieldCheck,
+    titleKey: "apps.maotangTitle",
+    taglineKey: "apps.maotangTagline",
+    live: true,
+    href: "https://maotang.008ai.online",
+    ctaKey: "apps.launch",
+    accent: "#FFB6C1",
+    external: true,
   },
 ];
 
@@ -69,6 +109,28 @@ function TrustBadges({ slots = "67 / 90" }: { slots?: string }) {
   );
 }
 
+/**
+ * The accent tint for a card's icon chip.
+ *
+ * Only the chip fill and edge take the accent: painting the glyph itself in a pale accent would be the
+ * one text-on-fill pair on the page nobody can read, and the accent still reads because the card behind
+ * it is already pink frosted glass.
+ */
+function chipTint(accent: string) {
+  const match = /^#([0-9a-f]{6})$/i.exec(accent);
+  if (match === null) {
+    return undefined;
+  }
+  const value = Number.parseInt(match[1], 16);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.18)`,
+    borderColor: `rgba(${r}, ${g}, ${b}, 0.55)`,
+  };
+}
+
 function AppGrid() {
   const { t } = useLang();
   return (
@@ -93,12 +155,15 @@ function AppGrid() {
                       <span className="h-1.5 w-1.5 rounded-full bg-white" /> {t("apps.live")}
                     </span>
                   )}
-                  {app.status === "soon" && (
+                  {app.soon && (
                     <span className="absolute right-3 top-3 rounded-full border border-white/60 bg-white/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 backdrop-blur-md">
                       {t("apps.soon")}
                     </span>
                   )}
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/10 border border-pink-400/30 text-pink-600 sm:h-12 sm:w-12 sm:rounded-2xl">
+                  <span
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/10 border border-pink-400/30 text-pink-600 sm:h-12 sm:w-12 sm:rounded-2xl"
+                    style={app.accent === undefined ? undefined : chipTint(app.accent)}
+                  >
                     <app.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                   </span>
                   <h3 className="mt-3 text-base font-bold text-slate-900 sm:text-lg">
@@ -110,7 +175,7 @@ function AppGrid() {
                   <div className="mt-auto pt-6">
                     {app.href ? (
                       <span className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 px-3 text-xs font-bold text-white shadow-lg shadow-pink-500/30 transition hover:brightness-105 sm:text-sm">
-                        {t(app.ctaKey)} →
+                        {t(app.ctaKey ?? "apps.launch")} →
                       </span>
                     ) : (
                       <span className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-white/60 bg-white/30 px-3 text-xs font-bold text-slate-500 backdrop-blur-md sm:text-sm">
@@ -125,7 +190,13 @@ function AppGrid() {
               const cls = `relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-white/80 via-white/25 to-white/50 p-6 backdrop-blur-2xl border-t border-l border-white/90 border-b border-r border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,1),inset_0_-2px_4px_rgba(236,72,153,0.15),0_15px_35px_-5px_rgba(236,72,153,0.25)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[inset_0_1px_3px_rgba(255,255,255,1),0_20px_45px_-5px_rgba(236,72,153,0.35)]`;
 
               return app.href ? (
-                <a key={app.titleKey} href={app.href} target="_self" className={cls}>
+                <a
+                  key={app.titleKey}
+                  href={app.href}
+                  target={app.external ? "_blank" : "_self"}
+                  rel={app.external ? "noopener noreferrer" : undefined}
+                  className={cls}
+                >
                   {card}
                 </a>
               ) : (

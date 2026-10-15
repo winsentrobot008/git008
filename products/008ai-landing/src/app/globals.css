@@ -165,6 +165,23 @@
   animation: calaura-rise 0.45s ease-out both;
 }
 
+/* 3D avatar stage: the figure tilts toward the pointer and a specular sheen
+   sweeps across it, so the vector portrait reads as a lit object in space. */
+.calaura-avatar-3d {
+  transform-style: preserve-3d;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.calaura-avatar-sheen {
+  position: absolute;
+  inset: -8%;
+  border-radius: 9999px;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  pointer-events: none;
+  transition: background 120ms linear;
+}
+
 /* 无障碍：尊重系统「减少动态效果」偏好 */
 @media (prefers-reduced-motion: reduce) {
   .calaura-float,
@@ -176,5 +193,11 @@
   .calaura-drift,
   .calaura-rise {
     animation: none !important;
+  }
+  .calaura-avatar-3d {
+    transition: none;
+  }
+  .calaura-avatar-sheen {
+    opacity: 0.25;
   }
 }

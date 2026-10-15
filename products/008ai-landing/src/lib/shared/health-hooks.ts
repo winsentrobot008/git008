@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   EMPTY_SNAPSHOT,
+  addHealthGrant,
   consumeHealthGate,
   emptyGateSnapshot,
   getHealthBus,
@@ -48,7 +49,11 @@ export function useHealthBus(): { snapshot: HealthBusSnapshot; ready: boolean; p
   return { snapshot, ready, publish };
 }
 
-/** Unified paywall hook: both gates, one hydration-safe read. */
+/**
+ * Unified paywall hook: both gates, one hydration-safe read. `grant` adds a
+ * durable coupon allowance and republishes the gates, so a redeemed code lifts
+ * the ceiling in the same render pass instead of on the next reload.
+ */
 export function useHealthGate(): {
   ready: boolean;
   entitled: boolean;
@@ -56,6 +61,7 @@ export function useHealthGate(): {
   consume: (gate: HealthGateKind) => HealthGateSnapshot;
   refund: (gate: HealthGateKind) => HealthGateSnapshot;
   lock: (gate: HealthGateKind) => HealthGateSnapshot;
+  grant: (gate: HealthGateKind, amount: number) => HealthGateSnapshot;
   reset: () => void;
 } {
   const [gates, setGates] = useState<HealthGateSnapshot>(emptyGateSnapshot);
@@ -82,6 +88,12 @@ export function useHealthGate(): {
     },
     lock: (gate) => {
       const next = lockHealthGate(gate);
+      setGates(next);
+      return next;
+    },
+    grant: (gate, amount) => {
+      addHealthGrant(gate, amount);
+      const next = readHealthGate();
       setGates(next);
       return next;
     },

@@ -22,7 +22,8 @@ import BestieNoteCard from "@/components/calaura/BestieNoteCard";
 import BestieHandoffCard from "@/components/calaura/BestieHandoffCard";
 import PaywallModal from "@/components/calaura/PaywallModal";
 import { balanceBriefingLine, computeBalance } from "@/lib/calaura/balance";
-import { FREE_FOOD_SCANS, MAX_IMAGE_BYTES } from "@/lib/calaura/config";
+import { FREE_FOOD_SCANS } from "@/lib/calaura/config";
+import { compressImage } from "@/lib/calaura/image-compress";
 import { RATING_META, invitesMovement, rateFood } from "@/lib/calaura/rating";
 import { BESTIES, type Bestie } from "@/lib/calaura/besties";
 import { getSessionId } from "@/lib/calaura/quota";
@@ -31,6 +32,7 @@ import { buildLoopBriefing, setPendingBriefing } from "@/lib/shared/health-bus";
 import { useHealthBus, useHealthGate } from "@/lib/shared/health-hooks";
 import { LOOP_SOURCE, type LoopLog } from "@/lib/calaura/loop";
 import { trackCalauraEvent } from "@/lib/shared/analytics";
+import { scanLabel } from "@/lib/calaura/scan-label";
 import type { FoodScanEvent, FoodScanItem, MealType, RecognizeResponse } from "@/types/health-bus";
 import { useLang } from "@/i18n/LanguageProvider";
 
@@ -41,22 +43,6 @@ const MEAL_OPTIONS: { id: MealType; labelKey: string }[] = [
   { id: "snack", labelKey: "cal.mealSnack" },
   { id: "unknown", labelKey: "cal.mealUnknown" },
 ];
-
-/** The dish the note leads with: the biggest contributor on the plate. */
-function topFoodName(items: FoodScanItem[]): string {
-  if (items.length === 0) return "";
-  return items.reduce((biggest, item) => (item.calories > biggest.calories ? item : biggest), items[0])
-    .name;
-}
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Could not read that image"));
-    reader.readAsDataURL(file);
-  });
-}
 
 export interface CalorieBestiePanelProps {
   /** Called when the user accepts the hand-off to the Fit Bestie. */
@@ -122,13 +108,10 @@ export default function CalorieBestiePanel({
         setError(t("cal.errNotImage"));
         return;
       }
-      if (file.size > MAX_IMAGE_BYTES) {
-        setError(t("cal.errTooLarge"));
-        return;
-      }
       try {
-        const dataUrl = await readAsDataUrl(file);
-        setPreview(dataUrl);
+        // Oversized camera originals are shrunk silently before review.
+        const compressed = await compressImage(file);
+        setPreview(compressed.dataUrl);
         setFileName(file.name);
         setResult(null);
         setScanEvent(null);
@@ -217,7 +200,7 @@ export default function CalorieBestiePanel({
    */
   const handleHandoff = useCallback(() => {
     if (!logged || !rating) return;
-    const label = topFoodName(logged.items);
+    const label = scanLabel(logged.items, t);
     if (latest) {
       setPendingBriefing(buildLoopBriefing(latest, balance ? balanceBriefingLine(balance) : undefined));
     }
@@ -229,7 +212,7 @@ export default function CalorieBestiePanel({
       from: LOOP_SOURCE.calorie,
     });
     onHandoff?.({ label, calories: Math.round(logged.totalCalories) });
-  }, [balance, latest, logged, onHandoff, rating]);
+  }, [balance, latest, logged, onHandoff, rating, t]);
 
   const reset = useCallback(() => {
     setPreview(null);

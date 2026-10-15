@@ -1,8 +1,21 @@
-# 008AI — Landing Page (008ai.online)
+# 008AI — 独立商业主站与支付/订阅中心（008ai.online）
 
-Crystal Pink（水晶粉）极简落地页，Manrope 字体，Next.js 16 (App Router) +
-Tailwind CSS v4。除 **008ai.online Pass** 生态外，内嵌合并后的健康产品 **CALauraAI**：
-**Calorie Bestie（卡路里知己）** + **Fit Bestie（运动知己）** 双 AI 交叉闭环，Barbie / 莫兰迪粉高阶编辑部视觉。
+> **架构定位（2026-10-03 定稿）**：008ai-landing 是 **独立商业主站与支付/订阅中心**，与食物识别后端
+> `products/calorieai` **完全解耦**——两项目各自独立构建、各自独立运行类型检查（`npx tsc --noEmit`）、
+> 各自独立部署，仅通过标准远程 HTTP Endpoint 通信（`CALORIE_AI_API_URL`）。
+> **禁止**任何跨目录读取、引用或修改 calorieai 的源码、配置与构建产物。
+
+核心功能聚焦四件事：
+
+| 核心功能 | 说明 |
+|---|---|
+| **品牌门面** | Crystal Pink（水晶粉）极简落地页，Manrope 字体，Next.js 16 (App Router) + Tailwind CSS v4；承载 008ai.online Pass 与 CALauraAI 品牌叙事 |
+| **优惠码兑换** | 玻璃输入条内直接兑换（当前公开码 `0833` → 免费额度 +10 次高清识图）；见 `src/lib/calaura/coupons.ts`，客户端额度与服务端镜像同步抬升 |
+| **支付接入** | Stripe（主）+ PayPal（兜底）双通道与 008ai.online Pass 权益发放（`src/app/api/{stripe,paypal}/*`） |
+| **轻量级体验演示** | `/calaura` 沉浸式演示表面：3D Lumi 娃娃、PhotoPreview 缩略图与 Lightbox、Canvas 无感压缩（<2MB）——只做 UI 交互与 API 客户层，不在本站内实现识别算法 |
+
+CALauraAI（**Calorie Bestie（卡路里知己）** + **Fit Bestie（运动知己）** 双 AI 交叉闭环，Barbie / 莫兰迪粉高阶编辑部视觉）
+保留为本站的体验演示产品面。
 
 ## 本地运行
 
@@ -126,6 +139,13 @@ node scripts/vercel-api-deploy.mjs
    ```
    脚本完成：拉 env → 构建 → 轮询 READY → 绑定别名 → 校验 200。
 
+### 与 calorieai 的解耦契约（`/calaura` 的边界）
+
+`/calaura` 在本站内是**纯前端 UI 交互 + 标准 API 客户层**：不 import、不读取、不写入
+`products/calorieai` 的任何源码或配置。识图能力一律经 `/api/calaura/recognize` 代理到
+`CALORIE_AI_API_URL`（独立部署的 calorieai 后端），本站只负责压缩图片、透传请求、归一化响应
+（`FoodScanItem`）与渲染结果。calorieai 侧的识图 Prompt 与算法演进不触发本站任何改动。
+
 ## CALauraAI · 双 AI 知己交叉闭环（沉浸式）
 
 `savage-cal` 与 `savage-fit` 已合并为 **CALauraAI**：一个页面、一位 AI 娃娃（Lumi）、两位闺蜜。前端是极简沉浸表面（梦幻社区背景 + 中央娃娃 + 底部毛玻璃输入条），后台仍是摄入 ⇄ 消耗双向交叉闭环。
@@ -190,3 +210,23 @@ node scripts/vercel-api-deploy.mjs
 `TTS_SUBSCRIPTION_KEY` + `TTS_REGION`（实时语音）；`CALORIE_AI_API_URL` + `CALORIE_AI_API_KEY`
 （未配置时识别接口返回 503，不伪造结果）；可选 `WEARABLES_WEBHOOK_SECRET`（配置后强制 HMAC 校验）、
 `WEARABLES_SYNC_ENABLED=false`（关闭入口）。
+
+## AI 3D 沉浸空间（`/world3d`）
+
+面向 C 端的第三个产品面，与 CALauraAI 并列在首页卡片网格（`apps.world3dTitle`）与右上角菜单（`menu.world3d`）中：
+上传一张照片或一段短视频，把它变成可环绕、平移、缩放的 3D 重建场景。
+
+| 层 | 文件 | 说明 |
+|---|---|---|
+| 路由 | `src/app/(apps)/world3d/page.tsx` | 服务端组件，只导出 metadata（英文；i18n 门禁禁止路由文件出现中文），外壳交给客户端组件 |
+| 外壳 | `src/components/world3d/World3DApp.tsx` | 状态机：校验上传 → 启动重建任务 → 进度时间线 → 完成后才切换素材来源（运行中保留当前画面，不清空视口） |
+| 上传 | `src/components/world3d/UploadDropzone.tsx` | 拖拽 / 点击选择；纯输入组件：错误码由外壳翻译，accept 列表、体积上限与文案只有一处定义 |
+| 视口 | `src/components/world3d/SplatViewport.tsx` + `splat-renderer.ts` | WebGL2 单次 draw call 的 splat 渲染：`gl_PointSize` 球体 impostor + 真实深度缓冲，无需逐帧排序或混合；无 WebGL2 时降级到 2D canvas |
+| 矩阵 | `src/lib/world3d/mat4.ts` | 手写列主序 4x4（perspective / lookAt / multiply / transformPoint），不引入第三方 3D 库 |
+| 示例场景 | `src/lib/world3d/subway-sample.ts` | 程序化生成地铁车厢采样点云（20 × 2.8 × 3.5 m，与 Unity 侧 Level 1 车厢同尺寸），同一 seed 确定性重建 |
+| 流水线 | `src/lib/world3d/pipeline.ts` | 上传校验、视频抽帧封面、阶段进度契约、点云合成 |
+
+- **零新增依赖**：视口、矩阵、渲染自持，`package.json` 未改动，构建保持 hermetic（无 WebGL 库、无 splat 运行时）。
+- **重建目前为本地模拟**：`previewCloudFor()` 会把任何素材解析为「按文件重新播种」的示例车厢场景；接入真实重建服务只需替换该函数——任务/进度契约、错误态与视口均无需改动。页面底部有对用户明示的 “Preview build” 说明，不伪装成真实算力。
+- 交互：拖拽环绕、Shift / 右键拖拽平移、滚轮或双指缩放、重置视角、采样密度三档（草稿 ≈30k / 标准 ≈68k / 高 ≈122k 采样点）。
+- 门禁：`npx tsc --noEmit` + `node scripts/check-i18n-integrity.mjs`（`world3d` 已加入 `NAMESPACES`，组件里的键字面量逐条校验）；`/world3d` 随 `npm run build` 静态预渲染。

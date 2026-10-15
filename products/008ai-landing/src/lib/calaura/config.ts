@@ -37,9 +37,6 @@ export const APP_PATH = "/calaura";
  */
 export const FREE_FOOD_SCANS = HEALTH_LIMITS.foodScans;
 
-/** Mirrors the recognition route cap so a huge upload never leaves the browser. */
-export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-
 /**
  * Hard paywall: unpaid visitors get exactly this many voice interactions per
  * session. Re-exported from the shared bus so both halves of the loop share one

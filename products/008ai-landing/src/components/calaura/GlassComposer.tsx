@@ -38,6 +38,8 @@ export interface GlassComposerProps {
   micSupported?: boolean;
   /** Rendered directly above the bar: quick cards or the "waiting for kcal" row. */
   children?: React.ReactNode;
+  /** Rendered on its own row above children: the thumbnail of a just-picked photo. */
+  preview?: React.ReactNode;
 }
 
 export default function GlassComposer({
@@ -51,6 +53,7 @@ export default function GlassComposer({
   busy = false,
   micSupported = true,
   children,
+  preview,
 }: GlassComposerProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const listening = state === "listening";
@@ -59,6 +62,7 @@ export default function GlassComposer({
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(14px,env(safe-area-inset-bottom))]">
       <div className="pointer-events-auto w-full max-w-[520px]">
+        {preview ? <div className="mb-2 flex justify-center">{preview}</div> : null}
         {children ? <div className="mb-2 flex flex-wrap justify-center gap-2">{children}</div> : null}
 
         <div className="calaura-glass flex items-center gap-1.5 rounded-[26px] px-2 py-2">

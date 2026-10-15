@@ -72,7 +72,9 @@ export const TOTAL_HEALTH_BUNDLE: TotalHealthBundle = {
 //     a reload or a new tab (Calorie Bestie -> Fit Bestie navigation),
 //   - the paywall counters and the anonymous session id stay in sessionStorage so
 //     "2 scans / 3 turns per session" keeps meaning a session,
-//   - the entitlement flag is a local cache of a server-verified pass.
+//   - the entitlement flag is a local cache of a server-verified pass,
+//   - coupon allowances live in localStorage so a redeemed promo code keeps
+//     granting its extra scans past a tab close (lib/calaura/coupons.ts).
 
 export const HEALTH_EVENT_KEY = "calaura_health_event";
 
@@ -82,6 +84,7 @@ const STATE_KEY = `${HEALTH_EVENT_KEY}:state`;
 const BRIEFING_KEY = `${HEALTH_EVENT_KEY}:briefing`;
 const SESSION_KEY = `${HEALTH_EVENT_KEY}:session`;
 const ENTITLEMENT_KEY = `${HEALTH_EVENT_KEY}:pass`;
+const GRANTS_KEY = `${HEALTH_EVENT_KEY}:grants`;
 
 const MAX_EVENTS = 60;
 
@@ -180,6 +183,50 @@ export function clearTotalHealthPass(): void {
   }
 }
 
+// ── Coupon allowances (promo grants) ────────────────────────────────────────
+//
+// A redeemed promo code (lib/calaura/coupons.ts) adds extra units on top of the
+// free tier. The allowance is a separate record from the used counter on
+// purpose: usage stays session-scoped ("2 scans / 3 turns per session"), while
+// a coupon is a durable perk that must survive a reload. A grant only raises
+// the ceiling of a gate - it never unlocks the paid bundle.
+
+export interface HealthGateGrants {
+  foodScans: number;
+  voiceTurns: number;
+}
+
+/** In-memory fallback for private mode, mirroring memoryState. */
+let memoryGrants: HealthGateGrants | null = null;
+
+function sanitizeGrant(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+
+export function readHealthGrants(): HealthGateGrants {
+  const store = safeLocal();
+  const stored = store ? readJson<Partial<HealthGateGrants>>(store, GRANTS_KEY) : memoryGrants;
+  return {
+    foodScans: sanitizeGrant(stored?.foodScans),
+    voiceTurns: sanitizeGrant(stored?.voiceTurns),
+  };
+}
+
+function writeGrants(grants: HealthGateGrants): void {
+  const store = safeLocal();
+  if (store) writeJson(store, GRANTS_KEY, grants);
+  else memoryGrants = grants;
+}
+
+/** Add a durable allowance to a gate. Used by coupon redemption. */
+export function addHealthGrant(gate: HealthGateKind, amount: number): HealthGateGrants {
+  const next: HealthGateGrants = readHealthGrants();
+  next[gate] = sanitizeGrant(next[gate] + sanitizeGrant(amount));
+  writeGrants(next);
+  return next;
+}
+
 // ── Session state + counters ────────────────────────────────────────────────
 
 function emptyState(): HealthSessionState {
@@ -230,12 +277,23 @@ function writeEvents(events: HealthEvent[]): void {
   else memoryEvents = events.slice(-MAX_EVENTS);
 }
 
-function limitFor(gate: HealthGateKind): number {
+/** Base free tier, no coupon allowance. Pure, so SSR and the first render agree. */
+function baseLimitFor(gate: HealthGateKind): number {
   return gate === "foodScans" ? HEALTH_LIMITS.foodScans : HEALTH_LIMITS.voiceTurns;
 }
 
-export function buildGateState(gate: HealthGateKind, used: number, entitled: boolean): HealthGateState {
-  const limit = limitFor(gate);
+/**
+ * Build one gate. `grants` is the durable coupon allowance; it defaults to 0
+ * because the SSR-safe empty snapshot must never read storage - a client-only
+ * limit during the first render would trip React hydration.
+ */
+export function buildGateState(
+  gate: HealthGateKind,
+  used: number,
+  entitled: boolean,
+  grants = 0
+): HealthGateState {
+  const limit = Math.max(0, baseLimitFor(gate) + grants);
   const safeUsed = Math.max(0, used);
   return {
     gate,
@@ -258,10 +316,11 @@ export function emptyGateSnapshot(): HealthGateSnapshot {
 export function readHealthGate(): HealthGateSnapshot {
   const state = readState();
   const entitled = hasTotalHealthPass();
+  const grants = readHealthGrants();
   return {
     entitled,
-    foodScans: buildGateState("foodScans", state.foodScans, entitled),
-    voiceTurns: buildGateState("voiceTurns", state.voiceTurns, entitled),
+    foodScans: buildGateState("foodScans", state.foodScans, entitled, grants.foodScans),
+    voiceTurns: buildGateState("voiceTurns", state.voiceTurns, entitled, grants.voiceTurns),
   };
 }
 
@@ -292,7 +351,7 @@ export function refundHealthGate(gate: HealthGateKind): HealthGateSnapshot {
 /** Force a gate to its limit (the server refused a turn we thought we had). */
 export function lockHealthGate(gate: HealthGateKind): HealthGateSnapshot {
   const state = readState();
-  const limit = limitFor(gate);
+  const limit = baseLimitFor(gate) + readHealthGrants()[gate];
   const next: HealthSessionState = {
     ...state,
     foodScans: gate === "foodScans" ? limit : state.foodScans,

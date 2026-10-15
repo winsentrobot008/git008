@@ -21,7 +21,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
 import { BESTIES, type BestieId } from "@/lib/calaura/besties";
-import { MAX_IMAGE_BYTES, resolveLanguage } from "@/lib/calaura/config";
+import { resolveLanguage } from "@/lib/calaura/config";
+import { compressImage } from "@/lib/calaura/image-compress";
+import { couponHeaders, redeemCoupon } from "@/lib/calaura/coupons";
 import { balanceBriefingLine, computeBalance, computeSculpt } from "@/lib/calaura/balance";
 import {
   INTAKE_PRESETS,
@@ -38,17 +40,21 @@ import { CoachApiError, type VoiceUtterance } from "@/lib/calaura/types";
 import { buildLoopBriefing, setPendingBriefing } from "@/lib/shared/health-bus";
 import { trackCalauraEvent } from "@/lib/shared/analytics";
 import { useHealthBus, useHealthGate } from "@/lib/shared/health-hooks";
+import { scanLabel } from "@/lib/calaura/scan-label";
 import type { FoodScanItem, HealthGateKind, MealType, RecognizeResponse } from "@/types/health-bus";
 import DreamDistrict from "./DreamDistrict";
 import GlassComposer from "./GlassComposer";
 import LumiAvatar from "./LumiAvatar";
 import PaywallModal from "./PaywallModal";
+import PhotoPreview from "./PhotoPreview";
 import { useVoiceEngine, type VoiceStatus } from "./use-voice-engine";
 
 interface StageLine {
   id: string;
   role: "user" | "lumi";
   text: string;
+  /** Data URL of the photo this turn carried, when the user sent one. */
+  photo?: string;
 }
 
 interface Awaiting {
@@ -77,24 +83,8 @@ function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Could not read that image"));
-    reader.readAsDataURL(file);
-  });
-}
-
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   return (await response.json().catch(() => ({}))) as Record<string, unknown>;
-}
-
-/** The dish the sentence leads with: the biggest line on the plate. */
-function topFoodName(items: FoodScanItem[]): string {
-  if (items.length === 0) return "";
-  return items.reduce((biggest, item) => (item.calories > biggest.calories ? item : biggest), items[0])
-    .name;
 }
 
 export default function CalauraStage({
@@ -107,7 +97,7 @@ export default function CalauraStage({
   const { lang, t } = useLang();
   const locale = resolveLanguage(lang);
   const { publish } = useHealthBus();
-  const { gates, consume, refund, lock } = useHealthGate();
+  const { gates, consume, refund, lock, grant } = useHealthGate();
 
   const bestie = BESTIES[bestieId];
   const [thread, setThread] = useState<StageLine[]>([]);
@@ -117,6 +107,7 @@ export default function CalauraStage({
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [paywallGate, setPaywallGate] = useState<HealthGateKind>("voiceTurns");
+  const [photo, setPhoto] = useState<string | null>(null);
 
   const historyRef = useRef<{ role: "user" | "coach"; text: string }[]>([]);
   const gatesRef = useRef(gates);
@@ -138,10 +129,12 @@ export default function CalauraStage({
     [consumedKcal, burnedKcal]
   );
 
-  const pushLine = useCallback((role: StageLine["role"], text: string) => {
+  const pushLine = useCallback((role: StageLine["role"], text: string, photo?: string) => {
     const clean = text.trim();
-    if (!clean) return;
-    setThread((previous) => [...previous, { id: makeId(role), role, text: clean }].slice(-8));
+    if (!clean && !photo) return;
+    setThread((previous) =>
+      [...previous, { id: makeId(role), role, text: clean, ...(photo ? { photo } : {}) }].slice(-8)
+    );
   }, []);
 
   const openPaywall = useCallback((gate: HealthGateKind) => {
@@ -334,6 +327,28 @@ export default function CalauraStage({
   const sendTurnRef = useRef(sendTurn);
   sendTurnRef.current = sendTurn;
 
+  /**
+   * Promo codes ride the same composer as ordinary chat but never reach the
+   * model: a matching code is redeemed in this browser, the extra photo-scan
+   * allowance is added to the gate, and Lumi answers locally. Returns the line
+   * to show, or null when the text is ordinary input.
+   */
+  const redeemCouponText = useCallback(
+    (text: string): string | null => {
+      const redemption = redeemCoupon(text);
+      if (!redemption) return null;
+      if (redemption.alreadyRedeemed) {
+        return t("stage.couponAlreadyApplied", { code: redemption.coupon.code });
+      }
+      grant("foodScans", redemption.coupon.foodScans);
+      return t("stage.couponApplied", {
+        code: redemption.coupon.code,
+        count: redemption.coupon.foodScans,
+      });
+    },
+    [grant, t]
+  );
+
   const voice = useVoiceEngine({
     bestie,
     language: locale,
@@ -341,6 +356,8 @@ export default function CalauraStage({
     handsFree: false,
     onUtterance: (utterance, emit) => {
       pushLine("user", utterance.text);
+      const couponLine = redeemCouponText(utterance.text);
+      if (couponLine) return Promise.resolve(couponLine);
       return sendTurnRef.current(utterance, emit);
     },
     onCoachReply: (text) => pushLine("lumi", text),
@@ -415,6 +432,12 @@ export default function CalauraStage({
     setDraft("");
     pushLine("user", raw);
 
+    const couponLine = redeemCouponText(raw);
+    if (couponLine) {
+      pushLine("lumi", couponLine);
+      return;
+    }
+
     const pending = awaitingRef.current;
     const explicit = extractKcal(raw);
 
@@ -449,16 +472,12 @@ export default function CalauraStage({
       return;
     }
     void askCoach(raw);
-  }, [askCoach, busy, draft, logIntake, logMovement, pushLine, t]);
+  }, [askCoach, busy, draft, logIntake, logMovement, pushLine, redeemCouponText, t]);
 
   const handlePhoto = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
         pushLine("lumi", t("cal.errNotImage"));
-        return;
-      }
-      if (file.size > MAX_IMAGE_BYTES) {
-        pushLine("lumi", t("cal.errTooLarge"));
         return;
       }
       if (gatesRef.current.foodScans.locked) {
@@ -468,11 +487,19 @@ export default function CalauraStage({
       setBusy(true);
       setError(null);
       try {
-        const image = await readAsDataUrl(file);
+        // Shrink huge camera originals before anything leaves the browser, then
+        // show the thumbnail immediately so the pick feels instant.
+        const compressed = await compressImage(file);
+        setPhoto(compressed.dataUrl);
+        pushLine("user", t("stage.photoSent"), compressed.dataUrl);
         const response = await fetch("/api/calaura/recognize", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...testKeyHeaders() },
-          body: JSON.stringify({ image, mealType: "unknown", sessionId: getSessionId() }),
+          headers: { "Content-Type": "application/json", ...testKeyHeaders(), ...couponHeaders() },
+          body: JSON.stringify({
+            image: compressed.dataUrl,
+            mealType: "unknown",
+            sessionId: getSessionId(),
+          }),
         });
         const data = await readJson(response);
         if (response.status === 402) {
@@ -481,18 +508,26 @@ export default function CalauraStage({
           return;
         }
         if (!response.ok) {
-          pushLine(
-            "lumi",
-            typeof data.detail === "string"
-              ? data.detail
-              : t("cal.errRecognitionFailed", { status: response.status })
-          );
+          // Never surface a raw "failed (502)": known upstream codes map to a
+          // warm, localized line, and only unknown errors fall back to detail.
+          const code = typeof data.code === "string" ? data.code : "";
+          const friendly =
+            code === "RECOGNITION_UNAVAILABLE"
+              ? t("cal.recognitionBusy")
+              : code === "RECOGNITION_REJECTED"
+                ? t("cal.recognitionUnclear")
+                : code === "RECOGNITION_NOT_CONFIGURED"
+                  ? t("cal.recognitionUnavailable")
+                  : typeof data.detail === "string"
+                    ? data.detail
+                    : t("cal.errRecognitionFailed", { status: response.status });
+          pushLine("lumi", friendly);
           return;
         }
         const parsed = data as unknown as RecognizeResponse;
         consume("foodScans");
         logIntake(
-          { label: topFoodName(parsed.items) || t("cal.totalLabel"), calories: parsed.totalCalories },
+          { label: scanLabel(parsed.items, t), calories: parsed.totalCalories },
           {
             source: "photo",
             provider: parsed.provider,
@@ -560,7 +595,13 @@ export default function CalauraStage({
     <>
       <DreamDistrict />
 
-      <main className="relative mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col items-center justify-between px-4 pb-40 pt-20">
+      {/* Bottom clearance follows the composer: the enlarged 96px preview plus
+          the preset row needs ~268px, or the sculpt chips sit underneath it. */}
+      <main
+        className={`relative mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col items-center justify-between px-4 pt-14 ${
+          photo ? "pb-[268px]" : "pb-44"
+        }`}
+      >
         <div className="flex flex-col items-center">
           <LumiAvatar
             state={state}
@@ -578,22 +619,31 @@ export default function CalauraStage({
           </p>
         </div>
 
-        <div className="mt-6 w-full space-y-2" aria-live="polite">
+        <div className="mt-6 w-full space-y-2.5" aria-live="polite">
           {visible.map((line) =>
             line.role === "lumi" ? (
               <p
                 key={line.id}
-                className="calaura-rise mx-auto max-w-[420px] rounded-[22px] rounded-bl-md border border-white/70 bg-white/55 px-4 py-3 text-center text-[13px] font-semibold leading-relaxed text-ink shadow-[0_10px_30px_-18px_rgba(169,132,144,0.75)] backdrop-blur-xl"
+                className="calaura-rise mx-auto max-w-[468px] rounded-[24px] rounded-bl-md border border-white/70 bg-white/60 px-5 py-3.5 text-center text-[14px] font-semibold leading-relaxed text-ink shadow-[0_12px_34px_-18px_rgba(169,132,144,0.78)] backdrop-blur-xl"
               >
                 {line.text}
               </p>
             ) : (
-              <p
+              <div
                 key={line.id}
-                className="calaura-rise ml-auto max-w-[340px] rounded-[20px] rounded-br-md bg-gradient-to-br from-pink-400/90 to-rose-400/90 px-4 py-2.5 text-right text-[12px] font-semibold leading-relaxed text-white shadow-lg shadow-pink-300/40"
+                className="calaura-rise ml-auto flex w-fit max-w-[420px] items-end justify-end gap-2.5"
               >
-                {line.text}
-              </p>
+                {line.photo ? (
+                  <img
+                    src={line.photo}
+                    alt={t("stage.photoPreviewAlt")}
+                    className="h-20 w-20 shrink-0 rounded-2xl border border-white/70 object-cover shadow-[0_10px_24px_-12px_rgba(236,72,153,0.9)]"
+                  />
+                ) : null}
+                <span className="rounded-[22px] rounded-br-md bg-gradient-to-br from-pink-400/90 to-rose-400/90 px-5 py-3 text-right text-[13.5px] font-semibold leading-relaxed text-white shadow-lg shadow-pink-300/40">
+                  {line.text}
+                </span>
+              </div>
             )
           )}
         </div>
@@ -633,6 +683,23 @@ export default function CalauraStage({
         state={state}
         busy={busy}
         micSupported={voice.recognitionSupported}
+        preview={
+          photo ? (
+            <PhotoPreview
+              src={photo}
+              alt={t("stage.photoPreviewAlt")}
+              labels={{
+                enlarge: t("stage.photoEnlarge"),
+                remove: t("stage.photoRemove"),
+                replace: t("stage.photoReplace"),
+                close: t("stage.photoClose"),
+              }}
+              onRemove={() => setPhoto(null)}
+              onReplace={(file) => void handlePhoto(file)}
+              busy={busy}
+            />
+          ) : null
+        }
       >
         {chips.map((chip) => (
           <button
