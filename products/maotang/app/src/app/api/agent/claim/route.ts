@@ -10,6 +10,8 @@
 
 import { createHash } from "node:crypto";
 
+import { isSecurityHoldEngaged, securityHoldResponse } from "@/lib/system/security-hold";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,10 @@ function refusal(code: string, reason: string, status = 422): Response {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (isSecurityHoldEngaged()) {
+    return securityHoldResponse();
+  }
+
   let body: unknown;
   try {
     body = await request.json();

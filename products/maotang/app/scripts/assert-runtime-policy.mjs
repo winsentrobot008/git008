@@ -700,3 +700,61 @@ test("G. no visible string bypasses the dictionary", () => {
   );
   assert.deepEqual(unknownKeys, [], "every t(...) call must name a key the dictionary has");
 });
+
+// H. the fail-closed security hold
+//
+// The hold is the one control that must still work when the rest of the runtime is suspect. These
+// assertions pin the two properties a future refactor could quietly remove: the check runs before a
+// body is parsed or the runtime is built, and the switch fails safe on an unrecognised value.
+
+const SECURITY_HOLD = path.join(appRoot, "src", "lib", "system", "security-hold.ts");
+const CLAIM_ROUTE = path.join(appRoot, "src", "app", "api", "agent", "claim", "route.ts");
+const securityHoldSource = readFileSync(SECURITY_HOLD, "utf8");
+const claimRoute = readFileSync(CLAIM_ROUTE, "utf8");
+
+test("H. the security hold is default-off and fails safe on a typo", () => {
+  assert.match(securityHoldSource, /const DISENGAGED = new Set\(\["0", "false", "no", "off"\]\);/);
+  assert.match(securityHoldSource, /if \(raw === ""\) \{\s*return false;/s);
+  assert.match(securityHoldSource, /return !DISENGAGED\.has\(raw\);/);
+  assert.match(securityHoldSource, /code: "SECURITY_HALTED"/);
+});
+
+test("H. the claim route halts before reading a body", () => {
+  const check = claimRoute.indexOf("isSecurityHoldEngaged()");
+  const parse = claimRoute.indexOf("await request.json()");
+  assert.notEqual(check, -1, "the claim route must consult the security hold");
+  assert.notEqual(parse, -1, "the claim route must still parse its body on the normal path");
+  assert.ok(check < parse, "the hold check must run before the body is read");
+  assert.match(claimRoute, /return securityHoldResponse\(\);/);
+});
+
+test("H. the intent route halts before the runtime is built", () => {
+  const check = intentRoute.indexOf("isSecurityHoldEngaged()");
+  const build = intentRoute.indexOf("createRuntime()");
+  assert.notEqual(check, -1, "the intent route must consult the security hold");
+  assert.notEqual(build, -1, "the intent route must still build the runtime on the normal path");
+  assert.ok(check < build, "the hold check must run before the runtime is built");
+  assert.match(intentRoute, /return securityHoldResponse\(\);/);
+});
+
+test("H. the hold is documented and /v1/broadcast is a hard 404", () => {
+  assert.match(envExample, /^MAOTANG_SECURITY_HOLD=0$/m, ".env.example must ship the default");
+
+  const broadcastRoute = readFileSync(
+    path.join(appRoot, "src", "app", "v1", "broadcast", "route.ts"),
+    "utf8",
+  );
+  assert.match(broadcastRoute, /status: 404/, "the denial must be a real 404");
+  for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]) {
+    assert.match(
+      broadcastRoute,
+      new RegExp(`export const ${method} = denied;`),
+      `${method} must be denied by name`,
+    );
+  }
+  assert.doesNotMatch(
+    broadcastRoute,
+    /createRuntime|signIntent|eth_sendRawTransaction/,
+    "the denied surface must not reach a signing or broadcast primitive",
+  );
+});

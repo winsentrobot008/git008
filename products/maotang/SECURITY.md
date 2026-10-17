@@ -34,6 +34,23 @@ Out of scope: vulnerabilities in third-party dependencies (report them upstream,
 so we can pin), the behaviour of the quantized model weights themselves, social engineering,
 denial of service against a public JSON-RPC provider, and anything already public.
 
+## Fail-closed security hold
+
+The app ships a reversible, server-side hold controlled by `MAOTANG_SECURITY_HOLD`. When it is
+engaged, `/api/agent/intent` and `/api/agent/claim` answer `503 SECURITY_HALTED` before reading a
+request body or constructing the wallet runtime. `/v1/broadcast` is a named route that returns
+`404` for every method; there is no browser broadcast path to disable.
+
+The hold is **non-destructive**. It does not delete keys, wipe data, change on-chain state or
+rotate credentials. Releasing it restores normal operation. An unrecognised non-empty value
+engages the hold, so a typo fails safe; an absent value or `0`/`false`/`no`/`off` disengages it.
+
+Changing a Vercel environment variable requires a redeploy, so the hold is a containment layer,
+not a sub-second control. For immediate containment use the provider firewall, a rollback to the
+last known-good deployment, or DNS controls, then engage the hold and rotate any exposed secret.
+Key rotation, incident evidence preservation and user communication are separate runbook steps and
+are never automated by this switch.
+
 ## Threat model
 
 - The adversary can observe and modify all network traffic, may operate a malicious

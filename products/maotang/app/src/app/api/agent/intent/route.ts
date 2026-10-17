@@ -26,6 +26,7 @@
 import type { SlmInferenceResult, TranslatedIntent } from "@maotang/mobile-agent/dist/slm/index.js";
 
 import { createRuntime, toRefusal } from "@/lib/agent/runtime";
+import { isSecurityHoldEngaged, securityHoldResponse } from "@/lib/system/security-hold";
 
 import type { AgentRefusal, AgentRefusalStage, IntentResponse, SignedReport } from "@/lib/agent/types";
 
@@ -74,6 +75,10 @@ interface IntentRequest {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (isSecurityHoldEngaged()) {
+    return securityHoldResponse();
+  }
+
   let body: IntentRequest;
   try {
     body = (await request.json()) as IntentRequest;
