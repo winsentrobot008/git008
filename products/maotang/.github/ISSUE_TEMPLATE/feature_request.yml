@@ -1,0 +1,60 @@
+name: Feature or design proposal
+description: Propose a capability, a module or a change to an interface contract
+title: "[proposal] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals that change a guardrail, an interface contract or a fail-closed default need to say
+        how the refusal path still holds. If your change makes something *possible* that was
+        previously impossible, that is the part to justify.
+  - type: dropdown
+    id: pillar
+    attributes:
+      label: Pillar
+      options:
+        - M1 Edge SLM and cell division
+        - M2 Autonomous local wallet
+        - M3 Yield, sustenance and mining
+        - M4 Mobile light node and RPC guard
+        - M5 Bio-sovereign anti-sybil
+        - Cross-pillar or tooling
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What cannot be done today, and why it matters to the biological owner.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: The proposal
+    validations:
+      required: true
+  - type: textarea
+    id: refusal
+    attributes:
+      label: Effect on the refusal paths
+      description: Which defaults change, and what still refuses when the new backend or input is missing or malicious.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: checkboxes
+    id: acknowledges
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have read the relevant module contract in docs and the matching ADR in memory.
+          required: true
+        - label: This proposal does not weaken a fail-closed default without saying so explicitly above.
+          required: true

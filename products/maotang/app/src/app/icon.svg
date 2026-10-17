@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="MAOTANG">
+  <rect width="32" height="32" rx="7.5" fill="#f4f6fa"/>
+  <g fill="none" stroke="#334155" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 23.5V10.5l9 8.5 9-8.5v13"/>
+    <path d="M7 10.5 8.4 4.8 12.6 8"/>
+    <path d="M25 10.5 23.6 4.8 19.4 8"/>
+    <path d="M4 16.6h3.2"/>
+    <path d="M24.8 16.6H28"/>
+  </g>
+</svg>

@@ -1,0 +1,29 @@
+# --- Solidity / Foundry build artifacts ---
+out/
+cache/
+broadcast/
+artifacts/
+typechain-types/
+coverage/
+lcov.info
+
+# --- Node / Next.js build artifacts ---
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+
+# --- Environment and secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Runtime state written by the alpha launchers (logs, video promos) ---
+runtime_data/
+
+# --- OS / editor metadata ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

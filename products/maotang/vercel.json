@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "maotang-frontend": {
+      "root": "app",
+      "framework": "nextjs",
+      "installCommand": "npm --prefix ../mobile-agent install && npm --prefix ../mobile-agent run build && npm --prefix ../sdk install && npm --prefix ../sdk run build && npm install",
+      "buildCommand": "npm run build"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "maotang-frontend"
+      }
+    }
+  ]
+}

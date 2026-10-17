@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/winsentrobot008/git008/security/advisories/new
+    about: Report privately. Never open a public issue for a key-handling, enclave or policy bypass.
+  - name: Architecture and decision records
+    url: https://github.com/winsentrobot008/git008/blob/main/memory/ARCHITECTURE_DECISIONS.md
+    about: Read the ADRs before proposing a change to a guardrail or an interface contract.
