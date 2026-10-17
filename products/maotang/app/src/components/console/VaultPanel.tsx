@@ -16,6 +16,7 @@
 import { useCallback, useState } from "react";
 
 import { BrandMark } from "@/components/console/BrandMark";
+import { PaymasterQuota } from "@/components/console/PaymasterQuota";
 import { formatWeiAsEth, shortHex, type AgentStatus } from "@/lib/agent/client";
 import { formatQuotaUnits, denominate } from "@/lib/agent/quota-view";
 import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
@@ -97,6 +98,8 @@ export interface VaultPanelProps {
   readonly onIntent: (text: string) => void;
   /** Opens the secondary AI Node surface. */
   readonly onOpenAgent?: (() => void) | null;
+  /** True once this session produced a user-verified, hardware-backed device assertion. */
+  readonly paymasterVerified?: boolean;
 }
 
 interface AssetRowProps {
@@ -135,6 +138,7 @@ export function VaultPanel({
   updatedAt = null,
   onIntent,
   onOpenAgent = null,
+  paymasterVerified = false,
 }: VaultPanelProps) {
   const { t } = useLanguage();
   const [open, setOpen] = useState<WalletAction | null>(null);
@@ -221,6 +225,8 @@ export function VaultPanel({
           {status === null ? NO_VALUE : `${t("sheet.chain")} ${status.deployment.chainId ?? NO_VALUE}`}
         </p>
       </header>
+
+      <PaymasterQuota verified={paymasterVerified} className="mt-4" />
 
       <div className="mt-5 rounded-[24px] border border-white/80 bg-white/55 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
         <div className="flex items-start justify-between gap-3">

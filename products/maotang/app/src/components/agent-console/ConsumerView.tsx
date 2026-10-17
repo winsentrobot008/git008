@@ -26,6 +26,7 @@ import {
 } from "@/components/agent-console/biometric-ux";
 import { AgentPanel } from "@/components/console/AgentPanel";
 import { FingerprintMark } from "@/components/console/BrandMark";
+import type { ClaimState } from "@/components/console/ClaimCard";
 import { DeChatPanel } from "@/components/console/DeChatPanel";
 import { VaultPanel } from "@/components/console/VaultPanel";
 import {
@@ -37,6 +38,7 @@ import {
   type AgentStatus,
 } from "@/lib/agent/client";
 import { useBiometricOwner } from "@/lib/agent/biometric-session";
+import { deriveCommsAlias } from "@/lib/agent/identity";
 import {
   type ConsoleMode,
   type ConsoleView,
@@ -44,7 +46,7 @@ import {
   type PolicyEventStage,
 } from "@/lib/agent/console-mode";
 import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
-import type { AgentRefusal, IntentSuccess } from "@/lib/agent/types";
+import type { AgentRefusal, Hex, IntentSuccess } from "@/lib/agent/types";
 import { useLanguage } from "@/lib/i18n/language";
 
 /** Rendered when a value has not landed yet. Never a fabricated zero. */
@@ -57,6 +59,14 @@ const NO_VALUE = "\u2014";
  * owner flips the interface language.
  */
 const CREDENTIAL_LABEL = "猫糖 Web Agent OS";
+
+/** A fresh 32-byte challenge for the one claim assertion; never reused across taps. */
+function randomChallenge(): Hex {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const body = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `0x${body}` as Hex;
+}
 
 type StatusState =
   | { readonly kind: "loading" }
@@ -103,6 +113,15 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [policyLog, setPolicyLog] = useState<readonly PolicyEvent[]>([]);
   const [interactionView, setInteractionView] = useState<ConsoleView>(view);
+  const [claimState, setClaimState] = useState<ClaimState>({ phase: "idle" });
+  const [referral, setReferral] = useState<string | null>(null);
+  const [shareOrigin, setShareOrigin] = useState<string | null>(null);
+  /**
+   * Once a device assertion reports user-verified + hardware-backed, keep that fact for the tab
+   * session. `session.reset()` clears the assertion body on tab changes; this latch only preserves the
+   * status the Paymaster indicator shows and never substitutes for a per-transaction assertion.
+   */
+  const [hardwareVerified, setHardwareVerified] = useState(false);
 
   const session = useBiometricOwner();
   const toasts = useToastQueue();
@@ -113,8 +132,18 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     setRefusal(null);
     setLocalNote(null);
     setConfirmOpen(false);
+    setClaimState({ phase: "idle" });
     resetSession();
   }, [resetSession]);
+
+  // The browser origin is only known after mount. `ref` is a display/referral hint, never an
+  // authorization input, so it is validated against the same comms-alias grammar before rendering.
+  useEffect(() => {
+    setShareOrigin(window.location.origin);
+    const raw = new URLSearchParams(window.location.search).get("ref");
+    const ref = raw === null ? "" : raw.trim().toLowerCase();
+    setReferral(/^[a-z0-9]{1,32}$/.test(ref) ? ref : null);
+  }, []);
 
   // The bottom tab bar lives in `ConsoleShell`. This effect is the one place an external tab change
   // clears the previous panel's preview, refusal, confirmation sheet and biometric assertion.
@@ -308,6 +337,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
       recordPolicy(interactionView, "biometric", outcome.failure.code, summary, false);
       return;
     }
+    setHardwareVerified(outcome.assertion.userVerified && outcome.assertion.hardwareBacked);
     const { tone, message } = biometricSuccessToast(outcome.assertion, language);
     toasts.push(tone, message);
     recordPolicy(interactionView, "biometric", "BIO_VERIFIED", summary, true);
@@ -337,10 +367,91 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     toasts.push(tone, message);
   }, [language, session, t, toasts]);
 
+  // -- cold-start claim ---------------------------------------------------------------------------
+
+  const handleClaim = useCallback(() => {
+    if (claimState.phase === "authorizing" || claimState.phase === "settling") {
+      return;
+    }
+    const currentOwner =
+      statusState.kind === "ready" ? statusState.status.deployment.owner : null;
+    const claimAlias = deriveCommsAlias(currentOwner);
+    if (claimAlias === null || session.credentialId === null) {
+      setClaimState({ phase: "error", code: "IDENTITY_NOT_READY" });
+      return;
+    }
+
+    const challenge = randomChallenge();
+    // Nothing is awaited before `authorize`: WebAuthn needs this tap's transient user activation.
+    const pending = session.authorize(challenge, t("claim.title"));
+    setClaimState({ phase: "authorizing" });
+
+    void (async () => {
+      const outcome = await pending;
+      if (!outcome.ok) {
+        const { tone, message } = biometricFailureToast(outcome.failure, language);
+        toasts.push(tone, message);
+        setClaimState({ phase: "error", code: outcome.failure.code });
+        return;
+      }
+      if (outcome.assertion.userVerified !== true || outcome.assertion.hardwareBacked !== true) {
+        setClaimState({ phase: "error", code: "BIO_NOT_VERIFIED" });
+        return;
+      }
+
+      setHardwareVerified(true);
+      setClaimState({ phase: "settling" });
+      try {
+        const response = await fetch("/api/agent/claim", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({
+            alias: claimAlias,
+            credentialId: outcome.assertion.credentialId,
+            nullifier: outcome.assertion.nullifier,
+            challenge: outcome.assertion.challenge,
+            userVerified: outcome.assertion.userVerified,
+            hardwareBacked: outcome.assertion.hardwareBacked,
+          }),
+        });
+        const payload = (await response.json()) as
+          | {
+              readonly ok?: boolean;
+              readonly code?: string;
+              readonly claim?: { readonly id?: string; readonly alias?: string };
+            }
+          | null;
+        if (
+          !response.ok ||
+          payload?.ok !== true ||
+          typeof payload.claim?.id !== "string" ||
+          typeof payload.claim.alias !== "string"
+        ) {
+          setClaimState({ phase: "error", code: payload?.code ?? `HTTP_${response.status}` });
+          return;
+        }
+        setClaimState({
+          phase: "requested",
+          ticket: payload.claim.id,
+          alias: payload.claim.alias,
+        });
+        toasts.push("success", t("claim.requested"));
+      } catch {
+        setClaimState({ phase: "error", code: "CLAIM_UNREACHABLE" });
+      }
+    })();
+  }, [claimState.phase, language, session, statusState, t, toasts]);
+
   // -- render -----------------------------------------------------------------------------------
 
   const status = statusState.kind === "ready" ? statusState.status : null;
   const owner = status?.deployment.owner ?? null;
+  const alias = deriveCommsAlias(owner);
+  const shareUrl =
+    shareOrigin === null || alias === null
+      ? null
+      : `${shareOrigin}/dechat?ref=${encodeURIComponent(alias)}`;
   const fallback = biometricFallbackCopy(session.capability, language);
   const canConfirm = session.credentialId !== null && session.capability?.platformAuthenticator === true;
   const statusError =
@@ -411,6 +522,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
             updatedAt={statusReadAt}
             onIntent={(text) => void submit(text, "vault")}
             onOpenAgent={() => switchView("agent")}
+            paymasterVerified={hardwareVerified}
           />
         ) : view === "dechat" ? (
           <DeChatPanel
@@ -426,6 +538,11 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
               onEnroll: () => void enroll(),
             }}
             onPay={(sentence) => void submit(sentence, "dechat")}
+            shareUrl={shareUrl}
+            referral={referral}
+            claim={claimState}
+            onClaim={handleClaim}
+            paymasterVerified={hardwareVerified}
           />
         ) : (
           <AgentPanel

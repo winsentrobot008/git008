@@ -17,7 +17,11 @@
 import { useCallback, useRef, useState } from "react";
 
 import { FingerprintMark } from "@/components/console/BrandMark";
+import type { ConsoleBiometricState } from "@/components/console/biometric-view";
+import { ClaimCard, type ClaimState } from "@/components/console/ClaimCard";
+import { PaymasterQuota } from "@/components/console/PaymasterQuota";
 import { shortHex, type AgentStatus } from "@/lib/agent/client";
+import { deriveCommsAlias } from "@/lib/agent/identity";
 import type { MessageKey } from "@/lib/i18n/dictionary";
 import { useLanguage } from "@/lib/i18n/language";
 
@@ -61,17 +65,11 @@ interface DeChatMessage {
 /**
  * The subset of the shared biometric session the header needs.
  *
- * Passing fields instead of the hook itself keeps this panel presentational and guarantees it cannot
- * enroll, assert or reset a second time behind `ConsumerView`'s back.
+ * Re-exported under the old name for compatibility. Passing fields instead of the hook itself keeps
+ * this panel presentational and guarantees it cannot enroll, assert or reset a second time behind
+ * `ConsumerView`'s back.
  */
-export interface DeChatBiometricState {
-  readonly credentialId: string | null;
-  readonly platformAuthenticator: boolean;
-  readonly busy: boolean;
-  readonly userVerified: boolean;
-  readonly hardwareBacked: boolean;
-  readonly onEnroll: () => void;
-}
+export type DeChatBiometricState = ConsoleBiometricState;
 
 export interface DeChatPanelProps {
   /** The live server report, or `null` while the first read is in flight. */
@@ -84,6 +82,16 @@ export interface DeChatPanelProps {
   readonly bio: DeChatBiometricState;
   /** Forwards the M1 sentence to `ConsumerView.submit`; never signs or broadcasts here. */
   readonly onPay: (sentence: string) => void;
+  /** Absolute `/dechat?ref=<alias>` URL, or `null` until the browser origin is known. */
+  readonly shareUrl: string | null;
+  /** The `ref` value that brought this visit in, if any. */
+  readonly referral: string | null;
+  /** The claim request state machine owned by `ConsumerView`. */
+  readonly claim: ClaimState;
+  /** Forwards the tap; `ConsumerView` raises the one shared Face ID assertion. */
+  readonly onClaim: () => void;
+  /** True once this tab session produced a user-verified, hardware-backed assertion. */
+  readonly paymasterVerified?: boolean;
 }
 
 function badgeTone(bio: DeChatBiometricState): BadgeTone {
@@ -128,6 +136,11 @@ export function DeChatPanel({
   busy,
   bio,
   onPay,
+  shareUrl,
+  referral,
+  claim,
+  onClaim,
+  paymasterVerified,
 }: DeChatPanelProps) {
   const { t } = useLanguage();
   const [messages, setMessages] = useState<readonly DeChatMessage[]>([]);
@@ -136,14 +149,13 @@ export function DeChatPanel({
   const [amount, setAmount] = useState("0.05");
   const sequence = useRef(0);
 
-  const owner = status?.deployment.owner ?? null;
-  const alias =
-    owner === null ? null : owner.replace(/^0x/i, "").slice(0, 6).toLowerCase() || null;
+  const alias = deriveCommsAlias(status?.deployment.owner ?? null);
   const destination = status?.policy.allowedDestinations[0] ?? null;
 
   const tone = badgeTone(bio);
   const badge = BADGE[tone];
   const canEnroll = tone === "pending" && bio.platformAuthenticator;
+  const gasVerified = paymasterVerified ?? (bio.userVerified && bio.hardwareBacked);
 
   const trimmedAmount = amount.trim();
   const amountOk = AMOUNT.test(trimmedAmount);
@@ -202,6 +214,11 @@ export function DeChatPanel({
         </span>
       </header>
 
+      <PaymasterQuota
+        verified={gasVerified}
+        className="mt-3"
+      />
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {canEnroll ? (
           <button
@@ -245,6 +262,16 @@ export function DeChatPanel({
           <p className="mt-1 text-[11px] leading-relaxed text-amber-700/80">{statusError.reason}</p>
         </div>
       )}
+
+      <ClaimCard
+        alias={alias}
+        shareUrl={shareUrl}
+        referral={referral}
+        bio={bio}
+        state={claim}
+        onClaim={onClaim}
+        className="mt-4"
+      />
 
       <div className="mt-4 grid gap-2.5" aria-live="polite">
         <article className="rounded-2xl border border-dashed border-[#ffb6c1]/80 bg-[rgba(255,255,255,0.55)] px-3.5 py-3 backdrop-blur-xl">

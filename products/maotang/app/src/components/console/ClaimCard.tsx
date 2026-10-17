@@ -1,0 +1,272 @@
+"use client";
+
+/**
+ * The cold-start social card: identity, QR/deep link and a Face ID-gated claim request.
+ *
+ * The card never calls the biometric hook and never mints anything. `ConsumerView` owns the one
+ * shared session, asks the device for an assertion and posts the resulting client-side handle to
+ * `/api/agent/claim`; the route returns a claim *request* ticket and says explicitly that no faucet
+ * is configured. That keeps the viral surface honest: a visitor sees 10 MAOTANG and a ticket, not a
+ * fabricated on-chain balance.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+
+import type { ConsoleBiometricState } from "@/components/console/biometric-view";
+import { FingerprintMark } from "@/components/console/BrandMark";
+import { useLanguage } from "@/lib/i18n/language";
+
+/** The claim state machine owned by `ConsumerView`. */
+export type ClaimState =
+  | { readonly phase: "idle" }
+  | { readonly phase: "authorizing" }
+  | { readonly phase: "settling" }
+  | { readonly phase: "requested"; readonly ticket: string; readonly alias: string }
+  | { readonly phase: "error"; readonly code: string };
+
+export interface ClaimCardProps {
+  /** The manifest-derived comms alias, without the `.008ai` suffix. */
+  readonly alias: string | null;
+  /** Absolute `/dechat?ref=<alias>` URL. `null` until the browser origin and identity are known. */
+  readonly shareUrl: string | null;
+  /** The `ref` value from the deep link, if this visit arrived through a shared card. */
+  readonly referral: string | null;
+  /** The shared biometric session fields, passed down from `ConsumerView`. */
+  readonly bio: ConsoleBiometricState;
+  readonly state: ClaimState;
+  /** Forwards the tap to `ConsumerView`, which calls `session.authorize` without an intervening await. */
+  readonly onClaim: () => void;
+  readonly className?: string;
+}
+
+function QrGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="3.5" width="6" height="6" rx="1" />
+      <rect x="14.5" y="3.5" width="6" height="6" rx="1" />
+      <rect x="3.5" y="14.5" width="6" height="6" rx="1" />
+      <path d="M14.5 14.5h2.5v2.5h-2.5zM19.5 14.5H21v2.5M14.5 19.5H21" />
+    </svg>
+  );
+}
+
+export function ClaimCard({
+  alias,
+  shareUrl,
+  referral,
+  bio,
+  state,
+  onClaim,
+  className = "",
+}: ClaimCardProps) {
+  const { t } = useLanguage();
+  const [copied, setCopied] = useState(false);
+
+  const identity = alias === null ? null : `${alias}.008ai`;
+  const requested = state.phase === "requested";
+  const busy = state.phase === "authorizing" || state.phase === "settling" || bio.busy;
+  const canEnroll = alias !== null && bio.platformAuthenticator && bio.credentialId === null;
+  const canClaim = alias !== null && bio.platformAuthenticator && bio.credentialId !== null;
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = window.setTimeout(() => setCopied(false), 2200);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const copy = useCallback(async () => {
+    if (shareUrl === null || typeof navigator === "undefined" || navigator.clipboard === undefined) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }, [shareUrl]);
+
+  const share = useCallback(async () => {
+    if (shareUrl === null || identity === null) {
+      return;
+    }
+    const payload = {
+      title: t("claim.shareTitle"),
+      text: t("claim.shareText", { alias: identity }),
+      url: shareUrl,
+    };
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share(payload);
+        return;
+      } catch (error) {
+        if ((error as { name?: string } | null)?.name === "AbortError") {
+          return;
+        }
+      }
+    }
+    await copy();
+  }, [copy, identity, shareUrl, t]);
+
+  const statusText =
+    state.phase === "authorizing"
+      ? t("claim.authorizing")
+      : state.phase === "settling"
+        ? t("claim.settling")
+        : null;
+
+  return (
+    <section className={"rounded-3xl border border-white/80 bg-[rgba(255,255,255,0.58)] px-3.5 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_14px_30px_-22px_rgba(224,127,150,0.9)] backdrop-blur-xl " + className}>
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#b06a80]">
+            {t("claim.badge")}
+          </p>
+          <h2 className="mt-1 text-[1.05rem] font-semibold leading-tight text-slate-900">
+            {t("claim.title")}
+          </h2>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-slate-500">{t("claim.subtitle")}</p>
+        </div>
+        <span className="shrink-0 rounded-full border border-[#ffb6c1]/80 bg-[rgba(255,240,243,0.9)] px-2.5 py-1 font-mono text-[10px] font-semibold text-[#8f5568]">
+          {t("claim.amount")}
+        </span>
+      </header>
+
+      {referral === null ? null : (
+        <p className="mt-2.5 rounded-xl border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.82)] px-3 py-2 text-[10.5px] leading-relaxed text-[#8f5568]">
+          {t("claim.referral", { ref: referral })}
+        </p>
+      )}
+
+      <div className="mt-3.5 flex items-center gap-3">
+        <div className="shrink-0">
+          {shareUrl === null ? (
+            <div className="flex h-[124px] w-[124px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#ffb6c1]/80 bg-white/55 px-2 text-center text-[9px] leading-relaxed text-slate-400">
+              <span className="text-[#b06a80]">
+                <QrGlyph />
+              </span>
+              <span className="mt-1">{t("claim.qrPending")}</span>
+            </div>
+          ) : (
+            <div
+              role="img"
+              aria-label={t("claim.qrLabel")}
+              className="rounded-2xl border border-white/90 bg-[#fffafb] p-2 shadow-[0_8px_18px_-14px_rgba(107,63,77,0.55)]"
+            >
+              <QRCodeSVG
+                value={shareUrl}
+                size={108}
+                level="M"
+                bgColor="#fffafb"
+                fgColor="#6b3f4d"
+                marginSize={2}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            {t("claim.identityLabel")}
+          </p>
+          <p className="mt-1 break-all font-mono text-[11.5px] font-semibold text-slate-800">
+            {identity ?? t("claim.identityPending")}
+          </p>
+          <p className="mt-1 text-[9.5px] leading-relaxed text-slate-400">{t("claim.identityNote")}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => void copy()}
+              disabled={shareUrl === null}
+              className="inline-flex min-h-10 touch-manipulation items-center justify-center rounded-full border border-[#ffb6c1]/70 bg-white/80 px-2.5 text-[10px] font-medium text-[#8f5568] transition hover:bg-white active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {copied ? t("claim.copied") : t("claim.copy")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void share()}
+              disabled={shareUrl === null}
+              className="inline-flex min-h-10 touch-manipulation items-center justify-center rounded-full border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.85)] px-2.5 text-[10px] font-medium text-[#8f5568] transition hover:bg-[rgba(255,182,193,0.35)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {t("claim.share")}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl border border-white/85 bg-white/65 px-3.5 py-3">
+        <div>
+          <p className="text-[9px] uppercase tracking-[0.14em] text-slate-400">
+            {t("claim.rewardLabel")}
+          </p>
+          <p className="mt-0.5 font-mono text-[1.3rem] font-semibold leading-none text-[#6b3f4d]">
+            {t("claim.amount")}
+          </p>
+        </div>
+        <span className="max-w-[52%] text-right text-[9px] leading-relaxed text-slate-400">
+          {t("claim.previewNote")}
+        </span>
+      </div>
+
+      {state.phase === "error" ? (
+        <p className="mt-2.5 rounded-xl border border-rose-300/70 bg-rose-50/80 px-3 py-2 text-[10px] leading-relaxed text-rose-800">
+          {t("claim.error", { code: state.code })}
+        </p>
+      ) : null}
+
+      {requested ? (
+        <div className="mt-3 rounded-2xl border border-emerald-300/70 bg-emerald-50/80 px-3.5 py-3" role="status" aria-live="polite">
+          <p className="text-[11px] font-semibold text-emerald-800">{t("claim.requested")}</p>
+          <p className="mt-1 break-all font-mono text-[9.5px] text-emerald-700">
+            {t("claim.ticket", { ticket: state.ticket })}
+          </p>
+          <p className="mt-1 text-[9.5px] leading-relaxed text-emerald-700/80">
+            {t("claim.pendingSettlement")}
+          </p>
+        </div>
+      ) : null}
+
+      {requested ? null : bio.platformAuthenticator ? (
+        canEnroll ? (
+          <button
+            type="button"
+            onClick={bio.onEnroll}
+            disabled={busy || alias === null}
+            className="mt-3 inline-flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-full border border-white/80 bg-[rgba(255,240,243,0.95)] px-4 text-[12.5px] font-semibold text-[#8f5568] shadow-[0_10px_24px_-18px_rgba(224,127,150,0.9)] transition hover:bg-[rgba(255,182,193,0.45)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FingerprintMark />
+            {t("claim.enroll")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onClaim}
+            disabled={busy || !canClaim}
+            className="mt-3 inline-flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-full border border-white/80 bg-slate-900 px-4 text-[12.5px] font-semibold text-white shadow-[0_10px_26px_-12px_rgba(15,23,42,0.6)] transition hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="text-white/80">
+              <FingerprintMark />
+            </span>
+            {statusText ?? t("claim.claim")}
+          </button>
+        )
+      ) : (
+        <p className="mt-3 rounded-xl border border-amber-300/70 bg-amber-50/75 px-3 py-2 text-[10px] leading-relaxed text-amber-800">
+          {bio.busy ? t("claim.checking") : t("claim.noPlatform")}
+        </p>
+      )}
+    </section>
+  );
+}
