@@ -120,7 +120,7 @@ function badgeTone(bio: DeChatBiometricState): BadgeTone {
   if (bio.userVerified && bio.hardwareBacked) {
     return "verified";
   }
-  if (!bio.platformAuthenticator) {
+  if (!bio.canAttempt) {
     return "unavailable";
   }
   if (bio.credentialId === null) {
@@ -177,7 +177,7 @@ export function DeChatPanel({
 
   const tone = badgeTone(bio);
   const badge = BADGE[tone];
-  const canEnroll = tone === "pending" && bio.platformAuthenticator;
+  const canEnroll = tone === "pending" && bio.canAttempt;
 
   const togglePay = useCallback(() => {
     setPayOpen((open) => {

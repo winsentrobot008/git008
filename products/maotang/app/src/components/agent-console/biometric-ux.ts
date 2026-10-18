@@ -32,7 +32,7 @@ export function biometricFallbackCopy(
   capability: BiometricCapability | null,
   language: Language,
 ): string | null {
-  if (capability === null || capability.platformAuthenticator) {
+  if (capability === null || capability.canAttempt) {
     return null;
   }
   if (capability.embeddedWebview) {

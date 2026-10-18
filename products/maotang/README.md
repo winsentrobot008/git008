@@ -243,6 +243,16 @@ npx tsc --noEmit
 npm run dev                           # board at /, console at http://localhost:3000/agent
 ```
 
+The mobile Face ID / Touch ID claim path has a browser-level virtual-authenticator gate. It forces a
+false-negative UVPAA answer, enrolls a CTAP2 platform credential, completes a server challenge,
+checks cancellation fail-closed and recovers a stale local credential:
+
+```bash
+python -m pip install -r scripts/requirements-webauthn-e2e.txt
+python -m playwright install chromium
+python scripts/test-webauthn-e2e.py  # starts an isolated local Next server; no faucet or deployment
+```
+
 **4. The API index gateway**
 
 ```bash

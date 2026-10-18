@@ -60,7 +60,13 @@ export class WebBiometricError extends Error {
 export interface BiometricCapability {
   readonly supported: boolean;
   readonly secureContext: boolean;
-  /** True when a platform authenticator (Touch ID / Face ID / Hello) is available *and* user-verifying. */
+  /**
+   * True when a user gesture can attempt WebAuthn in this browser. This is deliberately separate
+   * from the platform-authenticator probe below: several mobile browsers return a false negative
+   * from UVPAA while still opening the system passkey sheet when `credentials.create/get` is called.
+   */
+  readonly canAttempt: boolean;
+  /** Advisory probe result. It is a display hint, never the authorization decision. */
   readonly platformAuthenticator: boolean;
   /**
    * True when the page is running inside an embedded webview (WeChat, Facebook, Instagram, ...).
@@ -125,6 +131,7 @@ export async function readBiometricCapability(): Promise<BiometricCapability> {
     return {
       supported: false,
       secureContext: false,
+      canAttempt: false,
       platformAuthenticator: false,
       embeddedWebview: false,
       embeddingLabel: null,
@@ -137,23 +144,38 @@ export async function readBiometricCapability(): Promise<BiometricCapability> {
     return {
       supported: false,
       secureContext: false,
+      canAttempt: false,
       platformAuthenticator: false,
       embeddedWebview: embedding.embedded,
       embeddingLabel: embedding.label,
       detail: "the origin is not a secure context, so no biometric assertion can be requested",
     };
   }
-  // iOS Safari before 16 and several webviews expose `PublicKeyCredential` without the probe. Calling a
-  // missing function would raise a TypeError that reads like a crash; reporting "no platform
-  // authenticator" is the same answer, stated honestly.
-  if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== "function") {
+  const canAttempt = typeof navigator.credentials?.get === "function";
+  if (!canAttempt) {
     return {
       supported: false,
       secureContext: true,
+      canAttempt: false,
       platformAuthenticator: false,
       embeddedWebview: embedding.embedded,
       embeddingLabel: embedding.label,
-      detail: "this build has no isUserVerifyingPlatformAuthenticatorAvailable(), so no platform authenticator can be confirmed",
+      detail: "this shell exposes PublicKeyCredential but no usable credential manager",
+    };
+  }
+
+  // iOS Safari before 16 and several webviews expose `PublicKeyCredential` without the probe. The
+  // missing probe is not proof that a passkey cannot be created: keep the attempt path available
+  // and let the user-initiated create/get call produce the definitive browser answer.
+  if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== "function") {
+    return {
+      supported: true,
+      secureContext: true,
+      canAttempt: true,
+      platformAuthenticator: false,
+      embeddedWebview: embedding.embedded,
+      embeddingLabel: embedding.label,
+      detail: "the platform probe is unavailable; a user-initiated WebAuthn attempt is still allowed",
     };
   }
   try {
@@ -161,6 +183,7 @@ export async function readBiometricCapability(): Promise<BiometricCapability> {
     return {
       supported: true,
       secureContext: true,
+      canAttempt: true,
       platformAuthenticator: available,
       embeddedWebview: embedding.embedded,
       embeddingLabel: embedding.label,
@@ -169,13 +192,14 @@ export async function readBiometricCapability(): Promise<BiometricCapability> {
           ? `a user-verifying platform authenticator is present (running in ${embedding.label})`
           : "a user-verifying platform authenticator is present"
         : embedding.embedded
-          ? `no platform authenticator was reported; ${embedding.label} restricts passkeys, so open the page in Safari or Chrome`
-          : "WebAuthn works here, but no user-verifying platform authenticator was reported",
+          ? `the platform probe reported no authenticator; ${embedding.label} may restrict passkeys, but an explicit attempt is still allowed`
+          : "the platform probe reported no authenticator; an explicit WebAuthn attempt is still allowed",
     };
   } catch (error) {
     return {
       supported: true,
       secureContext: true,
+      canAttempt: true,
       platformAuthenticator: false,
       embeddedWebview: embedding.embedded,
       embeddingLabel: embedding.label,

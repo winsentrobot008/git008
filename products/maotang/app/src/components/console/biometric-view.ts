@@ -6,6 +6,8 @@
  */
 export interface ConsoleBiometricState {
   readonly credentialId: string | null;
+  /** True when a tap may call WebAuthn; the platform probe is only a hint. */
+  readonly canAttempt: boolean;
   readonly platformAuthenticator: boolean;
   readonly busy: boolean;
   readonly userVerified: boolean;

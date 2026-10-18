@@ -378,7 +378,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
   // Registration options are server-issued and prefetched before the tap, so
   // `navigator.credentials.create` runs inside the tap's transient user activation.
   useEffect(() => {
-    if (session.credentialId !== null || session.capability?.platformAuthenticator !== true) {
+    if (session.credentialId !== null || session.capability?.canAttempt !== true) {
       setRegistrationOptions(null);
       return;
     }
@@ -401,7 +401,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
       }
     })();
     return () => controller.abort();
-  }, [registrationEpoch, session.capability?.platformAuthenticator, session.credentialId]);
+  }, [registrationEpoch, session.capability?.canAttempt, session.credentialId]);
 
   // The claim challenge must be server-issued and bound to the enrolled credential. It is fetched
   // before the tap for the same user-activation reason as registration.
@@ -438,10 +438,18 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
           });
           return;
         }
-        setClaimChallenge({
-          kind: "unavailable",
-          code: payload?.code ?? `HTTP_${response.status}`,
-        });
+        const code = payload?.code ?? `HTTP_${response.status}`;
+        if (code === "ENROLLMENT_REQUIRED" && session.credentialId !== null) {
+          // localStorage can outlive the sealed enrollment cookie (site-data cleanup, expiry or a
+          // different PWA browsing context). The server is authoritative; drop the stale local id and
+          // reopen enrollment instead of leaving the claim button disabled forever.
+          session.forget();
+          setRegistrationEpoch((epoch) => epoch + 1);
+          setClaimState((current) => (current.phase === "error" ? { phase: "idle" } : current));
+          setClaimChallenge({ kind: "idle" });
+          return;
+        }
+        setClaimChallenge({ kind: "unavailable", code });
       } catch {
         if (!controller.signal.aborted) {
           setClaimChallenge({ kind: "unavailable", code: "CHALLENGE_UNREACHABLE" });
@@ -449,7 +457,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
       }
     })();
     return () => controller.abort();
-  }, [claimChallengeEpoch, session.credentialId]);
+  }, [claimChallengeEpoch, session.credentialId, session.forget]);
 
   // The quota is a live server read keyed by the manifest owner. `verified` comes from the sealed
   // personhood cookie; the local hardware latch never replaces it.
@@ -605,7 +613,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     if (session.credentialId === null) {
       return enroll();
     }
-    if (session.capability?.platformAuthenticator === true) {
+    if (session.capability?.canAttempt === true) {
       return true;
     }
     const { tone, message } = biometricFailureToast(
@@ -944,7 +952,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
       ? null
       : `${shareOrigin}/dechat?ref=${encodeURIComponent(alias)}`;
   const fallback = biometricFallbackCopy(session.capability, language);
-  const canConfirm = session.credentialId !== null && session.capability?.platformAuthenticator === true;
+  const canConfirm = session.credentialId !== null && session.capability?.canAttempt === true;
   const statusError =
     statusState.kind === "unavailable"
       ? { code: statusState.code, reason: statusState.reason }
@@ -1025,6 +1033,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
             busy={busy}
             bio={{
               credentialId: session.credentialId,
+              canAttempt: session.capability?.canAttempt === true,
               platformAuthenticator: session.capability?.platformAuthenticator === true,
               busy: session.busy,
               userVerified: session.assertion?.userVerified === true,
@@ -1188,7 +1197,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
               <button
                 type="button"
                 onClick={() => void enroll()}
-                disabled={session.busy || session.capability?.platformAuthenticator !== true}
+                disabled={session.busy || session.capability?.canAttempt !== true}
                 className="mt-2 min-h-12 w-full touch-manipulation rounded-full border border-slate-900/15 px-4 text-xs text-slate-500 transition hover:border-slate-900/30 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {session.phase === "enrolling" ? t("sheet.enrollBusy") : t("sheet.enroll")}

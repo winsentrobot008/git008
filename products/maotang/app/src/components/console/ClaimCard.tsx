@@ -111,8 +111,8 @@ export function ClaimCard({
   const identity = alias === null ? null : `${alias}.008ai`;
   const onchain = state.phase === "onchain" ? state : null;
   const busy = state.phase === "authorizing" || state.phase === "settling" || bio.busy;
-  const canEnroll = alias !== null && bio.platformAuthenticator && bio.credentialId === null;
-  const canClaim = alias !== null && bio.platformAuthenticator && bio.credentialId !== null;
+  const canEnroll = alias !== null && bio.canAttempt && bio.credentialId === null;
+  const canClaim = alias !== null && bio.canAttempt && bio.credentialId !== null;
   const canRetry = onchain === null || onchain.chainStatus === "failed";
   const canShare =
     shareUrl !== null && identity !== null && bio.credentialId !== null && onchain === null && !busy;
@@ -423,7 +423,7 @@ export function ClaimCard({
         </div>
       )}
 
-      {bio.platformAuthenticator ? (
+      {bio.canAttempt ? (
         canEnroll ? (
           <button
             type="button"

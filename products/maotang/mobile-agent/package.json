@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test dist/test-build/test/",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist/test-build/test/*.test.js\"",
     "test:policy": "tsc -p tsconfig.test.json && node --test dist/test-build/test/ai-fuzzer-policy.test.js",
     "demo:exchange": "tsc -p tsconfig.test.json && node dist/test-build/demo/two-node-exchange.js"
   },

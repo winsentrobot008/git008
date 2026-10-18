@@ -64,7 +64,7 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
   // The registration challenge is server-issued. Prefetch it while the owner is looking at the card,
   // so the tap can call `navigator.credentials.create` before iOS Safari spends the user activation.
   useEffect(() => {
-    if (session.credentialId !== null || session.capability?.platformAuthenticator !== true) {
+    if (session.credentialId !== null || session.capability?.canAttempt !== true) {
       return;
     }
     const controller = new AbortController();
@@ -86,7 +86,7 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
       }
     })();
     return () => controller.abort();
-  }, [registrationEpoch, session.capability?.platformAuthenticator, session.credentialId]);
+  }, [registrationEpoch, session.capability?.canAttempt, session.credentialId]);
 
   const enroll = useCallback(async () => {
     if (session.busy) {
@@ -126,7 +126,7 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
 
   const busy = session.busy;
   const canAuthorize =
-    session.capability?.platformAuthenticator === true && session.credentialId !== null && challenge !== null;
+    session.capability?.canAttempt === true && session.credentialId !== null && challenge !== null;
   const approved = session.assertion !== null && session.assertion.challenge === challenge;
   const fallback = biometricFallbackCopy(session.capability, language);
 
@@ -196,7 +196,7 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
         <button
           type="button"
           onClick={() => void enroll()}
-          disabled={busy || session.capability?.platformAuthenticator !== true}
+          disabled={busy || session.capability?.canAttempt !== true}
           className="min-h-12 touch-manipulation rounded-lg border border-maotang-border px-3 text-xs font-medium text-white/80 transition hover:border-maotang-mint/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
           {session.credentialId === null ? "Enroll biological owner" : "Re-enroll owner"}
