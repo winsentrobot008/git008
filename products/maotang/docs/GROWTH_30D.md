@@ -127,5 +127,10 @@ The hold freezes the two value-moving routes; `/v1/broadcast` is already a hard 
   assertion, message body or free-form visitor identifier is accepted by the growth-event route.
 - D1/D7: the first app open creates a cohort bitmap; D1 and D7 are the share of that cohort active on
   the corresponding later UTC day. Bitmap collisions make these approximate at very large scale.
+- Local attribution: without Redis outside production, the same counters persist to an atomically
+  written JSON snapshot under `products/maotang/runtime_data/`. Override the path with
+  `MAOTANG_GROWTH_FALLBACK_FILE`; production never silently substitutes this local file for Redis.
+- Share previews: `/dechat?ref=<code>` emits referral-aware OpenGraph and X card metadata plus a
+  generated 1200x630 preview image. A preview or share receipt is not evidence of a published post.
 - Distribution: see `docs/GROWTH_KOL_BLITZ.md` for the golden-link format, KOL whitelist process,
   Telegram copy and X templates.

@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import {
   GENESIS_POINTS,
@@ -36,7 +38,7 @@ export interface RetentionMetric {
 export interface GrowthSummary {
   readonly configured: boolean;
   readonly persistent: boolean;
-  readonly storage: "redis" | "ephemeral" | "unconfigured";
+  readonly storage: "redis" | "file" | "ephemeral" | "unconfigured";
   readonly code: string | null;
   readonly tier: string | null;
   readonly whitelisted: boolean;
@@ -62,23 +64,29 @@ interface MemoryStore {
 
 const globalWithGrowth = globalThis as typeof globalThis & {
   __maotangGrowthMemory?: MemoryStore;
+  __maotangGrowthFileTail?: Promise<void>;
 };
 
 function memoryStore(): MemoryStore {
   if (globalWithGrowth.__maotangGrowthMemory === undefined) {
-    globalWithGrowth.__maotangGrowthMemory = {
-      counters: new Map(),
-      bitmaps: new Map(),
-      firstSeen: new Map(),
-      cohorts: new Map(),
-      once: new Set(),
-    };
+    globalWithGrowth.__maotangGrowthMemory = emptyMemoryStore();
   }
   return globalWithGrowth.__maotangGrowthMemory;
 }
 
+function emptyMemoryStore(): MemoryStore {
+  return {
+    counters: new Map(),
+    bitmaps: new Map(),
+    firstSeen: new Map(),
+    cohorts: new Map(),
+    once: new Set(),
+  };
+}
+
 type Backend =
   | { readonly kind: "redis"; readonly url: string; readonly token: string }
+  | { readonly kind: "file"; readonly file: string }
   | { readonly kind: "ephemeral" }
   | { readonly kind: "unconfigured"; readonly reason: string };
 
@@ -98,16 +106,22 @@ function backend(): Backend {
   if (url !== "" && token !== "") {
     return { kind: "redis", url: url.replace(/\/+$/, ""), token };
   }
-  if (
-    process.env.NODE_ENV !== "production" ||
-    process.env.MAOTANG_GROWTH_ALLOW_EPHEMERAL === "1"
-  ) {
+  if (process.env.NODE_ENV !== "production") {
+    const configuredFile = process.env.MAOTANG_GROWTH_FALLBACK_FILE?.trim();
+    return {
+      kind: "file",
+      file: configuredFile
+        ? path.resolve(configuredFile)
+        : path.resolve(process.cwd(), "..", "runtime_data", "growth-attribution.json"),
+    };
+  }
+  if (process.env.MAOTANG_GROWTH_ALLOW_EPHEMERAL === "1") {
     return { kind: "ephemeral" };
   }
   return {
     kind: "unconfigured",
     reason:
-      "No durable growth store is configured. Set MAOTANG_GROWTH_REDIS_REST_URL and MAOTANG_GROWTH_REDIS_REST_TOKEN.",
+      "No durable production growth store is configured. Set MAOTANG_GROWTH_REDIS_REST_URL and MAOTANG_GROWTH_REDIS_REST_TOKEN.",
   };
 }
 
@@ -170,6 +184,160 @@ function cohortKey(day: string): string {
 
 function onceKey(key: string): string {
   return `maotang:growth:v1:once:${key}`;
+}
+
+interface FileSnapshot {
+  readonly version: 1;
+  readonly counters: Record<string, number>;
+  readonly bitmaps: Record<string, number[]>;
+  readonly firstSeen: Record<string, string>;
+  readonly cohorts: Record<string, number[]>;
+  readonly once: string[];
+}
+
+async function withFileLock<T>(task: () => Promise<T>): Promise<T> {
+  const previous = globalWithGrowth.__maotangGrowthFileTail ?? Promise.resolve();
+  const run = previous.then(task, task);
+  globalWithGrowth.__maotangGrowthFileTail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+function parseBitmapRecord(value: unknown): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>();
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return result;
+  }
+  for (const [key, bits] of Object.entries(value)) {
+    if (!Array.isArray(bits)) {
+      continue;
+    }
+    result.set(
+      key,
+      new Set(
+        bits.filter(
+          (bit): bit is number => Number.isSafeInteger(bit) && bit >= 0,
+        ),
+      ),
+    );
+  }
+  return result;
+}
+
+function parseCounterRecord(value: unknown): Map<string, number> {
+  const result = new Map<string, number>();
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return result;
+  }
+  for (const [key, count] of Object.entries(value)) {
+    if (Number.isSafeInteger(count) && Number(count) >= 0) {
+      result.set(key, Number(count));
+    }
+  }
+  return result;
+}
+
+function parseFirstSeenRecord(value: unknown): Map<string, string> {
+  const result = new Map<string, string>();
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return result;
+  }
+  for (const [key, day] of Object.entries(value)) {
+    if (typeof day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      result.set(key, day);
+    }
+  }
+  return result;
+}
+
+function deserializeFileStore(value: unknown): MemoryStore {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return emptyMemoryStore();
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    counters: parseCounterRecord(record.counters),
+    bitmaps: parseBitmapRecord(record.bitmaps),
+    firstSeen: parseFirstSeenRecord(record.firstSeen),
+    cohorts: parseBitmapRecord(record.cohorts),
+    once: new Set(
+      Array.isArray(record.once)
+        ? record.once.filter((entry): entry is string => typeof entry === "string")
+        : [],
+    ),
+  };
+}
+
+function serializeFileStore(memory: MemoryStore): FileSnapshot {
+  const serializeBitmaps = (values: ReadonlyMap<string, Set<number>>): Record<string, number[]> =>
+    Object.fromEntries([...values].map(([key, bits]) => [key, [...bits].sort((a, b) => a - b)]));
+  return {
+    version: 1,
+    counters: Object.fromEntries(memory.counters),
+    bitmaps: serializeBitmaps(memory.bitmaps),
+    firstSeen: Object.fromEntries(memory.firstSeen),
+    cohorts: serializeBitmaps(memory.cohorts),
+    once: [...memory.once],
+  };
+}
+
+async function loadFileStore(file: string): Promise<MemoryStore> {
+  try {
+    return deserializeFileStore(JSON.parse(await readFile(file, "utf8")) as unknown);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return emptyMemoryStore();
+    }
+    throw new Error("GROWTH_FILE_STORE_UNREADABLE");
+  }
+}
+
+async function persistFileStore(file: string, memory: MemoryStore): Promise<void> {
+  await mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(serializeFileStore(memory))}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await rename(temporary, file);
+}
+
+function applyGrowthEvent(
+  memory: MemoryStore,
+  input: GrowthEventInput,
+  day: string,
+  code: string | null,
+  unique: string | null,
+): boolean {
+  if (unique !== null && memory.once.has(unique)) {
+    return false;
+  }
+  if (unique !== null) {
+    memory.once.add(unique);
+  }
+  const increment = (key: string): void => {
+    memory.counters.set(key, (memory.counters.get(key) ?? 0) + 1);
+  };
+  increment(eventKey(day, input.event));
+  increment(eventTotalKey(input.event));
+  if (code !== null) {
+    increment(referralKey("maotang:growth:v1:ref:day", code, input.event) + `:${day}`);
+    increment(referralKey("maotang:growth:v1:ref:total", code, input.event));
+  }
+  if (input.identity !== undefined && input.identity !== null) {
+    const bits = memory.bitmaps.get(activeKey(day)) ?? new Set<number>();
+    bits.add(input.identity.activeBit);
+    memory.bitmaps.set(activeKey(day), bits);
+    if (input.event === "app_open" && !memory.firstSeen.has(input.identity.subjectKey)) {
+      memory.firstSeen.set(input.identity.subjectKey, day);
+      const cohort = memory.cohorts.get(cohortKey(day)) ?? new Set<number>();
+      cohort.add(input.identity.activeBit);
+      memory.cohorts.set(cohortKey(day), cohort);
+    }
+  }
+  return true;
 }
 
 export async function recordGrowthEvent(input: GrowthEventInput): Promise<{
@@ -246,34 +414,24 @@ export async function recordGrowthEvent(input: GrowthEventInput): Promise<{
     }
   }
 
-  const memory = memoryStore();
-  if (unique !== null && memory.once.has(unique)) {
-    return { persistent: false, counted: false };
-  }
-  if (unique !== null) {
-    memory.once.add(unique);
-  }
-  const increment = (key: string): void => {
-    memory.counters.set(key, (memory.counters.get(key) ?? 0) + 1);
-  };
-  increment(eventKey(day, input.event));
-  increment(eventTotalKey(input.event));
-  if (code !== null) {
-    increment(referralKey("maotang:growth:v1:ref:day", code, input.event) + `:${day}`);
-    increment(referralKey("maotang:growth:v1:ref:total", code, input.event));
-  }
-  if (input.identity !== undefined && input.identity !== null) {
-    const bits = memory.bitmaps.get(activeKey(day)) ?? new Set<number>();
-    bits.add(input.identity.activeBit);
-    memory.bitmaps.set(activeKey(day), bits);
-    if (input.event === "app_open" && !memory.firstSeen.has(input.identity.subjectKey)) {
-      memory.firstSeen.set(input.identity.subjectKey, day);
-      const cohort = memory.cohorts.get(cohortKey(day)) ?? new Set<number>();
-      cohort.add(input.identity.activeBit);
-      memory.cohorts.set(cohortKey(day), cohort);
+  if (config.kind === "file") {
+    try {
+      return await withFileLock(async () => {
+        const memory = await loadFileStore(config.file);
+        const counted = applyGrowthEvent(memory, input, day, code, unique);
+        if (counted) {
+          await persistFileStore(config.file, memory);
+        }
+        return { persistent: true, counted };
+      });
+    } catch {
+      return { persistent: false, counted: false };
     }
   }
-  return { persistent: false, counted: true };
+
+  const memory = memoryStore();
+  const counted = applyGrowthEvent(memory, input, day, code, unique);
+  return { persistent: false, counted };
 }
 
 function emptyFunnel(): Record<GrowthEventName, number> {
@@ -381,7 +539,15 @@ export async function readGrowthSummary(codeInput?: string | null): Promise<Grow
       return unreadableSummary(code, kol, "The growth store could not be read.");
     }
   } else {
-    const memory = memoryStore();
+    let memory: MemoryStore;
+    try {
+      memory =
+        config.kind === "file"
+          ? await withFileLock(() => loadFileStore(config.file))
+          : memoryStore();
+    } catch {
+      return unreadableSummary(code, kol, "The local growth file could not be read.");
+    }
     daily = emptyFunnel();
     for (const event of events) {
       daily[event] = memory.counters.get(eventKey(today, event)) ?? 0;
@@ -415,7 +581,7 @@ export async function readGrowthSummary(codeInput?: string | null): Promise<Grow
   });
   return {
     configured: true,
-    persistent: config.kind === "redis",
+    persistent: config.kind === "redis" || config.kind === "file",
     storage: config.kind,
     code,
     tier: kol?.tier ?? tier.label,
@@ -430,7 +596,9 @@ export async function readGrowthSummary(codeInput?: string | null): Promise<Grow
     d7Retention: retention(d7Eligible, d7Retained),
     funnel: daily,
     reason:
-      config.kind === "ephemeral"
+      config.kind === "file"
+        ? "Durable local JSON growth storage is active outside production."
+        : config.kind === "ephemeral"
         ? "Ephemeral local growth storage: reset when this process exits."
         : null,
   };

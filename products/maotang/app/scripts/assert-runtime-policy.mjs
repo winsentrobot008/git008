@@ -834,6 +834,8 @@ const GROWTH_SHARE_ROUTE = path.join(
 const GROWTH_EVENT_ROUTE = path.join(appRoot, "src", "app", "api", "growth", "event", "route.ts");
 const GROWTH_STORE = path.join(appRoot, "src", "lib", "growth", "store.ts");
 const GROWTH_SHARE_RECEIPT = path.join(appRoot, "src", "lib", "growth", "receipt.ts");
+const DECHAT_PAGE = path.join(appRoot, "src", "app", "dechat", "page.tsx");
+const DECHAT_OG_IMAGE = path.join(appRoot, "src", "app", "dechat", "opengraph-image.tsx");
 const TELEMETRY_SUMMARY_ROUTE = path.join(
   appRoot,
   "src",
@@ -859,6 +861,8 @@ const growthShareRoute = readFileSync(GROWTH_SHARE_ROUTE, "utf8");
 const growthEventRoute = readFileSync(GROWTH_EVENT_ROUTE, "utf8");
 const growthStore = readFileSync(GROWTH_STORE, "utf8");
 const growthShareReceipt = readFileSync(GROWTH_SHARE_RECEIPT, "utf8");
+const dechatPage = readFileSync(DECHAT_PAGE, "utf8");
+const dechatOgImage = readFileSync(DECHAT_OG_IMAGE, "utf8");
 const telemetrySummaryRoute = readFileSync(TELEMETRY_SUMMARY_ROUTE, "utf8");
 
 test("I. the server verifies the WebAuthn signature and user verification", () => {
@@ -1073,6 +1077,9 @@ test("K. growth attribution stores aggregates and derives identity on the server
   assert.match(telemetrySummaryRoute, /readGrowthSummary\(/);
   assert.match(growthStore, /subjectKey/);
   assert.match(growthStore, /SETBIT/);
+  assert.match(growthStore, /kind: "file"/);
+  assert.match(growthStore, /MAOTANG_GROWTH_FALLBACK_FILE/);
+  assert.match(growthStore, /await rename\(temporary, file\)/);
   assert.doesNotMatch(growthStore, /x-forwarded-for|request\.headers|navigator\.userAgent/);
 });
 
@@ -1080,6 +1087,7 @@ test("K. growth storage and KOL whitelisting are explicit deployment configurati
   for (const key of [
     "MAOTANG_GROWTH_REDIS_REST_URL",
     "MAOTANG_GROWTH_REDIS_REST_TOKEN",
+    "MAOTANG_GROWTH_FALLBACK_FILE",
     "MAOTANG_KOL_CODES",
   ]) {
     assert.ok(envExample.includes(key), `.env.example must name ${key}`);
@@ -1090,6 +1098,12 @@ test("K. growth storage and KOL whitelisting are explicit deployment configurati
   assert.match(vercelScript, /MAOTANG_KOL_CODES/);
   assert.match(claimCard, /t\("claim\.shareX"\)/);
   assert.match(claimCard, /t\("claim\.shareTelegram"\)/);
+  assert.match(dechatPage, /export async function generateMetadata/);
+  assert.match(dechatPage, /openGraph:/);
+  assert.match(dechatPage, /twitter:/);
+  assert.match(dechatPage, /summary_large_image/);
+  assert.match(dechatOgImage, /ImageResponse/);
+  assert.match(dechatOgImage, /width: 1200,\s*height: 630/);
 });
 
 // J. MAOTANG token, faucet and treasury release invariants

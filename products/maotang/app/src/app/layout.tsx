@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/lib/i18n/language";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://maotang.008ai.online"),
   title: "MAOTANG PERSONAL AI NODE",
   description:
     "Speak your intent. Locally vetted. Biometrically confirmed. A non-custodial edge node protocol: zero-knowledge node verification, in-situ hardware enclave isolation, and a lazy-loaded WebGPU SLM core.",

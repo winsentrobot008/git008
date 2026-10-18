@@ -21,7 +21,7 @@ interface RetentionMetric {
 interface ReferralSummary {
   readonly configured: boolean;
   readonly persistent: boolean;
-  readonly storage: "redis" | "ephemeral" | "unconfigured";
+  readonly storage: "redis" | "file" | "ephemeral" | "unconfigured";
   readonly tier: string | null;
   readonly whitelisted: boolean;
   readonly invites: number;
@@ -67,7 +67,7 @@ function parseSummary(payload: unknown): ReferralSummary | null {
     return null;
   }
   const storage =
-    record.storage === "redis" || record.storage === "ephemeral"
+    record.storage === "redis" || record.storage === "file" || record.storage === "ephemeral"
       ? record.storage
       : "unconfigured";
   return {
@@ -140,9 +140,11 @@ export function KOLReferralPanel({ alias, className = "" }: KOLReferralPanelProp
       ? t("referral.loading")
       : state.summary.storage === "redis"
         ? t("referral.storageRedis")
-        : state.summary.storage === "ephemeral"
-          ? t("referral.storageEphemeral")
-          : t("referral.unconfigured");
+        : state.summary.storage === "file"
+          ? t("referral.storageFile")
+          : state.summary.storage === "ephemeral"
+            ? t("referral.storageEphemeral")
+            : t("referral.unconfigured");
 
   return (
     <section

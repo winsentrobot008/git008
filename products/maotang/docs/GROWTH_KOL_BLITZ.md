@@ -175,6 +175,14 @@ Production must set `MAOTANG_GROWTH_REDIS_REST_URL` and `MAOTANG_GROWTH_REDIS_RE
 Upstash/Vercel KV equivalents). Without a durable backend the dashboard says `configured: false`; it
 does not display invented zeros as measured traffic.
 
+Local development without Redis uses `runtime_data/growth-attribution.json` by default and reports
+`storage: "file"`. Override that path with `MAOTANG_GROWTH_FALLBACK_FILE` when testing in an isolated
+workspace. The fallback is intentionally disabled in production builds.
+
+Every referral share URL renders an OpenGraph title naming the inviter, a testnet-claim description,
+and a generated 1200x630 image. X also receives a `summary_large_image` card. Check a new creative or
+domain change with a fresh X card validator and Telegram link preview before the blitz.
+
 Incident rule: set `MAOTANG_SECURITY_HOLD=1` and redeploy if claim fraud, key exposure or abnormal
 assertion failures are confirmed. Growth pages may still render, but value-moving routes must fail
 closed with `SECURITY_HALTED`.
