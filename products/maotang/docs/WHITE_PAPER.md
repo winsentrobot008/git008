@@ -687,9 +687,9 @@ cd D:\git008\products\maotang\mobile-agent; npm test    # 生物门禁拒绝路�
 ---
 ## 13. 双模 C 端产品架构规范 (Dual-Mode Consumer Experience)（normative）
 
-> **状态：🟡 部分实现（v3.3 Phase 2 Step 1–2）。** C 端 PWA（`app/`）已落地三 Tab 壳（Vault / DeChat / Agent）与 DeChat 本地预览面板；Vault / Agent 沿用 `ConsumerView` 的统一策略、Face ID 与签名流水线。DeChat 中继与 E2EE 传输、GES（§16）和抗群控原生桥（§17）仍为 ⬜，不得描述为已上线。网关契约见 `docs/architecture/ADR-046-DUAL_MODE_C_END_SPEC.md`，三 Tab 决策见 `docs/architecture/ADR-047-MOBILE_DECHAT_GES_AND_ANTIFARM.md`。按 §0.2：**“已规定”不等于“已实现”**。
+> **状态：🟡 部分实现（v3.3 Phase 2 Step 1–2 + P3）。** C 端 PWA（`app/`）已落地三 Tab 壳（Vault / DeChat / Agent）与 DeChat 本地预览面板；Vault / Agent 沿用 `ConsumerView` 的统一策略、Face ID 与签名流水线。服务端已接入 WebAuthn direct attestation 验证、链上一次性 claim 账本、Paymaster 票务 / 滚动配额读取与隐私最小化遥测端点。**DeChat 中继与 E2EE 传输、GES 的真实 bundler 结算与 calldata 绑定、抗群控原生桥（§17）仍为 ⬜，不得描述为已上线**；未配置 faucet / Paymaster 时接口返回 `503 ..._UNCONFIGURED`，不回退到静态票据。网关契约见 `docs/architecture/ADR-046-DUAL_MODE_C_END_SPEC.md`，三 Tab 决策见 `docs/architecture/ADR-047-MOBILE_DECHAT_GES_AND_ANTIFARM.md`。按 §0.2：**“已规定”不等于“已实现”**。
 
-> **v3.3 导航扩展：** ADR-047 在 §13 的 Vault / Agent 双模安全流水线上增加 **DeChat** 作为第三个一等 Tab；权限、intent digest、Local Policy、Face ID 断言与 broadcast 出口完全不变。三 Tab 底栏与 DeChat 本地预览 UI 已在 Phase 2 Step 1–2 落地；DeChat 中继 / E2EE 传输、GES 与抗手机集群原生桥仍为 ⬜，不得描述为已上线。
+> **v3.3 导航扩展：** ADR-047 在 §13 的 Vault / Agent 双模安全流水线上增加 **DeChat** 作为第三个一等 Tab；权限、intent digest、Local Policy、Face ID 断言与 broadcast 出口完全不变。三 Tab 底栏与 DeChat 本地预览 UI 已在 Phase 2 Step 1–2 落地；claim 账本、服务端 WebAuthn 验证与 Paymaster 票务层已实现但依赖未配置的链上基础设施。DeChat 中继 / E2EE 传输、GES 的真实结算与抗手机集群原生桥仍为 ⬜，不得描述为已上线。
 
 ### 13.0 设计公理 (Design axioms)
 
@@ -867,13 +867,14 @@ PC 端的根本问题不是“操作系统不够好用”，而是**默认没有
 | 能力 | 当前状态 | 代码 / 事实 | 目标 |
 | --- | --- | --- | --- |
 | 平台认证器与 Face ID 断言 | 🟡 已接入 | `app/src/lib/agent/webauthn.ts` 使用 `userVerification: "required"`，平台认证器缺失时返回 `NO_PLATFORM_AUTHENTICATOR` | 保持；所有支付与高风险动作必须经过该断言 |
-| 设备持主绑定 | 🟡 部分 | `OwnerAssertion.hardwareBacked` 仅表示 `authenticatorAttachment === "platform"`，不等于完整设备完整性证明 | 由原生 DCAppAttest / Play Integrity 补充设备与应用完整性 |
-| WebAuthn attestation | 🟡 当前为 `attestation: "none"` | `enrollOwnerCredential()` 不索取证明链；不能据此声称“设备已 attest” | 生产环境使用原生 attestation；WebAuthn 证明链只作为补充信号 |
+| 设备持主绑定 | 🟡 部分（服务端判定） | `OwnerAssertion.hardwareBacked` 由服务端从 WebAuthn attestation 推导：`fmt !== "none"` 且 `deviceType === "singleDevice"`；客户端布尔值不参与判定。它仍不等于 DCAppAttest / Play Integrity 的设备完整性结论 | 由原生 DCAppAttest / Play Integrity 补充设备与应用完整性 |
+| WebAuthn attestation | 🟡 已请求并验证 `direct` 证明 | `enrollOwnerCredential()` 请求 `attestation: "direct"`；`/api/agent/webauthn/register/verify` 与 claim route 使用 `@simplewebauthn/server` 验证 `clientDataJSON` / `authenticatorData` 签名，要求 `userVerified: true`，并拒绝 `fmt === "none"`。证明链的信任根仍是平台 / 硬件，且不等于原生 App Attest / Play Integrity | 生产环境叠加原生 attestation；WebAuthn 证明链只作为补充信号 |
+| 一次性 claim 账本 | 🟡 已实现（链上映射） | `MaotangFaucet.identityHash => ClaimRecord` 在合约内保证同一 credential 只能 claim 一次；`/api/agent/claim` 在提交前再次检查 `hasClaimed`。Root / 越狱设备仍可新建第二个 credential | 部署真实 faucet，并由原生设备绑定与完整性证明补上“一台物理设备”这一层 |
 | 金库签名飞地 | ⬜ 拒绝式默认 | `HardwareEnclave` 在未注入真实后端时拒绝签名；Web 宿主没有飞地桥 | 原生安全域内的 P-256 / secp256k1 签名适配器，失败关闭 |
 | 传感器活体 | ⬜ 未实现 | PWA 无 TrueDepth 深度图或可靠的高频陀螺仪通道 | 原生 `DeviceLivenessProbe`，只上报结论与特征摘要 |
 | 设备完整性 | ⬜ 未实现 | 当前无 DCAppAttest / Play Integrity 调用 | 原生 `DeviceIntegrityGate`，按 §17.1 分级放行 |
 
-> **文档纪律**：在上述目标能力落地前，白皮书与 UI 不得使用“硬件金库已完全实现”“PC 端已被密码学禁止”等超出事实的表述。正确表述是：**协议已把移动端硬件定为唯一金库运行环境；当前 Web 边缘只具备平台认证器断言，原生桥仍为路线图。**
+> **文档纪律**：在上述目标能力落地前，白皮书与 UI 不得使用“硬件金库已完全实现”“PC 端已被密码学禁止”等超出事实的表述。正确表述是：**协议已把移动端硬件定为唯一金库运行环境；当前 Web 边缘已能服务端验证平台认证器的 direct attestation 与用户验证标志，但原生设备完整性 / 活体桥仍为路线图，且 WebAuthn 证明不等于 DCAppAttest / Play Integrity。**
 
 ### 14.4 残余风险 (Residual risks)
 
@@ -901,7 +902,7 @@ PC 端的根本问题不是“操作系统不够好用”，而是**默认没有
 ---
 ## 15. 去中心化通讯协议规范 (DeChat Specification)（normative）
 
-> **状态：⬜ 规范已定，尚无 `app/` 内的 DeChat 实现。** 本章定义身份、密钥、加密信封、Chat-to-Pay 与 AI 智能体 P2P 通道的**目标契约**；在代码落地前，任何“端到端加密已上线”的对外表述都按 §0.2 视为错误。DeChat 不是“带钱包的聊天软件”，而是**以钱包地址为身份、以硬件飞地为密钥根、以消息为支付意图载体**的通讯层。
+> **状态：🟡 部分实现（会话本地预览）。** `app/src/components/console/DeChatPanel.tsx` 已落地三 Tab 中的 DeChat 入口：从 manifest owner 派生 `<wallet-prefix>.008ai` 展示身份，渲染本地消息气泡、Chat-to-Pay 卡片与文字输入；所有支付仍汇入 `ConsumerView.submit` 的统一策略 / Face ID / 签名流水线。**没有中继、没有 E2EE 传输、没有设备端加密存储**，消息不跨设备投递。本章其余部分（密钥层级、加密信封、状态机、Agent P2P）仍为**目标契约**；任何“端到端加密已上线”的对外表述都按 §0.2 视为错误。DeChat 不是“带钱包的聊天软件”，而是**以钱包地址为身份、以硬件飞地为密钥根、以消息为支付意图载体**的通讯层。
 
 ### 15.0 设计目标 (Design goals)
 
@@ -1003,6 +1004,8 @@ DeChatProfile {
 
 **状态机**：`draft -> sealed -> delivered -> read -> payment_requested -> authorized -> broadcast -> settled`；任一阶段可进入 `expired` / `rejected` / `failed`。`authorized` 不等于 `settled`；UI 必须区分“已授权”“已广播”“已确认”。
 
+**当前实现边界（2026-10-17）**：DeChat 面板只做会话内支付意图预览；轻触转账卡片会把英文 M1 句子交给 `ConsumerView.submit`，由后者执行策略、Face ID 和既有 broadcast 路径。面板不会自行签名、不会直接调用 `/v1/broadcast`，也不会伪造 `payment_receipt`。
+
 ### 15.4 AI 智能体专属 P2P 通道 (Agent P2P channel)
 
 AI Agent 不是主人的“第二个钱包”，而是一个**受限的通讯与执行代理**。它拥有独立的 `agentKey`，在 `AIAgentRegistry` 中注册，并由主人授予能力范围（例如“只读余额”“可提议转账”“可执行白名单合约”）。
@@ -1036,7 +1039,7 @@ AI Agent 不是主人的“第二个钱包”，而是一个**受限的通讯与
 ---
 ## 16. 五层渐进式零感 Gas 方案 (5-Tier GES Specification)（normative）
 
-> **状态：⬜ 规范已定，代码未实现。** GES = **Gasless Execution Stack（零感 Gas 执行栈）**。“零感”指主人不需要理解 gas、ETH 余额、nonce 或 bundler；**不等于零成本**，也不等于所有动作永久免费。五层是**可组合的渐进层**，不是五个互斥套餐：按动作风险、频率与身份状态选择最小可行组合，任何一层都不能绕过 M2 policy 与 M5 生物门禁。
+> **状态：🟡 G0 代码已落地但未上线；G1–G4 仍为规范。** `contracts/src/MaotangPaymaster.sol` 已实现 ERC-4337 v0.7 Paymaster 验证入口、EIP-712 单次授权、100 次精确滚动 24h 配额、暂停与可选 allowlist；`app/src/lib/agent/paymaster.ts` 与 `/api/agent/paymaster/{quota,authorization}` 已能从链上读取配额并签发单次票据。**但没有已配置的 Paymaster 部署、EntryPoint 存款或 bundler，且票据尚未绑定目标合约 / selector / calldata，因此当前不能宣传为可用的零 Gas 赞助。** G1–G4 仍为 ⬜ 规范。GES = **Gasless Execution Stack（零感 Gas 执行栈）**。“零感”指主人不需要理解 gas、ETH 余额、nonce 或 bundler；**不等于零成本**，也不等于所有动作永久免费。五层是**可组合的渐进层**，不是五个互斥套餐：按动作风险、频率与身份状态选择最小可行组合，任何一层都不能绕过 M2 policy 与 M5 生物门禁。
 
 ### 16.0 不变量 (Invariants)
 
@@ -1055,7 +1058,7 @@ AI Agent 不是主人的“第二个钱包”，而是一个**受限的通讯与
 | 项目 | 规范 |
 | --- | --- |
 | 账户模型 | ERC-4337 兼容智能账户；`UserOperation` 由 bundler 打包，`EntryPoint` 执行 |
-| 赞助来源 | Paymaster 合约或受控赞助服务；`paymasterAndData` 必须绑定账户、目标合约、selector 与预算 |
+| 赞助来源 | Paymaster 合约或受控赞助服务；目标契约要求 `paymasterAndData` 绑定账户、目标合约、selector 与预算。**当前代码只绑定账户、过期时间、nonce 与 chainId，尚未绑定目标 / selector / calldata**（见下） |
 | 允许范围 | 白名单合约 / selector；禁止任意 calldata、无限授权、代理升级与未知目标 |
 | 预算 | 每人类 / 每设备 / 每日 / 每动作上限；gas price 上限；预算耗尽即拒绝，不回退到用户自付 |
 | 验证 | 先模拟执行；检查 policy、spend window、personhood / 设备完整性；原始 `UserOperation` 必须与 intent digest 一致 |
@@ -1064,6 +1067,11 @@ AI Agent 不是主人的“第二个钱包”，而是一个**受限的通讯与
 | 缓解 | 严格 allowlist、按 nullifier 的配额、模拟 + 复核、预算熔断、异常速率告警 |
 
 **G0 不是“免费交易”**：它只是把 gas 的支付方从主人换成赞助方。赞助方可以是协议金库、生态基金或商户；每一笔都必须可审计、可预算、可停止。
+
+**当前实现与差距（诚实状态）**：
+
+- **已实现**：`MaotangPaymaster` 校验 `EntryPoint` 调用者、暂停状态、EIP-712 授权 `(sender, validUntil, nonce, chainId)`、单次 nonce、可选 allowlist，以及 `uint64[100]` 环 + `cursor` 的精确滚动 24h 窗口；`Sponsored` 事件记录 sender、nonce 与窗口释放时间。服务端仅在 sealed personhood cookie 存在且 `sender == claim recipient` 时签名，并先读取链上配额。
+- **未实现**：授权摘要不包含 `userOp.callData` / 目标合约 / selector，因此拿到票据的人仍可能把赞助用于另一目标；没有 bundler 提交、没有 EntryPoint 存款与真实 `UserOperation` 结算；没有生产部署地址与监控。达到 §16.7 **G2** 之前，G0 只能描述为“票务与配额层已实现”，不得描述为“零 Gas 已生效”。
 
 ### 16.2 Tier G1 — 链下状态通道 (State Channels)
 
@@ -1179,7 +1187,7 @@ quote(action, account, device, human):
 ---
 ## 17. 物理级抗手机集群 / 抗群控协议 (Anti-Phone-Farm Protocol)（normative）
 
-> **状态：⬜ 规范已定，代码未实现。** 本章处理的是 §14 无法自动解决的另一半问题：**设备是真的手机，不等于操作者是真实人类；有一台真手机，也不等于只有一台。** 四重机制必须组合使用，任何单一信号都可以被有预算的攻击者绕过。所有活体与传感器结论在设备本地计算，只上传最小化结论 / 摘要，不上传原始深度图、陀螺仪轨迹或生物模板。
+> **状态：🟡 仅有窄范围密码学信号；四重机制未上线。** 服务端已用 `@simplewebauthn/server` 验证平台认证器的 direct attestation 与 `userVerified`，并把 `identityHash = keccak256(rpID, credentialId)` 写入链上 `MaotangFaucet` 的一次性 claim 账本；这能阻止同一 credential 重复领取，但不能证明设备未被 root / 模拟器 / ADB 控制。DCAppAttest / Play Integrity、TrueDepth 3D 活体、陀螺仪微动、客户端 Wasm PoW 与陌生人建联销毁闭环均**尚未实现**。本章其余内容为目标契约。本章处理的是 §14 无法自动解决的另一半问题：**设备是真的手机，不等于操作者是真实人类；有一台真手机，也不等于只有一台。** 四重机制必须组合使用，任何单一信号都可以被有预算的攻击者绕过。所有活体与传感器结论在设备本地计算，只上传最小化结论 / 摘要，不上传原始深度图、陀螺仪轨迹或生物模板。
 
 ### 17.0 威胁模型 (Threat model)
 
@@ -1334,11 +1342,11 @@ expected_profit(n) = spam_revenue(n) - attack_cost(n)
 | 4 轻节点 | `agent-client/src/telemetry.ts`、`scripts/rpc-guard.mjs`、`app/src/lib/chain.ts` | 见 §4.3 的 curl；`cd products/maotang/agent-client; npm test` |
 | 5 反女巫 | `contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol` | `cd products/maotang/contracts; forge test` |
 | **12 断言 / 意图 / 网关** | `app/src/lib/agent/{webauthn,biometric-session,web3-intent}.ts`、`mobile-agent/bio-auth/`、`gateway/src/` | `cd products/maotang/app; npx tsc --noEmit`；`cd products/maotang/gateway; npx tsc --noEmit; npm test`；`node products/maotang/scripts/maotang-smoke.mjs --gateway` |
-| **13 三 Tab C 端** | `docs/architecture/ADR-046-DUAL_MODE_C_END_SPEC.md` / `ADR-047`；已落地 `app/src/components/console/{VaultPanel,DeChatPanel,AgentPanel,ConsoleTabs}.tsx` | `cd products/maotang/app; node node_modules/typescript/bin/tsc --noEmit --incremental false`；`node scripts/assert-runtime-policy.mjs` |
-| **14 移动端纯硬件** | `app/src/lib/agent/{webauthn,biometric-session}.ts`、`mobile-agent/signer/{native-enclave,hardware-attestation}.ts`、`mobile-agent/bio-auth/native-biometric-gate.ts` | `cd products/maotang/app; npx tsc --noEmit`；`cd products/maotang/mobile-agent; npm test` |
-| **15 DeChat** | `docs/architecture/ADR-047-MOBILE_DECHAT_GES_AND_ANTIFARM.md`（规范）；已落地 `app/src/components/console/DeChatPanel.tsx`（本地预览）；目标 `app/src/lib/dechat/{identity,envelope,session,payment-intent}.ts` | `cd products/maotang/app; node node_modules/typescript/bin/tsc --noEmit --incremental false`；中继 / E2EE 传输落地后追加协议测试 |
-| **16 GES** | `contracts/src/{Groth16Verifier,AIAgentRegistry,HumanToken}.sol`（人格基础）；目标 Paymaster / 状态通道 / Wasm PoW / burn 适配器 | **⬜ 无实现复现**：G0–G4 各自落地后在 `cd products/maotang/contracts` 执行 `forge test` |
-| **17 抗手机集群** | `docs/architecture/ADR-047-MOBILE_DECHAT_GES_AND_ANTIFARM.md`（规范）；`agent-manager/src/node/{attestation,hardware-probes}.mjs`（现有节点探针）；目标原生 `DeviceIntegrityGate` / `DeviceLivenessProbe` | **⬜ 无实现复现**：原生桥落地后执行设备农场样本、重放与活体测试 |
+| **13 三 Tab C 端** | `docs/architecture/ADR-046-DUAL_MODE_C_END_SPEC.md` / `ADR-047`；已落地 `app/src/components/agent-console/ConsoleShell.tsx`、`app/src/components/console/{VaultPanel,DeChatPanel,AgentPanel,ConsoleTabs,ClaimCard,PaymasterQuota,KOLReferralPanel}.tsx` | `cd products/maotang/app; node node_modules/typescript/bin/tsc --noEmit --incremental false`；`node --test scripts/assert-runtime-policy.mjs` |
+| **14 移动端纯硬件** | `app/src/lib/agent/{webauthn,webauthn-server,biometric-session}.ts`、`app/src/app/api/agent/webauthn/register/verify/route.ts`、`mobile-agent/signer/{native-enclave,hardware-attestation}.ts`、`mobile-agent/bio-auth/native-biometric-gate.ts` | `cd products/maotang/app; node node_modules/typescript/bin/tsc --noEmit --incremental false`；`node --test scripts/assert-runtime-policy.mjs`；原生飞地桥落地后执行 `cd products/maotang/mobile-agent; npm test` |
+| **15 DeChat** | `docs/architecture/ADR-047-MOBILE_DECHAT_GES_AND_ANTIFARM.md`（规范）；已落地 `app/src/components/console/DeChatPanel.tsx`（会话本地预览、Chat-to-Pay 卡片转发到 `ConsumerView`）；目标 `app/src/lib/dechat/{identity,envelope,session,payment-intent}.ts` | `cd products/maotang/app; node node_modules/typescript/bin/tsc --noEmit --incremental false`；中继 / E2EE 传输落地后追加协议测试 |
+| **16 GES** | 已实现 `contracts/src/MaotangPaymaster.sol`、`contracts/test/MaotangPaymaster.t.sol`、`app/src/lib/agent/{paymaster,paymaster-view}.ts`、`app/src/app/api/agent/paymaster/{quota,authorization}/route.ts`；G1–G4 仍为目标 | **🟡 G0 票务 / 配额层可编译，未部署、未接 bundler**：`npx solc@0.8.24` 编译合约；有 `forge` 时在 `cd products/maotang/contracts` 执行 `forge test`（当前环境无 forge，未执行）；上线前必须完成部署、EntryPoint 存款与 calldata 绑定 |
+| **17 抗手机集群** | 已落地服务端 WebAuthn 断言与 `MaotangFaucet` 一次性 `identityHash` 账本；目标原生 `DeviceIntegrityGate` / `DeviceLivenessProbe`、Wasm PoW 与销毁闭环 | **🟡 仅凭证级防重**：`cd products/maotang/app; node --test scripts/assert-runtime-policy.mjs`；原生桥落地后追加设备农场样本、重放与活体测试 |
 | 地址真源 | `app/config/contracts.json`（部署时重写） | `cd products/maotang/app; npm run build` 注入 manifest |
 
 ## Appendix B. Module Summary (English)
@@ -1349,14 +1357,14 @@ expected_profit(n) = spam_revenue(n) - attack_cost(n)
 4. **Sovereign Edge Node Light Client** — a signed hardware heartbeat advertises node capability today, and the board reads live state through a CORS-enabled, admin-method-filtered RPC (`https://rpc.008ai.online`). Trustless verification is staged: multi-endpoint quorum, then EIP-1186 inclusion proofs against the state root, then a header-syncing light client, then P2P. Only the first stage exists as a plan; the current endpoint is *trust-minimised*, not trustless.
 5. **Bio-Sovereign Anti-Sybil & Security Layer** — Zero-Knowledge Node Verification via Groth16 personhood and hardware-attestation proofs bind one agent and one hardware nullifier to one human, each spendable once, revocable by the owner, with the verifier failing closed until the ceremony key is installed and irreversibly frozen afterwards. Local biometric authorisation now has its interface layer in `mobile-agent/bio-auth/` (a refusing device gate, an assertion-binding adapter, and a one-shot hardware-nullifier registry that derives from device material and defers to the chain); a real device backend and proof generation remain the **roadmap** half of the design.
 
-**Consumer surface (section 13, UI shell shipped; protocol layers not shipped).** The C-end PWA opens on a Bitcoin.com-style **Vault View** - total valuation, USDT / ETH / MaoMao rows and Send / Receive / Swap - in light pink glassmorphism (`#FFB6C1`). A fixed mobile bottom bar switches between **Vault**, **DeChat** and **Agent**. DeChat is currently a session-local preview: it derives a `<wallet-prefix>.008ai` identity from the manifest owner, renders message bubbles and a Chat-to-Pay card, and forwards every payment request to the same controller. No relay, E2EE transport, GES or anti-farm bridge is attached yet. All three entries normalise to the same intent and pass the same `Local Policy -> Face ID (Secure Enclave) -> Gateway Broadcast` pipeline; the UI origin never grants authority. `/v1/send` and `/v1/swap` are specified facade routes, not shipped; `/v1/broadcast` remains the only value-moving route.
+**Consumer surface (section 13, three-tab UI shell shipped; transport and live settlement not shipped).** The C-end PWA opens on a Bitcoin.com-style **Vault View** - total valuation, USDT / ETH / MaoMao rows and Send / Receive / Swap - in light pink glassmorphism (`#FFB6C1`). A fixed mobile bottom bar switches between **Vault**, **DeChat** and **Agent**. DeChat is currently a session-local preview: it derives a `<wallet-prefix>.008ai` identity from the manifest owner, renders message bubbles and a Chat-to-Pay card, and forwards every payment request to the same controller. No relay, E2EE transport, live bundler settlement or anti-farm bridge is attached yet. The claim path is real when a faucet is configured: the server verifies the WebAuthn assertion and submits `MaotangFaucet.claimDefault`, and the UI polls the receipt for Pending -> Confirmed; an unconfigured faucet returns `503 FAUCET_UNCONFIGURED` rather than inventing a ticket. All three entries normalise to the same intent and pass the same `Local Policy -> Face ID (Secure Enclave) -> Gateway Broadcast` pipeline; the UI origin never grants authority. `/v1/send` and `/v1/swap` are specified facade routes, not shipped; `/v1/broadcast` remains the only value-moving route.
 
-6. **Mobile-Only Hardware Security (section 14, normative, partially shipped).** The vault is mobile-only: keys are generated and held in Secure Enclave / StrongBox, Face ID / Touch ID produces a presence assertion over the intent digest, and the transaction signature is produced separately by the M2 enclave. The web edge currently wires WebAuthn platform authentication (`useBiometricOwner`, `userVerification: "required"`) but has no native secure-enclave bridge, no DCAppAttest / Play Integrity verdict, and no TrueDepth / gyroscope probe. PC vault clients, desktop-extension signers and cloud signing are out of scope; PC browsers are read-only documentation / audit surfaces. Missing hardware signals fail closed rather than falling back to software keys.
+6. **Mobile-Only Hardware Security (section 14, normative, partially shipped).** The vault is mobile-only: keys are generated and held in Secure Enclave / StrongBox, Face ID / Touch ID produces a presence assertion over the intent digest, and the transaction signature is produced separately by the M2 enclave. The web edge enrolls with `attestation: "direct"`, and the server verifies `clientDataJSON` / `authenticatorData` with `@simplewebauthn/server`, requires `userVerified`, and rejects `fmt === "none"`; `hardwareBacked` is a server verdict (`fmt !== "none" && deviceType === "singleDevice"`). It still has no native secure-enclave bridge, no DCAppAttest / Play Integrity verdict, and no TrueDepth / gyroscope probe. PC vault clients, desktop-extension signers and cloud signing are out of scope; PC browsers are read-only documentation / audit surfaces. Missing hardware signals fail closed rather than falling back to software keys.
 
-7. **DeChat (section 15, specified, not shipped).** Identity is the wallet address, not a phone number or username. Device keys rotate under a wallet-signed `DeChatProfile`; messages use P-256 ECDH + HKDF-SHA-256 + AES-256-GCM with signed envelopes, monotonic counters and replay rejection. Chat-to-Pay turns a message into a canonical `PaymentIntent` and reuses the Vault pipeline: policy first, then `useBiometricOwner().authorize(digest)`, then enclave signing, then broadcast and a receipt message. AI agents get a separate capped P2P channel and can propose payments but can never approve them.
+7. **DeChat (section 15, session-local preview shipped; transport not shipped).** The three-tab shell includes a DeChat panel that derives a `<wallet-prefix>.008ai` display identity from the manifest owner, renders local message bubbles, a Chat-to-Pay card and a text input, and forwards every payment to the same `ConsumerView` policy / Face ID / broadcast path. There is no relay, no E2EE envelope transport and no device-bound encrypted store yet, so messages do not leave the session. The target protocol is: identity is the wallet address, not a phone number or username; device keys rotate under a wallet-signed `DeChatProfile`; messages use P-256 ECDH + HKDF-SHA-256 + AES-256-GCM with signed envelopes, monotonic counters and replay rejection; Chat-to-Pay turns a message into a canonical `PaymentIntent`; AI agents get a separate capped P2P channel and can propose payments but can never approve them.
 
-8. **5-Tier GES (section 16, specified, not shipped).** `GES` is a composable Gasless Execution Stack: G0 ERC-4337 Paymaster sponsorship, G1 off-chain state channels, G2 bounded client-side Wasm PoW for admission control, G3 ZK-personhood quotas, and G4 XRPL-style fee burn. "Gasless" means the owner does not manage gas, not that execution is free. Every tier remains subordinate to the same policy, biometric assertion, intent digest and broadcast gate; sponsor, channel, self-pay and burn sources must be visible to the owner.
+8. **5-Tier GES (section 16, G0 ticket/quota code implemented; not live; G1–G4 specified).** `GES` is a composable Gasless Execution Stack: G0 ERC-4337 Paymaster sponsorship, G1 off-chain state channels, G2 bounded client-side Wasm PoW for admission control, G3 ZK-personhood quotas, and G4 XRPL-style fee burn. `MaotangPaymaster.sol` implements the v0.7 validation entry point, EIP-712 single-use authorization, an exact 100-operation rolling 24h ring window, pause and optional allowlist; the server reads live quota and signs only for the wallet bound to a verified claim. No Paymaster deployment, EntryPoint deposit or bundler is configured, and the authorization does not yet bind target / selector / calldata, so G0 must not be advertised as a working zero-gas benefit. G1–G4 remain target contracts. "Gasless" means the owner does not manage gas, not that execution is free. Every tier remains subordinate to the same policy, biometric assertion, intent digest and broadcast gate; sponsor, channel, self-pay and burn sources must be visible to the owner.
 
-9. **Anti-Phone-Farm (section 17, specified, not shipped).** The four controls compose: device / environment attestation (DCAppAttest, Play Integrity, root / emulator / ADB signals), TrueDepth 3D liveness plus on-device gyroscope micro-motion, bounded client-side PoW, and a stranger-contact / rate-limit / burn-escalation loop keyed to the human nullifier rather than the wallet. Raw depth maps, sensor traces and biometric templates never leave the device. No single signal is treated as proof of personhood; missing required signals fail closed, and accessibility / appeal paths are mandatory.
+9. **Anti-Phone-Farm (section 17, narrow claim-side control only).** Server-side WebAuthn direct attestation, mandatory `userVerified`, and the on-chain one-claim `identityHash` ledger block replay of one credential; they do not prove that a device is free of root / emulator / ADB control. The target four controls compose: device / environment attestation (DCAppAttest, Play Integrity, root / emulator / ADB signals), TrueDepth 3D liveness plus on-device gyroscope micro-motion, bounded client-side PoW, and a stranger-contact / rate-limit / burn-escalation loop keyed to the human nullifier rather than the wallet. Those four are not shipped. Raw depth maps, sensor traces and biometric templates never leave the device. No single signal is treated as proof of personhood; missing required signals fail closed, and accessibility / appeal paths are mandatory.
 
-**Consumer navigation (ADR-047, specified, not shipped).** The target mobile PWA uses three first-class bottom tabs: **Vault** (`/`), **DeChat** (`/dechat`) and **Agent** (`/agent`). Vault keeps the Bitcoin.com-style total, asset rows and Send / Receive / Swap; DeChat owns E2EE conversations and Chat-to-Pay; Agent owns intent parsing, policy logs and node debugging. The engineer / audit console remains behind the drawer. `useBiometricOwner()` remains the single owner-presence hook shared by all three tabs; native attestation and liveness conclusions arrive through separate narrow bridges, never through the WebView.
+**Consumer navigation (ADR-047, UI shell shipped; protocol still target).** The mobile PWA uses three first-class bottom tabs: **Vault** (`/`), **DeChat** (`/dechat`) and **Agent** (`/agent`). Vault keeps the Bitcoin.com-style total, asset rows and Send / Receive / Swap; DeChat currently provides the local preview and Chat-to-Pay hand-off while E2EE transport remains a target; Agent owns intent parsing, policy logs and node debugging. The engineer / audit console remains behind the drawer. `useBiometricOwner()` remains the single owner-presence hook shared by all three tabs; native attestation and liveness conclusions arrive through separate narrow bridges, never through the WebView.

@@ -37,6 +37,10 @@ const DOMAIN = process.env.MAOTANG_DOMAIN || "maotang.008ai.online";
 const ROOT_DIRECTORY = "app";
 const PACKAGE_NAME = "@maotang/app";
 const API = "https://api.vercel.com";
+const PUBLIC_RPC_URL = "https://rpc.008ai.online";
+const CANONICAL_BTC_REVENUE_ADDRESS = "1HBhZ97jHjasVF4XFWLY9Wv8dpNHUq3AbJ";
+const WEBAUTHN_RP_ID = "maotang.008ai.online";
+const WEBAUTHN_EXPECTED_ORIGIN = `https://${WEBAUTHN_RP_ID}`;
 
 // Resolve the service root from this file so the pipeline can be invoked from anywhere,
 // including the repository root (`node app/scripts/vercel-api-deploy.mjs`).
@@ -53,17 +57,128 @@ const REPO_ROOT = path.resolve(CWD, "..");
  * panel. `maotang.008ai.online` is the public preview, so the flag is set here - and because the stub
  * only ever emits a *candidate* that M1/M2 still validate and dispose, it cannot spend on its own.
  */
-const PRODUCTION_ENV = {
-  NEXT_PUBLIC_CHAIN_ID: "31337",
-  NEXT_PUBLIC_MAOTANG_RPC_URL: "https://rpc.008ai.online",
-  NEXT_PUBLIC_OPERATOR_ADDRESS: "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
-  NEXT_PUBLIC_DEVELOPER_ADDRESS: "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
-  NEXT_PUBLIC_BTC_REVENUE_ADDRESS: "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe",
-  // The M2 window is bound to this project explicitly rather than left to the code default, so the
-  // 24h lock the C-end renders is a property of the production deployment and not of a lucky fallback.
-  AGENT_POLICY_WINDOW_SECONDS: "86400",
-  AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION: "1",
-};
+const MANIFEST_FILE = path.join(CWD, "config", "contracts.json");
+const SENSITIVE_ENV_KEYS = new Set([
+  "MAOTANG_FAUCET_PRIVATE_KEY",
+  "MAOTANG_WEBAUTHN_SECRET",
+]);
+
+function readManifest() {
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(MANIFEST_FILE, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `ERR_MANIFEST_MISSING: deploy the contracts first; cannot read ${MANIFEST_FILE} (${(error && error.message) || error})`,
+    );
+  }
+
+  const contracts = manifest && manifest.contracts;
+  const faucet = manifest && manifest.faucet;
+  const network = manifest && manifest.network;
+  const beneficiaries = manifest && manifest.beneficiaries;
+  const required = {
+    chainId: network && network.chainId,
+    faucetToken: contracts && contracts.MaotangFaucetToken,
+    faucet: contracts && contracts.MaotangFaucet,
+    rewardUnits: faucet && faucet.rewardUnits,
+    btcRevenueAddress: beneficiaries && beneficiaries.btcRevenueAddress,
+  };
+  for (const [name, value] of Object.entries(required)) {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new Error(`ERR_MANIFEST_INCOMPLETE: missing ${name} in ${MANIFEST_FILE}`);
+    }
+  }
+  if (!/^\d+$/.test(required.chainId) || Number(required.chainId) <= 0) {
+    throw new Error("ERR_MANIFEST_INVALID: network.chainId must be a positive integer");
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(required.faucetToken)) {
+    throw new Error("ERR_MANIFEST_INVALID: contracts.MaotangFaucetToken is not an EVM address");
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(required.faucet)) {
+    throw new Error("ERR_MANIFEST_INVALID: contracts.MaotangFaucet is not an EVM address");
+  }
+  if (!/^\d+$/.test(required.rewardUnits) || BigInt(required.rewardUnits) <= 0n) {
+    throw new Error("ERR_MANIFEST_INVALID: faucet.rewardUnits must be a positive integer");
+  }
+  if (required.btcRevenueAddress !== CANONICAL_BTC_REVENUE_ADDRESS) {
+    throw new Error(
+      `ERR_MANIFEST_INVALID: beneficiaries.btcRevenueAddress must be ${CANONICAL_BTC_REVENUE_ADDRESS}`,
+    );
+  }
+  if (faucet.minterLocked !== true) {
+    throw new Error("ERR_MANIFEST_INVALID: faucet.minterLocked must be true");
+  }
+  return manifest;
+}
+
+function requiredSecret(name) {
+  const value = process.env[name]?.trim() || "";
+  if (value === "") throw new Error(`ERR_ENV_MISSING: ${name} is not set`);
+  return value;
+}
+
+/**
+ * Production variables derived from the freshly deployed manifest.
+ *
+ * Public addresses and constants are safe to inline. The faucet signer and WebAuthn HMAC secret come
+ * only from this process environment and are stored as encrypted Vercel values.
+ */
+function buildProductionEnv(manifest, requireSecrets = true) {
+  const contracts = manifest.contracts;
+  const faucet = manifest.faucet;
+  const network = manifest.network;
+  const recipients = manifest.beneficiaries;
+  const operator = recipients.operator || "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea";
+  const explorerUrl =
+    process.env.MAOTANG_FAUCET_EXPLORER_URL?.trim() ||
+    manifest.frontendEnv?.MAOTANG_FAUCET_EXPLORER_URL ||
+    "";
+  const faucetPrivateKey = requireSecrets
+    ? requiredSecret("MAOTANG_FAUCET_PRIVATE_KEY")
+    : process.env.MAOTANG_FAUCET_PRIVATE_KEY?.trim() || "";
+  const webAuthnSecret = requireSecrets
+    ? requiredSecret("MAOTANG_WEBAUTHN_SECRET")
+    : process.env.MAOTANG_WEBAUTHN_SECRET?.trim() || "";
+
+  if (requireSecrets && !/^0x[0-9a-fA-F]{64}$/.test(faucetPrivateKey)) {
+    throw new Error("ERR_ENV_INVALID: MAOTANG_FAUCET_PRIVATE_KEY must be a 32-byte hex key");
+  }
+  if (requireSecrets && webAuthnSecret.length < 32) {
+    throw new Error("ERR_ENV_INVALID: MAOTANG_WEBAUTHN_SECRET must be at least 32 characters");
+  }
+
+  return {
+    NEXT_PUBLIC_CHAIN_ID: network.chainId,
+    NEXT_PUBLIC_MAOTANG_RPC_URL: PUBLIC_RPC_URL,
+    NEXT_PUBLIC_MAOTANG_FACTORY_ADDRESS: contracts.MaoTangFactory || "",
+    NEXT_PUBLIC_MAOTANG_VAULT_ADDRESS: contracts.MaoTangSustenanceVault || "",
+    NEXT_PUBLIC_MAOTANG_HUMAN_TOKEN_ADDRESS: contracts.HumanToken || "",
+    NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS: manifest.referenceCurve?.curve || "",
+    NEXT_PUBLIC_MAOTANG_DRIPPER_ADDRESS: contracts.MaoTangSustenanceDripper || "",
+    NEXT_PUBLIC_MAOTANG_GOVERNOR_ADDRESS: contracts.MaoTangGovernor || "",
+    NEXT_PUBLIC_MAOTANG_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken,
+    NEXT_PUBLIC_MAOTANG_FAUCET_ADDRESS: contracts.MaotangFaucet,
+    NEXT_PUBLIC_OPERATOR_ADDRESS: operator,
+    NEXT_PUBLIC_DEVELOPER_ADDRESS: recipients.developer || operator,
+    NEXT_PUBLIC_BTC_REVENUE_ADDRESS: CANONICAL_BTC_REVENUE_ADDRESS,
+    MAOTANG_FAUCET_RPC_URL: PUBLIC_RPC_URL,
+    MAOTANG_FAUCET_CHAIN_ID: network.chainId,
+    MAOTANG_FAUCET_PRIVATE_KEY: faucetPrivateKey,
+    MAOTANG_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken,
+    MAOTANG_FAUCET_CONTRACT_ADDRESS: contracts.MaotangFaucet,
+    MAOTANG_FAUCET_REWARD_UNITS: faucet.rewardUnits,
+    MAOTANG_FAUCET_EXPLORER_URL: explorerUrl,
+    MAOTANG_WEBAUTHN_SECRET: webAuthnSecret,
+    MAOTANG_WEBAUTHN_RP_ID: WEBAUTHN_RP_ID,
+    MAOTANG_WEBAUTHN_EXPECTED_ORIGIN: WEBAUTHN_EXPECTED_ORIGIN,
+    MAOTANG_SECURITY_HOLD: "0",
+    // The M2 window is bound to this project explicitly rather than left to the code default, so the
+    // 24h lock the C-end renders is a property of the production deployment and not of a lucky fallback.
+    AGENT_POLICY_WINDOW_SECONDS: "86400",
+    AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION: "1",
+  };
+}
 
 /** Where the sibling packages are vendored inside the root directory. Artifact-only: the
  * repository's `app/` has no `vendor/` directory. */
@@ -257,25 +372,26 @@ async function setProjectSettings() {
   console.log(`  project settings: framework=nextjs rootDirectory=${ROOT_DIRECTORY}`);
 }
 
-async function upsertEnv() {
+async function upsertEnv(productionEnv) {
   const { status, data } = await vcall(
     "GET",
     `/v9/projects/${PROJECT}/env?teamId=${TEAM_ID}&decrypt=false&limit=200`
   );
   const existing = new Map();
   if (status === 200) for (const e of data.envs || []) existing.set(e.key, e.id);
-  for (const [key, value] of Object.entries(PRODUCTION_ENV)) {
+  for (const [key, value] of Object.entries(productionEnv)) {
     const target = ["production", "preview"];
+    const type = SENSITIVE_ENV_KEYS.has(key) ? "encrypted" : "plain";
     if (existing.has(key)) {
       const r = await vcall("PATCH", `/v9/projects/${PROJECT}/env/${existing.get(key)}?teamId=${TEAM_ID}`, {
-        body: { value, type: "plain", target },
+        body: { value, type, target },
       });
       if (r.status !== 200) {
         throw new Error(`env ${key} update failed (${r.status}): ${JSON.stringify(r.data).slice(0, 200)}`);
       }
     } else {
       const r = await vcall("POST", `/v9/projects/${PROJECT}/env?teamId=${TEAM_ID}`, {
-        body: { key, value, type: "plain", target },
+        body: { key, value, type, target },
       });
       if (r.status !== 200 && r.status !== 201) {
         throw new Error(`env ${key} create failed (${r.status}): ${JSON.stringify(r.data).slice(0, 200)}`);
@@ -400,6 +516,8 @@ async function verifyDomain() {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  const manifest = readManifest();
+  const productionEnv = buildProductionEnv(manifest, !dryRun);
   preflight(!dryRun);
 
   if (dryRun) {
@@ -423,7 +541,7 @@ async function main() {
   await setProjectSettings();
 
   console.log("[3/5] upsert production env vars");
-  await upsertEnv();
+  await upsertEnv(productionEnv);
 
   console.log("[4/5] upload sources and trigger production build");
   const files = collectFiles();

@@ -27,6 +27,26 @@ import type { SlmInferenceResult, TranslatedIntent } from "@maotang/mobile-agent
 
 import { createRuntime, toRefusal } from "@/lib/agent/runtime";
 import { isSecurityHoldEngaged, securityHoldResponse } from "@/lib/system/security-hold";
+import {
+  ENROLLMENT_COOKIE,
+  ENROLLMENT_TYPE,
+  PERSONHOOD_COOKIE,
+  PERSONHOOD_TYPE,
+  enrollmentTtlSeconds,
+  identityHashFor,
+  isAuthenticationResponseJSON,
+  jsonWithCookies,
+  open,
+  personhoodTtlSeconds,
+  readCookie,
+  readWebAuthnConfig,
+  seal,
+  setCookie,
+  verifyEnrollmentAssertion,
+  type EnrollmentPayload,
+  type PersonhoodPayload,
+  type WebAuthnConfig,
+} from "@/lib/agent/webauthn-server";
 
 import type { AgentRefusal, AgentRefusalStage, IntentResponse, SignedReport } from "@/lib/agent/types";
 
@@ -72,6 +92,7 @@ function refuse(refusal: AgentRefusal): Response {
 interface IntentRequest {
   readonly prompt?: unknown;
   readonly attemptSign?: unknown;
+  readonly assertion?: unknown;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -128,8 +149,21 @@ export async function POST(request: Request): Promise<Response> {
 
   let signed: SignedReport | null = null;
   let signRefusal: AgentRefusal | null = null;
+  let signAuthorization: SigningAuthorization | null = null;
 
   if (attemptSign) {
+    // A policy preview is not an owner-presence proof. The browser must forward the assertion it
+    // just produced over *this* preview digest, and the server verifies it before the enclave is
+    // asked to sign. The client's own userVerified/hardwareBacked flags are ignored.
+    const authorization = await verifySigningAssertion(request, body.assertion, preview.digest);
+    if (authorization.ok) {
+      signAuthorization = authorization.authorization;
+    } else {
+      signRefusal = authorization.refusal;
+    }
+  }
+
+  if (attemptSign && signAuthorization !== null) {
     try {
       const released = await agent.wallet.signIntent(translated.intent);
       signed = {
@@ -179,5 +213,187 @@ export async function POST(request: Request): Promise<Response> {
     signRefusal,
   };
 
-  return Response.json(response, { status: 200 });
+  if (signAuthorization === null) {
+    return Response.json(response, { status: 200 });
+  }
+
+  const cookies = [
+    setCookie(
+      ENROLLMENT_COOKIE,
+      seal(ENROLLMENT_TYPE, signAuthorization.enrollment, signAuthorization.config.secret, enrollmentTtlSeconds()),
+      enrollmentTtlSeconds(),
+      signAuthorization.config.secureCookies,
+    ),
+  ];
+  if (signAuthorization.personhood !== null) {
+    cookies.push(
+      setCookie(
+        PERSONHOOD_COOKIE,
+        seal(
+          PERSONHOOD_TYPE,
+          signAuthorization.personhood,
+          signAuthorization.config.secret,
+          personhoodTtlSeconds(),
+        ),
+        personhoodTtlSeconds(),
+        signAuthorization.config.secureCookies,
+      ),
+    );
+  }
+  return jsonWithCookies(response, 200, cookies);
+}
+
+interface SigningAuthorization {
+  readonly enrollment: EnrollmentPayload;
+  readonly personhood: PersonhoodPayload | null;
+  readonly config: WebAuthnConfig;
+}
+
+type SigningAuthorizationResult =
+  | { readonly ok: true; readonly authorization: SigningAuthorization }
+  | { readonly ok: false; readonly refusal: AgentRefusal };
+
+/**
+ * Verifies the owner's live assertion against the exact digest M2 is about to sign.
+ *
+ * The expected challenge is derived from the preview digest, not read from the body. That binds the
+ * Face ID assertion to this transaction, prevents a captured assertion from authorizing a different
+ * intent, and makes the signature counter advance on every signed leg.
+ */
+async function verifySigningAssertion(
+  request: Request,
+  assertion: unknown,
+  digest: string,
+): Promise<SigningAuthorizationResult> {
+  if (!isAuthenticationResponseJSON(assertion)) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "HARDWARE_ASSERTION_REQUIRED",
+        reason: "a WebAuthn assertion over this intent digest is required before signing",
+      },
+    };
+  }
+  const body = digest.startsWith("0x") ? digest.slice(2) : digest;
+  if (!/^[0-9a-fA-F]{64}$/.test(body)) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "INTENT_DIGEST_INVALID",
+        reason: "the preview digest is not a 32-byte hex value",
+      },
+    };
+  }
+
+  const configResult = readWebAuthnConfig(request);
+  if (!configResult.ok) {
+    return {
+      ok: false,
+      refusal: { stage: "m2-enclave", code: configResult.code, reason: configResult.reason },
+    };
+  }
+  const config = configResult.config;
+  const enrollment = open<EnrollmentPayload>(
+    readCookie(request, ENROLLMENT_COOKIE),
+    ENROLLMENT_TYPE,
+    config.secret,
+  );
+  if (enrollment === null) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "ENROLLMENT_REQUIRED",
+        reason: "this browser has no server-verified enrollment",
+      },
+    };
+  }
+  if (assertion.id !== enrollment.credentialId) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "CREDENTIAL_MISMATCH",
+        reason: "the assertion is for a different credential",
+      },
+    };
+  }
+  if (!enrollment.userVerified || !enrollment.hardwareBacked) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "HARDWARE_ATTESTATION_UNAVAILABLE",
+        reason: "the enrolled credential is not user-verified and hardware-backed",
+      },
+    };
+  }
+
+  let verification;
+  try {
+    verification = await verifyEnrollmentAssertion(
+      assertion,
+      Buffer.from(body, "hex").toString("base64url"),
+      enrollment,
+      config,
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "ASSERTION_INVALID",
+        reason: `assertion verification failed: ${(error as Error).message}`,
+      },
+    };
+  }
+  if (!verification.verified || !verification.userVerified) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "BIO_NOT_VERIFIED",
+        reason: "the authenticator did not cryptographically assert user verification",
+      },
+    };
+  }
+  if (verification.counter !== 0 && verification.counter <= enrollment.counter) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "COUNTER_REPLAY",
+        reason: "the authenticator signature counter did not advance",
+      },
+    };
+  }
+  const identityHash = identityHashFor(config.rpID, enrollment.credentialId);
+  if (identityHash !== enrollment.identityHash) {
+    return {
+      ok: false,
+      refusal: {
+        stage: "m2-enclave",
+        code: "IDENTITY_MISMATCH",
+        reason: "the stored identity hash does not match this credential",
+      },
+    };
+  }
+
+  const updatedEnrollment: EnrollmentPayload = {
+    ...enrollment,
+    counter: verification.counter !== 0 ? verification.counter : enrollment.counter,
+  };
+  const personhood: PersonhoodPayload | null =
+    updatedEnrollment.recipient === null
+      ? null
+      : {
+          identityHash,
+          alias: updatedEnrollment.alias,
+          credentialId: enrollment.credentialId,
+          recipient: updatedEnrollment.recipient,
+          verifiedAt: Date.now(),
+        };
+  return { ok: true, authorization: { enrollment: updatedEnrollment, personhood, config } };
 }

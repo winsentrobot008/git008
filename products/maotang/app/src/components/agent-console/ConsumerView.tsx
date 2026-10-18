@@ -14,7 +14,7 @@
  * host has no secure-enclave bridge, so that answer is normally a refusal and is shown as one.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MenuDrawer } from "@/components/agent-console/MenuDrawer";
 import { ToastStack, useToastQueue } from "@/components/agent-console/Toast";
@@ -46,8 +46,15 @@ import {
   type PolicyEventStage,
 } from "@/lib/agent/console-mode";
 import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
-import type { AgentRefusal, Hex, IntentSuccess } from "@/lib/agent/types";
+import {
+  LOADING_PAYMASTER_QUOTA,
+  paymasterQuotaFromPayload,
+  type PaymasterQuotaView,
+} from "@/lib/agent/paymaster-view";
+import type { AgentRefusal, IntentSuccess } from "@/lib/agent/types";
+import type { AuthenticationOptionsJSON, RegistrationOptionsJSON } from "@/lib/agent/webauthn";
 import { useLanguage } from "@/lib/i18n/language";
+import { durationBucket, trackEvent } from "@/lib/telemetry";
 
 /** Rendered when a value has not landed yet. Never a fabricated zero. */
 const NO_VALUE = "\u2014";
@@ -60,18 +67,70 @@ const NO_VALUE = "\u2014";
  */
 const CREDENTIAL_LABEL = "猫糖 Web Agent OS";
 
-/** A fresh 32-byte challenge for the one claim assertion; never reused across taps. */
-function randomChallenge(): Hex {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  const body = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return `0x${body}` as Hex;
-}
-
 type StatusState =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly status: AgentStatus }
   | { readonly kind: "unavailable"; readonly code: string; readonly reason: string };
+
+/** The server-issued challenge the claim tap asserts over. */
+type ClaimChallengeState =
+  | { readonly kind: "idle" }
+  | { readonly kind: "loading" }
+  | {
+      readonly kind: "ready";
+      readonly options: AuthenticationOptionsJSON;
+      readonly hardwareBacked: boolean;
+    }
+  | { readonly kind: "unavailable"; readonly code: string };
+
+interface ClaimReply {
+  readonly ok?: boolean;
+  readonly code?: string;
+  readonly message?: string;
+  readonly claim?: {
+    readonly id?: string;
+    readonly alias?: string | null;
+    readonly reward?: string;
+    readonly symbol?: string;
+    readonly txHash?: string;
+    readonly explorerUrl?: string | null;
+    readonly chainId?: number;
+  };
+}
+
+interface ClaimStatusReply {
+  readonly ok?: boolean;
+  readonly status?: "pending" | "confirmed" | "failed";
+  readonly blockNumber?: number | null;
+  readonly explorerUrl?: string | null;
+  readonly code?: string;
+}
+
+interface PaymasterAuthorizationReply {
+  readonly ok?: boolean;
+  readonly sponsored?: boolean;
+  readonly code?: string;
+  readonly message?: string;
+  readonly authorization?: {
+    readonly validUntil?: number;
+    readonly nonce?: string;
+    readonly digest?: string;
+    readonly signature?: string;
+    readonly paymasterData?: string;
+  };
+}
+
+type PaymasterTicketState =
+  | { readonly kind: "idle" }
+  | { readonly kind: "signing" }
+  | {
+      readonly kind: "signed";
+      readonly validUntil: number;
+      readonly digest: string;
+      readonly paymasterData: string;
+      readonly sponsored: boolean;
+    }
+  | { readonly kind: "unavailable"; readonly code: string };
 
 export interface ConsumerViewProps {
   /** The operator face currently rendered. Always `"consumer"` here. */
@@ -122,28 +181,94 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
    * status the Paymaster indicator shows and never substitutes for a per-transaction assertion.
    */
   const [hardwareVerified, setHardwareVerified] = useState(false);
+  const [registrationOptions, setRegistrationOptions] = useState<RegistrationOptionsJSON | null>(null);
+  const [registrationEpoch, setRegistrationEpoch] = useState(0);
+  const [claimChallenge, setClaimChallenge] = useState<ClaimChallengeState>({ kind: "idle" });
+  const [claimChallengeEpoch, setClaimChallengeEpoch] = useState(0);
+  const [paymasterQuota, setPaymasterQuota] = useState<PaymasterQuotaView>(LOADING_PAYMASTER_QUOTA);
+  const [quotaEpoch, setQuotaEpoch] = useState(0);
+  const [paymasterTicket, setPaymasterTicket] = useState<PaymasterTicketState>({ kind: "idle" });
+  const [personhoodRefreshing, setPersonhoodRefreshing] = useState(false);
+  /** Cancels an in-flight receipt poll when the claim is replaced or the panel is left. */
+  const claimGeneration = useRef(0);
+  const referralTracked = useRef(false);
+  const pwaTracked = useRef(false);
+  const dechatSessionStart = useRef<number | null>(null);
 
   const session = useBiometricOwner();
   const toasts = useToastQueue();
+  const status = statusState.kind === "ready" ? statusState.status : null;
+  const owner = status?.deployment.owner ?? null;
 
   const resetSession = session.reset;
   const clearInteraction = useCallback(() => {
+    claimGeneration.current += 1;
     setPreview(null);
     setRefusal(null);
     setLocalNote(null);
     setConfirmOpen(false);
     setClaimState({ phase: "idle" });
+    setPaymasterTicket({ kind: "idle" });
     resetSession();
   }, [resetSession]);
 
   // The browser origin is only known after mount. `ref` is a display/referral hint, never an
-  // authorization input, so it is validated against the same comms-alias grammar before rendering.
+  // authorization input, so it is validated against the comms-alias or EVM-address grammar before
+  // rendering. Only the *kind* is sent to telemetry; the value itself stays on the device.
   useEffect(() => {
     setShareOrigin(window.location.origin);
     const raw = new URLSearchParams(window.location.search).get("ref");
     const ref = raw === null ? "" : raw.trim().toLowerCase();
-    setReferral(/^[a-z0-9]{1,32}$/.test(ref) ? ref : null);
+    const alias = /^[a-z0-9]{1,32}$/.test(ref);
+    const address = /^0x[a-f0-9]{40}$/.test(ref);
+    setReferral(alias || address ? ref : null);
+    if ((alias || address) && !referralTracked.current) {
+      referralTracked.current = true;
+      trackEvent("referral_conversion", {
+        ref_kind: address ? "address" : "alias",
+        landing: window.location.pathname === "/dechat" ? "dechat" : "vault",
+      });
+    }
   }, []);
+
+  // A single install-mode sample per page session plus a real `appinstalled` signal. The server has
+  // no durable store, so these are deliberately coarse labels and nothing device-identifying.
+  useEffect(() => {
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches === true ||
+      (window.navigator as Navigator & { readonly standalone?: boolean }).standalone === true;
+    if (!pwaTracked.current) {
+      pwaTracked.current = true;
+      trackEvent("pwa_install", {
+        display_mode: standalone ? "standalone" : "browser",
+        trigger: "page_load",
+      });
+    }
+    const onInstalled = (): void => {
+      trackEvent("pwa_install", {
+        display_mode: standalone ? "standalone" : "browser",
+        trigger: "appinstalled",
+      });
+    };
+    window.addEventListener("appinstalled", onInstalled);
+    return () => window.removeEventListener("appinstalled", onInstalled);
+  }, []);
+
+  // DeChat engagement is a start/end pair with a coarse duration bucket, owned by the tab lifecycle.
+  useEffect(() => {
+    if (view !== "dechat") {
+      return;
+    }
+    dechatSessionStart.current = Date.now();
+    trackEvent("dechat_session_start");
+    return () => {
+      const started = dechatSessionStart.current;
+      dechatSessionStart.current = null;
+      if (started !== null) {
+        trackEvent("dechat_session_end", { duration_bucket: durationBucket(Date.now() - started) });
+      }
+    };
+  }, [view]);
 
   // The bottom tab bar lives in `ConsoleShell`. This effect is the one place an external tab change
   // clears the previous panel's preview, refusal, confirmation sheet and biometric assertion.
@@ -219,6 +344,131 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     return () => controller.abort();
   }, [statusState]);
 
+  // Registration options are server-issued and prefetched before the tap, so
+  // `navigator.credentials.create` runs inside the tap's transient user activation.
+  useEffect(() => {
+    if (session.credentialId !== null || session.capability?.platformAuthenticator !== true) {
+      setRegistrationOptions(null);
+      return;
+    }
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/agent/webauthn/register/options", {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { readonly ok?: boolean; readonly options?: RegistrationOptionsJSON }
+          | null;
+        if (!controller.signal.aborted && payload?.ok === true && payload.options !== undefined) {
+          setRegistrationOptions(payload.options);
+        }
+      } catch {
+        // The tap path reports the failure with a code; a prefetch failure is not a page error.
+      }
+    })();
+    return () => controller.abort();
+  }, [registrationEpoch, session.capability?.platformAuthenticator, session.credentialId]);
+
+  // The claim challenge must be server-issued and bound to the enrolled credential. It is fetched
+  // before the tap for the same user-activation reason as registration.
+  useEffect(() => {
+    if (session.credentialId === null) {
+      setClaimChallenge({ kind: "idle" });
+      return;
+    }
+    const controller = new AbortController();
+    setClaimChallenge({ kind: "loading" });
+    void (async () => {
+      try {
+        const response = await fetch("/api/agent/claim/challenge", {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              readonly ok?: boolean;
+              readonly code?: string;
+              readonly options?: AuthenticationOptionsJSON;
+              readonly hardwareBacked?: boolean;
+            }
+          | null;
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (response.ok && payload?.ok === true && payload.options !== undefined) {
+          setClaimChallenge({
+            kind: "ready",
+            options: payload.options,
+            hardwareBacked: payload.hardwareBacked === true,
+          });
+          return;
+        }
+        setClaimChallenge({
+          kind: "unavailable",
+          code: payload?.code ?? `HTTP_${response.status}`,
+        });
+      } catch {
+        if (!controller.signal.aborted) {
+          setClaimChallenge({ kind: "unavailable", code: "CHALLENGE_UNREACHABLE" });
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [claimChallengeEpoch, session.credentialId]);
+
+  // The quota is a live server read keyed by the manifest owner. `verified` comes from the sealed
+  // personhood cookie; the local hardware latch never replaces it.
+  useEffect(() => {
+    if (owner === null) {
+      setPaymasterQuota(
+        statusState.kind === "unavailable"
+          ? {
+              loading: false,
+              configured: false,
+              verified: false,
+              limit: null,
+              used: null,
+              remaining: null,
+              reason: statusState.reason,
+            }
+          : LOADING_PAYMASTER_QUOTA,
+      );
+      return;
+    }
+    const controller = new AbortController();
+    setPaymasterQuota(LOADING_PAYMASTER_QUOTA);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/agent/paymaster/quota?sender=${encodeURIComponent(owner)}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => null)) as unknown;
+        if (!controller.signal.aborted) {
+          setPaymasterQuota(paymasterQuotaFromPayload(payload));
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setPaymasterQuota({
+            loading: false,
+            configured: false,
+            verified: false,
+            limit: null,
+            used: null,
+            remaining: null,
+            reason: "PAYMASTER_UNREACHABLE",
+          });
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [owner, quotaEpoch, statusState]);
+
   // -- intent -----------------------------------------------------------------------------------
 
   const submit = useCallback(
@@ -285,18 +535,43 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     );
   }, [session, statusState, t]);
 
+  /**
+   * Enrolls this device from options that must already be in hand.
+   *
+   * Returns whether the server verified the attestation. When the prefetch has not landed the owner
+   * is told to retry instead of spending the tap on a network round-trip iOS Safari would treat as a
+   * lost user activation.
+   */
+  const enroll = useCallback(async (): Promise<boolean> => {
+    if (session.credentialId !== null) {
+      return true;
+    }
+    if (session.busy) {
+      return false;
+    }
+    const options = registrationOptions;
+    if (options === null) {
+      setRegistrationEpoch((epoch) => epoch + 1);
+      toasts.push("warn", t("claim.preparing"));
+      return false;
+    }
+    setRegistrationOptions(null);
+    const result = await session.enroll(CREDENTIAL_LABEL, options, owner);
+    if (result.ok) {
+      toasts.push("success", t("toast.enrolled"));
+      return true;
+    }
+    setRegistrationEpoch((epoch) => epoch + 1);
+    const { tone, message } = biometricFailureToast(result.failure, language);
+    toasts.push(tone, message);
+    return false;
+  }, [language, owner, registrationOptions, session, t, toasts]);
+
   // -- local hardware owner check ----------------------------------------------------------------
 
   const runHardwareCheck = useCallback(async (): Promise<boolean> => {
     if (session.credentialId === null) {
-      const result = await session.enroll(CREDENTIAL_LABEL);
-      if (result.ok) {
-        toasts.push("success", t("toast.enrolled"));
-        return true;
-      }
-      const { tone, message } = biometricFailureToast(result.failure, language);
-      toasts.push(tone, message);
-      return false;
+      return enroll();
     }
     if (session.capability?.platformAuthenticator === true) {
       return true;
@@ -307,7 +582,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     );
     toasts.push(tone, message);
     return false;
-  }, [language, session, t, toasts]);
+  }, [enroll, language, session, t, toasts]);
 
   const runActivation = useCallback(async () => {
     if (await runHardwareCheck()) {
@@ -342,7 +617,11 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     toasts.push(tone, message);
     recordPolicy(interactionView, "biometric", "BIO_VERIFIED", summary, true);
 
-    const signed = await requestIntent({ prompt: preview.inference.prompt, attemptSign: true });
+    const signed = await requestIntent({
+      prompt: preview.inference.prompt,
+      attemptSign: true,
+      assertion: outcome.assertion.response,
+    });
     if (signed.ok) {
       setPreview(signed);
       recordPolicy(
@@ -352,20 +631,53 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
         summary,
         signed.signed !== null,
       );
+      if (signed.signed !== null && owner !== null) {
+        setPaymasterTicket({ kind: "signing" });
+        trackEvent("paymaster_authorization", { outcome: "requested" });
+        try {
+          const response = await fetch("/api/agent/paymaster/authorization", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            cache: "no-store",
+            credentials: "same-origin",
+            body: JSON.stringify({ sender: owner }),
+          });
+          const payload = (await response.json().catch(() => null)) as PaymasterAuthorizationReply | null;
+          const authorization = payload?.authorization;
+          if (
+            response.ok &&
+            payload?.ok === true &&
+            typeof authorization?.validUntil === "number" &&
+            typeof authorization.digest === "string" &&
+            typeof authorization.paymasterData === "string"
+          ) {
+            setPaymasterTicket({
+              kind: "signed",
+              validUntil: authorization.validUntil,
+              digest: authorization.digest,
+              paymasterData: authorization.paymasterData,
+              sponsored: payload.sponsored === true,
+            });
+            toasts.push("success", t("sheet.paymasterSigned"));
+            trackEvent("paymaster_authorization", { outcome: "signed" });
+          } else {
+            setPaymasterTicket({
+              kind: "unavailable",
+              code: payload?.code ?? `HTTP_${response.status}`,
+            });
+            toasts.push("warn", t("sheet.paymasterUnavailable"));
+            trackEvent("paymaster_authorization", { outcome: "unavailable" });
+          }
+        } catch {
+          setPaymasterTicket({ kind: "unavailable", code: "PAYMASTER_UNREACHABLE" });
+          toasts.push("warn", t("sheet.paymasterUnavailable"));
+          trackEvent("paymaster_authorization", { outcome: "unavailable" });
+        }
+      }
     } else {
       recordPolicy(view, "sign", signed.refusal.code, summary, false);
     }
-  }, [interactionView, language, preview, recordPolicy, session, t, toasts]);
-
-  const enroll = useCallback(async () => {
-    const result = await session.enroll(CREDENTIAL_LABEL);
-    if (result.ok) {
-      toasts.push("success", t("toast.enrolled"));
-      return;
-    }
-    const { tone, message } = biometricFailureToast(result.failure, language);
-    toasts.push(tone, message);
-  }, [language, session, t, toasts]);
+  }, [interactionView, language, owner, preview, recordPolicy, session, t, toasts, view]);
 
   // -- cold-start claim ---------------------------------------------------------------------------
 
@@ -380,11 +692,22 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
       setClaimState({ phase: "error", code: "IDENTITY_NOT_READY" });
       return;
     }
+    if (claimChallenge.kind !== "ready") {
+      if (claimChallenge.kind === "unavailable") {
+        setClaimChallengeEpoch((epoch) => epoch + 1);
+      }
+      setClaimState({
+        phase: "error",
+        code: claimChallenge.kind === "unavailable" ? claimChallenge.code : "CHALLENGE_NOT_READY",
+      });
+      return;
+    }
 
-    const challenge = randomChallenge();
     // Nothing is awaited before `authorize`: WebAuthn needs this tap's transient user activation.
-    const pending = session.authorize(challenge, t("claim.title"));
+    const pending = session.authorize(claimChallenge.options, t("claim.title"));
+    setClaimChallenge({ kind: "idle" });
     setClaimState({ phase: "authorizing" });
+    trackEvent("claim_start");
 
     void (async () => {
       const outcome = await pending;
@@ -392,10 +715,14 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
         const { tone, message } = biometricFailureToast(outcome.failure, language);
         toasts.push(tone, message);
         setClaimState({ phase: "error", code: outcome.failure.code });
+        setClaimChallengeEpoch((epoch) => epoch + 1);
+        trackEvent("claim_failed", { code: outcome.failure.code });
         return;
       }
       if (outcome.assertion.userVerified !== true || outcome.assertion.hardwareBacked !== true) {
         setClaimState({ phase: "error", code: "BIO_NOT_VERIFIED" });
+        setClaimChallengeEpoch((epoch) => epoch + 1);
+        trackEvent("claim_failed", { code: "BIO_NOT_VERIFIED" });
         return;
       }
 
@@ -406,47 +733,177 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
           method: "POST",
           headers: { "content-type": "application/json" },
           cache: "no-store",
+          credentials: "same-origin",
           body: JSON.stringify({
             alias: claimAlias,
-            credentialId: outcome.assertion.credentialId,
-            nullifier: outcome.assertion.nullifier,
-            challenge: outcome.assertion.challenge,
-            userVerified: outcome.assertion.userVerified,
-            hardwareBacked: outcome.assertion.hardwareBacked,
+            recipient: currentOwner,
+            assertion: outcome.assertion.response,
           }),
         });
-        const payload = (await response.json()) as
-          | {
-              readonly ok?: boolean;
-              readonly code?: string;
-              readonly claim?: { readonly id?: string; readonly alias?: string };
-            }
-          | null;
+        const payload = (await response.json().catch(() => null)) as ClaimReply | null;
         if (
           !response.ok ||
           payload?.ok !== true ||
-          typeof payload.claim?.id !== "string" ||
-          typeof payload.claim.alias !== "string"
+          typeof payload.claim?.txHash !== "string"
         ) {
-          setClaimState({ phase: "error", code: payload?.code ?? `HTTP_${response.status}` });
+          const code = payload?.code ?? `HTTP_${response.status}`;
+          setClaimState({ phase: "error", code });
+          setClaimChallengeEpoch((epoch) => epoch + 1);
+          trackEvent("claim_failed", { code });
           return;
         }
+
+        const txHash = payload.claim.txHash;
+        const reward =
+          typeof payload.claim.reward === "string" && payload.claim.reward !== ""
+            ? payload.claim.reward
+            : NO_VALUE;
+        const symbol =
+          typeof payload.claim.symbol === "string" && payload.claim.symbol !== ""
+            ? payload.claim.symbol
+            : "MAOTANG";
+        const chainId = typeof payload.claim.chainId === "number" ? payload.claim.chainId : null;
+        let explorerUrl =
+          typeof payload.claim.explorerUrl === "string" ? payload.claim.explorerUrl : null;
+
         setClaimState({
-          phase: "requested",
-          ticket: payload.claim.id,
-          alias: payload.claim.alias,
+          phase: "onchain",
+          txHash,
+          chainStatus: "pending",
+          explorerUrl,
+          reward,
+          symbol,
+          chainId,
+          blockNumber: null,
         });
         toasts.push("success", t("claim.requested"));
+        // A successful claim sets the sealed personhood cookie; the quota badge changes with it.
+        setQuotaEpoch((epoch) => epoch + 1);
+        // The claim consumed the challenge cookie. Fetch a fresh one so a later explicit
+        // personhood refresh can assert without first making the owner wait through a network round trip.
+        setClaimChallengeEpoch((epoch) => epoch + 1);
+
+        // Real receipt polling. Confirmation is only rendered when the node says so; a bounded
+        // number of attempts leaves an unmined transaction visibly pending instead of inventing a
+        // settlement or a balance.
+        const generation = ++claimGeneration.current;
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 3000));
+          if (claimGeneration.current !== generation) {
+            return;
+          }
+          let statusPayload: ClaimStatusReply | null = null;
+          try {
+            const statusResponse = await fetch(
+              `/api/agent/claim/status?txHash=${encodeURIComponent(txHash)}`,
+              { cache: "no-store", credentials: "same-origin" },
+            );
+            statusPayload = (await statusResponse.json().catch(() => null)) as ClaimStatusReply | null;
+          } catch {
+            continue;
+          }
+          if (claimGeneration.current !== generation) {
+            return;
+          }
+          if (statusPayload?.ok !== true) {
+            continue;
+          }
+          if (typeof statusPayload.explorerUrl === "string") {
+            explorerUrl = statusPayload.explorerUrl;
+          }
+          const chainStatus = statusPayload.status;
+          if (chainStatus !== "confirmed" && chainStatus !== "failed") {
+            continue;
+          }
+          setClaimState({
+            phase: "onchain",
+            txHash,
+            chainStatus,
+            explorerUrl,
+            reward,
+            symbol,
+            chainId,
+            blockNumber:
+              typeof statusPayload.blockNumber === "number" ? statusPayload.blockNumber : null,
+          });
+          trackEvent("claim_settled", { status: chainStatus });
+          toasts.push(
+            chainStatus === "confirmed" ? "success" : "warn",
+            chainStatus === "confirmed" ? t("claim.chain.confirmed") : t("claim.chain.failed"),
+          );
+          return;
+        }
       } catch {
         setClaimState({ phase: "error", code: "CLAIM_UNREACHABLE" });
+        setClaimChallengeEpoch((epoch) => epoch + 1);
+        trackEvent("claim_failed", { code: "CLAIM_UNREACHABLE" });
       }
     })();
-  }, [claimState.phase, language, session, statusState, t, toasts]);
+  }, [claimChallenge, claimState.phase, language, session, statusState, t, toasts]);
+
+  // -- personhood refresh ------------------------------------------------------------------------
+
+  /**
+   * Renews the sealed personhood cookie with a fresh hardware assertion.
+   *
+   * The owner must tap this button: the challenge is prefetched so `authorize` is the first thing
+   * called in the tap handler, and no await is inserted before it. The route re-verifies the
+   * assertion server-side; this handler only renders its verdict.
+   */
+  const refreshPersonhood = useCallback(() => {
+    if (personhoodRefreshing || claimChallenge.kind !== "ready" || session.credentialId === null) {
+      return;
+    }
+    const options = claimChallenge.options;
+    const pending = session.authorize(options, t("paymaster.refresh"));
+    setClaimChallenge({ kind: "idle" });
+    setPersonhoodRefreshing(true);
+    trackEvent("personhood_refresh", { outcome: "requested" });
+
+    void (async () => {
+      const outcome = await pending;
+      if (!outcome.ok) {
+        const { tone, message } = biometricFailureToast(outcome.failure, language);
+        toasts.push(tone, message);
+        setPersonhoodRefreshing(false);
+        setClaimChallengeEpoch((epoch) => epoch + 1);
+        trackEvent("personhood_refresh", { outcome: "failed" });
+        return;
+      }
+      try {
+        const response = await fetch("/api/agent/personhood/refresh", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          cache: "no-store",
+          credentials: "same-origin",
+          body: JSON.stringify({ assertion: outcome.assertion.response }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          readonly ok?: boolean;
+          readonly code?: string;
+        } | null;
+        if (!response.ok || payload?.ok !== true) {
+          const code = payload?.code ?? `HTTP_${response.status}`;
+          toasts.push("warn", t("toast.personhoodRefreshFailed", { code }));
+          trackEvent("personhood_refresh", { outcome: "failed" });
+          return;
+        }
+        setHardwareVerified(true);
+        setQuotaEpoch((epoch) => epoch + 1);
+        toasts.push("success", t("toast.personhoodRefreshed"));
+        trackEvent("personhood_refresh", { outcome: "verified" });
+      } catch {
+        toasts.push("warn", t("toast.personhoodRefreshFailed", { code: "PERSONHOOD_UNREACHABLE" }));
+        trackEvent("personhood_refresh", { outcome: "failed" });
+      } finally {
+        setPersonhoodRefreshing(false);
+        setClaimChallengeEpoch((epoch) => epoch + 1);
+      }
+    })();
+  }, [claimChallenge, language, personhoodRefreshing, session, t, toasts]);
 
   // -- render -----------------------------------------------------------------------------------
 
-  const status = statusState.kind === "ready" ? statusState.status : null;
-  const owner = status?.deployment.owner ?? null;
   const alias = deriveCommsAlias(owner);
   const shareUrl =
     shareOrigin === null || alias === null
@@ -522,7 +979,10 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
             updatedAt={statusReadAt}
             onIntent={(text) => void submit(text, "vault")}
             onOpenAgent={() => switchView("agent")}
-            paymasterVerified={hardwareVerified}
+            paymasterQuota={paymasterQuota}
+            onRefreshPersonhood={refreshPersonhood}
+            personhoodRefreshReady={claimChallenge.kind === "ready"}
+            personhoodRefreshing={personhoodRefreshing}
           />
         ) : view === "dechat" ? (
           <DeChatPanel
@@ -541,8 +1001,12 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
             shareUrl={shareUrl}
             referral={referral}
             claim={claimState}
+            claimReady={claimChallenge.kind === "ready"}
             onClaim={handleClaim}
-            paymasterVerified={hardwareVerified}
+            paymasterQuota={paymasterQuota}
+            onRefreshPersonhood={refreshPersonhood}
+            personhoodRefreshReady={claimChallenge.kind === "ready"}
+            personhoodRefreshing={personhoodRefreshing}
           />
         ) : (
           <AgentPanel
@@ -649,6 +1113,31 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
                 {t("sheet.signed")} <span className="font-mono">{shortHex(preview.signed.signature, 16, 8)}</span>
               </p>
             )}
+
+            {paymasterTicket.kind === "signing" ? (
+              <p className="mt-3 rounded-lg border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.7)] px-3 py-2 text-[11px] text-[#8f5568]">
+                {t("sheet.paymasterSigning")}
+              </p>
+            ) : null}
+
+            {paymasterTicket.kind === "signed" ? (
+              <div className="mt-3 rounded-lg border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.7)] px-3 py-2 text-[11px]">
+                <p className="font-semibold text-[#8f5568]">{t("sheet.paymasterSigned")}</p>
+                <p className="mt-1 break-all text-slate-500">
+                  Paymaster digest <span className="font-mono">{shortHex(paymasterTicket.digest, 16, 8)}</span>
+                </p>
+                <p className="mt-1 break-all text-slate-400">
+                  validUntil <span className="font-mono">{paymasterTicket.validUntil}</span>
+                </p>
+                <p className="mt-1 leading-relaxed text-slate-500">{t("sheet.paymasterNote")}</p>
+              </div>
+            ) : null}
+
+            {paymasterTicket.kind === "unavailable" ? (
+              <p className="mt-3 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-[11px] text-amber-800">
+                {t("sheet.paymasterUnavailable")} <span className="font-mono">{paymasterTicket.code}</span>
+              </p>
+            ) : null}
 
             <button
               type="button"

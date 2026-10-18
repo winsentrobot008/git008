@@ -18,6 +18,7 @@ import { useCallback, useState } from "react";
 import { BrandMark } from "@/components/console/BrandMark";
 import { PaymasterQuota } from "@/components/console/PaymasterQuota";
 import { formatWeiAsEth, shortHex, type AgentStatus } from "@/lib/agent/client";
+import type { PaymasterQuotaView } from "@/lib/agent/paymaster-view";
 import { formatQuotaUnits, denominate } from "@/lib/agent/quota-view";
 import { remainingWindowWei, windowLabel } from "@/lib/agent/spend-view";
 import { useLanguage } from "@/lib/i18n/language";
@@ -98,8 +99,12 @@ export interface VaultPanelProps {
   readonly onIntent: (text: string) => void;
   /** Opens the secondary AI Node surface. */
   readonly onOpenAgent?: (() => void) | null;
-  /** True once this session produced a user-verified, hardware-backed device assertion. */
-  readonly paymasterVerified?: boolean;
+  /** The live server quota answer; never a static default. */
+  readonly paymasterQuota: PaymasterQuotaView;
+  /** Explicit tap that renews the server-sealed personhood record. */
+  readonly onRefreshPersonhood?: () => void;
+  readonly personhoodRefreshReady?: boolean;
+  readonly personhoodRefreshing?: boolean;
 }
 
 interface AssetRowProps {
@@ -138,7 +143,10 @@ export function VaultPanel({
   updatedAt = null,
   onIntent,
   onOpenAgent = null,
-  paymasterVerified = false,
+  paymasterQuota,
+  onRefreshPersonhood,
+  personhoodRefreshReady = false,
+  personhoodRefreshing = false,
 }: VaultPanelProps) {
   const { t } = useLanguage();
   const [open, setOpen] = useState<WalletAction | null>(null);
@@ -226,7 +234,13 @@ export function VaultPanel({
         </p>
       </header>
 
-      <PaymasterQuota verified={paymasterVerified} className="mt-4" />
+      <PaymasterQuota
+        quota={paymasterQuota}
+        onRefresh={onRefreshPersonhood}
+        refreshReady={personhoodRefreshReady}
+        refreshing={personhoodRefreshing}
+        className="mt-4"
+      />
 
       <div className="mt-5 rounded-[24px] border border-white/80 bg-white/55 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
         <div className="flex items-start justify-between gap-3">

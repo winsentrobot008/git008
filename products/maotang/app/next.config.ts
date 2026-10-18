@@ -14,7 +14,13 @@ import type { NextConfig } from "next";
 interface DeploymentManifest {
   network?: { chainId?: string };
   beneficiaries?: { operator?: string; developer?: string; btcRevenueAddress?: string };
-  contracts?: { MaoTangFactory?: string; MaoTangSustenanceVault?: string; HumanToken?: string };
+  contracts?: {
+    MaoTangFactory?: string;
+    MaoTangSustenanceVault?: string;
+    HumanToken?: string;
+    MaotangFaucetToken?: string;
+    MaotangFaucet?: string;
+  };
   referenceCurve?: { curve?: string };
 }
 
@@ -51,6 +57,10 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_MANIFEST_FACTORY_ADDRESS: contracts.MaoTangFactory ?? "",
     NEXT_PUBLIC_MANIFEST_VAULT_ADDRESS: contracts.MaoTangSustenanceVault ?? "",
     NEXT_PUBLIC_MANIFEST_HUMAN_TOKEN_ADDRESS: contracts.HumanToken ?? "",
+    NEXT_PUBLIC_MANIFEST_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken ?? "",
+    NEXT_PUBLIC_MANIFEST_FAUCET_ADDRESS: contracts.MaotangFaucet ?? "",
+    NEXT_PUBLIC_MAOTANG_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken ?? "",
+    NEXT_PUBLIC_MAOTANG_FAUCET_ADDRESS: contracts.MaotangFaucet ?? "",
     NEXT_PUBLIC_MANIFEST_CURVE_ADDRESS: manifest.referenceCurve?.curve ?? "",
     NEXT_PUBLIC_MANIFEST_CHAIN_ID: manifest.network?.chainId ?? "",
   },

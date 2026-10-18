@@ -6,13 +6,13 @@
     "chainId": "31337",
     "rpcUrl": "http://127.0.0.1:8545/"
   },
-  "deployedAt": "2026-10-08T15:55:29.406Z",
+  "deployedAt": "2026-10-18T08:45:01.586Z",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "owner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "beneficiaries": {
     "operator": "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
     "developer": "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
-    "btcRevenueAddress": "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe"
+    "btcRevenueAddress": "1HBhZ97jHjasVF4XFWLY9Wv8dpNHUq3AbJ"
   },
   "contracts": {
     "Groth16Verifier": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
@@ -22,14 +22,32 @@
     "MaoTangMining": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
     "MaoTangSustenanceDripper": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
     "MaoTangGovernor": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-    "MaoTangFactory": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
+    "MaoTangFactory": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    "MaotangFaucetToken": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "MaotangFaucet": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318"
   },
   "tokens": {
     "mHUMAN": {
       "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
       "symbol": "mHUMAN",
       "decimals": 6
+    },
+    "MAOTANG": {
+      "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+      "symbol": "MAOTANG",
+      "decimals": 18,
+      "maxSupplyUnits": "8300000000000000000000000000",
+      "burnBps": 10
     }
+  },
+  "faucet": {
+    "contract": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    "token": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "mintAuthority": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "rewardUnits": "10000000000000000000",
+    "maxRewardUnits": "100000000000000000000",
+    "oneClaimPerIdentity": true,
+    "minterLocked": true
   },
   "protocolConstants": {
     "swapFeeBps": 50,
@@ -51,6 +69,18 @@
     "market": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
   },
   "governance": {
+    "owner": {
+      "address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "kind": "eoa",
+      "label": "externally owned account",
+      "timelockDelaySeconds": 0
+    },
+    "ownerWiringDeferred": true,
+    "guardian": null,
+    "guardianInstalled": false,
+    "payoutsPaused": false,
+    "nativeOutflowCapWei": "0",
+    "nativeOutflowWindowSeconds": 0,
     "governor": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
     "dripper": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
     "telemetrySigner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
@@ -68,8 +98,16 @@
     "NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS": "0x9bd03768a7DCc129555dE410FF8E85528A4F88b5",
     "NEXT_PUBLIC_MAOTANG_DRIPPER_ADDRESS": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
     "NEXT_PUBLIC_MAOTANG_GOVERNOR_ADDRESS": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+    "NEXT_PUBLIC_MAOTANG_FAUCET_TOKEN_ADDRESS": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "NEXT_PUBLIC_MAOTANG_FAUCET_ADDRESS": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    "MAOTANG_FAUCET_RPC_URL": "http://127.0.0.1:8545/",
+    "MAOTANG_FAUCET_CHAIN_ID": "31337",
+    "MAOTANG_FAUCET_TOKEN_ADDRESS": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "MAOTANG_FAUCET_CONTRACT_ADDRESS": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    "MAOTANG_FAUCET_REWARD_UNITS": "10000000000000000000",
+    "MAOTANG_FAUCET_EXPLORER_URL": "",
     "NEXT_PUBLIC_OPERATOR_ADDRESS": "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
     "NEXT_PUBLIC_DEVELOPER_ADDRESS": "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea",
-    "NEXT_PUBLIC_BTC_REVENUE_ADDRESS": "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe"
+    "NEXT_PUBLIC_BTC_REVENUE_ADDRESS": "1HBhZ97jHjasVF4XFWLY9Wv8dpNHUq3AbJ"
   }
 }

@@ -52,8 +52,48 @@ the upload so the Vercel project values win):
 | `NEXT_PUBLIC_MAOTANG_RPC_URL` | `https://rpc.008ai.online` |
 | `NEXT_PUBLIC_OPERATOR_ADDRESS` | `0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea` |
 | `NEXT_PUBLIC_DEVELOPER_ADDRESS` | `0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea` |
-| `NEXT_PUBLIC_BTC_REVENUE_ADDRESS` | `1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe` |
+| `NEXT_PUBLIC_BTC_REVENUE_ADDRESS` | `1HBhZ97jHjasVF4XFWLY9Wv8dpNHUq3AbJ` |
 | `AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION` | `1` |
+
+## MAOTANG token and testnet faucet
+
+`contracts/scripts/deploy-testnet.ts` now deploys the faucet pair in the same transaction
+sequence as the protocol contracts:
+
+- `MaotangFaucetToken` - symbol `MAOTANG`, 18 decimals, hard cap `8,300,000,000` whole tokens,
+  0.10% burn on every transfer (rounded down), and explicit `burn` / `burnFrom` functions.
+- `MaotangFaucet` - the sole mint authority, with a one-claim-per-WebAuthn-identity ledger and a
+  bounded per-claim reward. The deploy script locks the token minter permanently after pointing it
+  at the faucet.
+
+The generated manifest records `tokens.MAOTANG`, `faucet.rewardUnits`, `faucet.maxRewardUnits`,
+and both contract addresses. The claim API needs the following server-only values at runtime:
+
+```text
+MAOTANG_FAUCET_RPC_URL
+MAOTANG_FAUCET_CHAIN_ID
+MAOTANG_FAUCET_PRIVATE_KEY
+MAOTANG_FAUCET_TOKEN_ADDRESS
+MAOTANG_FAUCET_CONTRACT_ADDRESS
+MAOTANG_FAUCET_REWARD_UNITS
+MAOTANG_FAUCET_EXPLORER_URL
+MAOTANG_WEBAUTHN_SECRET
+```
+
+The private key belongs only to the configured faucet signer. It is never placed in
+`contracts.json`, the browser bundle, logs, or documentation. `POST /api/agent/claim` verifies a
+fresh WebAuthn assertion server-side, rejects non-hardware-backed or replayed credentials, and
+submits `claimDefault(recipient, identityHash)`. `GET /api/agent/claim/status?txHash=...` reports
+the receipt as `pending`, `confirmed`, or `failed`; the card renders the full hash and only says
+settled after confirmation.
+
+## Developer Bitcoin vault
+
+The developer reserve and BTC cross-chain treasury destination is persisted as
+`1HBhZ97jHjasVF4XFWLY9Wv8dpNHUq3AbJ`. It is non-custodial routing metadata, not an EVM target;
+no contract or browser signing path can spend from it. The address is mirrored in the deployment
+manifest, `app/.env.example`, and the Vercel release configuration so a redeploy cannot silently
+replace it.
 
 `AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION=1` is the escape hatch `app/src/lib/agent/runtime.ts`
 documents for a deployment with no real `SlmRuntimeBackend`: without it `/api/agent/status` answers

@@ -1,26 +1,25 @@
 "use client";
 
 /**
- * The C-end zero-gas entitlement indicator.
+ * The C-end zero-gas indicator, now fed by a real on-chain quota read.
  *
- * This is deliberately a *view* of an entitlement, not a second ledger: the daily count is the
- * Paymaster allowance the product grants for sponsored transactions, and `verified` is the device's
- * own user-verified flag. The caption says settlement is server-side because this component never
- * claims that a transaction was sponsored.
+ * The component never defaults to `100/100`. Until `/api/agent/paymaster/quota` answers it says it
+ * is reading; when the Paymaster environment is absent it says so; and when the route has a number
+ * it renders that number. `verified` comes from the server's sealed personhood cookie only: a local
+ * hardware assertion is not a substitute for the server-verified personhood record.
  */
 
+import type { PaymasterQuotaView } from "@/lib/agent/paymaster-view";
 import { useLanguage } from "@/lib/i18n/language";
 
-/** The product entitlement shown to every C-end visitor. */
-const DAILY_LIMIT = 100;
-
 export interface PaymasterQuotaProps {
-  /** True only after the shared biometric session returned userVerified && hardwareBacked. */
-  readonly verified: boolean;
-  /** Sponsored transactions left in the current 24h entitlement. Defaults to the full allowance. */
-  readonly remaining?: number;
-  /** The 24h allowance. Defaults to the product entitlement. */
-  readonly limit?: number;
+  /** The last server answer, or `LOADING_PAYMASTER_QUOTA` before the first one. */
+  readonly quota: PaymasterQuotaView;
+  /** Explicit owner tap that renews the sealed personhood cookie after a fresh assertion. */
+  readonly onRefresh?: () => void;
+  /** True when a server-issued challenge is already waiting for that tap. */
+  readonly refreshReady?: boolean;
+  readonly refreshing?: boolean;
   readonly className?: string;
 }
 
@@ -45,14 +44,28 @@ function GasGlyph() {
 }
 
 export function PaymasterQuota({
-  verified,
-  remaining = DAILY_LIMIT,
-  limit = DAILY_LIMIT,
+  quota,
+  onRefresh,
+  refreshReady = false,
+  refreshing = false,
   className = "",
 }: PaymasterQuotaProps) {
   const { t } = useLanguage();
-  const boundedLimit = Math.max(1, Math.trunc(limit));
-  const boundedRemaining = Math.max(0, Math.min(boundedLimit, Math.trunc(remaining)));
+  const verified = quota.verified;
+
+  const hasNumbers = quota.limit !== null && quota.remaining !== null;
+  const quotaText = quota.loading
+    ? t("paymaster.loading")
+    : !quota.configured
+      ? t("paymaster.unconfigured")
+      : hasNumbers
+        ? t("paymaster.quota", { remaining: quota.remaining, limit: quota.limit })
+        : t("paymaster.quotaUnavailable");
+  const hint = quota.loading
+    ? t("paymaster.note")
+    : !quota.configured
+      ? quota.reason ?? t("paymaster.unconfiguredHint")
+      : t("paymaster.note");
 
   return (
     <div
@@ -71,7 +84,7 @@ export function PaymasterQuota({
               {t("paymaster.title")}
             </p>
             <p className="mt-0.5 break-words font-mono text-[10.5px] leading-snug text-slate-700">
-              {t("paymaster.quota", { remaining: boundedRemaining, limit: boundedLimit })}
+              {quotaText}
             </p>
           </div>
         </div>
@@ -85,16 +98,22 @@ export function PaymasterQuota({
               : "border-amber-300/70 bg-amber-50/85 text-amber-800")
           }
         >
-          <span
-            aria-hidden="true"
-            className={
-              "h-1.5 w-1.5 rounded-full " + (verified ? "bg-emerald-500" : "bg-amber-500")
-            }
-          />
+          <span aria-hidden="true" className={"h-1.5 w-1.5 rounded-full " + (verified ? "bg-emerald-500" : "bg-amber-500")} />
           {verified ? t("paymaster.zkVerified") : t("paymaster.zkPending")}
         </span>
       </div>
-      <p className="mt-1.5 text-[9.5px] leading-relaxed text-slate-400">{t("paymaster.note")}</p>
+      {onRefresh !== undefined && !quota.loading && !verified ? (
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing || !refreshReady}
+          title={refreshReady ? undefined : t("paymaster.refreshHint")}
+          className="mt-2 inline-flex min-h-9 w-full touch-manipulation items-center justify-center rounded-full border border-[#ffb6c1]/70 bg-white/70 px-3 text-[10px] font-semibold text-[#8f5568] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {refreshing ? t("paymaster.refreshing") : t("paymaster.refresh")}
+        </button>
+      ) : null}
+      <p className="mt-1.5 break-words text-[9.5px] leading-relaxed text-slate-400">{hint}</p>
     </div>
   );
 }

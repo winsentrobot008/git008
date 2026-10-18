@@ -4,15 +4,20 @@
  * One biometric session, shared by every face of the console.
  *
  * The C-end sheet and the M5 engineer card ask the device the same question - probe the platform, enroll
- * if needed, assert over the M2 digest - and both must fail the same way. Keeping that state machine in
- * one hook is the bridge between them: a change to the iOS Safari / Android webview handling lands on
- * both surfaces at once instead of drifting apart, which is the failure mode ADR-034/035 recorded for
- * the spend window.
+ * if needed, assert over the server's challenge - and both must fail the same way. Keeping that state
+ * machine in one hook is the bridge between them: a change to the iOS Safari / Android webview handling
+ * lands on both surfaces at once instead of drifting apart, which is the failure mode ADR-034/035
+ * recorded for the spend window.
  *
  * What the hook does not do is decide anything about authorization. It never signs, never invents a
  * "verified" flag, and reports the authenticator's own `userVerified` bit rather than the fact that a
  * prompt appeared. A failure is returned as a value *and* kept as state, because the caller needs both:
  * the value to drive a toast, the state to render a disabled retry button and its reason.
+ *
+ * Enrollment is a two-step contract with the server: `ConsumerView` prefetches
+ * `/api/agent/webauthn/register/options`, the tap calls `navigator.credentials.create` synchronously,
+ * and the raw attestation is then verified by `/api/agent/webauthn/register/verify`. The credential id
+ * is remembered only after that verification succeeds.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,11 +27,16 @@ import {
   WebBiometricError,
   deriveOwnerNullifier,
   enrollOwnerCredential,
+  forgetEnrolledCredentialId,
   readBiometricCapability,
   readEnrolledCredentialId,
+  rememberEnrolledCredentialId,
   requestOwnerAssertion,
+  type AuthenticationOptionsJSON,
   type BiometricCapability,
   type OwnerAssertion,
+  type RegistrationOptionsJSON,
+  type WebBiometricCode,
 } from "./webauthn";
 
 /** Which step of the device conversation is in flight. */
@@ -51,7 +61,14 @@ export type BiometricOutcome =
 
 /** The result of enrolling this device's owner credential. */
 export type BiometricEnrollResult =
-  | { readonly ok: true; readonly credentialId: string; readonly failure: null }
+  | {
+      readonly ok: true;
+      readonly credentialId: string;
+      readonly identityHash: string | null;
+      readonly userVerified: boolean;
+      readonly hardwareBacked: boolean;
+      readonly failure: null;
+    }
   | { readonly ok: false; readonly credentialId: null; readonly failure: BiometricFailure };
 
 function failureOf(error: unknown): BiometricFailure {
@@ -59,6 +76,18 @@ function failureOf(error: unknown): BiometricFailure {
     return { code: error.code, message: error.message, cancelled: error.code === "USER_CANCELLED" };
   }
   return { code: "ASSERTION_FAILED", message: (error as Error).message, cancelled: false };
+}
+
+interface EnrollmentReply {
+  readonly ok?: boolean;
+  readonly code?: string;
+  readonly message?: string;
+  readonly enrollment?: {
+    readonly credentialId?: string;
+    readonly identityHash?: string;
+    readonly userVerified?: boolean;
+    readonly hardwareBacked?: boolean;
+  };
 }
 
 export interface BiometricSession {
@@ -70,17 +99,35 @@ export interface BiometricSession {
   readonly failure: BiometricFailure | null;
   /** True while a probe, enrollment or assertion is in flight. */
   readonly busy: boolean;
-  enroll(ownerLabel?: string): Promise<BiometricEnrollResult>;
   /**
-   * Requests a hardware assertion over `challenge`.
+   * Creates a credential from **server-issued** options and verifies the attestation server-side.
+   *
+   * The caller must fetch the options before the tap and pass them here; an `await` inserted between
+   * the tap and `navigator.credentials.create` spends the transient user activation iOS Safari needs.
+   */
+  enroll(
+    ownerLabel: string,
+    options: RegistrationOptionsJSON,
+    recipient?: string | null,
+  ): Promise<BiometricEnrollResult>;
+  /**
+   * Requests a hardware assertion.
+   *
+   * Pass a server-issued {@link AuthenticationOptionsJSON} for a claim, or a local hex digest for the
+   * intent-preview sheet.
    *
    * **Call this directly from a tap handler and never after an `await`.** WebAuthn requires transient
    * user activation, and every `await` between the tap and `navigator.credentials.get` risks spending
    * it - which is how an iOS Safari or Android webview prompt silently becomes a `NotAllowedError`.
    */
-  authorize(challenge: Hex | null, reason: string): Promise<BiometricOutcome>;
+  authorize(
+    challenge: Hex | AuthenticationOptionsJSON | null,
+    reason: string,
+  ): Promise<BiometricOutcome>;
   /** Forgets the last assertion and failure, e.g. when a new intent is previewed. */
   reset(): void;
+  /** Clears a stale local credential id after the server says the enrollment cookie is gone. */
+  forget(): void;
 }
 
 export function useBiometricOwner(): BiometricSession {
@@ -123,53 +170,106 @@ export function useBiometricOwner(): BiometricSession {
       mounted.current = false;
     };
   }, []);
-  const enroll = useCallback(async (ownerLabel = "biometric-owner"): Promise<BiometricEnrollResult> => {
-    setFailure(null);
-    setPhase("enrolling");
-    try {
-      // Called straight from the tap, for the same user-activation reason as `authorize`.
-      const created = await enrollOwnerCredential(ownerLabel);
-      const derived = await deriveOwnerNullifier(created.credentialId);
-      setCredentialId(created.credentialId);
-      setNullifier(derived);
-      setAssertion(null);
-      return { ok: true, credentialId: created.credentialId, failure: null };
-    } catch (error) {
-      const failure = failureOf(error);
-      setFailure(failure);
-      return { ok: false, credentialId: null, failure };
-    } finally {
-      setPhase("idle");
-    }
-  }, []);
 
-  const authorize = useCallback(async (challenge: Hex | null, reason: string): Promise<BiometricOutcome> => {
-    if (challenge === null) {
-      const failure: BiometricFailure = {
-        code: "NO_CHALLENGE",
-        message: "there is no intent digest to authorize yet",
-        cancelled: false,
-      };
-      setFailure(failure);
-      return { ok: false, assertion: null, failure };
-    }
-    setFailure(null);
-    setPhase("asserting");
-    try {
-      const produced = await requestOwnerAssertion(challenge, reason);
-      setAssertion(produced);
-      return { ok: true, assertion: produced, failure: null };
-    } catch (error) {
-      const failure = failureOf(error);
-      setAssertion(null);
-      setFailure(failure);
-      return { ok: false, assertion: null, failure };
-    } finally {
-      setPhase("idle");
-    }
-  }, []);
+  const enroll = useCallback(
+    async (
+      ownerLabel: string,
+      options: RegistrationOptionsJSON,
+      recipient: string | null = null,
+    ): Promise<BiometricEnrollResult> => {
+      setFailure(null);
+      setPhase("enrolling");
+      try {
+        // Called straight from the tap, for the same user-activation reason as `authorize`.
+        const created = await enrollOwnerCredential(ownerLabel, options);
+        const response = await fetch("/api/agent/webauthn/register/verify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          cache: "no-store",
+          credentials: "same-origin",
+          body: JSON.stringify({ response: created.response, recipient }),
+        });
+        const payload = (await response.json().catch(() => null)) as EnrollmentReply | null;
+        if (response.ok !== true || payload?.ok !== true) {
+          const code = payload?.code ?? `HTTP_${response.status}`;
+          throw new WebBiometricError(
+            code as WebBiometricCode,
+            payload?.message ?? "the server refused the attestation",
+          );
+        }
+
+        const verifiedCredentialId = payload.enrollment?.credentialId ?? created.credentialId;
+        rememberEnrolledCredentialId(verifiedCredentialId);
+        const derived = await deriveOwnerNullifier(verifiedCredentialId);
+        if (mounted.current) {
+          setCredentialId(verifiedCredentialId);
+          setNullifier(derived);
+          setAssertion(null);
+        }
+        return {
+          ok: true,
+          credentialId: verifiedCredentialId,
+          identityHash: payload.enrollment?.identityHash ?? null,
+          userVerified: payload.enrollment?.userVerified === true,
+          hardwareBacked: payload.enrollment?.hardwareBacked === true,
+          failure: null,
+        };
+      } catch (error) {
+        const biometricFailure = failureOf(error);
+        if (mounted.current) {
+          setFailure(biometricFailure);
+        }
+        return { ok: false, credentialId: null, failure: biometricFailure };
+      } finally {
+        if (mounted.current) {
+          setPhase("idle");
+        }
+      }
+    },
+    [],
+  );
+
+  const authorize = useCallback(
+    async (
+      challenge: Hex | AuthenticationOptionsJSON | null,
+      reason: string,
+    ): Promise<BiometricOutcome> => {
+      if (challenge === null) {
+        const biometricFailure: BiometricFailure = {
+          code: "NO_CHALLENGE",
+          message: "there is no intent digest or server challenge to authorize yet",
+          cancelled: false,
+        };
+        setFailure(biometricFailure);
+        return { ok: false, assertion: null, failure: biometricFailure };
+      }
+      setFailure(null);
+      setPhase("asserting");
+      try {
+        const produced = await requestOwnerAssertion(challenge, reason);
+        setAssertion(produced);
+        return { ok: true, assertion: produced, failure: null };
+      } catch (error) {
+        const biometricFailure = failureOf(error);
+        setAssertion(null);
+        setFailure(biometricFailure);
+        return { ok: false, assertion: null, failure: biometricFailure };
+      } finally {
+        setPhase("idle");
+      }
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
+    setAssertion(null);
+    setFailure(null);
+  }, []);
+
+  const forget = useCallback(() => {
+    forgetEnrolledCredentialId();
+    setCredentialId(null);
+    setNullifier(null);
     setAssertion(null);
     setFailure(null);
   }, []);
@@ -186,7 +286,8 @@ export function useBiometricOwner(): BiometricSession {
       enroll,
       authorize,
       reset,
+      forget,
     }),
-    [capability, credentialId, nullifier, assertion, phase, failure, enroll, authorize, reset],
+    [capability, credentialId, nullifier, assertion, phase, failure, enroll, authorize, reset, forget],
   );
 }

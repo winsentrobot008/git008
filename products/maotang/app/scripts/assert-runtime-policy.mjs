@@ -709,8 +709,20 @@ test("G. no visible string bypasses the dictionary", () => {
 
 const SECURITY_HOLD = path.join(appRoot, "src", "lib", "system", "security-hold.ts");
 const CLAIM_ROUTE = path.join(appRoot, "src", "app", "api", "agent", "claim", "route.ts");
+const REGISTER_VERIFY_ROUTE = path.join(
+  appRoot,
+  "src",
+  "app",
+  "api",
+  "agent",
+  "webauthn",
+  "register",
+  "verify",
+  "route.ts",
+);
 const securityHoldSource = readFileSync(SECURITY_HOLD, "utf8");
 const claimRoute = readFileSync(CLAIM_ROUTE, "utf8");
+const registerVerifyRoute = readFileSync(REGISTER_VERIFY_ROUTE, "utf8");
 
 test("H. the security hold is default-off and fails safe on a typo", () => {
   assert.match(securityHoldSource, /const DISENGAGED = new Set\(\["0", "false", "no", "off"\]\);/);
@@ -757,4 +769,318 @@ test("H. the hold is documented and /v1/broadcast is a hard 404", () => {
     /createRuntime|signIntent|eth_sendRawTransaction/,
     "the denied surface must not reach a signing or broadcast primitive",
   );
+});
+
+// I. the P2/P3/P4 infrastructure invariants
+//
+// These pin the parts a TypeScript build cannot see: the server, not the browser, decides whether a
+// WebAuthn assertion is hardware-backed; the one-claim ledger is on-chain; the Paymaster ticket is
+// bound to the same wallet as the personhood cookie; and the UI never upgrades a local latch into a
+// server verdict.
+
+const WEBAUTHN_SERVER = path.join(appRoot, "src", "lib", "agent", "webauthn-server.ts");
+const PAYMASTER_AUTH_ROUTE = path.join(
+  appRoot,
+  "src",
+  "app",
+  "api",
+  "agent",
+  "paymaster",
+  "authorization",
+  "route.ts",
+);
+const PAYMASTER_QUOTA_ROUTE = path.join(
+  appRoot,
+  "src",
+  "app",
+  "api",
+  "agent",
+  "paymaster",
+  "quota",
+  "route.ts",
+);
+const PERSONHOOD_REFRESH_ROUTE = path.join(
+  appRoot,
+  "src",
+  "app",
+  "api",
+  "agent",
+  "personhood",
+  "refresh",
+  "route.ts",
+);
+const TELEMETRY_ROUTE = path.join(appRoot, "src", "app", "api", "telemetry", "route.ts");
+const TELEMETRY_SOURCE = path.join(appRoot, "src", "lib", "telemetry.ts");
+const PAYMASTER_QUOTA_COMPONENT = path.join(
+  appRoot,
+  "src",
+  "components",
+  "console",
+  "PaymasterQuota.tsx",
+);
+const PAYMASTER_CONTRACT = path.join(appRoot, "..", "contracts", "src", "MaotangPaymaster.sol");
+const FAUCET_CONTRACT = path.join(appRoot, "..", "contracts", "src", "MaotangFaucet.sol");
+const FAUCET_SOURCE = path.join(appRoot, "src", "lib", "agent", "faucet.ts");
+const CLAIM_STATUS_ROUTE = path.join(appRoot, "src", "app", "api", "agent", "claim", "status", "route.ts");
+
+const webauthnServer = readFileSync(WEBAUTHN_SERVER, "utf8");
+const paymasterAuthRoute = readFileSync(PAYMASTER_AUTH_ROUTE, "utf8");
+const paymasterQuotaRoute = readFileSync(PAYMASTER_QUOTA_ROUTE, "utf8");
+const personhoodRefreshRoute = readFileSync(PERSONHOOD_REFRESH_ROUTE, "utf8");
+const telemetryRoute = readFileSync(TELEMETRY_ROUTE, "utf8");
+const telemetrySource = readFileSync(TELEMETRY_SOURCE, "utf8");
+const paymasterQuotaComponent = readFileSync(PAYMASTER_QUOTA_COMPONENT, "utf8");
+const paymasterContract = readFileSync(PAYMASTER_CONTRACT, "utf8");
+const faucetContract = readFileSync(FAUCET_CONTRACT, "utf8");
+const faucetSource = readFileSync(FAUCET_SOURCE, "utf8");
+const claimStatusRoute = readFileSync(CLAIM_STATUS_ROUTE, "utf8");
+
+test("I. the server verifies the WebAuthn signature and user verification", () => {
+  assert.match(webauthnServer, /verifyAuthenticationResponse\(/, "the standard verifier is used");
+  assert.match(webauthnServer, /requireUserVerification: true/, "UV is mandatory, not requested");
+  assert.match(claimRoute, /verifyEnrollmentAssertion\(/, "the claim route uses the shared verifier");
+  assert.doesNotMatch(
+    claimRoute,
+    /verifyAuthenticationResponse\(/,
+    "the route must not grow a second, divergent verifier",
+  );
+  assert.doesNotMatch(
+    claimRoute,
+    /record\.(?:userVerified|hardwareBacked)|assertion\.(?:userVerified|hardwareBacked)/,
+    "client-supplied verification booleans must never be read",
+  );
+  assert.match(
+    claimRoute,
+    /if \(!verification\.verified \|\| !verification\.userVerified\)/,
+    "the server verdict gates the claim",
+  );
+});
+
+test("I. one claim per hardware identity is enforced by the on-chain faucet ledger", () => {
+  assert.match(claimRoute, /hasClaimed\(client, identityHash\)/, "the route preflights the on-chain ledger");
+  assert.match(claimRoute, /submitClaim\(client, recipient, identityHash\)/, "the faucet wallet submits the mint");
+  assert.match(claimRoute, /ALREADY_CLAIMED/, "a repeat claim is refused by name");
+  assert.match(
+    faucetContract,
+    /mapping\(bytes32 identityHash => ClaimRecord record\) public claims;/,
+    "the ledger is the contract mapping, not a server cache",
+  );
+  assert.match(
+    faucetContract,
+    /if \(claims\[identityHash\]\.claimedAt != 0\) revert AlreadyClaimed\(identityHash\);/,
+    "the contract itself refuses a consumed identity hash",
+  );
+});
+
+test("I. the faucet recipient is bound to the server-verified enrollment", () => {
+  assert.match(
+    registerVerifyRoute,
+    /recipient: recipientInput === "" \? null : getAddress\(recipientInput\),/,
+    "registration seals the claimed wallet into the enrollment cookie",
+  );
+  assert.match(
+    claimRoute,
+    /if \(enrollment\.recipient !== null\) \{/,
+    "the claim route treats the sealed recipient as authoritative",
+  );
+  assert.match(
+    claimRoute,
+    /RECIPIENT_MISMATCH/,
+    "a different recipient is refused by name",
+  );
+  assert.match(
+    claimRoute,
+    /const recipient = enrollment\.recipient \?\? getAddress\(requestedRecipient\);/,
+    "the sealed address wins over the request body",
+  );
+});
+
+test("I. faucet RPC failures do not echo provider-controlled text", () => {
+  assert.doesNotMatch(
+    faucetSource,
+    /shortMessage|record\?\.message/,
+    "RPC error text can contain a credential-bearing provider URL",
+  );
+  assert.doesNotMatch(
+    claimStatusRoute,
+    /\(error as Error\)\.message/,
+    "the status route must return a stable client-safe failure message",
+  );
+});
+
+test("I. the Paymaster ticket is bound to the hardware-verified recipient", () => {
+  assert.match(paymasterAuthRoute, /personhood\.recipient/, "the route reads the sealed recipient");
+  assert.match(paymasterAuthRoute, /SENDER_NOT_BOUND/, "an unrelated sender is refused by name");
+  assert.match(
+    paymasterAuthRoute,
+    /getAddress\(sender\) !== getAddress\(personhood\.recipient\)/,
+    "the comparison is address-normalised",
+  );
+  assert.match(paymasterQuotaRoute, /senderBound/, "quota verification is keyed to the same binding");
+  assert.match(
+    paymasterQuotaRoute,
+    /verified = personhood !== null && \(sender === "" \|\| senderBound\)/,
+    "an unbound sender never reads as verified",
+  );
+  assert.match(
+    personhoodRefreshRoute,
+    /verifyEnrollmentAssertion\(/,
+    "a refresh is a fresh server-verified assertion, not a cookie extension",
+  );
+});
+
+test("I. the client forwards the assertion and the UI never upgrades a local latch", () => {
+  assert.match(clientSource, /SerializedAuthenticationResponse/, "the intent request carries the assertion type");
+  assert.match(clientSource, /assertion: request\.assertion/, "the assertion is placed in the request body");
+  assert.match(
+    consumerView,
+    /assertion: outcome\.assertion\.response/,
+    "the confirm tap forwards the hardware assertion",
+  );
+  assert.match(consumerView, /\/api\/agent\/paymaster\/authorization/, "a signed intent requests a ticket");
+  assert.match(paymasterQuotaComponent, /const verified = quota\.verified;/, "the badge is the server verdict");
+  assert.doesNotMatch(paymasterQuotaComponent, /verifiedFallback/, "no local latch may replace that verdict");
+  assert.doesNotMatch(consumerView, /paymasterVerified=/, "the old fallback prop must stay gone");
+  assert.doesNotMatch(consumerView, /\/v1\/broadcast/, "the UI never calls the denied broadcast surface");
+  assert.doesNotMatch(clientSource, /\/v1\/broadcast/, "the client library never calls it either");
+});
+
+test("I. telemetry is allow-listed and rejects inherited keys", () => {
+  assert.match(
+    telemetryRoute,
+    /Object\.hasOwn\(TELEMETRY_ALLOWED_PROPS, event\)/,
+    "an own-property check blocks prototype keys such as toString",
+  );
+  const allowlistBlock = telemetrySource.slice(
+    telemetrySource.indexOf("TELEMETRY_ALLOWED_PROPS"),
+    telemetrySource.indexOf("const SESSION_KEY"),
+  );
+  assert.doesNotMatch(
+    allowlistBlock,
+    /address|credential|assertion|message/i,
+    "the allow-list carries no wallet, credential or message field",
+  );
+  assert.match(telemetrySource, /keepalive: true/, "a funnel sample survives a tab close");
+});
+
+test("I. the Paymaster contract enforces a nonce and a 100/day rolling window", () => {
+  assert.match(paymasterContract, /uint256 public constant DAILY_LIMIT = 100;/, "the documented limit is on-chain");
+  assert.match(paymasterContract, /uint256 public constant WINDOW = 24 hours;/, "the window is 24h");
+  assert.match(
+    paymasterContract,
+    /if \(usedNonce\[userOp\.sender\]\[nonce\]\) revert NonceAlreadyUsed/,
+    "a signed authorization is single-use",
+  );
+  assert.match(
+    paymasterContract,
+    /if \(oldest != 0 && block\.timestamp < oldestExpiry\) \{\s*revert QuotaExceeded/,
+    "the exact trailing-24h ring window is enforced",
+  );
+  assert.match(
+    paymasterContract,
+    /quota\.timestamps\[cursor\] = uint64\(block\.timestamp\)/,
+    "each accepted operation is recorded in the rolling ring",
+  );
+  assert.match(
+    paymasterContract,
+    /bool public allowlistEnabled;/,
+    "the allowlist is an incident control, off by default",
+  );
+  assert.doesNotMatch(
+    paymasterContract,
+    /bool public allowlistEnabled = true;/,
+    "a default-on empty allowlist would halt every sender",
+  );
+});
+
+test("I. every sensitive mutation route fails closed before parsing a body", () => {
+  for (const [name, route] of [
+    ["claim", claimRoute],
+    ["intent", intentRoute],
+    ["paymaster authorization", paymasterAuthRoute],
+    ["personhood refresh", personhoodRefreshRoute],
+  ]) {
+    assert.match(route, /isSecurityHoldEngaged\(\)/, `${name} must consult the security hold`);
+    assert.match(route, /return securityHoldResponse\(\);/, `${name} must return the held response`);
+  }
+  for (const [name, route] of [
+    ["paymaster authorization", paymasterAuthRoute],
+    ["personhood refresh", personhoodRefreshRoute],
+  ]) {
+    const check = route.indexOf("isSecurityHoldEngaged()");
+    const parse = route.indexOf("await request.json()");
+    assert.notEqual(parse, -1, `${name} must parse a body on the normal path`);
+    assert.ok(check < parse, `${name} must halt before reading the body`);
+  }
+});
+
+// J. MAOTANG token, faucet and treasury release invariants
+//
+// These are the economics and custody facts that must not drift between the Solidity source, the
+// deployment pipeline and the consumer card. The burn rate is deliberately small enough for
+// micro-payments, while the cap and one-time minter lock remain hard on-chain properties.
+
+const FAUCET_TOKEN_CONTRACT = path.join(
+  appRoot,
+  "..",
+  "contracts",
+  "src",
+  "MaotangFaucetToken.sol",
+);
+const DEPLOY_SCRIPT = path.join(appRoot, "..", "contracts", "scripts", "deploy-testnet.ts");
+const VERCEL_SCRIPT = path.join(appRoot, "scripts", "vercel-api-deploy.mjs");
+const DEPLOYMENT_MANIFEST = path.join(appRoot, "config", "contracts.json");
+const CLAIM_CARD = path.join(appRoot, "src", "components", "console", "ClaimCard.tsx");
+const BTC_VAULT = "1HBhZ97jHjasVF4XFWLY9Wv8dpNHUq3AbJ";
+const OLD_BTC_VAULT = "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe";
+
+const faucetTokenContract = readFileSync(FAUCET_TOKEN_CONTRACT, "utf8");
+const deployScript = readFileSync(DEPLOY_SCRIPT, "utf8");
+const vercelScript = readFileSync(VERCEL_SCRIPT, "utf8");
+const deploymentManifest = readFileSync(DEPLOYMENT_MANIFEST, "utf8");
+const claimCard = readFileSync(CLAIM_CARD, "utf8");
+
+test("J. MAOTANG keeps its symbol, hard cap and burn-on-transfer semantics", () => {
+  assert.match(faucetTokenContract, /string public constant symbol = "MAOTANG";/);
+  assert.match(faucetTokenContract, /uint256 public constant MAX_SUPPLY = 8_300_000_000 \* 10 \*\* 18;/);
+  assert.match(faucetTokenContract, /uint16 public constant BURN_BPS = 10;/);
+  assert.match(faucetTokenContract, /if \(amount > remaining\) revert SupplyCapExceeded/);
+  assert.match(faucetTokenContract, /function previewTransfer\(/);
+  assert.match(faucetTokenContract, /totalBurned \+= burned;/);
+  assert.match(faucetTokenContract, /function burnFrom\(address from, uint256 amount\)/);
+});
+
+test("J. the deploy pipeline locks the faucet minter and publishes both addresses", () => {
+  for (const contractName of ["MaotangFaucetToken", "MaotangFaucet"]) {
+    assert.match(deployScript, new RegExp(`deploy\\(\\s*\"${contractName}\"`));
+  }
+  assert.match(deployScript, /faucetToken\.setMinter\(await faucet\.getAddress\(\)\)/);
+  assert.match(deployScript, /faucetToken\.lockMinter\(\)/);
+  assert.match(deployScript, /MaotangFaucetToken: await faucetToken\.getAddress\(\)/);
+  assert.match(deployScript, /MAOTANG_FAUCET_CONTRACT_ADDRESS: contracts\.MaotangFaucet/);
+  assert.match(deployScript, /MAOTANG_FAUCET_REWARD_UNITS: faucetRewardUnits\.toString\(\)/);
+});
+
+test("J. the claim card renders the complete transaction hash and receipt status", () => {
+  assert.match(claimCard, /\{onchain\.txHash\}/, "the full hash must be rendered");
+  assert.doesNotMatch(claimCard, /shortHex\(onchain\.txHash/, "the hash must not be truncated");
+  assert.match(claimCard, /t\("claim\.chain\.pending"\)/);
+  assert.match(claimCard, /t\("claim\.chain\.confirmed"\)/);
+  assert.match(claimCard, /t\("claim\.chain\.failed"\)/);
+});
+
+test("J. one developer Bitcoin vault address is pinned across release config", () => {
+  for (const [name, source] of [
+    ["deploy script", deployScript],
+    ["app env example", envExample],
+    ["Vercel release script", vercelScript],
+    ["deployment manifest", deploymentManifest],
+    ["deployment documentation", readFileSync(
+      path.join(appRoot, "..", "docs", "DEPLOY_MAOTANG_FRONTEND.md"),
+      "utf8",
+    )],
+  ]) {
+    assert.ok(source.includes(BTC_VAULT), `${name} must carry the developer BTC vault address`);
+    assert.ok(!source.includes(OLD_BTC_VAULT), `${name} must not retain the superseded BTC address`);
+  }
 });

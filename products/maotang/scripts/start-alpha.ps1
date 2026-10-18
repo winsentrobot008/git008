@@ -602,6 +602,46 @@ function Start-App {
     }
 }
 
+# The generated manifest carries public faucet metadata, not the server key. The launcher reuses the
+# deployer key only when no dedicated faucet key was supplied; both stay in process environment.
+function Add-FaucetEnvironment {
+    param([hashtable]$AppEnv, $Deployment, [string]$RpcUrl)
+
+    $contracts = Get-Property $Deployment 'contracts'
+    $faucet = Get-Property $Deployment 'faucet'
+    $network = Get-Property $Deployment 'network'
+    $faucetAddress = Get-Property $contracts 'MaotangFaucet'
+    $tokenAddress = Get-Property $contracts 'MaotangFaucetToken'
+    $chainId = Get-Property $network 'chainId'
+    $rewardUnits = Get-Property $faucet 'rewardUnits'
+    if (-not $faucetAddress -or -not $tokenAddress -or -not $chainId -or -not $rewardUnits) {
+        Write-Warn 'deployment has no faucet metadata; claim routes will stay 503 FAUCET_UNCONFIGURED until contracts.json is regenerated'
+        return
+    }
+
+    $AppEnv['MAOTANG_FAUCET_RPC_URL'] = $RpcUrl
+    $AppEnv['MAOTANG_FAUCET_CHAIN_ID'] = [string]$chainId
+    $AppEnv['MAOTANG_FAUCET_CONTRACT_ADDRESS'] = [string]$faucetAddress
+    $AppEnv['MAOTANG_FAUCET_TOKEN_ADDRESS'] = [string]$tokenAddress
+    $AppEnv['MAOTANG_FAUCET_REWARD_UNITS'] = [string]$rewardUnits
+    if (-not $AppEnv['MAOTANG_FAUCET_PRIVATE_KEY']) {
+        $AppEnv['MAOTANG_FAUCET_PRIVATE_KEY'] = if ($env:MAOTANG_FAUCET_PRIVATE_KEY) {
+            $env:MAOTANG_FAUCET_PRIVATE_KEY
+        } elseif ($env:DEPLOYER_PRIVATE_KEY) {
+            $env:DEPLOYER_PRIVATE_KEY
+        } else {
+            $AnvilDevKey
+        }
+    }
+    if (-not $AppEnv['MAOTANG_WEBAUTHN_SECRET']) {
+        $secretBytes = [byte[]]::new(32)
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        try { $rng.GetBytes($secretBytes) } finally { $rng.Dispose() }
+        $AppEnv['MAOTANG_WEBAUTHN_SECRET'] = [Convert]::ToBase64String($secretBytes)
+    }
+    Write-Note "faucet claim route: $faucetAddress -> token $tokenAddress"
+}
+
 function Start-Gateway {
     param([string]$RpcUrl)
 
@@ -717,6 +757,7 @@ try {
         }
         # The live RPC wins over whatever the export recorded.
         $frontendEnv['NEXT_PUBLIC_MAOTANG_RPC_URL'] = $rpcUrl
+        Add-FaucetEnvironment -AppEnv $frontendEnv -Deployment $deployment -RpcUrl $rpcUrl
         Start-App -AppEnv $frontendEnv
     }
 } finally {

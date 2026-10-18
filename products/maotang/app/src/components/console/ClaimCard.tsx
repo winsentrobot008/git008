@@ -4,10 +4,12 @@
  * The cold-start social card: identity, QR/deep link and a Face ID-gated claim request.
  *
  * The card never calls the biometric hook and never mints anything. `ConsumerView` owns the one
- * shared session, asks the device for an assertion and posts the resulting client-side handle to
- * `/api/agent/claim`; the route returns a claim *request* ticket and says explicitly that no faucet
- * is configured. That keeps the viral surface honest: a visitor sees 10 MAOTANG and a ticket, not a
- * fabricated on-chain balance.
+ * shared session, asks the device for a server-issued assertion and posts the resulting WebAuthn
+ * response to `/api/agent/claim`; the route verifies it and submits the on-chain faucet claim.
+ *
+ * The state shown below is therefore a real transaction: `txHash` comes from the faucet broadcast and
+ * the pending/confirmed/failed transition comes from `/api/agent/claim/status` polling. A missing or
+ * unconfigured faucet is an error code, never a fabricated balance or a pending ticket.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -17,12 +19,23 @@ import type { ConsoleBiometricState } from "@/components/console/biometric-view"
 import { FingerprintMark } from "@/components/console/BrandMark";
 import { useLanguage } from "@/lib/i18n/language";
 
+export type ClaimChainStatus = "pending" | "confirmed" | "failed";
+
 /** The claim state machine owned by `ConsumerView`. */
 export type ClaimState =
   | { readonly phase: "idle" }
   | { readonly phase: "authorizing" }
   | { readonly phase: "settling" }
-  | { readonly phase: "requested"; readonly ticket: string; readonly alias: string }
+  | {
+      readonly phase: "onchain";
+      readonly txHash: string;
+      readonly chainStatus: ClaimChainStatus;
+      readonly explorerUrl: string | null;
+      readonly reward: string;
+      readonly symbol: string;
+      readonly chainId: number | null;
+      readonly blockNumber: number | null;
+    }
   | { readonly phase: "error"; readonly code: string };
 
 export interface ClaimCardProps {
@@ -35,6 +48,8 @@ export interface ClaimCardProps {
   /** The shared biometric session fields, passed down from `ConsumerView`. */
   readonly bio: ConsoleBiometricState;
   readonly state: ClaimState;
+  /** False while the server-issued claim challenge is still being fetched. */
+  readonly claimReady?: boolean;
   /** Forwards the tap to `ConsumerView`, which calls `session.authorize` without an intervening await. */
   readonly onClaim: () => void;
   readonly className?: string;
@@ -66,6 +81,7 @@ export function ClaimCard({
   referral,
   bio,
   state,
+  claimReady = false,
   onClaim,
   className = "",
 }: ClaimCardProps) {
@@ -73,10 +89,11 @@ export function ClaimCard({
   const [copied, setCopied] = useState(false);
 
   const identity = alias === null ? null : `${alias}.008ai`;
-  const requested = state.phase === "requested";
+  const onchain = state.phase === "onchain" ? state : null;
   const busy = state.phase === "authorizing" || state.phase === "settling" || bio.busy;
   const canEnroll = alias !== null && bio.platformAuthenticator && bio.credentialId === null;
   const canClaim = alias !== null && bio.platformAuthenticator && bio.credentialId !== null;
+  const canRetry = onchain === null || onchain.chainStatus === "failed";
 
   useEffect(() => {
     if (!copied) {
@@ -125,7 +142,18 @@ export function ClaimCard({
       ? t("claim.authorizing")
       : state.phase === "settling"
         ? t("claim.settling")
-        : null;
+        : claimReady
+          ? t("claim.claim")
+          : t("claim.preparing");
+
+  const chainLabel =
+    onchain === null
+      ? null
+      : onchain.chainStatus === "confirmed"
+        ? t("claim.chain.confirmed")
+        : onchain.chainStatus === "failed"
+          ? t("claim.chain.failed")
+          : t("claim.chain.pending");
 
   return (
     <section className={"rounded-3xl border border-white/80 bg-[rgba(255,255,255,0.58)] px-3.5 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_14px_30px_-22px_rgba(224,127,150,0.9)] backdrop-blur-xl " + className}>
@@ -143,6 +171,10 @@ export function ClaimCard({
           {t("claim.amount")}
         </span>
       </header>
+
+      <p className="mt-2.5 rounded-xl border border-[#ffb6c1]/60 bg-white/55 px-3 py-2 text-[10px] font-medium leading-relaxed text-[#8f5568]">
+        {t("claim.supplyCap")}
+      </p>
 
       {referral === null ? null : (
         <p className="mt-2.5 rounded-xl border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.82)] px-3 py-2 text-[10.5px] leading-relaxed text-[#8f5568]">
@@ -212,11 +244,11 @@ export function ClaimCard({
             {t("claim.rewardLabel")}
           </p>
           <p className="mt-0.5 font-mono text-[1.3rem] font-semibold leading-none text-[#6b3f4d]">
-            {t("claim.amount")}
+            {onchain === null ? t("claim.amount") : `${onchain.reward} ${onchain.symbol}`}
           </p>
         </div>
         <span className="max-w-[52%] text-right text-[9px] leading-relaxed text-slate-400">
-          {t("claim.previewNote")}
+          {onchain === null ? t("claim.previewNote") : t("claim.chainNote")}
         </span>
       </div>
 
@@ -226,19 +258,53 @@ export function ClaimCard({
         </p>
       ) : null}
 
-      {requested ? (
-        <div className="mt-3 rounded-2xl border border-emerald-300/70 bg-emerald-50/80 px-3.5 py-3" role="status" aria-live="polite">
-          <p className="text-[11px] font-semibold text-emerald-800">{t("claim.requested")}</p>
-          <p className="mt-1 break-all font-mono text-[9.5px] text-emerald-700">
-            {t("claim.ticket", { ticket: state.ticket })}
+      {onchain === null ? null : (
+        <div
+          role="status"
+          aria-live="polite"
+          className={
+            "mt-3 rounded-2xl border px-3.5 py-3 " +
+            (onchain.chainStatus === "confirmed"
+              ? "border-emerald-300/70 bg-emerald-50/80"
+              : onchain.chainStatus === "failed"
+                ? "border-rose-300/70 bg-rose-50/80"
+                : "border-amber-300/70 bg-amber-50/80")
+          }
+        >
+          <p
+            className={
+              "text-[11px] font-semibold " +
+              (onchain.chainStatus === "confirmed"
+                ? "text-emerald-800"
+                : onchain.chainStatus === "failed"
+                  ? "text-rose-800"
+                  : "text-amber-800")
+            }
+          >
+            {chainLabel}
           </p>
-          <p className="mt-1 text-[9.5px] leading-relaxed text-emerald-700/80">
-            {t("claim.pendingSettlement")}
+          <p className="mt-1 break-all font-mono text-[9.5px] text-slate-600">
+            {t("claim.txHash")} {onchain.txHash}
           </p>
+          {onchain.chainStatus === "confirmed" ? (
+            <p className="mt-1 text-[9.5px] leading-relaxed text-emerald-700/90">
+              {t("claim.rewardSettled", { reward: onchain.reward, symbol: onchain.symbol })}
+            </p>
+          ) : null}
+          {onchain.explorerUrl === null ? null : (
+            <a
+              href={onchain.explorerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1.5 inline-block text-[10px] font-medium text-[#8f5568] underline decoration-[#ffb6c1] underline-offset-2"
+            >
+              {t("claim.viewExplorer")}
+            </a>
+          )}
         </div>
-      ) : null}
+      )}
 
-      {requested ? null : bio.platformAuthenticator ? (
+      {bio.platformAuthenticator ? (
         canEnroll ? (
           <button
             type="button"
@@ -249,19 +315,19 @@ export function ClaimCard({
             <FingerprintMark />
             {t("claim.enroll")}
           </button>
-        ) : (
+        ) : canRetry ? (
           <button
             type="button"
             onClick={onClaim}
-            disabled={busy || !canClaim}
+            disabled={busy || !canClaim || !claimReady}
             className="mt-3 inline-flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-full border border-white/80 bg-slate-900 px-4 text-[12.5px] font-semibold text-white shadow-[0_10px_26px_-12px_rgba(15,23,42,0.6)] transition hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="text-white/80">
               <FingerprintMark />
             </span>
-            {statusText ?? t("claim.claim")}
+            {statusText}
           </button>
-        )
+        ) : null
       ) : (
         <p className="mt-3 rounded-xl border border-amber-300/70 bg-amber-50/75 px-3 py-2 text-[10px] leading-relaxed text-amber-800">
           {bio.busy ? t("claim.checking") : t("claim.noPlatform")}

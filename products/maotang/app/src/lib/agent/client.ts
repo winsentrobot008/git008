@@ -9,6 +9,7 @@
  */
 
 import type { QuotaReport } from "./quota-view";
+import type { SerializedAuthenticationResponse } from "./webauthn";
 import type { Address, AgentRefusal, Hex, IntentFailure, IntentResponse, IntentSuccess } from "./types";
 
 /** What `GET /api/agent/status` answers. Mirrors the route field for field. */
@@ -137,6 +138,8 @@ export interface IntentRequest {
   readonly prompt: string;
   /** Ask the wallet to release a signature as well. Always refused without a hardware enclave. */
   readonly attemptSign?: boolean;
+  /** The fresh hardware assertion over the preview digest; required when `attemptSign` is set. */
+  readonly assertion?: SerializedAuthenticationResponse;
 }
 
 export async function requestIntent(
@@ -148,7 +151,11 @@ export async function requestIntent(
     response = await fetch("/api/agent/intent", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt: request.prompt, attemptSign: request.attemptSign === true }),
+      body: JSON.stringify({
+        prompt: request.prompt,
+        attemptSign: request.attemptSign === true,
+        ...(request.assertion === undefined ? {} : { assertion: request.assertion }),
+      }),
       signal,
       cache: "no-store",
     });

@@ -22,21 +22,30 @@ reward and a retention curve is a fiction.
 
 ## 2. Launch blockers (must be true before paid acquisition)
 
-1. **The reward must be real.** The current claim route returns a pending ticket with
-   `onChain: false` and `faucetConfigured: false`. A 10 MAOTANG headline cannot drive retention
-   until a faucet or an audited settlement ledger actually credits the reward.
-2. **The zero-gas promise must be real.** The Paymaster quota card is a UX entitlement indicator.
-   Until an ERC-4337 Paymaster (or equivalent) sponsors the transactions, the product must not
-   advertise free gas as a live benefit.
-3. **DeChat must carry real messages.** The current panel is an E2EE preview. A viral social card
-   is not a communication product until message delivery, key exchange and offline behaviour are
-   implemented and tested on physical devices.
-4. **Analytics must exist without PII.** Define events before launch: install, PWA launch, Face ID
-   enrollment, claim requested, claim settled, referral opened, message sent, payment card opened,
-   payment confirmed. Use a first-party endpoint or a privacy-preserving provider; never send
-   credential IDs, nullifiers, private keys or message bodies.
-5. **Abuse controls must be live.** App Attest / Play Integrity, device-risk signals, per-IP and
-   per-device rate limits, referral caps, and a review queue for anomalous claim velocity.
+1. **The reward must be real.** The claim route now verifies the WebAuthn assertion server-side and,
+   when `MAOTANG_FAUCET_*` is configured, submits `MaotangFaucet.claimDefault` and returns a real
+   `txHash`; `/api/agent/claim/status` reports Pending -> Confirmed from the receipt. With no faucet
+   configured it returns `503 FAUCET_UNCONFIGURED`. A 10 MAOTANG headline cannot drive retention
+   until the faucet is actually deployed, funded and verified on a public testnet/mainnet.
+2. **The zero-gas promise must be real.** `MaotangPaymaster.sol` and the signed-ticket / live-quota
+   routes are implemented, and the UI reads the chain instead of a static 100/100. But no Paymaster
+   is deployed or deposited, no bundler submits `UserOperation`s, and the ticket does not yet bind
+   target / calldata. Until those are live and verified, the product must not advertise free gas as
+   a live benefit.
+3. **DeChat must carry real messages.** The current panel is a session-local preview: no relay, no
+   E2EE envelope transport and no device-bound encrypted store. A viral social card is not a
+   communication product until message delivery, key exchange and offline behaviour are implemented
+   and tested on physical devices.
+4. **Analytics must exist without PII.** `/api/telemetry` now enforces an event/property allow-list
+   and writes one non-identifying structured line, but it is process-log only and
+   `/api/telemetry/summary` reports `configured: false`. Persist the launch events (install, PWA
+   launch, Face ID enrollment, claim requested, claim settled, referral opened, message sent,
+   payment card opened, payment confirmed) in a durable first-party store; never send credential
+   IDs, nullifiers, private keys or message bodies.
+5. **Abuse controls must be live.** Server-side WebAuthn attestation, `userVerified`, and the
+   on-chain one-claim `identityHash` ledger now exist, but they only stop replay of one credential.
+   App Attest / Play Integrity, device-risk signals, per-IP and per-device rate limits, referral
+   caps, and a review queue for anomalous claim velocity remain launch blockers.
 
 ## 3. Funnel targets
 

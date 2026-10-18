@@ -382,8 +382,26 @@ invoke_deploy() {
 load_deployment() {
   have node || die "cannot find node on PATH"
   local dump
-  dump="$(node -e "const fs=require(\"fs\");const d=JSON.parse(fs.readFileSync(process.argv[1],\"utf8\"));const c=d.contracts||{};const fe=d.frontendEnv||{};const out=[];out.push(\"FACTORY_ADDRESS=\"+JSON.stringify(c.MaoTangFactory||\"\"));out.push(\"VAULT_ADDRESS=\"+JSON.stringify(c.MaoTangSustenanceVault||\"\"));out.push(\"HUMAN_TOKEN_ADDRESS=\"+JSON.stringify(c.HumanToken||\"\"));for(const k of Object.keys(fe)){if(fe[k])out.push(\"export \"+k+\"=\"+JSON.stringify(String(fe[k])));}process.stdout.write(out.join(String.fromCharCode(10)));" "$CONTRACTS_JSON")"
+  dump="$(node -e "const fs=require(\"fs\");const d=JSON.parse(fs.readFileSync(process.argv[1],\"utf8\"));const c=d.contracts||{};const fe=d.frontendEnv||{};const f=d.faucet||{};const n=d.network||{};const out=[];out.push(\"FACTORY_ADDRESS=\"+JSON.stringify(c.MaoTangFactory||\"\"));out.push(\"VAULT_ADDRESS=\"+JSON.stringify(c.MaoTangSustenanceVault||\"\"));out.push(\"HUMAN_TOKEN_ADDRESS=\"+JSON.stringify(c.HumanToken||\"\"));out.push(\"FAUCET_ADDRESS=\"+JSON.stringify(c.MaotangFaucet||\"\"));out.push(\"FAUCET_TOKEN_ADDRESS=\"+JSON.stringify(c.MaotangFaucetToken||\"\"));out.push(\"FAUCET_REWARD_UNITS=\"+JSON.stringify(String(f.rewardUnits||\"\")));out.push(\"CHAIN_ID=\"+JSON.stringify(String(n.chainId||\"\")));for(const k of Object.keys(fe)){if(fe[k])out.push(\"export \"+k+\"=\"+JSON.stringify(String(fe[k])));}process.stdout.write(out.join(String.fromCharCode(10)));" "$CONTRACTS_JSON")"
   eval "$dump"
+}
+
+configure_faucet_env() {
+  if [ -z "${FAUCET_ADDRESS:-}" ] || [ -z "${FAUCET_TOKEN_ADDRESS:-}" ] || [ -z "${CHAIN_ID:-}" ] || [ -z "${FAUCET_REWARD_UNITS:-}" ]; then
+    warn "deployment has no faucet metadata; claim routes will stay 503 FAUCET_UNCONFIGURED until contracts.json is regenerated"
+    return 0
+  fi
+
+  export MAOTANG_FAUCET_RPC_URL="$RPC_URL"
+  export MAOTANG_FAUCET_CHAIN_ID="$CHAIN_ID"
+  export MAOTANG_FAUCET_CONTRACT_ADDRESS="$FAUCET_ADDRESS"
+  export MAOTANG_FAUCET_TOKEN_ADDRESS="$FAUCET_TOKEN_ADDRESS"
+  export MAOTANG_FAUCET_REWARD_UNITS="$FAUCET_REWARD_UNITS"
+  export MAOTANG_FAUCET_PRIVATE_KEY="${MAOTANG_FAUCET_PRIVATE_KEY:-${DEPLOYER_PRIVATE_KEY:-$ANVIL_DEV_KEY}}"
+  if [ -z "${MAOTANG_WEBAUTHN_SECRET:-}" ]; then
+    export MAOTANG_WEBAUTHN_SECRET="$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64"))')"
+  fi
+  note "faucet claim route: $FAUCET_ADDRESS -> token $FAUCET_TOKEN_ADDRESS"
 }
 
 start_gateway() {
@@ -503,6 +521,7 @@ if [ "$SKIP_APP" -eq 1 ]; then
 else
   step "5/5  starting the app"
   export NEXT_PUBLIC_MAOTANG_RPC_URL="$RPC_URL"
+  configure_faucet_env
   if [ ! -d "$APP_DIR/node_modules" ]; then
     run_in "$APP_DIR" npm install --no-audit --no-fund
   fi

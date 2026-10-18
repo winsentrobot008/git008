@@ -19,7 +19,7 @@
  * chrome differs.
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ToastStack, useToastQueue } from "@/components/agent-console/Toast";
 import {
@@ -32,7 +32,7 @@ import { useLanguage } from "@/lib/i18n/language";
 import { shortHex } from "@/lib/agent/client";
 import { useBiometricOwner } from "@/lib/agent/biometric-session";
 import type { Hex } from "@/lib/agent/types";
-import type { OwnerAssertion } from "@/lib/agent/webauthn";
+import type { OwnerAssertion, RegistrationOptionsJSON } from "@/lib/agent/webauthn";
 
 const NO_VALUE = "\u2014";
 
@@ -47,6 +47,8 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
   const { language, t } = useLanguage();
   const session = useBiometricOwner();
   const toasts = useToastQueue();
+  const [registrationOptions, setRegistrationOptions] = useState<RegistrationOptionsJSON | null>(null);
+  const [registrationEpoch, setRegistrationEpoch] = useState(0);
 
   // Report each verified digest upward exactly once, even if a parent re-render changes `onAssertion`.
   const reported = useRef<Hex | null>(null);
@@ -59,15 +61,53 @@ export function BioAuthGuard({ challenge, onAssertion }: BioAuthGuardProps) {
     onAssertion?.(produced);
   }, [challenge, onAssertion, session.assertion]);
 
+  // The registration challenge is server-issued. Prefetch it while the owner is looking at the card,
+  // so the tap can call `navigator.credentials.create` before iOS Safari spends the user activation.
+  useEffect(() => {
+    if (session.credentialId !== null || session.capability?.platformAuthenticator !== true) {
+      return;
+    }
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/agent/webauthn/register/options", {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { readonly ok?: boolean; readonly options?: RegistrationOptionsJSON }
+          | null;
+        if (!controller.signal.aborted && payload?.ok === true && payload.options !== undefined) {
+          setRegistrationOptions(payload.options);
+        }
+      } catch {
+        // The tap path reports the failure with a code; a prefetch failure is not a page error.
+      }
+    })();
+    return () => controller.abort();
+  }, [registrationEpoch, session.capability?.platformAuthenticator, session.credentialId]);
+
   const enroll = useCallback(async () => {
-    const result = await session.enroll("biometric-owner");
+    if (session.busy) {
+      return;
+    }
+    if (registrationOptions === null) {
+      setRegistrationEpoch((epoch) => epoch + 1);
+      toasts.push("warn", t("claim.preparing"));
+      return;
+    }
+    const options = registrationOptions;
+    setRegistrationOptions(null);
+    const result = await session.enroll("biometric-owner", options);
     if (result.ok) {
       toasts.push("success", t("toast.enrolled"));
       return;
     }
+    setRegistrationEpoch((epoch) => epoch + 1);
     const { tone, message } = biometricFailureToast(result.failure, language);
     toasts.push(tone, message);
-  }, [session, t, toasts]);
+  }, [language, registrationOptions, session, t, toasts]);
 
   const authorize = useCallback(async () => {
     // Toast before the call: the system sheet renders outside the document, so the page has to show

@@ -1,8 +1,11 @@
 # ADR-047 — Mobile-Only DeChat, GES and Anti-Phone-Farm Architecture
 
-**Status / 状态:** Accepted（已接受）. Phase 2 Steps 1–2 are implemented: the consumer PWA has the
-three-tab shell and a DeChat session-local preview panel. The native hardware boundary, DeChat relay /
-E2EE transport, GES tiers and anti-farm probes remain target contracts; see §6 for the shipped scope.
+**Status / 状态:** Accepted（已接受）. Phase 2 Steps 1–2 and P3 are implemented: the consumer PWA has the
+three-tab shell, a DeChat session-local preview with Chat-to-Pay hand-off, server-verified WebAuthn
+claim enrollment, an on-chain one-claim faucet ledger, Paymaster ticket/quota code and a
+privacy-minimised telemetry endpoint. The native hardware boundary, DeChat relay / E2EE transport,
+live Paymaster deployment with bundler settlement, durable attribution and anti-farm probes remain
+target contracts; see §6 for the shipped scope.
 
 **Decision date / 决策日期:** 2026-10-17
 
@@ -49,18 +52,20 @@ device integrity, TrueDepth liveness, gyroscope micro-motion, PoW and escalating
 
 ### 1.1 Current surface / 当前形态
 
-The shipped C-end already has the two pieces ADR-046 specified:
+The shipped C-end now has the three-tab shell and several protocol-adjacent seams:
 
 | Existing piece | What it does today | Gap against the target |
 | --- | --- | --- |
-| `app/src/app/page.tsx` | renders `ConsoleShell` with `initialView="vault"` | no DeChat tab |
-| `app/src/app/agent/page.tsx` | deep link to the Agent surface | Agent is a route, not a bottom tab |
-| `app/src/components/console/VaultPanel.tsx` | Bitcoin.com-style total, asset rows, Send / Receive / Swap | no DeChat hand-off |
+| `app/src/app/page.tsx` | renders `ConsoleShell` with `initialView="vault"` and the three-tab bar | navigation is complete; DeChat remains a local preview |
+| `app/src/app/{dechat,agent}/page.tsx` | deep links open the corresponding tab | no server-rendered conversation state |
+| `app/src/components/console/VaultPanel.tsx` | Bitcoin.com-style total, asset rows, Send / Receive / Swap, live Paymaster quota card | no live native balance or `/v1/send` facade |
+| `app/src/components/console/DeChatPanel.tsx` | wallet-derived identity, local bubbles, Chat-to-Pay, claim/referral cards | no relay, E2EE transport, encrypted store or receipt message |
 | `app/src/components/console/AgentPanel.tsx` | intent, policy log, compute / genesis panes | no conversation or payment-request context |
-| `app/src/lib/agent/console-mode.ts` | `ConsoleView = "vault" \| "agent"`; `maotang.console.view` | target needs `dechat` and a tab-level storage key |
-| `app/src/lib/agent/biometric-session.ts` | `useBiometricOwner()` platform authenticator session | no native attestation, liveness or gyro mapping |
-| `app/src/lib/agent/webauthn.ts` | WebAuthn `userVerification: "required"`, platform attachment | `attestation: "none"` today; no device integrity claim |
-| `app/src/lib/agent/runtime.ts` | M1/M2 wiring; `HardwareEnclave` refuses without a backend | no native secure-enclave bridge |
+| `app/src/lib/agent/console-mode.ts` | `ConsoleView = "vault" \| "dechat" \| "agent"`; `maotang.console.tab` with one-time legacy migration | none |
+| `app/src/lib/agent/{biometric-session,webauthn}.ts` | `useBiometricOwner()`, `attestation: "direct"`, `userVerification: "required"`, platform attachment | no native enclave bridge, liveness or gyro mapping |
+| `app/src/lib/agent/webauthn-server.ts` | sealed challenges/enrollments, `@simplewebauthn/server` assertion verification, server-derived `hardwareBacked` | credential-level only; no DCAppAttest / Play Integrity |
+| `app/src/lib/agent/{faucet,paymaster}.ts` + API routes | real faucet transaction when configured; live quota and signed single-use Paymaster ticket | no live deployment, bundler or target/calldata binding |
+| `app/src/lib/telemetry.ts` + `/api/telemetry` | allow-listed, non-identifying events to the process log | no durable attribution store; summary reports unknown |
 
 ### 1.2 Forces / 约束
 
@@ -68,8 +73,9 @@ The shipped C-end already has the two pieces ADR-046 specified:
   and audit state but cannot sign.
 - **One pipeline:** Vault, DeChat and Agent must not grow separate policy or biometric paths. A message
   bubble and a Send form must produce the same canonical intent and digest.
-- **Honesty:** DeChat, three tabs, GES and anti-farm are **not shipped**. UI and docs must not claim
-  “encrypted”, “gasless” or “device verified” until the corresponding evidence exists.
+- **Honesty:** DeChat transport, live GES settlement, durable analytics and anti-farm native probes are
+  **not shipped**. UI and docs must say “session preview”, “unconfigured” or “unknown”; they must not
+  claim “encrypted”, “gasless” or “device verified” until the corresponding evidence exists.
 - **Bilingual:** every visible label is a dictionary key; English contains no CJK.
 - **Thumb-first:** the bottom bar must respect safe-area insets, 48 px targets and reduced transparency.
 - **Privacy:** raw depth maps, gyroscope traces, biometric templates and plaintext messages never leave
@@ -257,13 +263,17 @@ export function useBiometricOwner(): BiometricSession;
 | --- | --- | --- | --- |
 | `userVerified` | WebAuthn authenticator flags bit `0x04` | the platform authenticator performed user verification | that the user is the wallet owner, or that the device is unmodified |
 | `authenticatorAttachment === "platform"` | WebAuthn assertion | the credential is platform-attached (hardware-backed key family) | a successful DCAppAttest / Play Integrity verdict |
+| `hardwareBacked` | server: `fmt !== "none" && deviceType === "singleDevice"` | a direct attestation from a single-device credential | a clean device; a rooted phone can still hold a valid platform credential |
+| `identityHash` | server: `keccak256("maotang.identity.v1:" + rpID + ":" + credentialId)` | a stable credential handle written to the on-chain one-claim ledger | a physical device serial; a new credential is a new identity |
 | `challenge === intentDigest` | client check | the approval is bound to one exact transaction / message intent | that the transaction was broadcast or settled |
 | `nullifier` | `deriveOwnerNullifier(credentialId)` | a stable web-edge handle for this enrolled credential | the chain’s one-shot Groth16 nullifier |
 | `assertedAt` | local clock | freshness for UI / local replay checks | a trusted timestamp for cross-device replay defense |
 
-Current enrollment uses `attestation: "none"`. That is an honest web limitation, not a device-integrity
-proof. Native attestation must be added as a separate `DeviceIntegrityGate`; the hook must not be
-relabelled as “device verified”.
+Enrollment requests `attestation: "direct"` and the server verifies the attestation object; a
+`fmt === "none"` response is rejected by the claim flow. Even a verified direct attestation is not a
+DCAppAttest / Play Integrity verdict, and the credential id is not a hardware serial. Native device
+integrity must be added as a separate `DeviceIntegrityGate`; the hook must not be relabelled as
+“device verified”.
 
 ### 5.3 Canonical sequence
 
@@ -304,20 +314,25 @@ relabelled as “device verified”.
 
 ## 6. Implementation status（实现状态）
 
-### 6.1 Shipped in Phase 2 Steps 1–2
+### 6.1 Shipped (Phase 2 Steps 1–2 and P3)
 
 | Area | Shipped | Evidence |
 | --- | --- | --- |
 | Three-tab shell | `ConsoleView = "vault" \| "dechat" \| "agent"`; `/dechat` deep link; tab persisted at `maotang.console.tab`, legacy key migrated once | `app/src/components/console/ConsoleTabs.tsx`, `app/src/components/agent-console/ConsoleShell.tsx`, `app/src/lib/agent/console-mode.ts` |
 | DeChat preview | Wallet-derived `<wallet-prefix>.008ai` identity, local message bubbles, Chat-to-Pay card, text input and payment shortcut; explicit "session only / local preview" copy | `app/src/components/console/DeChatPanel.tsx` |
 | Single pipeline | Chat-to-Pay forwards an English M1 sentence to `ConsumerView.submit`; only `ConsumerView` owns `useBiometricOwner()`; no tab signs or calls `/v1/broadcast` directly | `app/src/components/agent-console/ConsumerView.tsx` |
+| Claim ledger | Server verifies the WebAuthn assertion, requires `userVerified`, rejects `fmt === "none"` and multi-device credentials, then submits `MaotangFaucet.claimDefault`; the contract's `identityHash` mapping is the one-claim authority | `app/src/app/api/agent/claim/route.ts`, `app/src/lib/agent/{faucet,webauthn-server}.ts`, `contracts/src/MaotangFaucet.sol` |
+| Claim UX | `ClaimCard` renders the broadcast `txHash` and polls `/api/agent/claim/status` for Pending -> Confirmed / Failed; an unconfigured faucet is an explicit error, never a fabricated ticket | `app/src/components/console/ClaimCard.tsx`, `app/src/app/api/agent/claim/status/route.ts` |
+| Paymaster ticket / quota | Single-use EIP-712 authorization, exact 100-operation rolling 24h ring window, pause/allowlist; routes read live quota and sign only for the wallet bound to the verified claim | `contracts/src/MaotangPaymaster.sol`, `app/src/lib/agent/paymaster.ts`, `app/src/app/api/agent/paymaster/{quota,authorization}/route.ts` |
+| Telemetry / KOL | Allow-listed, non-identifying events; KOL panel reads the summary and shows “unknown” when no durable store exists | `app/src/lib/telemetry.ts`, `app/src/app/api/telemetry/**`, `app/src/components/console/KOLReferralPanel.tsx` |
 | Layout | Fixed bottom bar with safe-area inset, 56 px targets, pink frosted glass, press micro-motion and reduced-motion fallback; Agent composer docked above the bar | `app/src/app/globals.css`, `app/src/components/console/AgentPanel.tsx` |
 
 ### 6.2 Not shipped
 
-- DeChat relay, E2EE envelope encryption/decryption and a device-bound encrypted store.
-- GES G0–G4 adapters (Paymaster, state channels, Wasm PoW, ZK-Personhood gate, burn accounting).
-- Native `DeviceIntegrityGate`, `DeviceLivenessProbe` (TrueDepth / gyroscope) and Secure Enclave / StrongBox signing bridge.
+- DeChat relay, E2EE envelope encryption/decryption, a device-bound encrypted store and delivered / receipt messages.
+- Live Paymaster deployment, EntryPoint deposit, bundler submission and target / selector / calldata binding; G1–G4 adapters (state channels, Wasm PoW, ZK-Personhood gate, burn accounting).
+- A durable analytics / attribution store; `/api/telemetry/summary` returns `configured: false` today.
+- Native `DeviceIntegrityGate`, `DeviceLivenessProbe` (TrueDepth / gyroscope), DCAppAttest / Play Integrity and Secure Enclave / StrongBox signing bridge.
 - Any direct `/v1/broadcast` path from a tab; the gateway route remains the only value-moving exit.
 
 ### 6.3 Verification
@@ -325,5 +340,5 @@ relabelled as “device verified”.
 ```powershell
 cd products/maotang/app
 node node_modules/typescript/bin/tsc --noEmit --incremental false
-node scripts/assert-runtime-policy.mjs
+node --test scripts/assert-runtime-policy.mjs
 ```

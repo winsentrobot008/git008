@@ -19,14 +19,27 @@ import { useCallback, useRef, useState } from "react";
 import { FingerprintMark } from "@/components/console/BrandMark";
 import type { ConsoleBiometricState } from "@/components/console/biometric-view";
 import { ClaimCard, type ClaimState } from "@/components/console/ClaimCard";
+import { KOLReferralPanel } from "@/components/console/KOLReferralPanel";
 import { PaymasterQuota } from "@/components/console/PaymasterQuota";
 import { shortHex, type AgentStatus } from "@/lib/agent/client";
 import { deriveCommsAlias } from "@/lib/agent/identity";
+import type { PaymasterQuotaView } from "@/lib/agent/paymaster-view";
 import type { MessageKey } from "@/lib/i18n/dictionary";
 import { useLanguage } from "@/lib/i18n/language";
+import { trackEvent } from "@/lib/telemetry";
 
 /** The same non-negative decimal grammar the Vault and the M1 translator use. */
 const AMOUNT = /^[0-9]+(?:\.[0-9]+)?$/;
+
+/** Coarse buckets only: the funnel needs a shape, not a user's exact transfer value. */
+function amountBucket(value: string): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "zero";
+  if (amount < 0.01) return "under_0.01";
+  if (amount < 0.1) return "0.01_0.1";
+  if (amount < 1) return "0.1_1";
+  return "over_1";
+}
 
 type BadgeTone = "verified" | "ready" | "pending" | "unavailable" | "busy";
 
@@ -88,10 +101,16 @@ export interface DeChatPanelProps {
   readonly referral: string | null;
   /** The claim request state machine owned by `ConsumerView`. */
   readonly claim: ClaimState;
+  /** False while the server-issued claim challenge is still being fetched. */
+  readonly claimReady?: boolean;
   /** Forwards the tap; `ConsumerView` raises the one shared Face ID assertion. */
   readonly onClaim: () => void;
-  /** True once this tab session produced a user-verified, hardware-backed assertion. */
-  readonly paymasterVerified?: boolean;
+  /** The live Paymaster quota read; never a static 100/100. */
+  readonly paymasterQuota: PaymasterQuotaView;
+  /** Explicit tap that renews the server-sealed personhood record. */
+  readonly onRefreshPersonhood?: () => void;
+  readonly personhoodRefreshReady?: boolean;
+  readonly personhoodRefreshing?: boolean;
 }
 
 function badgeTone(bio: DeChatBiometricState): BadgeTone {
@@ -139,8 +158,12 @@ export function DeChatPanel({
   shareUrl,
   referral,
   claim,
+  claimReady = false,
   onClaim,
-  paymasterVerified,
+  paymasterQuota,
+  onRefreshPersonhood,
+  personhoodRefreshReady = false,
+  personhoodRefreshing = false,
 }: DeChatPanelProps) {
   const { t } = useLanguage();
   const [messages, setMessages] = useState<readonly DeChatMessage[]>([]);
@@ -155,7 +178,15 @@ export function DeChatPanel({
   const tone = badgeTone(bio);
   const badge = BADGE[tone];
   const canEnroll = tone === "pending" && bio.platformAuthenticator;
-  const gasVerified = paymasterVerified ?? (bio.userVerified && bio.hardwareBacked);
+
+  const togglePay = useCallback(() => {
+    setPayOpen((open) => {
+      if (!open) {
+        trackEvent("chat_to_pay_open");
+      }
+      return !open;
+    });
+  }, []);
 
   const trimmedAmount = amount.trim();
   const amountOk = AMOUNT.test(trimmedAmount);
@@ -190,6 +221,7 @@ export function DeChatPanel({
       }),
     );
     setPayOpen(false);
+    trackEvent("chat_to_pay_submit", { amount_bucket: amountBucket(trimmedAmount) });
     onPay(`Send ${trimmedAmount} ETH to ${destination}`);
   }, [destination, onPay, payReady, pushMessage, t, trimmedAmount]);
 
@@ -215,7 +247,10 @@ export function DeChatPanel({
       </header>
 
       <PaymasterQuota
-        verified={gasVerified}
+        quota={paymasterQuota}
+        onRefresh={onRefreshPersonhood}
+        refreshReady={personhoodRefreshReady}
+        refreshing={personhoodRefreshing}
         className="mt-3"
       />
 
@@ -269,9 +304,12 @@ export function DeChatPanel({
         referral={referral}
         bio={bio}
         state={claim}
+        claimReady={claimReady}
         onClaim={onClaim}
         className="mt-4"
       />
+
+      <KOLReferralPanel alias={alias} className="mt-4" />
 
       <div className="mt-4 grid gap-2.5" aria-live="polite">
         <article className="rounded-2xl border border-dashed border-[#ffb6c1]/80 bg-[rgba(255,255,255,0.55)] px-3.5 py-3 backdrop-blur-xl">
@@ -402,7 +440,7 @@ export function DeChatPanel({
           />
           <button
             type="button"
-            onClick={() => setPayOpen((open) => !open)}
+            onClick={togglePay}
             aria-expanded={payOpen}
             aria-label={t("dechat.input.pay")}
             title={t("dechat.input.pay")}

@@ -6,7 +6,7 @@
  * authenticator's key is generated in, and never leaves, the TPM / Secure Enclave / StrongBox, and
  * `userVerification: "required"` means the signature is only produced after Face ID / Touch ID /
  * Windows Hello actually succeeds. So the assertion is not a boolean a script can set - it is a
- * hardware signature over the challenge.
+ * hardware signature over a server-issued challenge.
  *
  * Two honest limits, stated here rather than discovered later:
  *
@@ -14,9 +14,10 @@
  *     one-shot handle is the Groth16 nullifier the M5 circuit proves (ADR-009); this one is a stable
  *     digest of the enrolled credential, useful for showing the owner "this device, this key" and for
  *     local replay bookkeeping. It is not a substitute and is never sent as one.
- *   - the assertion is verified *here* for shape and binding. Verifying the signature against the
- *     enrolled public key is the M2/M5 verifier's job (it needs the SPKI), and this file does not
- *     pretend to do it.
+ *   - this module shapes and serialises credentials. It never decides whether the signature is valid:
+ *     `@simplewebauthn/server` verifies the assertion against the enrolled public key in
+ *     `/api/agent/claim`, and derives `userVerified` / `hardwareBacked` from the authenticator data.
+ *     The booleans returned here are display hints only.
  *
  * Two mobile-shell realities shape the error surface. A cancelled or timed-out prompt is reported as
  * `USER_CANCELLED` rather than a generic `ASSERTION_FAILED`, because "you dismissed the Face ID sheet"
@@ -212,8 +213,8 @@ function classifyCredentialFailure(error: unknown, fallback: WebBiometricCode): 
   }
 }
 
-function toBase64Url(bytes: ArrayBuffer): string {
-  const view = new Uint8Array(bytes);
+function toBase64Url(bytes: ArrayBuffer | ArrayBufferView): string {
+  const view = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let binary = "";
   for (const byte of view) {
     binary += String.fromCharCode(byte);
@@ -231,17 +232,17 @@ function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-/** Hex-string bytes for a WebAuthn challenge. */
-function challengeBytes(challenge: Hex): Uint8Array<ArrayBuffer> {
+/** Hex-string bytes for the local intent digest. */
+function hexToBase64Url(challenge: Hex): string {
   const body = challenge.startsWith("0x") ? challenge.slice(2) : challenge;
-  if (!/^[0-9a-f]*$/.test(body) || body.length % 2 !== 0) {
+  if (!/^[0-9a-f]*$/i.test(body) || body.length % 2 !== 0) {
     throw new WebBiometricError("ASSERTION_FAILED", `challenge is not whole hex bytes: ${challenge}`);
   }
   const bytes = new Uint8Array(body.length / 2);
   for (let index = 0; index < bytes.length; index += 1) {
     bytes[index] = Number.parseInt(body.slice(index * 2, index * 2 + 2), 16);
   }
-  return bytes;
+  return toBase64Url(bytes);
 }
 
 /** The credential id this browser enrolled, or `null`. */
@@ -257,52 +258,193 @@ export function readEnrolledCredentialId(): string | null {
   }
 }
 
+/** Persists the convenience id only after the server has verified the attestation. */
+export function rememberEnrolledCredentialId(credentialId: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(STORAGE_KEY, credentialId);
+  } catch {
+    // The credential exists in the authenticator; only the convenience id is lost.
+  }
+}
+
+/** Clears a stale id after the server says the enrollment cookie is gone. */
+export function forgetEnrolledCredentialId(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing to do.
+  }
+}
+
+/** The JSON shape `@simplewebauthn/server` returns for registration options. */
+export interface RegistrationOptionsJSON {
+  readonly challenge: string;
+  readonly rp: { readonly id?: string; readonly name: string };
+  readonly user: { readonly id: string; readonly name: string; readonly displayName: string };
+  readonly pubKeyCredParams: readonly { readonly alg: number; readonly type: PublicKeyCredentialType }[];
+  readonly timeout?: number;
+  readonly excludeCredentials?: readonly PublicKeyCredentialDescriptorJSON[];
+  readonly authenticatorSelection?: AuthenticatorSelectionCriteria;
+  readonly attestation?: AttestationConveyancePreference;
+  readonly extensions?: AuthenticationExtensionsClientInputs;
+}
+
+export interface AuthenticationOptionsJSON {
+  readonly challenge: string;
+  readonly timeout?: number;
+  readonly rpId?: string;
+  readonly allowCredentials?: readonly PublicKeyCredentialDescriptorJSON[];
+  readonly userVerification?: UserVerificationRequirement;
+  readonly extensions?: AuthenticationExtensionsClientInputs;
+}
+
+export interface PublicKeyCredentialDescriptorJSON {
+  readonly id: string;
+  readonly type: PublicKeyCredentialType;
+  readonly transports?: readonly AuthenticatorTransport[];
+}
+
+/** A serialised `RegistrationResponseJSON`; the server verifies it byte for byte. */
+export interface SerializedRegistrationResponse {
+  readonly id: string;
+  readonly rawId: string;
+  readonly type: "public-key";
+  readonly response: {
+    readonly clientDataJSON: string;
+    readonly attestationObject: string;
+    readonly transports?: readonly string[];
+    readonly publicKey?: string;
+    readonly publicKeyAlgorithm?: number;
+    readonly authenticatorData?: string;
+  };
+  readonly clientExtensionResults: AuthenticationExtensionsClientOutputs;
+  readonly authenticatorAttachment?: string;
+}
+
+/** A serialised `AuthenticationResponseJSON`; the server verifies it byte for byte. */
+export interface SerializedAuthenticationResponse {
+  readonly id: string;
+  readonly rawId: string;
+  readonly type: "public-key";
+  readonly response: {
+    readonly clientDataJSON: string;
+    readonly authenticatorData: string;
+    readonly signature: string;
+    readonly userHandle?: string;
+  };
+  readonly clientExtensionResults: AuthenticationExtensionsClientOutputs;
+  readonly authenticatorAttachment?: string;
+}
+
 export interface EnrollResult {
   readonly credentialId: string;
   readonly authenticatorAttachment: string;
   readonly transports: readonly string[];
+  /** The exact bytes `/api/agent/webauthn/register/verify` must verify. */
+  readonly response: SerializedRegistrationResponse;
+}
+
+function descriptorFor(descriptor: PublicKeyCredentialDescriptorJSON): PublicKeyCredentialDescriptor {
+  return {
+    type: descriptor.type,
+    id: fromBase64Url(descriptor.id),
+    ...(descriptor.transports === undefined ? {} : { transports: [...descriptor.transports] }),
+  };
+}
+
+function serializeRegistrationResponse(credential: PublicKeyCredential): SerializedRegistrationResponse {
+  const response = credential.response as AuthenticatorAttestationResponse;
+  const getPublicKey = response.getPublicKey;
+  const getPublicKeyAlgorithm = response.getPublicKeyAlgorithm;
+  const getAuthenticatorData = response.getAuthenticatorData;
+  const publicKey = typeof getPublicKey === "function" ? getPublicKey.call(response) : null;
+  const publicKeyAlgorithm =
+    typeof getPublicKeyAlgorithm === "function" ? getPublicKeyAlgorithm.call(response) : undefined;
+  const authenticatorData =
+    typeof getAuthenticatorData === "function" ? getAuthenticatorData.call(response) : null;
+
+  return {
+    id: credential.id,
+    rawId: toBase64Url(credential.rawId),
+    type: "public-key",
+    response: {
+      clientDataJSON: toBase64Url(response.clientDataJSON),
+      attestationObject: toBase64Url(response.attestationObject),
+      ...(typeof response.getTransports === "function"
+        ? { transports: response.getTransports() }
+        : {}),
+      ...(publicKey === null ? {} : { publicKey: toBase64Url(publicKey) }),
+      ...(publicKeyAlgorithm === undefined ? {} : { publicKeyAlgorithm }),
+      ...(authenticatorData === null ? {} : { authenticatorData: toBase64Url(authenticatorData) }),
+    },
+    clientExtensionResults: credential.getClientExtensionResults(),
+    ...(credential.authenticatorAttachment === null
+      ? {}
+      : { authenticatorAttachment: credential.authenticatorAttachment }),
+  };
 }
 
 /**
- * Creates the owner's credential in the device authenticator.
+ * Creates the owner's credential from **server-issued** options and returns the raw response.
  *
- * `residentKey` is preferred rather than required: a discoverable credential lets the owner sign in
- * without an id list, but refusing to enroll on a device that cannot store one would be a worse
- * trade-off than accepting a non-discoverable key.
+ * The server must issue the challenge: a browser-generated random value proves nothing to it. This
+ * function deliberately does not persist the credential id; the caller stores it only after
+ * `/api/agent/webauthn/register/verify` has verified the attestation.
  */
-export async function enrollOwnerCredential(ownerLabel: string): Promise<EnrollResult> {
+export async function enrollOwnerCredential(
+  ownerLabel: string,
+  options: RegistrationOptionsJSON,
+): Promise<EnrollResult> {
   assertWebAuthn();
-  const capability = await readBiometricCapability();
-  if (!capability.platformAuthenticator) {
-    throw new WebBiometricError("NO_PLATFORM_AUTHENTICATOR", capability.detail);
+  if (typeof navigator.credentials?.create !== "function") {
+    throw new WebBiometricError("WEBVIEW_RESTRICTED", "this shell cannot create a WebAuthn credential");
   }
+  // Deliberately no capability probe here. `readBiometricCapability` awaits the platform's
+  // `isUserVerifyingPlatformAuthenticatorAvailable()`; on iOS Safari that await can spend the tap's
+  // transient user activation before `navigator.credentials.create` is reached. The caller gates the
+  // button on the already-probed capability, and an unsupported device fails through
+  // `classifyCredentialFailure` with the same code instead.
 
-  const userId = crypto.getRandomValues(new Uint8Array(32));
+  const publicKey: PublicKeyCredentialCreationOptions = {
+    challenge: fromBase64Url(options.challenge),
+    rp: {
+      ...(options.rp.id === undefined ? {} : { id: options.rp.id }),
+      name: options.rp.name,
+    },
+    user: {
+      id: fromBase64Url(options.user.id),
+      name: options.user.name || ownerLabel,
+      displayName: options.user.displayName || ownerLabel,
+    },
+    pubKeyCredParams: options.pubKeyCredParams.map((parameter) => ({
+      type: parameter.type,
+      alg: parameter.alg,
+    })),
+    ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+    ...(options.excludeCredentials === undefined
+      ? {}
+      : { excludeCredentials: options.excludeCredentials.map(descriptorFor) }),
+    authenticatorSelection: {
+      authenticatorAttachment: "platform",
+      userVerification: "required",
+      residentKey: "preferred",
+      ...(options.authenticatorSelection ?? {}),
+    },
+    // `direct` asks for a statement the server can classify; a device that answers `none` is still
+    // registered but the claim route will refuse to call it hardware-backed.
+    attestation: options.attestation ?? "direct",
+    ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
+  };
+
   let credential: Credential | null;
   try {
-    credential = await navigator.credentials.create({
-      publicKey: {
-        challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { name: "MAOTANG Agent OS" },
-        user: {
-          id: userId,
-          name: ownerLabel,
-          displayName: ownerLabel,
-        },
-        pubKeyCredParams: [
-          { type: "public-key", alg: -7 },
-          { type: "public-key", alg: -257 },
-        ],
-        authenticatorSelection: {
-          // Platform only: an external roaming key would break the "this device is the owner" binding.
-          authenticatorAttachment: "platform",
-          userVerification: "required",
-          residentKey: "preferred",
-        },
-        timeout: 60_000,
-        attestation: "none",
-      },
-    });
+    credential = await navigator.credentials.create({ publicKey });
   } catch (error) {
     throw classifyCredentialFailure(error, "ENROLL_FAILED");
   }
@@ -311,22 +453,13 @@ export async function enrollOwnerCredential(ownerLabel: string): Promise<EnrollR
     throw new WebBiometricError("ENROLL_FAILED", "the authenticator returned no credential");
   }
 
-  const credentialId = toBase64Url(credential.rawId);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, credentialId);
-  } catch {
-    // Nothing to do: the credential exists in the authenticator, only the convenience id is lost.
-  }
-
-  const response = credential.response as AuthenticatorAttestationResponse;
-  const transports =
-    typeof response.getTransports === "function" ? response.getTransports() : [];
-
+  const response = serializeRegistrationResponse(credential);
+  const transports = response.response.transports ?? [];
   return {
-    credentialId,
-    authenticatorAttachment: (credential as PublicKeyCredential & { authenticatorAttachment?: string })
-      .authenticatorAttachment ?? "platform",
+    credentialId: response.id,
+    authenticatorAttachment: response.authenticatorAttachment ?? "platform",
     transports,
+    response,
   };
 }
 
@@ -334,38 +467,61 @@ export async function enrollOwnerCredential(ownerLabel: string): Promise<EnrollR
 export interface OwnerAssertion {
   readonly credentialId: string;
   readonly authenticatorAttachment: string;
-  /** The digest this assertion is bound to - the same value M2 will sign. */
-  readonly challenge: Hex;
+  /** The base64url challenge the authenticator signed. */
+  readonly challenge: string;
   readonly userVerified: boolean;
   /** True when the credential is platform-attached, i.e. the key lives in device hardware. */
   readonly hardwareBacked: boolean;
   readonly nullifier: Hex;
   readonly assertedAt: number;
+  /** The exact bytes `/api/agent/claim` must verify. */
+  readonly response: SerializedAuthenticationResponse;
 }
 
 /**
- * Asks the device for a biometric assertion over `challenge`.
+ * Asks the device for a biometric assertion.
  *
- * The challenge is the M2 intent digest, so a captured assertion cannot be replayed against a
- * different transaction: the digest covers the destination, the value, the calldata and the chain.
+ * Pass a server-issued {@link AuthenticationOptionsJSON} for a claim. A local hex digest is still
+ * accepted for the intent-preview sheet, where the assertion is a display of presence and is not
+ * forwarded to the claim route. Nothing is awaited before `navigator.credentials.get`, so callers
+ * must invoke this directly from a tap handler.
  */
-export async function requestOwnerAssertion(challenge: Hex, reason: string): Promise<OwnerAssertion> {
+export async function requestOwnerAssertion(
+  challenge: Hex | AuthenticationOptionsJSON,
+  reason: string,
+): Promise<OwnerAssertion> {
   assertWebAuthn();
-  const credentialId = readEnrolledCredentialId();
-  if (credentialId === null) {
-    throw new WebBiometricError("NO_CREDENTIAL", "no owner credential is enrolled on this device yet");
+  const storedCredentialId = readEnrolledCredentialId();
+  const options: AuthenticationOptionsJSON =
+    typeof challenge === "string"
+      ? {
+          challenge: hexToBase64Url(challenge),
+          ...(storedCredentialId === null
+            ? {}
+            : { allowCredentials: [{ type: "public-key", id: storedCredentialId }] }),
+          userVerification: "required",
+          timeout: 60_000,
+        }
+      : challenge;
+
+  if (options.challenge === "") {
+    throw new WebBiometricError("ASSERTION_FAILED", "the server supplied an empty challenge");
   }
+
+  const publicKey: PublicKeyCredentialRequestOptions = {
+    challenge: fromBase64Url(options.challenge),
+    ...(options.rpId === undefined ? {} : { rpId: options.rpId }),
+    ...(options.allowCredentials === undefined
+      ? {}
+      : { allowCredentials: options.allowCredentials.map(descriptorFor) }),
+    userVerification: "required",
+    timeout: options.timeout ?? 60_000,
+    ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
+  };
 
   let assertion: Credential | null;
   try {
-    assertion = await navigator.credentials.get({
-      publicKey: {
-        challenge: challengeBytes(challenge),
-        allowCredentials: [{ type: "public-key", id: fromBase64Url(credentialId) }],
-        userVerification: "required",
-        timeout: 60_000,
-      },
-    });
+    assertion = await navigator.credentials.get({ publicKey });
   } catch (error) {
     throw classifyCredentialFailure(error, "ASSERTION_FAILED");
   }
@@ -374,23 +530,38 @@ export async function requestOwnerAssertion(challenge: Hex, reason: string): Pro
     throw new WebBiometricError("ASSERTION_FAILED", `the authenticator declined ${reason}`);
   }
 
-  const attachment =
-    (assertion as PublicKeyCredential & { authenticatorAttachment?: string }).authenticatorAttachment ?? "platform";
+  const attachment = assertion.authenticatorAttachment ?? "platform";
   const response = assertion.response as AuthenticatorAssertionResponse;
+  const serialized: SerializedAuthenticationResponse = {
+    id: assertion.id,
+    rawId: toBase64Url(assertion.rawId),
+    type: "public-key",
+    response: {
+      clientDataJSON: toBase64Url(response.clientDataJSON),
+      authenticatorData: toBase64Url(response.authenticatorData),
+      signature: toBase64Url(response.signature),
+      ...(response.userHandle === null ? {} : { userHandle: toBase64Url(response.userHandle) }),
+    },
+    clientExtensionResults: assertion.getClientExtensionResults(),
+    ...(assertion.authenticatorAttachment === null
+      ? {}
+      : { authenticatorAttachment: assertion.authenticatorAttachment }),
+  };
 
   return {
-    credentialId,
+    credentialId: assertion.id,
     authenticatorAttachment: attachment,
-    challenge,
+    challenge: options.challenge,
     // Decoded from the authenticator's own flags byte, not assumed from the fact that a prompt appeared:
     // a biometric that failed still produces an assertion on some platforms, and this is the bit that
-    // separates "the device signed" from "the owner was verified".
+    // separates "the device signed" from "the owner was verified". The claim route re-derives it.
     userVerified: userVerifiedFlag(response.authenticatorData),
     // Platform-attached means the key is in device hardware (TPM / Secure Enclave / StrongBox) and is
     // non-exportable. A roaming security key would report `cross-platform` and is refused by enrollment.
     hardwareBacked: attachment === "platform",
-    nullifier: await deriveOwnerNullifier(credentialId),
+    nullifier: await deriveOwnerNullifier(assertion.id),
     assertedAt: Date.now(),
+    response: serialized,
   };
 }
 

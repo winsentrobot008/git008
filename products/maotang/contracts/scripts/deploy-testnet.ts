@@ -32,6 +32,9 @@
  *   MAOTANG_REFERENCE_CURVE  set to `0` to skip the on-chain 5 ETH graduation-threshold probe
  *   MAOTANG_OPERATOR_ADDRESS  operator/developer revenue beneficiary, defaults to the wired address
  *   MAOTANG_BTC_REVENUE_ADDRESS  BTC payout metadata recorded in the export
+ *   MAOTANG_FAUCET_AUTHORITY_ADDRESS  server-side faucet signer, defaults to the deployer
+ *   MAOTANG_FAUCET_REWARD_UNITS       default claim in token base units, defaults to 10e18
+ *   MAOTANG_FAUCET_MAX_REWARD_UNITS   per-claim ceiling in base units, defaults to 100e18
  *
  * Owner custody. `MAOTANG_OWNER` is written into the contracts as an `immutable`, so the chain this
  * script deploys to has no ownership-transfer path: whichever address is passed here holds the protocol
@@ -73,7 +76,11 @@ const GOVERNOR_QUORUM_BPS = 1_000n;
 /** Operator/developer revenue beneficiary that receives the protocol share of vault yield. */
 const DEFAULT_OPERATOR_ADDRESS = "0x6aEceB240C902Cc0A52AB7F0eb5bf6B1030077ea";
 /** BTC destination recorded as cross-chain payout metadata; this script never deploys to it. */
-const DEFAULT_BTC_REVENUE_ADDRESS = "1CqDscj8LCx9xXJcxGkSMnwwKVFXbzutDe";
+const DEFAULT_BTC_REVENUE_ADDRESS = "1HBhZ97jHjasVF4XFWLY9Wv8dpNHUq3AbJ";
+
+/** Faucet defaults, denominated in the MAOTANG token's 18-decimal base units. */
+const DEFAULT_FAUCET_REWARD_UNITS = parseEther("10");
+const DEFAULT_FAUCET_MAX_REWARD_UNITS = parseEther("100");
 
 /** The zero address, used to tell a configured guardian from an unset one in the export. */
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -165,6 +172,22 @@ function nonNegativeIntegerEnv(key: string): number | null {
     throw new Error(`${key} is ${raw}; expected a non-negative integer`);
   }
   return Number(raw);
+}
+
+/** Parses a positive base-unit amount, rejecting decimals and zero rather than coercing them. */
+function positiveBigIntEnv(key: string, fallback: bigint): bigint {
+  const raw = process.env[key]?.trim();
+  if (raw === undefined || raw === "") {
+    return fallback;
+  }
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`${key} is ${raw}; expected a positive integer in token base units`);
+  }
+  const value = BigInt(raw);
+  if (value <= 0n) {
+    throw new Error(`${key} must be greater than zero`);
+  }
+  return value;
 }
 
 /**
@@ -380,6 +403,18 @@ async function main(): Promise<void> {
   const owner = getAddress(process.env.MAOTANG_OWNER?.trim() || deployer);
   const operator = getAddress(process.env.MAOTANG_OPERATOR_ADDRESS?.trim() || DEFAULT_OPERATOR_ADDRESS);
   const btcRevenueAddress = process.env.MAOTANG_BTC_REVENUE_ADDRESS?.trim() || DEFAULT_BTC_REVENUE_ADDRESS;
+  const faucetAuthority = getAddress(process.env.MAOTANG_FAUCET_AUTHORITY_ADDRESS?.trim() || deployer);
+  const faucetRewardUnits = positiveBigIntEnv(
+    "MAOTANG_FAUCET_REWARD_UNITS",
+    DEFAULT_FAUCET_REWARD_UNITS,
+  );
+  const faucetMaxRewardUnits = positiveBigIntEnv(
+    "MAOTANG_FAUCET_MAX_REWARD_UNITS",
+    DEFAULT_FAUCET_MAX_REWARD_UNITS,
+  );
+  if (faucetMaxRewardUnits < faucetRewardUnits) {
+    throw new Error("MAOTANG_FAUCET_MAX_REWARD_UNITS must be at least MAOTANG_FAUCET_REWARD_UNITS");
+  }
   const ownerKind = await resolveOwnerKind(provider, owner);
   const timelockDelaySeconds = resolveTimelockDelay(ownerKind);
   const ownerLabel = process.env.MAOTANG_OWNER_LABEL?.trim() || OWNER_KIND_LABELS[ownerKind];
@@ -398,6 +433,8 @@ async function main(): Promise<void> {
   console.log(`  graduation market        ${positionManager}`);
   console.log(`  operator beneficiary     ${operator}`);
   console.log(`  btc payout metadata      ${btcRevenueAddress}`);
+  console.log(`  faucet mint authority    ${faucetAuthority}`);
+  console.log(`  faucet reward / max      ${faucetRewardUnits} / ${faucetMaxRewardUnits} base units`);
   console.log("");
 
   // 1. ZK verifier - fails closed until the trusted-setup key is installed and locked.
@@ -431,6 +468,34 @@ async function main(): Promise<void> {
   );
   // 8. Bonding-curve router - deploys a curve per launch, all routing to this vault and market.
   const factory = await deploy("MaoTangFactory", [await vault.getAddress(), positionManager], wallet);
+  // 9. MAOTANG faucet token - fixed-cap ERC-20 with a small burn-on-transfer rate.
+  const faucetToken = await deploy("MaotangFaucetToken", [deployer], wallet);
+  // 10. Faucet - the only address allowed to mint, with a one-claim-per-identity ledger.
+  const faucet = await deploy(
+    "MaotangFaucet",
+    [
+      await faucetToken.getAddress(),
+      faucetAuthority,
+      faucetRewardUnits,
+      faucetMaxRewardUnits,
+      owner,
+    ],
+    wallet,
+  );
+  const minterWiring = await (await faucetToken.setMinter(await faucet.getAddress())).wait();
+  if (!minterWiring || minterWiring.status !== 1) {
+    throw new Error("faucetToken.setMinter did not confirm");
+  }
+  const minterLock = await (await faucetToken.lockMinter()).wait();
+  if (!minterLock || minterLock.status !== 1) {
+    throw new Error("faucetToken.lockMinter did not confirm");
+  }
+  if (deployer.toLowerCase() !== owner.toLowerCase()) {
+    const ownershipTransfer = await (await faucetToken.transferOwnership(owner)).wait();
+    if (!ownershipTransfer || ownershipTransfer.status !== 1) {
+      throw new Error("faucetToken.transferOwnership did not confirm");
+    }
+  }
 
   const contracts = {
     Groth16Verifier: await verifier.getAddress(),
@@ -441,6 +506,8 @@ async function main(): Promise<void> {
     MaoTangSustenanceDripper: await dripper.getAddress(),
     MaoTangGovernor: await governor.getAddress(),
     MaoTangFactory: await factory.getAddress(),
+    MaotangFaucetToken: await faucetToken.getAddress(),
+    MaotangFaucet: await faucet.getAddress(),
   };
 
   expectAddress(await factory.vault(), contracts.MaoTangSustenanceVault, "factory.vault");
@@ -449,6 +516,31 @@ async function main(): Promise<void> {
   expectAddress(await dripper.vault(), contracts.MaoTangSustenanceVault, "dripper.vault");
   expectAddress(await dripper.mHuman(), contracts.HumanToken, "dripper.mHuman");
   expectAddress(await governor.mHuman(), contracts.HumanToken, "governor.mHuman");
+  expectAddress(await faucetToken.owner(), owner, "faucetToken.owner");
+  expectAddress(await faucetToken.minter(), contracts.MaotangFaucet, "faucetToken.minter");
+  expectAddress(await faucet.token(), contracts.MaotangFaucetToken, "faucet.token");
+  expectAddress(await faucet.mintAuthority(), faucetAuthority, "faucet.mintAuthority");
+  if ((await faucetToken.minterLocked()) !== true) {
+    throw new Error("faucetToken.minter must be permanently locked after deployment");
+  }
+  if ((await faucet.rewardUnits()) !== faucetRewardUnits) {
+    throw new Error("faucet.rewardUnits mismatch");
+  }
+  if ((await faucet.maxRewardUnits()) !== faucetMaxRewardUnits) {
+    throw new Error("faucet.maxRewardUnits mismatch");
+  }
+  const [faucetSymbol, faucetDecimals, faucetMaxSupply, faucetBurnBps] = await Promise.all([
+    faucetToken.symbol() as Promise<string>,
+    faucetToken.decimals() as Promise<bigint>,
+    faucetToken.MAX_SUPPLY() as Promise<bigint>,
+    faucetToken.BURN_BPS() as Promise<bigint>,
+  ]);
+  if (faucetSymbol !== "MAOTANG" || faucetDecimals !== 18n) {
+    throw new Error(`faucet token metadata mismatch: ${faucetSymbol}/${faucetDecimals}`);
+  }
+  if (faucetMaxSupply <= 0n || faucetBurnBps <= 0n) {
+    throw new Error("faucet token supply cap and burn rate must both be non-zero");
+  }
   const onChainQuorumBps = await governor.quorumBps();
   if (onChainQuorumBps !== GOVERNOR_QUORUM_BPS) {
     throw new Error("governor.quorumBps mismatch: " + onChainQuorumBps);
@@ -537,6 +629,22 @@ async function main(): Promise<void> {
         symbol: "mHUMAN",
         decimals: 6,
       },
+      MAOTANG: {
+        address: contracts.MaotangFaucetToken,
+        symbol: "MAOTANG",
+        decimals: 18,
+        maxSupplyUnits: faucetMaxSupply.toString(),
+        burnBps: Number(faucetBurnBps),
+      },
+    },
+    faucet: {
+      contract: contracts.MaotangFaucet,
+      token: contracts.MaotangFaucetToken,
+      mintAuthority: faucetAuthority,
+      rewardUnits: faucetRewardUnits.toString(),
+      maxRewardUnits: faucetMaxRewardUnits.toString(),
+      oneClaimPerIdentity: true,
+      minterLocked: true,
     },
     protocolConstants: {
       swapFeeBps: Number(SWAP_FEE_BPS),
@@ -579,6 +687,14 @@ async function main(): Promise<void> {
       NEXT_PUBLIC_MAOTANG_CURVE_ADDRESS: referenceCurve?.curve ?? "",
       NEXT_PUBLIC_MAOTANG_DRIPPER_ADDRESS: contracts.MaoTangSustenanceDripper,
       NEXT_PUBLIC_MAOTANG_GOVERNOR_ADDRESS: contracts.MaoTangGovernor,
+      NEXT_PUBLIC_MAOTANG_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken,
+      NEXT_PUBLIC_MAOTANG_FAUCET_ADDRESS: contracts.MaotangFaucet,
+      MAOTANG_FAUCET_RPC_URL: exportableRpcUrl(rpcUrl),
+      MAOTANG_FAUCET_CHAIN_ID: network.chainId.toString(),
+      MAOTANG_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken,
+      MAOTANG_FAUCET_CONTRACT_ADDRESS: contracts.MaotangFaucet,
+      MAOTANG_FAUCET_REWARD_UNITS: faucetRewardUnits.toString(),
+      MAOTANG_FAUCET_EXPLORER_URL: process.env.MAOTANG_FAUCET_EXPLORER_URL?.trim() || "",
       NEXT_PUBLIC_OPERATOR_ADDRESS: operator,
       NEXT_PUBLIC_DEVELOPER_ADDRESS: operator,
       NEXT_PUBLIC_BTC_REVENUE_ADDRESS: btcRevenueAddress,
