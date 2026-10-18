@@ -1,9 +1,9 @@
 /**
  * `POST /api/telemetry` - the sanitising funnel sink.
  *
- * The deployment has no durable analytics store, so this route says so: it accepts the event, writes
- * one structured line to the process log, and returns `persistent: false`. It never claims a
- * conversion was stored when it was not, and it never accepts message text or device credentials.
+ * This compatibility sink accepts only coarse product events and writes one structured line to the
+ * process log. Durable growth counts come from `/api/growth/event` and the server settlement routes;
+ * this log is not a queryable conversion ledger. It never accepts message text or device credentials.
  */
 
 import { TELEMETRY_ALLOWED_PROPS, type TelemetryEvent } from "@/lib/telemetry";
@@ -68,6 +68,6 @@ export async function POST(request: Request): Promise<Response> {
     event,
     persistent: false,
     sink: "process-log",
-    note: "No durable attribution store is configured; this sample is not queryable after the process exits.",
+    note: "This compatibility sample is not queryable; durable growth metrics use the growth event routes.",
   });
 }

@@ -822,6 +822,27 @@ const PAYMASTER_CONTRACT = path.join(appRoot, "..", "contracts", "src", "Maotang
 const FAUCET_CONTRACT = path.join(appRoot, "..", "contracts", "src", "MaotangFaucet.sol");
 const FAUCET_SOURCE = path.join(appRoot, "src", "lib", "agent", "faucet.ts");
 const CLAIM_STATUS_ROUTE = path.join(appRoot, "src", "app", "api", "agent", "claim", "status", "route.ts");
+const GROWTH_SHARE_ROUTE = path.join(
+  appRoot,
+  "src",
+  "app",
+  "api",
+  "growth",
+  "share-intent",
+  "route.ts",
+);
+const GROWTH_EVENT_ROUTE = path.join(appRoot, "src", "app", "api", "growth", "event", "route.ts");
+const GROWTH_STORE = path.join(appRoot, "src", "lib", "growth", "store.ts");
+const GROWTH_SHARE_RECEIPT = path.join(appRoot, "src", "lib", "growth", "receipt.ts");
+const TELEMETRY_SUMMARY_ROUTE = path.join(
+  appRoot,
+  "src",
+  "app",
+  "api",
+  "telemetry",
+  "summary",
+  "route.ts",
+);
 
 const webauthnServer = readFileSync(WEBAUTHN_SERVER, "utf8");
 const paymasterAuthRoute = readFileSync(PAYMASTER_AUTH_ROUTE, "utf8");
@@ -834,6 +855,11 @@ const paymasterContract = readFileSync(PAYMASTER_CONTRACT, "utf8");
 const faucetContract = readFileSync(FAUCET_CONTRACT, "utf8");
 const faucetSource = readFileSync(FAUCET_SOURCE, "utf8");
 const claimStatusRoute = readFileSync(CLAIM_STATUS_ROUTE, "utf8");
+const growthShareRoute = readFileSync(GROWTH_SHARE_ROUTE, "utf8");
+const growthEventRoute = readFileSync(GROWTH_EVENT_ROUTE, "utf8");
+const growthStore = readFileSync(GROWTH_STORE, "utf8");
+const growthShareReceipt = readFileSync(GROWTH_SHARE_RECEIPT, "utf8");
+const telemetrySummaryRoute = readFileSync(TELEMETRY_SUMMARY_ROUTE, "utf8");
 
 test("I. the server verifies the WebAuthn signature and user verification", () => {
   assert.match(webauthnServer, /verifyAuthenticationResponse\(/, "the standard verifier is used");
@@ -858,7 +884,11 @@ test("I. the server verifies the WebAuthn signature and user verification", () =
 
 test("I. one claim per hardware identity is enforced by the on-chain faucet ledger", () => {
   assert.match(claimRoute, /hasClaimed\(client, identityHash\)/, "the route preflights the on-chain ledger");
-  assert.match(claimRoute, /submitClaim\(client, recipient, identityHash\)/, "the faucet wallet submits the mint");
+  assert.match(
+    claimRoute,
+    /submitClaimAmount\(client, recipient, identityHash, rewardUnits\)/,
+    "the faucet wallet submits the server-derived mint amount",
+  );
   assert.match(claimRoute, /ALREADY_CLAIMED/, "a repeat claim is refused by name");
   assert.match(
     faucetContract,
@@ -999,6 +1029,8 @@ test("I. every sensitive mutation route fails closed before parsing a body", () 
     ["intent", intentRoute],
     ["paymaster authorization", paymasterAuthRoute],
     ["personhood refresh", personhoodRefreshRoute],
+    ["growth share intent", growthShareRoute],
+    ["growth event", growthEventRoute],
   ]) {
     assert.match(route, /isSecurityHoldEngaged\(\)/, `${name} must consult the security hold`);
     assert.match(route, /return securityHoldResponse\(\);/, `${name} must return the held response`);
@@ -1006,12 +1038,58 @@ test("I. every sensitive mutation route fails closed before parsing a body", () 
   for (const [name, route] of [
     ["paymaster authorization", paymasterAuthRoute],
     ["personhood refresh", personhoodRefreshRoute],
+    ["growth share intent", growthShareRoute],
+    ["growth event", growthEventRoute],
   ]) {
     const check = route.indexOf("isSecurityHoldEngaged()");
     const parse = route.indexOf("await request.json()");
     assert.notEqual(parse, -1, `${name} must parse a body on the normal path`);
     assert.ok(check < parse, `${name} must halt before reading the body`);
   }
+});
+
+test("K. the share bonus is a sealed server receipt, never a browser boolean", () => {
+  assert.match(growthShareRoute, /createShareReceipt\(auth\.secret, auth\.enrollment, platform\)/);
+  assert.match(growthShareRoute, /setCookie\(\s*GROWTH_SHARE_COOKIE,/);
+  assert.match(growthShareRoute, /auth\.enrollment\.userVerified/);
+  assert.match(growthShareRoute, /auth\.enrollment\.hardwareBacked/);
+  assert.match(growthShareReceipt, /identityHash !== enrollment\.identityHash/);
+  assert.match(claimRoute, /readShareReceipt\(request, webAuthn\.secret, enrollment\)/);
+  assert.match(claimRoute, /boostClaimUnits\(BigInt\(preflight\.rewardUnits\), multiplierBps\)/);
+  assert.match(claimRoute, /clearCookie\(GROWTH_SHARE_COOKIE\)/);
+  assert.doesNotMatch(claimRoute, /record\.(?:amount|amountUnits|multiplierBps|rewardUnits)/);
+  assert.match(claimCard, /sealShareIntent\(platform\)/);
+  assert.match(claimCard, /shareComposerUrl\("x"/);
+  assert.match(claimCard, /shareComposerUrl\("telegram"/);
+});
+
+test("K. growth attribution stores aggregates and derives identity on the server", () => {
+  assert.match(growthEventRoute, /readOptionalGrowthIdentity\(request\)/);
+  assert.doesNotMatch(growthEventRoute, /claim_broadcast/);
+  assert.match(consumerView, /display-mode: standalone/);
+  assert.match(consumerView, /if \(standalone && !growthInstallTracked\.current\)/);
+  assert.match(claimRoute, /event: "claim_broadcast"/);
+  assert.match(claimStatusRoute, /event: receipt\.status === "confirmed" \? "claim_settled" : "claim_failed"/);
+  assert.match(telemetrySummaryRoute, /readGrowthSummary\(/);
+  assert.match(growthStore, /subjectKey/);
+  assert.match(growthStore, /SETBIT/);
+  assert.doesNotMatch(growthStore, /x-forwarded-for|request\.headers|navigator\.userAgent/);
+});
+
+test("K. growth storage and KOL whitelisting are explicit deployment configuration", () => {
+  for (const key of [
+    "MAOTANG_GROWTH_REDIS_REST_URL",
+    "MAOTANG_GROWTH_REDIS_REST_TOKEN",
+    "MAOTANG_KOL_CODES",
+  ]) {
+    assert.ok(envExample.includes(key), `.env.example must name ${key}`);
+  }
+  assert.match(growthStore, /upstash|UPSTASH_REDIS_REST_URL/);
+  assert.match(vercelScript, /MAOTANG_GROWTH_REDIS_REST_URL/);
+  assert.match(vercelScript, /MAOTANG_GROWTH_REDIS_REST_TOKEN/);
+  assert.match(vercelScript, /MAOTANG_KOL_CODES/);
+  assert.match(claimCard, /t\("claim\.shareX"\)/);
+  assert.match(claimCard, /t\("claim\.shareTelegram"\)/);
 });
 
 // J. MAOTANG token, faucet and treasury release invariants

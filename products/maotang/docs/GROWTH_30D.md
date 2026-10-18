@@ -22,11 +22,12 @@ reward and a retention curve is a fiction.
 
 ## 2. Launch blockers (must be true before paid acquisition)
 
-1. **The reward must be real.** The claim route now verifies the WebAuthn assertion server-side and,
-   when `MAOTANG_FAUCET_*` is configured, submits `MaotangFaucet.claimDefault` and returns a real
-   `txHash`; `/api/agent/claim/status` reports Pending -> Confirmed from the receipt. With no faucet
-   configured it returns `503 FAUCET_UNCONFIGURED`. A 10 MAOTANG headline cannot drive retention
-   until the faucet is actually deployed, funded and verified on a public testnet/mainnet.
+1. **The reward must be real.** The claim route verifies the WebAuthn assertion server-side and,
+   when `MAOTANG_FAUCET_*` is configured, submits `MaotangFaucet.claim` with a server-derived amount
+   and returns a real `txHash`; `/api/agent/claim/status` reports Pending -> Confirmed from the
+   receipt. A sealed X/Telegram share-intent receipt changes the amount from 10 to 12.5 MAOTANG.
+   The receipt proves the composer was opened on the enrolled device, not that a platform published
+   a post. With no faucet configured the route returns `503 FAUCET_UNCONFIGURED`.
 2. **The zero-gas promise must be real.** `MaotangPaymaster.sol` and the signed-ticket / live-quota
    routes are implemented, and the UI reads the chain instead of a static 100/100. But no Paymaster
    is deployed or deposited, no bundler submits `UserOperation`s, and the ticket does not yet bind
@@ -36,12 +37,12 @@ reward and a retention curve is a fiction.
    E2EE envelope transport and no device-bound encrypted store. A viral social card is not a
    communication product until message delivery, key exchange and offline behaviour are implemented
    and tested on physical devices.
-4. **Analytics must exist without PII.** `/api/telemetry` now enforces an event/property allow-list
-   and writes one non-identifying structured line, but it is process-log only and
-   `/api/telemetry/summary` reports `configured: false`. Persist the launch events (install, PWA
-   launch, Face ID enrollment, claim requested, claim settled, referral opened, message sent,
-   payment card opened, payment confirmed) in a durable first-party store; never send credential
-   IDs, nullifiers, private keys or message bodies.
+4. **Analytics must exist without PII.** `/api/growth/event` attributes app opens, referral opens,
+   activations and claim starts to a server-derived pseudonymous subject. Claim broadcast and
+   settlement are recorded server-side. Counters and hashed active-user bitmaps persist through a
+   Redis-compatible REST store; `/api/telemetry/summary` reports D1/D7 cohort return, DAU, invite,
+   conversion and share counts. Production without a durable backend reports `configured: false`.
+   Never send credential IDs, nullifiers, private keys, wallet addresses or message bodies.
 5. **Abuse controls must be live.** Server-side WebAuthn attestation, `userVerified`, and the
    on-chain one-claim `identityHash` ledger now exist, but they only stop replay of one credential.
    App Attest / Play Integrity, device-risk signals, per-IP and per-device rate limits, referral
@@ -65,10 +66,10 @@ These are hypotheses to validate in week 1, not historical results.
 
 ## 4. Weekly cadence
 
-**Week 1 - Instrument and harden.** Ship the event schema, referral attribution and dashboard.
-Establish the activation baseline on physical iOS and Android devices. Verify App Attest / Play
-Integrity rejection paths, the security hold, and the `/v1/broadcast` 404 at the edge. No paid
-traffic until the claim settlement path is real.
+**Week 1 - Instrument and harden.** The event schema, receipt-gated share bonus, Genesis Points and
+dashboard are implemented. Establish the activation baseline on physical iOS and Android devices.
+Verify App Attest / Play Integrity rejection paths, the security hold, and the `/v1/broadcast` 404
+at the edge. No paid traffic until the claim settlement path is real.
 
 **Week 2 - Referral loop.** Test three ClaimCard variants (reward framing, social proof, QR
 placement) and two share-link entry points. Run the leaderboard as a read-only display first; do
@@ -106,7 +107,7 @@ The hold freezes the two value-moving routes; `/v1/broadcast` is already a hard 
 2. rotate exposed credentials in the provider console;
 3. roll back to the last known-good deployment if the defect is in the release;
 4. notify users only with verified facts, never with a promise that a reward settled when it did not;
-5. release the hold only after the fix is verified on a physical device and the policy gate is 28/28.
+5. release the hold only after the fix is verified on a physical device and every policy test passes.
 
 ## 7. Non-goals
 
@@ -114,3 +115,17 @@ The hold freezes the two value-moving routes; `/v1/broadcast` is already a hard 
 - Announcing an on-chain reward before the settlement transaction exists.
 - A destructive "self-destruct" that deletes keys or user data. Containment is freeze, rotate,
   roll back and disclose; irreversible destruction creates a second incident.
+
+## 8. Implemented growth loop
+
+- Share unlock: `/api/growth/share-intent` seals an HttpOnly receipt bound to the hardware
+  enrollment. The claim route ignores client booleans and applies `1.25x` only while the receipt is
+  valid. The base reward never depends on sharing.
+- Genesis Points: referral open `5`, conversion `100`, share intent `25`, claim broadcast `250`.
+  Tiers are `1.0x` (seed), `1.1x` at 10 conversions, `1.25x` at 100, and `1.5x` at 1,000.
+- Attribution: aggregate counters and hashed bitmap positions only. No IP, wallet, credential ID,
+  assertion, message body or free-form visitor identifier is accepted by the growth-event route.
+- D1/D7: the first app open creates a cohort bitmap; D1 and D7 are the share of that cohort active on
+  the corresponding later UTC day. Bitmap collisions make these approximate at very large scale.
+- Distribution: see `docs/GROWTH_KOL_BLITZ.md` for the golden-link format, KOL whitelist process,
+  Telegram copy and X templates.

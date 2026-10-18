@@ -1,0 +1,44 @@
+{
+  "campaignId": "maotang-genesis-30d",
+  "share": {
+    "requiredForBoost": true,
+    "platforms": ["x", "telegram"],
+    "boostBps": 12500,
+    "receiptTtlSeconds": 900,
+    "maxCountedPerPlatformPerDay": 1
+  },
+  "genesisPoints": {
+    "referralOpen": 5,
+    "referralConversion": 100,
+    "shareIntent": 25,
+    "claimBroadcast": 250
+  },
+  "referralTiers": [
+    {
+      "label": "seed",
+      "minConversions": 0,
+      "multiplierBps": 10000
+    },
+    {
+      "label": "signal",
+      "minConversions": 10,
+      "multiplierBps": 11000
+    },
+    {
+      "label": "gold",
+      "minConversions": 100,
+      "multiplierBps": 12500
+    },
+    {
+      "label": "constellation",
+      "minConversions": 1000,
+      "multiplierBps": 15000
+    }
+  ],
+  "metrics": {
+    "activeBitmapBits": 4194304,
+    "retentionDays": [1, 7],
+    "ttlDays": 60
+  },
+  "kolWhitelist": []
+}

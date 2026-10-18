@@ -53,6 +53,7 @@ import {
 } from "@/lib/agent/paymaster-view";
 import type { AgentRefusal, IntentSuccess } from "@/lib/agent/types";
 import type { AuthenticationOptionsJSON, RegistrationOptionsJSON } from "@/lib/agent/webauthn";
+import { reportGrowthEvent } from "@/lib/growth/client";
 import { useLanguage } from "@/lib/i18n/language";
 import { durationBucket, trackEvent } from "@/lib/telemetry";
 
@@ -95,6 +96,12 @@ interface ClaimReply {
     readonly txHash?: string;
     readonly explorerUrl?: string | null;
     readonly chainId?: number;
+    readonly multiplierBps?: number;
+    readonly sharePlatform?: string | null;
+    readonly attribution?: {
+      readonly persistent?: boolean;
+      readonly counted?: boolean;
+    };
   };
 }
 
@@ -193,6 +200,9 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
   const claimGeneration = useRef(0);
   const referralTracked = useRef(false);
   const pwaTracked = useRef(false);
+  const growthOpenTracked = useRef(false);
+  const growthInstallTracked = useRef(false);
+  const growthReferralTracked = useRef(false);
   const dechatSessionStart = useRef<number | null>(null);
 
   const session = useBiometricOwner();
@@ -231,8 +241,29 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     }
   }, []);
 
-  // A single install-mode sample per page session plus a real `appinstalled` signal. The server has
-  // no durable store, so these are deliberately coarse labels and nothing device-identifying.
+  useEffect(() => {
+    if (session.credentialId === null) {
+      return;
+    }
+    if (!growthOpenTracked.current) {
+      growthOpenTracked.current = true;
+      void reportGrowthEvent("app_open", referral);
+    }
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches === true ||
+      (window.navigator as Navigator & { readonly standalone?: boolean }).standalone === true;
+    if (standalone && !growthInstallTracked.current) {
+      growthInstallTracked.current = true;
+      void reportGrowthEvent("pwa_install", referral);
+    }
+    if (referral !== null && !growthReferralTracked.current) {
+      growthReferralTracked.current = true;
+      void reportGrowthEvent("referral_open", referral);
+    }
+  }, [referral, session.credentialId]);
+
+  // Compatibility telemetry remains coarse. Durable growth events are recorded separately once the
+  // hardware enrollment is known, so this sample never substitutes for the attribution ledger.
   useEffect(() => {
     const standalone =
       window.matchMedia?.("(display-mode: standalone)").matches === true ||
@@ -558,6 +589,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     setRegistrationOptions(null);
     const result = await session.enroll(CREDENTIAL_LABEL, options, owner);
     if (result.ok) {
+      void reportGrowthEvent("activation", referral);
       toasts.push("success", t("toast.enrolled"));
       return true;
     }
@@ -565,7 +597,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     const { tone, message } = biometricFailureToast(result.failure, language);
     toasts.push(tone, message);
     return false;
-  }, [language, owner, registrationOptions, session, t, toasts]);
+  }, [language, owner, referral, registrationOptions, session, t, toasts]);
 
   // -- local hardware owner check ----------------------------------------------------------------
 
@@ -708,6 +740,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
     setClaimChallenge({ kind: "idle" });
     setClaimState({ phase: "authorizing" });
     trackEvent("claim_start");
+    void reportGrowthEvent("claim_start", referral);
 
     void (async () => {
       const outcome = await pending;
@@ -737,6 +770,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
           body: JSON.stringify({
             alias: claimAlias,
             recipient: currentOwner,
+            referral,
             assertion: outcome.assertion.response,
           }),
         });
@@ -839,7 +873,7 @@ export function ConsumerView({ mode, onSwitchMode, view, onSwitchView }: Consume
         trackEvent("claim_failed", { code: "CLAIM_UNREACHABLE" });
       }
     })();
-  }, [claimChallenge, claimState.phase, language, session, statusState, t, toasts]);
+  }, [claimChallenge, claimState.phase, language, referral, session, statusState, t, toasts]);
 
   // -- personhood refresh ------------------------------------------------------------------------
 

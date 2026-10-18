@@ -12,6 +12,8 @@ import {
   readClaimReceipt,
   readFaucetConfig,
 } from "@/lib/agent/faucet";
+import { readOptionalGrowthIdentity } from "@/lib/growth/server";
+import { recordGrowthEvent } from "@/lib/growth/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +50,16 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const client = createFaucetClient(config);
     const receipt = await readClaimReceipt(client, txHash);
+    if (receipt.status === "confirmed" || receipt.status === "failed") {
+      const growth = readOptionalGrowthIdentity(request);
+      if (growth !== null) {
+        await recordGrowthEvent({
+          event: receipt.status === "confirmed" ? "claim_settled" : "claim_failed",
+          identity: growth.identity,
+          uniqueScope: `${receipt.status}:${txHash.toLowerCase()}`,
+        });
+      }
+    }
     return reply({
       ok: true,
       configured: true,

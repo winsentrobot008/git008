@@ -9,7 +9,9 @@
  *
  * The state shown below is therefore a real transaction: `txHash` comes from the faucet broadcast and
  * the pending/confirmed/failed transition comes from `/api/agent/claim/status` polling. A missing or
- * unconfigured faucet is an error code, never a fabricated balance or a pending ticket.
+ * unconfigured faucet is an error code, never a fabricated balance or a pending ticket. The X and
+ * Telegram buttons seal a server receipt for the bonus; that receipt records share intent and does
+ * not assert that a platform published the post.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -17,6 +19,18 @@ import { QRCodeSVG } from "qrcode.react";
 
 import type { ConsoleBiometricState } from "@/components/console/biometric-view";
 import { FingerprintMark } from "@/components/console/BrandMark";
+import {
+  readShareUnlock,
+  sealShareIntent,
+  type ShareUnlockState,
+} from "@/lib/growth/client";
+import {
+  SHARE_BOOST_BPS,
+  multiplierLabel,
+  previewRewardLabel,
+  shareComposerUrl,
+  type SharePlatform,
+} from "@/lib/growth/rules";
 import { useLanguage } from "@/lib/i18n/language";
 
 export type ClaimChainStatus = "pending" | "confirmed" | "failed";
@@ -87,6 +101,12 @@ export function ClaimCard({
 }: ClaimCardProps) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
+  const [sharePhase, setSharePhase] = useState<
+    "loading" | "locked" | "sealing" | "unlocked" | "error"
+  >("loading");
+  const [shareUnlock, setShareUnlock] = useState<ShareUnlockState | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [sharePlatform, setSharePlatform] = useState<SharePlatform | null>(null);
 
   const identity = alias === null ? null : `${alias}.008ai`;
   const onchain = state.phase === "onchain" ? state : null;
@@ -94,6 +114,32 @@ export function ClaimCard({
   const canEnroll = alias !== null && bio.platformAuthenticator && bio.credentialId === null;
   const canClaim = alias !== null && bio.platformAuthenticator && bio.credentialId !== null;
   const canRetry = onchain === null || onchain.chainStatus === "failed";
+  const canShare =
+    shareUrl !== null && identity !== null && bio.credentialId !== null && onchain === null && !busy;
+  const boostLabel = multiplierLabel(SHARE_BOOST_BPS);
+  const bonusPreview = shareUnlock?.bonusReward ?? previewRewardLabel(SHARE_BOOST_BPS);
+  const shareMinutes = Math.max(1, Math.ceil((shareUnlock?.receiptTtlSeconds ?? 0) / 60));
+
+  useEffect(() => {
+    if (bio.credentialId === null) {
+      setSharePhase("locked");
+      return;
+    }
+    const controller = new AbortController();
+    void readShareUnlock(controller.signal).then((next) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+      if (next?.unlocked === true) {
+        setShareUnlock(next);
+        setSharePhase("unlocked");
+        return;
+      }
+      setShareUnlock(null);
+      setSharePhase("locked");
+    });
+    return () => controller.abort();
+  }, [bio.credentialId]);
 
   useEffect(() => {
     if (!copied) {
@@ -115,27 +161,33 @@ export function ClaimCard({
     }
   }, [shareUrl]);
 
-  const share = useCallback(async () => {
-    if (shareUrl === null || identity === null) {
+  const beginShare = useCallback((platform: SharePlatform) => {
+    if (!canShare) {
       return;
     }
-    const payload = {
-      title: t("claim.shareTitle"),
-      text: t("claim.shareText", { alias: identity }),
-      url: shareUrl,
-    };
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share(payload);
-        return;
-      } catch (error) {
-        if ((error as { name?: string } | null)?.name === "AbortError") {
-          return;
-        }
-      }
-    }
-    await copy();
-  }, [copy, identity, shareUrl, t]);
+    setSharePlatform(platform);
+    setShareError(null);
+    setSharePhase("sealing");
+    void sealShareIntent(platform)
+      .then((next) => {
+        setShareUnlock(next);
+        setSharePhase("unlocked");
+      })
+      .catch((error: unknown) => {
+        setShareError(error instanceof Error ? error.message : "SHARE_RECEIPT_UNREACHABLE");
+        setSharePhase("error");
+      });
+  }, [canShare]);
+
+  const xText =
+    identity === null ? "" : t("claim.shareXText", { alias: identity, multiplier: boostLabel });
+  const telegramText =
+    identity === null
+      ? ""
+      : t("claim.shareTelegramText", { alias: identity, multiplier: boostLabel });
+  const xComposer = shareUrl === null ? null : shareComposerUrl("x", xText, shareUrl);
+  const telegramComposer =
+    shareUrl === null ? null : shareComposerUrl("telegram", telegramText, shareUrl);
 
   const statusText =
     state.phase === "authorizing"
@@ -213,7 +265,12 @@ export function ClaimCard({
           <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
             {t("claim.identityLabel")}
           </p>
-          <p className="mt-1 break-all font-mono text-[11.5px] font-semibold text-slate-800">
+          <p
+            className={
+              "mt-1 font-mono text-[11.5px] font-semibold text-slate-800 " +
+              (identity === null ? "break-words" : "break-all")
+            }
+          >
             {identity ?? t("claim.identityPending")}
           </p>
           <p className="mt-1 text-[9.5px] leading-relaxed text-slate-400">{t("claim.identityNote")}</p>
@@ -226,16 +283,74 @@ export function ClaimCard({
             >
               {copied ? t("claim.copied") : t("claim.copy")}
             </button>
-            <button
-              type="button"
-              onClick={() => void share()}
-              disabled={shareUrl === null}
-              className="inline-flex min-h-10 touch-manipulation items-center justify-center rounded-full border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.85)] px-2.5 text-[10px] font-medium text-[#8f5568] transition hover:bg-[rgba(255,182,193,0.35)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
+            <a
+              href={xComposer ?? undefined}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-disabled={!canShare}
+              onClick={() => beginShare("x")}
+              className={
+                "inline-flex min-h-10 touch-manipulation items-center justify-center rounded-full border border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.85)] px-2.5 text-[10px] font-medium text-[#8f5568] transition hover:bg-[rgba(255,182,193,0.35)] active:scale-[0.97] " +
+                (canShare ? "" : "pointer-events-none opacity-45")
+              }
             >
-              {t("claim.share")}
-            </button>
+              {t("claim.shareX")}
+            </a>
+            <a
+              href={telegramComposer ?? undefined}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-disabled={!canShare}
+              onClick={() => beginShare("telegram")}
+              className={
+                "inline-flex min-h-10 touch-manipulation items-center justify-center rounded-full border border-[#ffb6c1]/70 bg-white/80 px-2.5 text-[10px] font-medium text-[#8f5568] transition hover:bg-white active:scale-[0.97] " +
+                (canShare ? "" : "pointer-events-none opacity-45")
+              }
+            >
+              {t("claim.shareTelegram")}
+            </a>
           </div>
         </div>
+      </div>
+
+      <div
+        className={
+          "mt-3 rounded-2xl border px-3 py-2.5 " +
+          (sharePhase === "unlocked"
+            ? "border-emerald-300/75 bg-emerald-50/75"
+            : sharePhase === "error"
+              ? "border-rose-300/70 bg-rose-50/70"
+              : "border-[#ffb6c1]/70 bg-[rgba(255,240,243,0.72)]")
+        }
+      >
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold text-[#6b3f4d]">
+            {sharePhase === "unlocked"
+              ? t("claim.boostUnlockedLabel", { multiplier: boostLabel })
+              : t("claim.boostLockedLabel", { multiplier: boostLabel })}
+          </p>
+          <span className="shrink-0 font-mono text-[10px] text-[#8f5568]">
+            {sharePhase === "unlocked"
+              ? t("claim.boostAmount", { reward: bonusPreview })
+              : t("claim.amount")}
+          </span>
+        </div>
+        <p className="mt-1 text-[9.5px] leading-relaxed text-slate-500">
+          {sharePhase === "loading"
+            ? t("claim.shareChecking")
+            : sharePhase === "sealing"
+              ? t("claim.shareSealing", {
+                  platform: sharePlatform === "telegram" ? "Telegram" : "X",
+                })
+              : sharePhase === "unlocked"
+                ? t("claim.shareUnlocked", { minutes: shareMinutes })
+                : sharePhase === "error"
+                  ? t("claim.shareFailed", { code: shareError ?? "SHARE_RECEIPT_UNREACHABLE" })
+                  : t("claim.shareRequired", { multiplier: boostLabel })}
+        </p>
+        <p className="mt-1 text-[8.5px] leading-relaxed text-slate-400">
+          {t("claim.shareProofNote")}
+        </p>
       </div>
 
       <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl border border-white/85 bg-white/65 px-3.5 py-3">
@@ -244,7 +359,11 @@ export function ClaimCard({
             {t("claim.rewardLabel")}
           </p>
           <p className="mt-0.5 font-mono text-[1.3rem] font-semibold leading-none text-[#6b3f4d]">
-            {onchain === null ? t("claim.amount") : `${onchain.reward} ${onchain.symbol}`}
+            {onchain === null
+              ? sharePhase === "unlocked"
+                ? t("claim.boostAmount", { reward: bonusPreview })
+                : t("claim.amount")
+              : `${onchain.reward} ${onchain.symbol}`}
           </p>
         </div>
         <span className="max-w-[52%] text-right text-[9px] leading-relaxed text-slate-400">

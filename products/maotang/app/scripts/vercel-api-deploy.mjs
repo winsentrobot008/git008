@@ -61,6 +61,7 @@ const MANIFEST_FILE = path.join(CWD, "config", "contracts.json");
 const SENSITIVE_ENV_KEYS = new Set([
   "MAOTANG_FAUCET_PRIVATE_KEY",
   "MAOTANG_WEBAUTHN_SECRET",
+  "MAOTANG_GROWTH_REDIS_REST_TOKEN",
 ]);
 
 function readManifest() {
@@ -148,7 +149,7 @@ function buildProductionEnv(manifest, requireSecrets = true) {
     throw new Error("ERR_ENV_INVALID: MAOTANG_WEBAUTHN_SECRET must be at least 32 characters");
   }
 
-  return {
+  const productionEnv = {
     NEXT_PUBLIC_CHAIN_ID: network.chainId,
     NEXT_PUBLIC_MAOTANG_RPC_URL: PUBLIC_RPC_URL,
     NEXT_PUBLIC_MAOTANG_FACTORY_ADDRESS: contracts.MaoTangFactory || "",
@@ -178,6 +179,18 @@ function buildProductionEnv(manifest, requireSecrets = true) {
     AGENT_POLICY_WINDOW_SECONDS: "86400",
     AGENT_SLM_ALLOW_DETERMINISTIC_IN_PRODUCTION: "1",
   };
+
+  for (const key of [
+    "MAOTANG_GROWTH_REDIS_REST_URL",
+    "MAOTANG_GROWTH_REDIS_REST_TOKEN",
+    "MAOTANG_KOL_CODES",
+  ]) {
+    const value = process.env[key]?.trim();
+    if (value !== undefined && value !== "") {
+      productionEnv[key] = value;
+    }
+  }
+  return productionEnv;
 }
 
 /** Where the sibling packages are vendored inside the root directory. Artifact-only: the

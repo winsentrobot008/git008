@@ -21,6 +21,7 @@ interface DeploymentManifest {
     MaotangFaucetToken?: string;
     MaotangFaucet?: string;
   };
+  faucet?: { rewardUnits?: string };
   referenceCurve?: { curve?: string };
 }
 
@@ -37,6 +38,7 @@ function deploymentManifest(): DeploymentManifest {
 const manifest = deploymentManifest();
 const beneficiaries = manifest.beneficiaries ?? {};
 const contracts = manifest.contracts ?? {};
+const faucet = manifest.faucet ?? {};
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -59,6 +61,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_MANIFEST_HUMAN_TOKEN_ADDRESS: contracts.HumanToken ?? "",
     NEXT_PUBLIC_MANIFEST_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken ?? "",
     NEXT_PUBLIC_MANIFEST_FAUCET_ADDRESS: contracts.MaotangFaucet ?? "",
+    NEXT_PUBLIC_MANIFEST_FAUCET_REWARD_UNITS: faucet.rewardUnits ?? "",
     NEXT_PUBLIC_MAOTANG_FAUCET_TOKEN_ADDRESS: contracts.MaotangFaucetToken ?? "",
     NEXT_PUBLIC_MAOTANG_FAUCET_ADDRESS: contracts.MaotangFaucet ?? "",
     NEXT_PUBLIC_MANIFEST_CURVE_ADDRESS: manifest.referenceCurve?.curve ?? "",

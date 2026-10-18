@@ -23,9 +23,17 @@ import {
   hasClaimed,
   preflightFaucet,
   readFaucetConfig,
-  submitClaim,
+  submitClaimAmount,
   FaucetError,
 } from "@/lib/agent/faucet";
+import { GROWTH_SHARE_COOKIE, readShareReceipt } from "@/lib/growth/receipt";
+import {
+  SHARE_BOOST_BPS,
+  boostClaimUnits,
+  normalizeReferral,
+} from "@/lib/growth/rules";
+import { growthIdentity } from "@/lib/growth/server";
+import { recordGrowthEvent } from "@/lib/growth/store";
 import {
   CHALLENGE_COOKIE,
   CLAIM_CHALLENGE_TYPE,
@@ -114,6 +122,11 @@ export async function POST(request: Request): Promise<Response> {
     return refusal("INVALID_BODY", "the claim body must be a JSON object", 400);
   }
   const record = body as Record<string, unknown>;
+  const referralInput = typeof record.referral === "string" ? record.referral : "";
+  const referralCode = normalizeReferral(referralInput);
+  if (referralInput !== "" && referralCode === null) {
+    return refusal("REFERRAL_INVALID", "referral must be 1-32 lowercase alphanumeric characters");
+  }
   const assertion = record.assertion;
   if (!isAuthenticationResponseJSON(assertion)) {
     return refusal("ASSERTION_SHAPE_INVALID", "assertion is not a WebAuthn authentication response");
@@ -174,10 +187,15 @@ export async function POST(request: Request): Promise<Response> {
   if (identityHash !== enrollment.identityHash) {
     return refusal("IDENTITY_MISMATCH", "the stored identity hash does not match this credential", 409);
   }
+  const growth = growthIdentity(enrollment, webAuthn.secret);
+  const attributedCode = referralCode !== null && referralCode !== growth.alias ? referralCode : null;
+  const shareReceipt = readShareReceipt(request, webAuthn.secret, enrollment);
 
   const client = createFaucetClient(faucet);
   let preflight;
   let txHash: string;
+  let multiplierBps: number;
+  let rewardUnits: bigint;
   try {
     preflight = await preflightFaucet(client, faucet);
     if (preflight.paused) {
@@ -186,7 +204,16 @@ export async function POST(request: Request): Promise<Response> {
     if (await hasClaimed(client, identityHash)) {
       return refusal("ALREADY_CLAIMED", "this hardware identity has already claimed", 409);
     }
-    txHash = await submitClaim(client, recipient, identityHash);
+    multiplierBps = shareReceipt === null ? 10_000 : SHARE_BOOST_BPS;
+    rewardUnits = boostClaimUnits(BigInt(preflight.rewardUnits), multiplierBps);
+    if (rewardUnits > BigInt(preflight.maxRewardUnits)) {
+      return refusal(
+        "FAUCET_REWARD_CAP_EXCEEDED",
+        "the server-derived claim reward exceeds the faucet contract cap",
+        503,
+      );
+    }
+    txHash = await submitClaimAmount(client, recipient, identityHash, rewardUnits);
   } catch (error) {
     if (error instanceof FaucetError) {
       const status = error.code === "ALREADY_CLAIMED" ? 409 : 503;
@@ -213,7 +240,13 @@ export async function POST(request: Request): Promise<Response> {
     verifiedAt: Date.now(),
   };
 
-  const reward = formatUnits(preflight.rewardUnits, preflight.decimals);
+  const attribution = await recordGrowthEvent({
+    event: "claim_broadcast",
+    code: attributedCode,
+    identity: growth,
+    uniqueScope: "claim_broadcast",
+  });
+  const reward = formatUnits(rewardUnits, preflight.decimals);
   return jsonWithCookies(
     {
       ok: true,
@@ -222,7 +255,11 @@ export async function POST(request: Request): Promise<Response> {
         id: `mtc_${identityHash.slice(2, 26)}`,
         alias: updatedEnrollment.alias === null ? null : `${updatedEnrollment.alias}.008ai`,
         reward,
-        rewardUnits: preflight.rewardUnits,
+        rewardUnits: rewardUnits.toString(),
+        baseRewardUnits: preflight.rewardUnits,
+        maxRewardUnits: preflight.maxRewardUnits,
+        multiplierBps,
+        sharePlatform: shareReceipt?.platform ?? null,
         symbol: preflight.symbol,
         status: "pending",
         settlement: "onchain",
@@ -232,6 +269,7 @@ export async function POST(request: Request): Promise<Response> {
         identityHash,
         recipient,
         chainId: faucet.chainId,
+        attribution,
         attestation: {
           verified: true,
           userVerified: true,
@@ -256,6 +294,7 @@ export async function POST(request: Request): Promise<Response> {
         webAuthn.secureCookies,
       ),
       clearCookie(CHALLENGE_COOKIE),
+      clearCookie(GROWTH_SHARE_COOKIE),
     ],
   );
 }

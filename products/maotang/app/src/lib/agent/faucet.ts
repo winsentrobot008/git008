@@ -23,7 +23,9 @@ import {
 const FAUCET_ABI = [
   "function hasClaimed(bytes32 identityHash) view returns (bool)",
   "function claimDefault(address recipient, bytes32 identityHash)",
+  "function claim(address recipient, bytes32 identityHash, uint256 amount)",
   "function mintAuthority() view returns (address)",
+  "function maxRewardUnits() view returns (uint256)",
   "function paused() view returns (bool)",
   "function rewardUnits() view returns (uint256)",
   "function totalClaims() view returns (uint256)",
@@ -126,6 +128,7 @@ export interface FaucetPreflight {
   readonly mintAuthority: string;
   readonly paused: boolean;
   readonly rewardUnits: string;
+  readonly maxRewardUnits: string;
   readonly symbol: string;
   readonly decimals: number;
 }
@@ -145,12 +148,13 @@ export class FaucetError extends Error {
  * contract is not paused, and the reward is the contract's own number rather than an env literal.
  */
 export async function preflightFaucet(client: FaucetClient, config: FaucetConfig): Promise<FaucetPreflight> {
-  const [mintAuthority, paused, rewardUnits, tokenAddress] = (await Promise.all([
+  const [mintAuthority, paused, rewardUnits, maxRewardUnits, tokenAddress] = (await Promise.all([
     client.faucet.mintAuthority() as Promise<string>,
     client.faucet.paused() as Promise<boolean>,
     client.faucet.rewardUnits() as Promise<bigint>,
+    client.faucet.maxRewardUnits() as Promise<bigint>,
     client.faucet.token() as Promise<string>,
-  ])) as [string, boolean, bigint, string];
+  ])) as [string, boolean, bigint, bigint, string];
 
   if (getAddress(mintAuthority) !== getAddress(client.wallet.address)) {
     throw new FaucetError(
@@ -182,6 +186,7 @@ export async function preflightFaucet(client: FaucetClient, config: FaucetConfig
     mintAuthority: getAddress(mintAuthority),
     paused,
     rewardUnits: rewardUnits.toString(),
+    maxRewardUnits: maxRewardUnits.toString(),
     symbol,
     decimals: Number(decimals),
   };
@@ -201,6 +206,31 @@ export async function submitClaim(
   recipient: string,
   identityHash: string,
 ): Promise<string> {
+  return submitClaimTransaction(client, recipient, identityHash, null);
+}
+
+/**
+ * Submits an explicit faucet amount. The claim route derives and caps this value server-side; it is
+ * never accepted from the browser.
+ */
+export async function submitClaimAmount(
+  client: FaucetClient,
+  recipient: string,
+  identityHash: string,
+  amountUnits: bigint,
+): Promise<string> {
+  if (amountUnits <= 0n) {
+    throw new FaucetError("CLAIM_AMOUNT_INVALID", "claim amount must be positive");
+  }
+  return submitClaimTransaction(client, recipient, identityHash, amountUnits);
+}
+
+async function submitClaimTransaction(
+  client: FaucetClient,
+  recipient: string,
+  identityHash: string,
+  amountUnits: bigint | null,
+): Promise<string> {
   if (!isAddress(recipient)) {
     throw new FaucetError("RECIPIENT_INVALID", "recipient must be a 20-byte EVM address");
   }
@@ -213,7 +243,10 @@ export async function submitClaim(
 
   try {
     const nonce = await client.provider.getTransactionCount(client.wallet.address, "pending");
-    const transaction = await client.faucet.claimDefault(getAddress(recipient), identityHash, { nonce });
+    const transaction =
+      amountUnits === null
+        ? await client.faucet.claimDefault(getAddress(recipient), identityHash, { nonce })
+        : await client.faucet.claim(getAddress(recipient), identityHash, amountUnits, { nonce });
     return transaction.hash as string;
   } catch (error) {
     if (error instanceof FaucetError) {
