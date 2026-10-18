@@ -17,6 +17,7 @@
  *
  * Usage (from `app/`):
  *   node scripts/vercel-api-deploy.mjs --dry-run
+ *   node scripts/vercel-api-deploy.mjs --reuse-existing-env
  *   VERCEL_TOKEN=... node scripts/vercel-api-deploy.mjs
  *
  * The token is read from the environment only and is never logged.
@@ -529,8 +530,15 @@ async function verifyDomain() {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  // Encrypted Vercel values are not always exportable to a local operator. This explicit mode
+  // reuses the project's existing production environment without reading or rewriting any value.
+  const reuseExistingEnv = process.argv.includes("--reuse-existing-env");
   const manifest = readManifest();
-  const productionEnv = buildProductionEnv(manifest, !dryRun);
+  const productionEnv = dryRun
+    ? buildProductionEnv(manifest, false)
+    : reuseExistingEnv
+      ? null
+      : buildProductionEnv(manifest, true);
   preflight(!dryRun);
 
   if (dryRun) {
@@ -553,8 +561,12 @@ async function main() {
   console.log("[2/5] apply project settings");
   await setProjectSettings();
 
-  console.log("[3/5] upsert production env vars");
-  await upsertEnv(productionEnv);
+  if (reuseExistingEnv) {
+    console.log("[3/5] reuse existing production env vars");
+  } else {
+    console.log("[3/5] upsert production env vars");
+    await upsertEnv(productionEnv);
+  }
 
   console.log("[4/5] upload sources and trigger production build");
   const files = collectFiles();
